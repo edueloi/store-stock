@@ -610,6 +610,28 @@ body {
 .store-theme-fitness > footer { background: #121612 !important; border-color: #b6ff25 !important; }
 .store-theme-sport main, .store-theme-fitness main { overflow-x: clip; }
 
+/* Fit Lab não reutiliza a composição de loja esportiva: vitrine de treino clara,
+   assimétrica e com um produto principal em escala maior. */
+.sport-fitness { background: #f6f7f3; }
+.sport-fitness > section:first-of-type { min-height: 560px; background: #e8f0dd !important; color: #121612 !important; }
+.sport-fitness > section:first-of-type h1 { max-width: 760px !important; font-size: clamp(3.5rem, 9vw, 7.5rem) !important; color: #121612; }
+.sport-fitness > section:first-of-type p { color: #34402e !important; }
+.sport-fitness > section:first-of-type a { background: #121612 !important; color: #b6ff25 !important; }
+.sport-fitness > section:first-of-type [class*="absolute"] { mix-blend-mode: multiply; opacity: .18 !important; }
+.sport-fitness .grid.gap-x-5 > article:first-child { grid-column: span 2 / span 2; }
+.sport-fitness .grid.gap-x-5 > article:first-child > a { aspect-ratio: 16 / 10; padding: 2.5rem; }
+.sport-fitness .grid.gap-x-5 > article:first-child > p { margin-top: 1.25rem; font-size: .7rem; }
+.sport-fitness .grid.gap-x-5 > article:first-child > a + button { right: 1.25rem; top: 1.25rem; }
+.sport-fitness .grid.gap-x-5 > article { border-top-color: #9eaa92; }
+.sport-fitness .grid.gap-x-5 > article > a { background: #fff !important; border: 1px solid #d7dfce; }
+.sport-fitness .grid.gap-x-5 > article button { border-radius: 9999px; }
+.sport-fitness .grid.gap-x-5 > article > div > div button { background: #b6ff25 !important; color: #121612 !important; border-color: #b6ff25 !important; }
+.sport-fitness input { border-radius: 9999px; border-color: #9eaa92; }
+.sport-fitness .border-black\/15 { border-color: #c7d0bc !important; }
+.sport-fitness .bg-\[\#f2f3f3\] { background: #e8f0dd !important; }
+.sport-fitness .border-black\/20 { border-color: #9eaa92 !important; }
+@media (max-width: 639px) { .sport-fitness .grid.gap-x-5 > article:first-child { grid-column: span 1 / span 1; } .sport-fitness .grid.gap-x-5 > article:first-child > a { aspect-ratio: 4 / 5; } }
+
 /* Elétrica Pro: linguagem industrial própria, com sinalização laranja e base azul-naval. */
 .store-theme-electric { background: #f6f8fb; color: #102033; }
 .store-theme-electric > header { background: rgba(7, 20, 38, .97) !important; border-color: #2e4359 !important; box-shadow: 0 10px 30px rgba(7, 20, 38, .28) !important; }
