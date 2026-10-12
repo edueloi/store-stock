@@ -94,6 +94,13 @@ function themePages(templateId: string | undefined) {
       Product: lazy(() => import("./themes/toys/StoreProduct")),
       About: lazy(() => import("./themes/toys/StoreAbout")),
     };
+  if (t === "marketplace")
+    return {
+      Front: lazy(() => import("./themes/marketplace/StoreFront")),
+      Catalog: lazy(() => import("./themes/marketplace/StoreCatalog")),
+      Product: lazy(() => import("./themes/marketplace/StoreProduct")),
+      About: lazy(() => import("./themes/marketplace/StoreAbout")),
+    };
   if (t === "doceria")
     return {
       Front: lazy(() => import("./themes/doceria/StoreFront")),
@@ -275,6 +282,14 @@ const templates: Record<string, StoreStyle> = {
     text: "text-[#43306f]",
     font: "font-sans",
     radius: "rounded-2xl",
+  },
+  marketplace: {
+    bg: "bg-[#f3f3f3]",
+    card: "bg-white border-slate-200",
+    accent: "#2563eb",
+    text: "text-slate-900",
+    font: "font-sans",
+    radius: "rounded-md",
   },
   doceria: {
     bg: "candy-shell bg-[#f7f6ed]",
@@ -734,6 +749,7 @@ function StoreLayoutInner() {
   const isDoceria = templateId === "doceria";
   const isFragrance = templateId === "fragrance";
   const isStreet = templateId === "street";
+  const isMarketplace = templateId === "marketplace";
 
   const navLinks = [
     { label: "Início", path: storePath(), icon: <Home size={15} /> },
@@ -803,7 +819,9 @@ function StoreLayoutInner() {
         <header
           className={cn(
             "sticky top-0 z-50 border-b shadow-sm",
-            isStreet
+            isMarketplace
+              ? "bg-[#ffe600] border-[#e6c800]"
+              : isStreet
               ? "bg-[#0a0a0a]/95 backdrop-blur-xl border-[#303030]"
               : isFragrance
                 ? "bg-[#fffaf4]/95 backdrop-blur-xl border-[#e5d7c7]"
@@ -945,8 +963,14 @@ function StoreLayoutInner() {
               </div>
             </Link>
 
+            {isMarketplace && (
+              <form onSubmit={handleSearch} className="hidden min-w-0 flex-1 lg:block lg:max-w-xl">
+                <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Buscar produtos, marcas e muito mais..." className="store-marketplace-search" />
+              </form>
+            )}
+
             {/* Desktop nav */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className={cn("hidden items-center gap-1", isMarketplace ? "xl:flex" : "md:flex")}>
               {navLinks.map((l) => {
                 const linkClassName = cn(
                   "flex items-center gap-2 transition-all",

@@ -540,6 +540,18 @@ body {
 .store-theme-fragrance .store-search-input input { border-color: #334155; background: #111827; color: #f8fafc; }
 .store-theme-fragrance .store-search-input input::placeholder { color: #94a3b8; }
 
+/* Marketplace Pro: navegação comercial para catálogos amplos, sem replicar
+   marcas de terceiros. */
+.store-theme-marketplace { background: #f3f3f3; }
+.store-theme-marketplace > header { background: #ffe600 !important; border-color: #e6c800 !important; box-shadow: none !important; }
+.store-theme-marketplace > header .store-marketplace-search input { height: 42px; border: 0; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.12); font-size: 14px; }
+.store-theme-marketplace > header nav a { color: #263242 !important; border-radius: 4px !important; }
+.store-theme-marketplace > header nav a:hover { background: rgba(255,255,255,.35) !important; }
+.store-theme-marketplace > footer { background: #fff !important; border-color: #ddd !important; color: #4b5563 !important; }
+.store-theme-marketplace > footer h4 { color: #1f2937 !important; }
+.store-theme-marketplace > footer p, .store-theme-marketplace > footer a { color: #64748b !important; }
+.store-theme-marketplace .store-search-input input { border-radius: 4px; }
+
 @media (max-width: 767px) {
   .store-theme-tech > header, .store-theme-cyber > header, .store-theme-luxury > header { backdrop-filter: blur(18px); }
   .store-theme-tech article, .store-theme-nexus_tech article, .store-theme-organic article { border-radius: 14px !important; }

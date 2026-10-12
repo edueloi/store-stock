@@ -3225,6 +3225,17 @@ export default function Settings({
                           badge: { bg: "#e3dcff", text: "#7148d5" },
                         },
                         {
+                          id: "marketplace",
+                          name: "Marketplace Pro",
+                          tag: "Eletrônicos & Catálogo Grande",
+                          desc: "Experiência comercial com busca ampla, categorias, ofertas e página de compra detalhada.",
+                          color: "#ffe600",
+                          bg: "#f3f3f3",
+                          cardBg: "#ffffff",
+                          textColor: "#172033",
+                          badge: { bg: "#fff1a8", text: "#1f3f8b" },
+                        },
+                        {
                           id: "electric",
                           name: "Elétrica Pro",
                           tag: "Claro & Robusto",
