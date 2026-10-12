@@ -470,7 +470,26 @@ body {
 .store-theme-atelier > footer { background: #2b211e !important; border-color: #a26157 !important; }
 .store-theme-atelier article { box-shadow: 0 18px 48px rgba(78, 49, 40, .08); }
 
+/* Campo de busca compartilhado da loja: mantém toque confortável e não força
+   largura em telas pequenas, mas recebe a identidade visual de cada tema. */
+.store-search-input { min-width: 0; }
+.store-search-input input { min-width: 0; }
+.store-theme-tech .store-search-input input,
+.store-theme-cyber .store-search-input input,
+.store-theme-luxury .store-search-input input,
+.store-theme-street .store-search-input input {
+  background: #0b1726;
+  border-color: #25496d;
+  color: #eff8ff;
+}
+.store-theme-cyber .store-search-input input { background: #07130d; border-color: #164b35; color: #e0ffea; }
+.store-theme-luxury .store-search-input input { background: #141210; border-color: rgba(205,166,93,.3); color: #f3ead7; }
+.store-theme-street .store-search-input input { background: #0a0a0a; border-color: #383838; color: #fff; }
+.store-theme-fragrance .store-search-input input { border-radius: 9999px; border-color: #ddcdbc; }
+.store-theme-street .store-search-input input { border-radius: 0; }
+
 @media (max-width: 767px) {
   .store-theme-tech > header, .store-theme-cyber > header, .store-theme-luxury > header { backdrop-filter: blur(18px); }
   .store-theme-tech article, .store-theme-nexus_tech article, .store-theme-organic article { border-radius: 14px !important; }
+  .store-search-input input { height: 44px; font-size: 16px; }
 }

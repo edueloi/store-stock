@@ -29,6 +29,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { Tenant, Product, Category } from "../../types";
 import WhatsAppWidget from "../../components/store/WhatsAppWidget";
+import SearchBar from "../../components/layout/SearchBar";
 import { buildStorePath, resolveStoreSlug } from "./store-routing";
 import { getVariationImages } from "../../utils/variationImages";
 
@@ -1251,33 +1252,12 @@ function StoreLayoutInner() {
                   onSubmit={handleSearch}
                   className="max-w-7xl mx-auto px-4 py-3 flex gap-2"
                 >
-                  <div className="flex-1 relative">
-                    <Search
-                      size={15}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                    />
-                    <input
-                      autoFocus
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Buscar produtos, categorias..."
-                      className={cn(
-                        "w-full pl-9 pr-4 h-10 text-sm outline-none transition-all",
-                        isStreet
-                          ? "bg-[#111] border border-[#383838] rounded-none text-white placeholder:text-[#666] focus:border-[#bcff00]"
-                          : isFragrance
-                            ? "bg-white border border-[#ddcdbc] rounded-full focus:border-[#9c7252] focus:ring-2 focus:ring-[#efe1d2]"
-                        : isElectronics
-                          ? "bg-[#0e1525] border border-[#1e2d4a] rounded-xl text-white placeholder:text-slate-600 focus:border-blue-500/70 focus:ring-2 focus:ring-blue-500/20"
-                          : isFashion
-                            ? "bg-white border border-[#ead7cc] rounded-full focus:border-[#c48a80] focus:ring-2 focus:ring-[#efd7d1]"
-                            : isTechNova
-                              ? "bg-white/90 border border-[#d7e4ff] rounded-full focus:border-[#7aa2ff] focus:ring-2 focus:ring-[#dce8ff]"
-                              : "bg-slate-50 border border-slate-200 rounded-xl focus:border-blue-400 focus:ring-2 focus:ring-blue-100",
-                      )}
-                    />
-                  </div>
+                  <SearchBar
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Buscar produtos, categorias..."
+                    className="store-search-input min-w-0 flex-1"
+                  />
                   <button
                     type="submit"
                     style={{ backgroundColor: style.accent }}
