@@ -488,6 +488,58 @@ body {
 .store-theme-fragrance .store-search-input input { border-radius: 9999px; border-color: #ddcdbc; }
 .store-theme-street .store-search-input input { border-radius: 0; }
 
+/* Essência: perfumaria contemporânea. Preto, branco e azul substituem a
+   estética bege para que a loja não se confunda com um tema de moda. */
+.store-theme-fragrance { background: #f5f7fb; color: #0f172a; }
+.store-theme-fragrance > header {
+  background: rgba(7, 11, 20, .96) !important;
+  border-color: #19253b !important;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, .22) !important;
+}
+.store-theme-fragrance > header p,
+.store-theme-fragrance > header span:not(.bg-white),
+.store-theme-fragrance > header a { color: #f8fafc !important; }
+.store-theme-fragrance > header nav a:not([style]) { color: #c9d6eb !important; }
+.store-theme-fragrance > header nav a:hover { color: #fff !important; background: #17233a !important; }
+.store-theme-fragrance > header button[style] { background-color: #2563eb !important; }
+.store-theme-fragrance > footer { background: #070b14 !important; border-color: #1d2a42 !important; }
+.store-theme-fragrance > footer h4,
+.store-theme-fragrance > footer p,
+.store-theme-fragrance > footer a { color: #e7eefb !important; }
+.store-theme-fragrance main { background: #f5f7fb !important; color: #0f172a; }
+.store-theme-fragrance [class*="bg-[#f8f4ee]"],
+.store-theme-fragrance [class*="bg-[#f4eadf]"],
+.store-theme-fragrance [class*="bg-[#f7f6ed]"] { background-color: #f5f7fb !important; }
+.store-theme-fragrance [class*="bg-[#fffdfa]"],
+.store-theme-fragrance [class*="bg-[#fffcf8]"] { background-color: #fff !important; }
+.store-theme-fragrance [class*="bg-[#40251d]"],
+.store-theme-fragrance [class*="bg-[#3b251e]"] { background-color: #0b1220 !important; }
+.store-theme-fragrance [class*="text-[#332019]"],
+.store-theme-fragrance [class*="text-[#38251d]"],
+.store-theme-fragrance [class*="text-[#3d281f]"],
+.store-theme-fragrance [class*="text-[#3d271d]"] { color: #0f172a !important; }
+.store-theme-fragrance [class*="text-[#9c7252]"],
+.store-theme-fragrance [class*="text-[#74442e]"],
+.store-theme-fragrance [class*="text-[#6e3f2c]"],
+.store-theme-fragrance [class*="text-[#78513d]"] { color: #2563eb !important; }
+.store-theme-fragrance [class*="text-[#765e50]"],
+.store-theme-fragrance [class*="text-[#80695a]"],
+.store-theme-fragrance [class*="text-[#614536]"] { color: #64748b !important; }
+.store-theme-fragrance [class*="border-[#e2d3c2]"],
+.store-theme-fragrance [class*="border-[#e7ddd0]"],
+.store-theme-fragrance [class*="border-[#ddccba]"],
+.store-theme-fragrance [class*="border-[#dfcfbd]"],
+.store-theme-fragrance [class*="border-[#e6d8c8]"] { border-color: #dbe5f3 !important; }
+.store-theme-fragrance [class*="bg-[radial-gradient"] { background: radial-gradient(circle at 50% 28%, #fff 0%, #edf4ff 65%, #dbeafe 100%) !important; }
+.store-theme-fragrance article { box-shadow: 0 16px 34px rgba(15, 23, 42, .08) !important; }
+.store-theme-fragrance article button { border-radius: 10px; }
+.store-theme-fragrance .bg-blue-600 { background-color: #2563eb !important; }
+.store-theme-fragrance .bg-blue-700 { background-color: #1d4ed8 !important; }
+.store-theme-fragrance .text-blue-600,
+.store-theme-fragrance .text-blue-700 { color: #2563eb !important; }
+.store-theme-fragrance .store-search-input input { border-color: #334155; background: #111827; color: #f8fafc; }
+.store-theme-fragrance .store-search-input input::placeholder { color: #94a3b8; }
+
 @media (max-width: 767px) {
   .store-theme-tech > header, .store-theme-cyber > header, .store-theme-luxury > header { backdrop-filter: blur(18px); }
   .store-theme-tech article, .store-theme-nexus_tech article, .store-theme-organic article { border-radius: 14px !important; }
