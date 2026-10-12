@@ -1,4 +1,36 @@
-export type SaleUnit = "unidade" | "m2" | "linear";
+export type SaleUnit = "unidade" | "m2" | "linear" | "peso" | "volume";
+
+export type MeasureUnit = "m" | "cm" | "mm" | "km" | "m2" | "cm2" | "mm2" | "km2" | "kg" | "g" | "mg" | "t" | "l" | "ml";
+
+const UNIT_LABELS: Record<MeasureUnit, string> = {
+  m: "metro (m)", cm: "centímetro (cm)", mm: "milímetro (mm)", km: "quilômetro (km)",
+  m2: "metro quadrado (m²)", cm2: "centímetro quadrado (cm²)", mm2: "milímetro quadrado (mm²)", km2: "quilômetro quadrado (km²)",
+  kg: "quilograma (kg)", g: "grama (g)", mg: "miligrama (mg)", t: "tonelada (t)",
+  l: "litro (L)", ml: "mililitro (mL)",
+};
+
+export function defaultMeasureUnit(saleUnit: SaleUnit): MeasureUnit {
+  if (saleUnit === "m2") return "m2";
+  if (saleUnit === "peso") return "kg";
+  if (saleUnit === "volume") return "l";
+  return "m";
+}
+
+export function measureUnitLabel(unit: string | null | undefined, saleUnit: SaleUnit = "linear"): string {
+  return UNIT_LABELS[(unit || defaultMeasureUnit(saleUnit)) as MeasureUnit] ?? String(unit || "UN").toUpperCase();
+}
+
+export function measureUnitAbbr(unit: string | null | undefined, saleUnit: SaleUnit = "linear"): string {
+  const value = (unit || defaultMeasureUnit(saleUnit)).toLowerCase();
+  return value === "m2" ? "m²" : value === "cm2" ? "cm²" : value === "mm2" ? "mm²" : value === "km2" ? "km²" : value === "l" ? "L" : value === "ml" ? "mL" : value;
+}
+
+export function measureUnitOptions(saleUnit: SaleUnit): [MeasureUnit, string][] {
+  if (saleUnit === "m2") return [["m2", "Metro quadrado (m²)"], ["cm2", "Centímetro quadrado (cm²)"], ["mm2", "Milímetro quadrado (mm²)"], ["km2", "Quilômetro quadrado (km²)"]];
+  if (saleUnit === "peso") return [["kg", "Quilograma (kg)"], ["g", "Grama (g)"], ["mg", "Miligrama (mg)"], ["t", "Tonelada (t)"]];
+  if (saleUnit === "volume") return [["l", "Litro (L)"], ["ml", "Mililitro (mL)"]];
+  return [["m", "Metro (m)"], ["cm", "Centímetro (cm)"], ["mm", "Milímetro (mm)"], ["km", "Quilômetro (km)"]];
+}
 
 export interface MeasuredPriceResult {
   rawQuantity: number;
@@ -26,6 +58,7 @@ export function computeMeasuredPrice(
   minBillableQuantity: number | null | undefined,
   height: number,
   width?: number,
+  measureUnit?: string | null,
 ): MeasuredPriceResult {
   const rawQuantity = saleUnit === "m2" ? height * (width ?? 0) : height;
   const min = Number(minBillableQuantity) || 0;
@@ -33,9 +66,10 @@ export function computeMeasuredPrice(
   const minimumApplied = min > 0 && rawQuantity < min;
   const total = Math.round(billedQuantity * pricePerMeasure * 100) / 100;
 
+  const unit = measureUnitAbbr(measureUnit, saleUnit);
   const label = saleUnit === "m2"
-    ? `${height.toFixed(2)}m × ${(width ?? 0).toFixed(2)}m = ${billedQuantity.toFixed(2)}m²`
-    : `${rawQuantity.toFixed(2)}m linear`;
+    ? `${height.toFixed(2)}${unit} × ${(width ?? 0).toFixed(2)}${unit} = ${billedQuantity.toFixed(2)}${unit}`
+    : `${rawQuantity.toFixed(2)} ${unit}`;
 
   return { rawQuantity, billedQuantity, total, label, minimumApplied };
 }

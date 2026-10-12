@@ -19,7 +19,7 @@ import { Badge } from "../../components/ui/Badge";
 import { Tabs } from "../../components/ui/Tabs";
 import { Alert } from "../../components/ui/Alert";
 import { SERVICE_UNITS, getCategoryIcon, UNCATEGORIZED_SERVICE_CATEGORY } from "./Services";
-import { computeMeasuredPrice, parseMeasureInput } from "../../utils/measurePricing";
+import { computeMeasuredPrice, measureUnitAbbr, measureUnitLabel, parseMeasureInput } from "../../utils/measurePricing";
 import { productHasStock } from "../../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../../lib/cashSession";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
@@ -713,6 +713,7 @@ export default function PDV() {
         measureProduct.min_billable_quantity,
         parseMeasureInput(measureHeight),
         parseMeasureInput(measureWidth),
+        measureProduct.measure_unit,
       )
     : null;
 
@@ -2790,7 +2791,7 @@ export default function PDV() {
         open={!!measureProduct}
         onClose={() => setMeasureProduct(null)}
         title={measureProduct?.name}
-        subtitle={measureProduct ? `Venda por ${measureProduct.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
+        subtitle={measureProduct ? `Venda por ${measureUnitLabel(measureProduct.measure_unit, measureProduct.sale_unit ?? "linear")}` : undefined}
         size="sm"
         footer={measureProduct ? (
           <ModalFooter>
@@ -2806,15 +2807,15 @@ export default function PDV() {
           <div className="space-y-3">
             {measureProduct.sale_unit === "m2" ? (
               <div className="grid grid-cols-2 gap-3">
-                <Input size="lg" label="Altura (m)" type="text" inputMode="decimal" autoFocus value={measureHeight}
+              <Input size="lg" label={`Altura (${measureUnitAbbr(measureProduct.measure_unit, "m2")})`} type="text" inputMode="decimal" autoFocus value={measureHeight}
                   onChange={(e) => setMeasureHeight(e.target.value)}
                   placeholder="0,00" className="text-center font-mono font-semibold" />
-                <Input size="lg" label="Largura (m)" type="text" inputMode="decimal" value={measureWidth}
+                <Input size="lg" label={`Largura (${measureUnitAbbr(measureProduct.measure_unit, "m2")})`} type="text" inputMode="decimal" value={measureWidth}
                   onChange={(e) => setMeasureWidth(e.target.value)}
                   placeholder="0,00" className="text-center font-mono font-semibold" />
               </div>
             ) : (
-              <Input size="lg" label="Comprimento (m)" type="text" inputMode="decimal" autoFocus value={measureHeight}
+              <Input size="lg" label={`Quantidade (${measureUnitAbbr(measureProduct.measure_unit, measureProduct.sale_unit ?? "linear")})`} type="text" inputMode="decimal" autoFocus value={measureHeight}
                 onChange={(e) => setMeasureHeight(e.target.value)}
                 placeholder="0,00" className="text-center font-mono font-semibold" />
             )}
@@ -2822,12 +2823,12 @@ export default function PDV() {
             {measurePreview && measurePreview.rawQuantity > 0 && (
               <div className="space-y-1.5 rounded-lg bg-slate-900 p-4">
                 <div className="flex justify-between text-[11px] font-semibold text-slate-400">
-                  <span>{measureProduct.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
+                  <span>{measureProduct.sale_unit === "m2" ? "Área" : "Quantidade"}</span>
                   <span className="font-mono text-slate-200">{measurePreview.label}</span>
                 </div>
                 {measurePreview.minimumApplied && (
                   <p className="text-[11px] font-semibold text-amber-400">
-                    Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)}{measureProduct.sale_unit === "m2" ? "m²" : "m"}
+                    Cobrando o mínimo de {Number(measureProduct.min_billable_quantity).toFixed(2)} {measureUnitAbbr(measureProduct.measure_unit, measureProduct.sale_unit ?? "linear")}
                   </p>
                 )}
                 <div className="flex justify-between border-t border-slate-700 pt-1.5 text-[15px] font-semibold text-white">
@@ -2837,7 +2838,7 @@ export default function PDV() {
               </div>
             )}
             <p className="text-[11px] font-medium text-slate-500">
-              Saldo disponível: <span className="font-mono font-semibold">{Number(measureProduct.measure_stock_quantity ?? 0).toFixed(3)} {measureProduct.sale_unit === "m2" ? "m²" : "m"}</span>
+              Saldo disponível: <span className="font-mono font-semibold">{Number(measureProduct.measure_stock_quantity ?? 0).toFixed(3)} {measureUnitAbbr(measureProduct.measure_unit, measureProduct.sale_unit ?? "linear")}</span>
             </p>
           </div>
         )}

@@ -1,4 +1,4 @@
-export type SaleUnit = "unidade" | "m2" | "linear";
+export type SaleUnit = "unidade" | "m2" | "linear" | "peso" | "volume";
 
 export interface MeasuredPriceResult {
   rawQuantity: number;
@@ -28,7 +28,7 @@ export function computeMeasuredPrice(
 
   const label = saleUnit === "m2"
     ? `${height.toFixed(2)}m × ${(width ?? 0).toFixed(2)}m = ${billedQuantity.toFixed(2)}m²`
-    : `${billedQuantity.toFixed(2)}m linear`;
+    : `${billedQuantity.toFixed(2)} unidade de medida`;
 
   return { rawQuantity, billedQuantity, total, label, minimumApplied };
 }

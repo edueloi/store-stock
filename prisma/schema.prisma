@@ -448,7 +448,7 @@ model Product {
   skus           Json?
 
   // --- Venda por medida (m²/metro linear) --- vidraçaria/marcenaria/gráfica
-  sale_unit             String   @default("unidade") // "unidade" | "m2" | "linear"
+  sale_unit             String   @default("unidade") // "unidade" | "m2" | "linear" | "peso" | "volume"
   price_per_measure     Decimal? @db.Decimal(10, 2)
   min_billable_quantity Decimal? @db.Decimal(10, 2)
   // Saldo físico para produtos vendidos por medida. É separado do preço/mínimo

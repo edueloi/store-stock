@@ -10,6 +10,7 @@ import {
   Button, IconButton, Input, Select, Textarea, Switch, Tabs, SectionTitle, ContentCard, PanelCard, Badge, FilterLineSegmented, useToast,
 } from "../../components/ui";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
+import { defaultMeasureUnit, measureUnitAbbr, measureUnitLabel, measureUnitOptions } from "../../utils/measurePricing";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 export const PRODUCT_MODAL_TABS = [
@@ -574,6 +575,8 @@ export default function ProductForm({
   const measureUnitFactor = (unit: string) => ({
     m: 1, cm: 0.01, mm: 0.001, km: 1000,
     m2: 1, cm2: 0.0001, mm2: 0.000001, km2: 1000000,
+    kg: 1, g: 0.001, mg: 0.000001, t: 1000,
+    l: 1, ml: 0.001,
   }[unit] ?? 1);
   const changeMeasureUnit = (nextUnit: string) => setEditingProduct((previous) => {
     if (!previous) return previous;
@@ -599,7 +602,8 @@ export default function ProductForm({
     setEditingProduct(prev => ({ ...prev!, barcode: code + check }));
   };
 
-  const measureSuffix = editingProduct?.sale_unit === "m2" ? "m²" : "m";
+  const measureSaleUnit = editingProduct?.sale_unit ?? "linear";
+  const measureSuffix = measureUnitAbbr(editingProduct?.measure_unit, measureSaleUnit);
 
   return (
     <div className="space-y-4">
@@ -824,11 +828,13 @@ export default function ProductForm({
                         { value: "unidade", label: "Unidade" },
                         { value: "m2", label: "m²" },
                         { value: "linear", label: "Metro linear" },
+                        { value: "peso", label: "Peso" },
+                        { value: "volume", label: "Líquido" },
                       ]}
                       onChange={(value) => setEditingProduct(prev => ({
                         ...prev!,
                         sale_unit: value as Product["sale_unit"],
-                        measure_unit: value === "m2" ? "m2" : value === "linear" ? "m" : prev?.measure_unit,
+                        measure_unit: value === "unidade" ? prev?.measure_unit : defaultMeasureUnit(value as NonNullable<Product["sale_unit"]>),
                       }))}
                     />
                   </div>
@@ -851,19 +857,16 @@ export default function ProductForm({
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <Select label="Unidade de medida"
                         hint="Preço, saldo e mínimo usam esta unidade."
-                        value={editingProduct?.measure_unit ?? (editingProduct?.sale_unit === "m2" ? "m2" : "m")}
+                        value={editingProduct?.measure_unit ?? defaultMeasureUnit(measureSaleUnit)}
                         onChange={e => changeMeasureUnit(e.target.value)}
                       >
-                        {(editingProduct?.sale_unit === "m2"
-                          ? [["m2", "Metro quadrado (m²)"], ["cm2", "Centímetro quadrado (cm²)"], ["mm2", "Milímetro quadrado (mm²)"], ["km2", "Quilômetro quadrado (km²)"]]
-                          : [["m", "Metro (m)"], ["cm", "Centímetro (cm)"], ["mm", "Milímetro (mm)"], ["km", "Quilômetro (km)"]]
-                        ).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        {measureUnitOptions(measureSaleUnit).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                       </Select>
-                      <Input label={`Preço por ${editingProduct?.sale_unit === "m2" ? "m²" : "metro linear"} (R$) *`} type="number" step="0.01" min="0" required className="font-mono"
+                      <Input label={`Preço por ${measureUnitLabel(editingProduct?.measure_unit, measureSaleUnit)} (R$) *`} type="number" step="0.01" min="0" required className="font-mono"
                         value={editingProduct?.price_per_measure ?? ""}
                         onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, price_per_measure: v === "" ? undefined : Number(v) })); }} />
                       <Input label={`Estoque disponível (${measureSuffix}) *`} type="number" step="0.001" min="0" required className="font-mono"
-                        hint="Ex.: 10 m; vender 0,50 m deixa 9,50 m."
+                        hint={`Ex.: 10 ${measureSuffix}; vender 0,50 ${measureSuffix} deixa 9,50 ${measureSuffix}.`}
                         value={editingProduct?.measure_stock_quantity ?? 0}
                         onChange={e => setEditingProduct(prev => ({ ...prev!, measure_stock_quantity: Number(e.target.value) }))} />
                       <Input label={`Mínimo faturável (${measureSuffix}) — opcional`} type="number" step="0.01" min="0" className="font-mono"

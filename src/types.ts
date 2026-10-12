@@ -201,7 +201,7 @@ export interface Product {
   /** @deprecated use attributes+skus */
   variations?: { name: string; options: { value: string; stock: number }[] }[];
   // Venda por medida (m²/metro linear) — vidraçaria/marcenaria/gráfica
-  sale_unit?: 'unidade' | 'm2' | 'linear';
+  sale_unit?: 'unidade' | 'm2' | 'linear' | 'peso' | 'volume';
   price_per_measure?: number;
   min_billable_quantity?: number;
   /** Saldo físico em metros ou m² para produtos vendidos por medida. */
