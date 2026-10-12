@@ -795,7 +795,7 @@ function StoreLayoutInner() {
   return (
     <StoreContext.Provider value={ctx}>
       <div
-        className={cn("min-h-screen", style.bg, style.text, style.font)}
+        className={cn("min-h-screen", `store-theme-${templateId || "minimal"}`, style.bg, style.text, style.font)}
         style={isDoceria ? ({ "--doceria-accent": style.accent } as React.CSSProperties) : undefined}
       >
         {/* ── NAVBAR ─────────────────────────────────────────────── */}
