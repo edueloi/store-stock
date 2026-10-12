@@ -3192,6 +3192,17 @@ export default function Settings({
                           badge: { bg: "#f1e3d3", text: "#714932" },
                         },
                         {
+                          id: "beauty",
+                          name: "Beauty Studio",
+                          tag: "Skincare & Cosméticos",
+                          desc: "Tema editorial para beleza, skincare, maquiagem e autocuidado, com produto como protagonista.",
+                          color: "#a96845",
+                          bg: "#ffffff",
+                          cardBg: "#ffffff",
+                          textColor: "#393532",
+                          badge: { bg: "#f1e3da", text: "#8e543b" },
+                        },
+                        {
                           id: "street",
                           name: "Street Drop",
                           tag: "Moda Urbana & Street",

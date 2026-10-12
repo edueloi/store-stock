@@ -552,6 +552,22 @@ body {
 .store-theme-marketplace > footer p, .store-theme-marketplace > footer a { color: #64748b !important; }
 .store-theme-marketplace .store-search-input input { border-radius: 4px; }
 
+/* Beauty Studio: skincare editorial com grafite, branco e cobre suave. */
+.store-theme-beauty { background: #fff; color: #393532; }
+.store-theme-beauty > header { background: rgba(61, 57, 54, .97) !important; border-color: #514b46 !important; box-shadow: 0 10px 28px rgba(42, 37, 33, .16) !important; }
+.store-theme-beauty > header p,
+.store-theme-beauty > header span:not(.bg-white),
+.store-theme-beauty > header a { color: #fbf9f7 !important; }
+.store-theme-beauty > header nav a:not([style]) { color: #ddd6d0 !important; }
+.store-theme-beauty > header nav a:hover { background: #514b46 !important; color: #fff !important; }
+.store-theme-beauty > header button[style] { background-color: #a96845 !important; }
+.store-theme-beauty > footer { background: #3d3936 !important; border-color: #b98261 !important; }
+.store-theme-beauty > footer h4,
+.store-theme-beauty > footer p,
+.store-theme-beauty > footer a { color: #eee9e5 !important; }
+.store-theme-beauty .store-search-input input { border-color: #b98261; background: #fff; color: #393532; }
+.store-theme-beauty main { overflow-x: clip; }
+
 @media (max-width: 767px) {
   .store-theme-tech > header, .store-theme-cyber > header, .store-theme-luxury > header { backdrop-filter: blur(18px); }
   .store-theme-tech article, .store-theme-nexus_tech article, .store-theme-organic article { border-radius: 14px !important; }

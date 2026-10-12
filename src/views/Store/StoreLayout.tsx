@@ -73,6 +73,13 @@ function themePages(templateId: string | undefined) {
       Product: lazy(() => import("./themes/fragrance/StoreProduct")),
       About: lazy(() => import("./themes/fragrance/StoreAbout")),
     };
+  if (t === "beauty")
+    return {
+      Front: lazy(() => import("./themes/beauty/StoreFront")),
+      Catalog: lazy(() => import("./themes/beauty/StoreCatalog")),
+      Product: lazy(() => import("./themes/beauty/StoreProduct")),
+      About: lazy(() => import("./themes/beauty/StoreAbout")),
+    };
   if (t === "street")
     return {
       Front: lazy(() => import("./themes/street/StoreFront")),
@@ -258,6 +265,14 @@ const templates: Record<string, StoreStyle> = {
     text: "text-[#0f172a]",
     font: "font-sans",
     radius: "rounded-full",
+  },
+  beauty: {
+    bg: "bg-white",
+    card: "bg-white border-[#e7ded8]",
+    accent: "#a96845",
+    text: "text-[#393532]",
+    font: "font-sans",
+    radius: "rounded-none",
   },
   street: {
     bg: "bg-[#0a0a0a]",
@@ -748,17 +763,18 @@ function StoreLayoutInner() {
   const isUrban = templateId === "urban";
   const isDoceria = templateId === "doceria";
   const isFragrance = templateId === "fragrance";
+  const isBeauty = templateId === "beauty";
   const isStreet = templateId === "street";
   const isMarketplace = templateId === "marketplace";
 
   const navLinks = [
     { label: "Início", path: storePath(), icon: <Home size={15} /> },
     {
-      label: isStreet ? "Drop" : isFragrance ? "Coleção" : "Catálogo",
+      label: isStreet ? "Drop" : isFragrance ? "Coleção" : isBeauty ? "Produtos" : "Catálogo",
       path: storePath("/catalogo"),
       icon: <Grid3X3 size={15} />,
     },
-    { label: isStreet ? "Manifesto" : isFragrance ? "A loja" : "Sobre", path: storePath("/sobre"), icon: <Info size={15} /> },
+    { label: isStreet ? "Manifesto" : isFragrance ? "A loja" : isBeauty ? "Nossa essência" : "Sobre", path: storePath("/sobre"), icon: <Info size={15} /> },
   ];
 
   const isActive = (path: string) => {
@@ -823,6 +839,8 @@ function StoreLayoutInner() {
               ? "bg-[#ffe600] border-[#e6c800]"
               : isStreet
               ? "bg-[#0a0a0a]/95 backdrop-blur-xl border-[#303030]"
+              : isBeauty
+              ? "bg-[#3d3936]/95 backdrop-blur-xl border-[#514b46]"
               : isFragrance
                 ? "bg-[#fffaf4]/95 backdrop-blur-xl border-[#e5d7c7]"
               : isElectronics || isElectric
@@ -841,7 +859,7 @@ function StoreLayoutInner() {
           <div
             className={cn(
               "max-w-7xl mx-auto px-4 flex items-center justify-between gap-4",
-               isFashion || isTechNova || isElectronics || isElectric || isDoceria || isFragrance
+               isFashion || isTechNova || isElectronics || isElectric || isDoceria || isFragrance || isBeauty
                 ? "h-[4.5rem]"
                 : "h-16",
             )}
