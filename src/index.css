@@ -670,3 +670,92 @@ body {
   .store-theme-tech article, .store-theme-nexus_tech article, .store-theme-organic article { border-radius: 14px !important; }
   .store-search-input input { height: 44px; font-size: 16px; }
 }
+
+/* Pet & Co: vitrine afetiva, arredondada e leve. */
+.store-theme-pet { background: #fffaf2; color: #283044; }
+.store-theme-pet > header { background: #fff7ed !important; border-color: #ffd8c8 !important; box-shadow: 0 10px 28px rgba(174, 83, 66, .10) !important; }
+.store-theme-pet > header a, .store-theme-pet > header p, .store-theme-pet > header span:not(.bg-white) { color: #283044 !important; }
+.store-theme-pet > header nav a[style], .store-theme-pet > header button[style] { background: #ff6b6b !important; color: #fff !important; }
+.store-theme-pet > footer { background: #283044 !important; border-color: #ff9a8f !important; }
+.store-theme-pet > footer h4, .store-theme-pet > footer p, .store-theme-pet > footer a { color: #fff8ef !important; }
+.sport-pet { background: #fffaf2; }
+.sport-pet > section:first-of-type { min-height: 500px; background: radial-gradient(circle at 76% 28%, #ffe9bd 0 12%, transparent 12.3%), radial-gradient(circle at 82% 72%, #ffd0c9 0 18%, transparent 18.3%), #ff6b6b !important; color: #283044 !important; }
+.sport-pet > section:first-of-type h1 { max-width: 700px !important; font-size: clamp(3.1rem, 7vw, 6.3rem) !important; letter-spacing: -.065em !important; text-transform: none !important; }
+.sport-pet > section:first-of-type p { color: #4a3440 !important; font-weight: 600; }
+.sport-pet > section:first-of-type a { border-radius: 9999px; background: #283044 !important; color: #fff !important; box-shadow: 0 12px 0 rgba(40,48,68,.16); }
+.sport-pet > section:nth-of-type(2) > div:first-child > a { border: 0 !important; border-radius: 9999px; background: #fff !important; box-shadow: 0 5px 0 #ffd8c8; color: #283044 !important; }
+.sport-pet .grid.gap-x-5 > article { border: 2px solid #ffd8c8; border-radius: 1.5rem; padding: .7rem; background: #fff; box-shadow: 0 12px 25px rgba(174,83,66,.08); }
+.sport-pet .grid.gap-x-5 > article > a { border-radius: 1rem; background: #fff1d9 !important; }
+.sport-pet .grid.gap-x-5 > article > a > span { height: .45rem; width: 55%; border-radius: 99px; }
+.sport-pet .grid.gap-x-5 > article > div > div button { border-radius: 9999px; background: #ff6b6b !important; }
+.sport-pet input { border-radius: 9999px; border-color: #ffb7aa; }
+.sport-pet .bg-\[\#f2f3f3\] { background: #fff1d9 !important; border-radius: 2rem 2rem 0 0; }
+.sport-pet .border-black\/15, .sport-pet .border-black\/20 { border-color: #ffd8c8 !important; }
+
+/* Casa Viva: editorial de interiores, com respiro, linhas retas e produto em escala. */
+.store-theme-home { background: #f5f2ec; color: #28362c; }
+.store-theme-home > header { background: rgba(245,242,236,.96) !important; border-color: #d9d4ca !important; box-shadow: none !important; }
+.store-theme-home > header a, .store-theme-home > header p, .store-theme-home > header span:not(.bg-white) { color: #28362c !important; }
+.store-theme-home > header nav a[style], .store-theme-home > header button[style] { background: #28362c !important; color: #fffdf9 !important; }
+.store-theme-home > footer { background: #28362c !important; border-color: #b68b5e !important; }
+.store-theme-home > footer h4, .store-theme-home > footer p, .store-theme-home > footer a { color: #f8f4ed !important; }
+.sport-home { background: #f5f2ec; }
+.sport-home > section:first-of-type { min-height: 580px; background: linear-gradient(105deg, #dce5da 0 52%, #b68b5e 52% 100%) !important; color: #28362c !important; }
+.sport-home > section:first-of-type h1 { max-width: 620px !important; color: #28362c; font-family: Georgia, serif; font-size: clamp(3.2rem, 7vw, 6.8rem) !important; font-weight: 500 !important; letter-spacing: -.06em !important; line-height: .92 !important; text-transform: none !important; }
+.sport-home > section:first-of-type p { color: #405445 !important; font-size: 1rem; }
+.sport-home > section:first-of-type a { border-radius: 0; background: #28362c !important; color: #fffdf9 !important; }
+.sport-home > section:nth-of-type(2) > div:first-child { gap: 0; border-top: 1px solid #aab7a9; border-bottom: 1px solid #aab7a9; }
+.sport-home > section:nth-of-type(2) > div:first-child > a { min-width: 0; border: 0 !important; border-right: 1px solid #aab7a9 !important; padding: 1.25rem 1rem !important; font-family: Georgia, serif; font-size: 1rem; font-weight: 500 !important; text-transform: none !important; }
+.sport-home .grid.gap-x-5 { gap: 1.5rem !important; }
+.sport-home .grid.gap-x-5 > article:first-child { grid-column: span 2 / span 2; }
+.sport-home .grid.gap-x-5 > article { padding: 0; border-top: 1px solid #839183; }
+.sport-home .grid.gap-x-5 > article > a { aspect-ratio: 1 / 1.08; background: #e5ede2 !important; }
+.sport-home .grid.gap-x-5 > article:first-child > a { aspect-ratio: 16 / 9; }
+.sport-home .grid.gap-x-5 > article > p, .sport-home .grid.gap-x-5 > article > div, .sport-home .grid.gap-x-5 > article > a + button { margin-left: .25rem; margin-right: .25rem; }
+.sport-home .grid.gap-x-5 > article > div > div button { border-radius: 0; background: #28362c !important; }
+.sport-home .bg-\[\#f2f3f3\] { background: #e5ede2 !important; }
+.sport-home .border-black\/15, .sport-home .border-black\/20 { border-color: #aab7a9 !important; }
+.sport-home input { border-radius: 0; border-color: #aab7a9; background: #fffdf9; }
+
+/* Papel & Festa: cores claras, formas de sticker e grade criativa. */
+.store-theme-paper { background: #faf8ff; color: #352b66; }
+.store-theme-paper > header { background: #6d5dfc !important; border-color: #5748c7 !important; box-shadow: 0 10px 28px rgba(79,65,180,.2) !important; }
+.store-theme-paper > header a, .store-theme-paper > header p, .store-theme-paper > header span:not(.bg-white) { color: #fff !important; }
+.store-theme-paper > header nav a[style], .store-theme-paper > header button[style] { background: #ffcf5c !important; color: #352b66 !important; }
+.store-theme-paper > footer { background: #352b66 !important; border-color: #ffcf5c !important; }
+.store-theme-paper > footer h4, .store-theme-paper > footer p, .store-theme-paper > footer a { color: #faf8ff !important; }
+.sport-paper { background: linear-gradient(90deg, rgba(109,93,252,.05) 1px, transparent 1px), linear-gradient(rgba(109,93,252,.05) 1px, transparent 1px), #faf8ff; background-size: 22px 22px; }
+.sport-paper > section:first-of-type { min-height: 520px; background: radial-gradient(circle at 17% 22%, #ffcf5c 0 9%, transparent 9.3%), radial-gradient(circle at 76% 72%, #ff9bb4 0 13%, transparent 13.3%), #8b7cff !important; }
+.sport-paper > section:first-of-type h1 { max-width: 720px !important; font-size: clamp(3.2rem, 8vw, 7rem) !important; text-transform: none !important; text-shadow: 4px 4px 0 #352b66; }
+.sport-paper > section:first-of-type a { border-radius: 1rem; background: #ffcf5c !important; color: #352b66 !important; box-shadow: 5px 5px 0 #352b66; }
+.sport-paper > section:nth-of-type(2) > div:first-child > a { border: 2px dashed #6d5dfc !important; border-radius: 1rem; background: #fff !important; color: #352b66 !important; }
+.sport-paper .grid.gap-x-5 > article { border: 2px solid #352b66; border-radius: 1.35rem; padding: .65rem; background: #fff; box-shadow: 5px 5px 0 #d8d0ff; }
+.sport-paper .grid.gap-x-5 > article:nth-child(2n) { transform: translateY(1rem) rotate(1deg); }
+.sport-paper .grid.gap-x-5 > article:nth-child(3n) { background: #fff5d6; transform: rotate(-1deg); }
+.sport-paper .grid.gap-x-5 > article > a { border-radius: .9rem; background: #f1eafe !important; }
+.sport-paper .grid.gap-x-5 > article > div > div button { border-radius: .7rem; background: #6d5dfc !important; }
+.sport-paper .bg-\[\#f2f3f3\] { background: #f1eafe !important; border-radius: 1.5rem; }
+.sport-paper .border-black\/15, .sport-paper .border-black\/20 { border-color: #a99fff !important; }
+.sport-paper input { border: 2px solid #6d5dfc; border-radius: 1rem; }
+
+/* Marketplace Pro: home de grande catÃ¡logo, com ritmo comercial e produtos em primeiro plano. */
+.store-theme-marketplace main { background: #f3f3f3; }
+.store-theme-marketplace main > section:first-of-type { background: linear-gradient(108deg, #ffe600 0 60%, #fff2a5 60% 100%) !important; }
+.store-theme-marketplace main > section:first-of-type > div > div:last-child { border-radius: 1.25rem !important; box-shadow: 14px 14px 0 rgba(35,50,66,.18); }
+.store-theme-marketplace main > section:nth-of-type(2) > div { gap: .75rem; }
+.store-theme-marketplace main > section:nth-of-type(2) > div > div { border: 1px solid #e5e7eb; border-radius: .85rem; box-shadow: 0 3px 10px rgba(15,23,42,.06); }
+.store-theme-marketplace main > section:nth-of-type(3) a { border: 1px solid #e6e6e6; border-radius: .85rem; transition: transform .18s ease, box-shadow .18s ease; }
+.store-theme-marketplace main > section:nth-of-type(3) a:hover { transform: translateY(-3px); box-shadow: 0 12px 22px rgba(15,23,42,.10); }
+.store-theme-marketplace article { border-radius: .85rem !important; box-shadow: 0 3px 10px rgba(15,23,42,.08); }
+.store-theme-marketplace article:hover { transform: translateY(-4px); box-shadow: 0 14px 28px rgba(15,23,42,.14) !important; }
+.store-theme-marketplace article > a:first-child { background: linear-gradient(145deg, #fff 45%, #f8fafc) !important; }
+.store-theme-marketplace article button { transition: transform .18s ease; }
+.store-theme-marketplace article button:hover { transform: scale(1.03); }
+
+@media (max-width: 639px) {
+  .sport-home > section:first-of-type { min-height: 440px; background: #dce5da !important; }
+  .sport-home .grid.gap-x-5 > article:first-child { grid-column: span 1 / span 1; }
+  .sport-home .grid.gap-x-5 > article:first-child > a { aspect-ratio: 1 / 1.08; }
+  .sport-paper .grid.gap-x-5 > article:nth-child(2n), .sport-paper .grid.gap-x-5 > article:nth-child(3n) { transform: none; }
+  .store-theme-marketplace main > section:first-of-type > div > div:last-child { box-shadow: 7px 7px 0 rgba(35,50,66,.14); }
+}

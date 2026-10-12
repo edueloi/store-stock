@@ -3221,6 +3221,9 @@ export default function Settings({
                         },
                         { id: "sport", name: "Sport Pulse", tag: "Esportes & Sneakers", desc: "Tema de alta energia para roupas esportivas, tênis, bolas e acessórios.", color: "#ff3b30", bg: "#ffffff", cardBg: "#f3f4f4", textColor: "#111111", badge: { bg: "#ffe2df", text: "#bf241c" } },
                         { id: "fitness", name: "Fit Lab", tag: "Academia & Suplementos", desc: "Tema intenso para academia, treino, suplementos e roupas fitness.", color: "#b6ff25", bg: "#f6f7f3", cardBg: "#ffffff", textColor: "#121612", badge: { bg: "#e4ffb6", text: "#294000" } },
+                        { id: "pet", name: "Pet & Co", tag: "Pet Shop & Cuidados", desc: "Vitrine calorosa e divertida para rações, brinquedos, higiene e cuidados dos pets.", color: "#ff6b6b", bg: "#fffaf2", cardBg: "#ffffff", textColor: "#283044", badge: { bg: "#ffe0d2", text: "#c34242" } },
+                        { id: "home", name: "Casa Viva", tag: "Casa & Decoração", desc: "Modelo editorial sereno para móveis, decoração, mesa posta e utilidades do lar.", color: "#b68b5e", bg: "#f5f2ec", cardBg: "#fffdf9", textColor: "#28362c", badge: { bg: "#e5ede2", text: "#49604d" } },
+                        { id: "paper", name: "Papel & Festa", tag: "Papelaria & Presentes", desc: "Tema criativo para papelaria, festas, lembranças e presentes personalizados.", color: "#6d5dfc", bg: "#faf8ff", cardBg: "#ffffff", textColor: "#352b66", badge: { bg: "#e9e4ff", text: "#5748c7" } },
                         {
                           id: "variety",
                           name: "Vitrine Mix",
@@ -3268,7 +3271,7 @@ export default function Settings({
                       ] as const
                     ).filter((t) => modelCategory === "Todos" || ({
                       minimal: "Geral", cyber: "Tecnologia", organic: "Geral", luxury: "Geral", tech: "Tecnologia", nexus_tech: "Tecnologia", atelier: "Moda", urban: "Moda", doceria: "Comércio", fragrance: "Beleza", beauty: "Beleza", street: "Moda", sport: "Esportes & Fitness", fitness: "Esportes & Fitness", variety: "Comércio", toys: "Comércio", marketplace: "Comércio", electric: "Casa & Construção",
-                    } as Record<string, string>)[t.id] === modelCategory).map((t) => {
+                    } as Record<string, string>)[t.id] === modelCategory || (modelCategory === "Comércio" && (t.id === "pet" || t.id === "paper")) || (modelCategory === "Casa & Construção" && t.id === "home")).map((t) => {
                       const isActive = tenant?.template_id === t.id;
                       const previewBase =
                         tenant?.public_url ||

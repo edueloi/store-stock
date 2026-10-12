@@ -91,6 +91,12 @@ function themePages(templateId: string | undefined) {
     return { Front: lazy(() => import("./themes/sport/StoreFront")), Catalog: lazy(() => import("./themes/sport/StoreCatalog")), Product: lazy(() => import("./themes/sport/StoreProduct")), About: lazy(() => import("./themes/sport/StoreAbout")) };
   if (t === "fitness")
     return { Front: lazy(() => import("./themes/fitness/StoreFront")), Catalog: lazy(() => import("./themes/fitness/StoreCatalog")), Product: lazy(() => import("./themes/fitness/StoreProduct")), About: lazy(() => import("./themes/fitness/StoreAbout")) };
+  if (t === "pet")
+    return { Front: lazy(() => import("./themes/pet/StoreFront")), Catalog: lazy(() => import("./themes/pet/StoreCatalog")), Product: lazy(() => import("./themes/pet/StoreProduct")), About: lazy(() => import("./themes/pet/StoreAbout")) };
+  if (t === "home")
+    return { Front: lazy(() => import("./themes/home/StoreFront")), Catalog: lazy(() => import("./themes/home/StoreCatalog")), Product: lazy(() => import("./themes/home/StoreProduct")), About: lazy(() => import("./themes/home/StoreAbout")) };
+  if (t === "paper")
+    return { Front: lazy(() => import("./themes/paper/StoreFront")), Catalog: lazy(() => import("./themes/paper/StoreCatalog")), Product: lazy(() => import("./themes/paper/StoreProduct")), About: lazy(() => import("./themes/paper/StoreAbout")) };
   if (t === "variety")
     return {
       Front: lazy(() => import("./themes/variety/StoreFront")),
@@ -288,6 +294,9 @@ const templates: Record<string, StoreStyle> = {
   },
   sport: { bg: "bg-white", card: "bg-white border-slate-200", accent: "#ff3b30", text: "text-[#111111]", font: "font-sans", radius: "rounded-none" },
   fitness: { bg: "bg-[#f6f7f3]", card: "bg-white border-[#d8e0cf]", accent: "#b6ff25", text: "text-[#121612]", font: "font-sans", radius: "rounded-none" },
+  pet: { bg: "bg-[#fffaf2]", card: "bg-white border-[#ffd8c8]", accent: "#ff6b6b", text: "text-[#283044]", font: "font-sans", radius: "rounded-[1.5rem]" },
+  home: { bg: "bg-[#f5f2ec]", card: "bg-[#fffdf9] border-[#d9d4ca]", accent: "#b68b5e", text: "text-[#28362c]", font: "font-serif", radius: "rounded-none" },
+  paper: { bg: "bg-[#faf8ff]", card: "bg-white border-[#ded8ff]", accent: "#6d5dfc", text: "text-[#352b66]", font: "font-sans", radius: "rounded-2xl" },
   variety: {
     bg: "bg-[#f4f8ff]",
     card: "bg-white border-[#dbe5f6]",
