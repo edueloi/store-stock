@@ -1749,7 +1749,7 @@ function StoreLayoutInner() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setIsCartOpen(false)}
-                className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100]"
+                className={cn("fixed inset-0 backdrop-blur-sm z-[100]", isFragrance ? "bg-[#071426]/70" : "bg-slate-900/60")}
               />
               <motion.div
                 initial={{ x: "100%" }}
@@ -1757,9 +1757,11 @@ function StoreLayoutInner() {
                 exit={{ x: "100%" }}
                 transition={{ type: "spring", damping: 30, stiffness: 300 }}
                 className={cn(
-                  "fixed top-0 right-0 h-full w-full max-w-md z-[101] shadow-2xl flex flex-col border-l",
+                  "fragrance-cart-drawer fixed top-0 right-0 h-full w-full max-w-md z-[101] shadow-2xl flex flex-col border-l",
                   isElectronics
                     ? "bg-[#08101e] border-[#1a2540]"
+                    : isFragrance
+                      ? "bg-[#f5f7fb] border-[#dbe5f3]"
                     : isUrban
                       ? "bg-slate-50 border-slate-200"
                       : isFashion
@@ -1771,11 +1773,13 @@ function StoreLayoutInner() {
               >
                 <div
                   className={cn(
-                    "px-5 h-20 border-b flex items-center justify-between shrink-0",
+                    "fragrance-cart-head px-5 h-20 border-b flex items-center justify-between shrink-0",
                     isUrban
                       ? "border-slate-200 bg-white"
                       : isElectronics
                         ? "border-[#1a2540]"
+                        : isFragrance
+                          ? "border-[#1d2a42] bg-[#071426]"
                         : "border-slate-100",
                   )}
                 >
@@ -1783,10 +1787,10 @@ function StoreLayoutInner() {
                     <h3
                       className={cn(
                         "text-xs font-black uppercase tracking-wider",
-                        isElectronics ? "text-white" : "text-slate-900",
+                        isElectronics || isFragrance ? "text-white" : "text-slate-900",
                       )}
                     >
-                      {isUrban ? "Seu carrinho" : "Carrinho"}
+                      {isUrban ? "Seu carrinho" : isFragrance ? "Sua sacola" : "Carrinho"}
                     </h3>
                     <p
                       className={cn(
@@ -1795,6 +1799,8 @@ function StoreLayoutInner() {
                           ? "text-slate-400"
                       : isDoceria
                         ? "text-[#a56e1e]"
+                          : isFragrance
+                            ? "text-blue-200"
                           : isElectronics
                             ? "text-blue-400/70"
                             : "text-slate-400",
@@ -1810,7 +1816,7 @@ function StoreLayoutInner() {
                     onClick={() => setIsCartOpen(false)}
                     className={cn(
                       "p-2 rounded-xl",
-                      isElectronics
+                      isElectronics || isFragrance
                         ? "text-slate-500 hover:text-white hover:bg-[#0e1525]"
                         : "hover:bg-slate-50 text-slate-400",
                     )}
@@ -1819,7 +1825,7 @@ function StoreLayoutInner() {
                   </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto bg-slate-50 px-5 py-5 space-y-3">
+                <div className="fragrance-cart-content flex-1 overflow-y-auto bg-slate-50 px-5 py-5 space-y-3">
                   {cart.length === 0 ? (
                     <div
                       className={cn(
@@ -1851,12 +1857,14 @@ function StoreLayoutInner() {
                       <div
                         key={item.cartItemId}
                         className={cn(
-                          "flex gap-3 p-3 rounded-2xl border",
+                          "fragrance-cart-item flex gap-3 p-3 rounded-2xl border",
                           isUrban
                             ? "rounded-xl bg-slate-50 border-slate-200"
                             : isElectronics
                               ? "bg-[#0e1525] border-[#1e2d4a]"
-                              : isDoceria
+                            : isFragrance
+                              ? "rounded-none bg-white border-[#dbe5f3]"
+                            : isDoceria
                                 ? "rounded-xl bg-white border-[#ead8ba]"
                               : "bg-slate-50 border-slate-100",
                         )}
@@ -1866,6 +1874,8 @@ function StoreLayoutInner() {
                             "w-20 h-20 rounded-xl overflow-hidden border shrink-0 flex items-center justify-center",
                             isElectronics
                               ? "bg-[#070b12] border-[#1e2d4a]"
+                              : isFragrance
+                                ? "rounded-none bg-[#edf4ff] border-[#dbe5f3]"
                               : isDoceria
                                 ? "w-[72px] h-[72px] rounded-lg bg-[#fff8eb] border-[#ead8ba]"
                               : "bg-white border-slate-100",
@@ -1888,7 +1898,7 @@ function StoreLayoutInner() {
                           <h4
                             className={cn(
                               "text-xs font-bold leading-snug line-clamp-2",
-                              isElectronics ? "text-white" : isDoceria ? "text-[#59451f]" : "text-slate-800",
+                              isElectronics ? "text-white" : isFragrance ? "text-[#0f172a]" : isDoceria ? "text-[#59451f]" : "text-slate-800",
                             )}
                           >
                             {item.name}
@@ -2063,11 +2073,13 @@ function StoreLayoutInner() {
                 {cart.length > 0 && (
                   <div
                     className={cn(
-                      "p-4 space-y-3",
+                      "fragrance-cart-total p-4 space-y-3",
                       isUrban
                         ? "bg-white border-t border-slate-200 p-5 shadow-[0_-12px_32px_rgba(15,23,42,.06)]"
                         : isElectronics
                           ? "bg-[#050810] border-t border-[#1a2540]"
+                          : isFragrance
+                            ? "bg-[#071426] border-t border-[#1d2a42] p-5"
                           : isDoceria
                             ? "bg-[#fff8eb] border-t border-[#ead8ba]"
                           : isFashion
@@ -2083,6 +2095,8 @@ function StoreLayoutInner() {
                           "text-xs font-bold uppercase tracking-wider",
                           isUrban
                             ? "text-slate-500"
+                            : isFragrance
+                              ? "text-blue-200"
                             : isElectronics
                               ? "text-blue-400/70"
                               : isDoceria
@@ -2102,6 +2116,8 @@ function StoreLayoutInner() {
                             "text-2xl font-black font-mono",
                             isElectronics
                               ? "text-white"
+                              : isFragrance
+                                ? "text-white"
                               : isUrban
                                 ? "text-slate-950"
                                 : isDoceria || isTechNova
@@ -2140,6 +2156,8 @@ function StoreLayoutInner() {
                         "w-full text-white h-12 font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all",
                         isUrban
                           ? "rounded-xl hover:brightness-110 shadow-lg shadow-slate-900/10"
+                          : isFragrance
+                            ? "rounded-none bg-[#2563eb] hover:bg-[#1d4ed8] shadow-[0_12px_24px_rgba(37,99,235,.28)]"
                           : isDoceria
                             ? "bg-[#bd3437] rounded-lg hover:bg-[#9f292d] shadow-sm"
                           : "bg-[#25D366] rounded-2xl hover:bg-[#1db954]",
