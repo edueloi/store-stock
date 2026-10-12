@@ -65,6 +65,20 @@ function themePages(templateId: string | undefined) {
       Product: lazy(() => import("./themes/urban/StoreProduct")),
       About: lazy(() => import("./themes/urban/StoreAbout")),
     };
+  if (t === "fragrance")
+    return {
+      Front: lazy(() => import("./themes/fragrance/StoreFront")),
+      Catalog: lazy(() => import("./themes/fragrance/StoreCatalog")),
+      Product: lazy(() => import("./themes/fragrance/StoreProduct")),
+      About: lazy(() => import("./themes/fragrance/StoreAbout")),
+    };
+  if (t === "street")
+    return {
+      Front: lazy(() => import("./themes/street/StoreFront")),
+      Catalog: lazy(() => import("./themes/street/StoreCatalog")),
+      Product: lazy(() => import("./themes/street/StoreProduct")),
+      About: lazy(() => import("./themes/street/StoreAbout")),
+    };
   if (t === "doceria")
     return {
       Front: lazy(() => import("./themes/doceria/StoreFront")),
@@ -214,6 +228,22 @@ const templates: Record<string, StoreStyle> = {
     text: "text-slate-900",
     font: "font-urban",
     radius: "rounded-xl",
+  },
+  fragrance: {
+    bg: "bg-[#f8f4ee]",
+    card: "bg-[#fffdfa] border-[#e7ddd0]",
+    accent: "#40251d",
+    text: "text-[#332019]",
+    font: "font-sans",
+    radius: "rounded-full",
+  },
+  street: {
+    bg: "bg-[#0a0a0a]",
+    card: "bg-[#111111] border-[#282828]",
+    accent: "#bcff00",
+    text: "text-white",
+    font: "font-sans",
+    radius: "rounded-none",
   },
   doceria: {
     bg: "candy-shell bg-[#f7f6ed]",
@@ -671,15 +701,17 @@ function StoreLayoutInner() {
   const isElectric = templateId === "electric";
   const isUrban = templateId === "urban";
   const isDoceria = templateId === "doceria";
+  const isFragrance = templateId === "fragrance";
+  const isStreet = templateId === "street";
 
   const navLinks = [
     { label: "Início", path: storePath(), icon: <Home size={15} /> },
     {
-      label: "Catálogo",
+      label: isStreet ? "Drop" : isFragrance ? "Coleção" : "Catálogo",
       path: storePath("/catalogo"),
       icon: <Grid3X3 size={15} />,
     },
-    { label: "Sobre", path: storePath("/sobre"), icon: <Info size={15} /> },
+    { label: isStreet ? "Manifesto" : isFragrance ? "A loja" : "Sobre", path: storePath("/sobre"), icon: <Info size={15} /> },
   ];
 
   const isActive = (path: string) => {
@@ -740,7 +772,11 @@ function StoreLayoutInner() {
         <header
           className={cn(
             "sticky top-0 z-50 border-b shadow-sm",
-            isElectronics || isElectric
+            isStreet
+              ? "bg-[#0a0a0a]/95 backdrop-blur-xl border-[#303030]"
+              : isFragrance
+                ? "bg-[#fffaf4]/95 backdrop-blur-xl border-[#e5d7c7]"
+              : isElectronics || isElectric
               ? "bg-[#071426]/95 backdrop-blur-xl border-[#17325d]"
               : isDark
                 ? "bg-black border-slate-800"
@@ -756,7 +792,7 @@ function StoreLayoutInner() {
           <div
             className={cn(
               "max-w-7xl mx-auto px-4 flex items-center justify-between gap-4",
-               isFashion || isTechNova || isElectronics || isElectric || isDoceria
+               isFashion || isTechNova || isElectronics || isElectric || isDoceria || isFragrance
                 ? "h-[4.5rem]"
                 : "h-16",
             )}
@@ -771,7 +807,11 @@ function StoreLayoutInner() {
                 }}
                 className={cn(
                   "flex items-center justify-center text-white font-black text-base overflow-hidden shrink-0",
-                  isElectronics || isElectric
+                  isStreet
+                    ? "w-10 h-10 rounded-none border border-[#bcff00] text-[#bcff00] bg-black"
+                    : isFragrance
+                      ? "w-11 h-11 rounded-full shadow-[0_10px_24px_rgba(68,39,25,.16)]"
+                    : isElectronics || isElectric
                     ? "w-11 h-11 rounded-xl shadow-[0_0_24px_rgba(59,130,246,0.5)]"
                      : isDoceria
                        ? "w-11 h-11 rounded-full shadow-[0_10px_25px_rgba(219,39,119,0.22)]"
@@ -797,7 +837,11 @@ function StoreLayoutInner() {
                 <p
                   className={cn(
                     "leading-none",
-                    isElectronics || isElectric
+                    isStreet
+                      ? "text-[#bcff00] font-black text-lg uppercase tracking-[-.06em]"
+                      : isFragrance
+                        ? "font-serif text-xl font-semibold tracking-[-.04em]"
+                      : isElectronics || isElectric
                       ? "text-white font-black text-lg tracking-tight"
                      : isDoceria
                        ? "store-display text-2xl font-bold tracking-[-0.04em]"
@@ -807,7 +851,11 @@ function StoreLayoutInner() {
                   )}
                   style={{
                     color:
-                      isDark || isElectronics || isElectric
+                      isStreet
+                        ? "#fff"
+                        : isFragrance
+                          ? "#3f281f"
+                          : isDark || isElectronics || isElectric
                         ? "#fff"
                          : isDoceria
                            ? "#6e541e"
@@ -824,7 +872,11 @@ function StoreLayoutInner() {
                   <span
                     className={cn(
                       "w-1.5 h-1.5 rounded-full",
-                      isElectronics || isElectric
+                      isStreet
+                        ? "bg-[#bcff00]"
+                        : isFragrance
+                          ? "bg-[#9c7252]"
+                        : isElectronics || isElectric
                         ? "bg-emerald-400 animate-pulse"
                         : "bg-emerald-500",
                     )}
@@ -832,7 +884,11 @@ function StoreLayoutInner() {
                   <span
                     className={cn(
                       "text-[9px] font-bold",
-                      isElectronics || isElectric
+                      isStreet
+                        ? "text-[#bcff00] uppercase tracking-[0.22em]"
+                        : isFragrance
+                          ? "text-[#9c7252] tracking-[0.18em] uppercase"
+                        : isElectronics || isElectric
                         ? "text-blue-200/80 uppercase tracking-[0.22em]"
                         : "text-slate-400",
                       isFashion || isTechNova
@@ -840,7 +896,11 @@ function StoreLayoutInner() {
                         : "uppercase tracking-wider",
                     )}
                   >
-                    {isElectronics || isElectric
+                    {isStreet
+                      ? "Drop online"
+                      : isFragrance
+                        ? "Perfumaria & presentes"
+                      : isElectronics || isElectric
                       ? "Loja Online"
                        : isDoceria
                          ? "Feito por encomenda"
@@ -859,7 +919,11 @@ function StoreLayoutInner() {
               {navLinks.map((l) => {
                 const linkClassName = cn(
                   "flex items-center gap-2 transition-all",
-                  isElectronics
+                  isStreet
+                    ? "px-4 py-2 border text-[10px] font-black uppercase tracking-[.14em]"
+                    : isFragrance
+                      ? "px-4 py-2 rounded-full text-[11px] font-semibold tracking-[.05em]"
+                    : isElectronics
                     ? "px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider border"
                    : isDoceria
                      ? "px-4 py-2 rounded-full text-[11px] font-extrabold tracking-[0.08em]"
@@ -870,6 +934,10 @@ function StoreLayoutInner() {
                         : "px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider",
                   isActive(l.path)
                     ? "text-white shadow-sm"
+                    : isStreet
+                      ? "border-[#373737] text-[#d0d0d0] hover:border-[#bcff00] hover:text-[#bcff00]"
+                      : isFragrance
+                        ? "text-[#705343] hover:bg-[#f1e6da] hover:text-[#40251d]"
                     : isElectronics
                       ? "border-[#1e2d4a] text-slate-400 hover:text-white hover:border-blue-500/50 hover:bg-blue-500/10"
                        : isDoceria
@@ -880,7 +948,7 @@ function StoreLayoutInner() {
                           ? "border-[#dbe6ff] bg-white/72 text-[#456186] hover:text-[#071426] hover:border-[#b9cdfd] hover:bg-white"
                           : "text-slate-500 hover:text-slate-900 hover:bg-slate-50",
                 );
-                const isCatalogLink = l.label === "Catálogo";
+                const isCatalogLink = l.path === storePath("/catalogo");
 
                 if (isCatalogLink && storeData.categories.length > 0) {
                   return (
@@ -911,7 +979,11 @@ function StoreLayoutInner() {
                             transition={{ duration: 0.15 }}
                             className={cn(
                               "absolute left-1/2 -translate-x-1/2 top-full mt-2 w-[min(90vw,640px)] rounded-2xl border shadow-xl overflow-hidden z-50",
-                              isElectronics
+                              isStreet
+                                ? "bg-[#111] border-[#383838]"
+                                : isFragrance
+                                  ? "bg-[#fffdfa] border-[#e6d7c7]"
+                              : isElectronics
                                 ? "bg-[#0b1220] border-[#1e2d4a]"
                      : isDoceria
                        ? "bg-[#fffdf8] border-[#e5d9c1]"
@@ -931,7 +1003,11 @@ function StoreLayoutInner() {
                                     to={storePath(`/catalogo?cat=${cat.id}`)}
                                     className={cn(
                                       "flex items-center gap-3 p-2 rounded-xl transition-colors",
-                                      isElectronics
+                                      isStreet
+                                        ? "hover:bg-[#1d1d1d]"
+                                        : isFragrance
+                                          ? "hover:bg-[#f5ede5]"
+                                      : isElectronics
                                         ? "hover:bg-[#131c30]"
                                         : "hover:bg-slate-50",
                                     )}
@@ -939,7 +1015,11 @@ function StoreLayoutInner() {
                                     <div
                                       className={cn(
                                         "w-12 h-12 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border",
-                                        isElectronics
+                                        isStreet
+                                          ? "bg-black border-[#383838]"
+                                          : isFragrance
+                                            ? "bg-[#f5ede5] border-[#eadccd]"
+                                        : isElectronics
                                           ? "bg-[#070b12] border-[#1e2d4a]"
                                           : "bg-slate-50 border-slate-100",
                                       )}
@@ -954,7 +1034,11 @@ function StoreLayoutInner() {
                                         <Grid3X3
                                           size={16}
                                           className={
-                                            isElectronics
+                                            isStreet
+                                              ? "text-[#777]"
+                                              : isFragrance
+                                                ? "text-[#a88060]"
+                                            : isElectronics
                                               ? "text-slate-600"
                                               : "text-slate-300"
                                           }
@@ -964,7 +1048,11 @@ function StoreLayoutInner() {
                                     <span
                                       className={cn(
                                         "text-[12px] font-semibold leading-snug line-clamp-2",
-                                        isElectronics
+                                        isStreet
+                                          ? "text-white"
+                                          : isFragrance
+                                            ? "text-[#56382a]"
+                                        : isElectronics
                                           ? "text-slate-200"
                      : isDoceria
                        ? "text-[#70541c]"
@@ -985,12 +1073,16 @@ function StoreLayoutInner() {
                               to={l.path}
                               className={cn(
                                 "flex items-center justify-center gap-2 py-3 text-[10px] font-black uppercase tracking-widest border-t transition-colors",
-                                isElectronics
+                                isStreet
+                                  ? "border-[#383838] text-[#bcff00] hover:bg-[#1c1c1c]"
+                                  : isFragrance
+                                    ? "border-[#eadccd] text-[#6e4935] hover:bg-[#f5ede5]"
+                                : isElectronics
                                   ? "border-[#1e2d4a] text-blue-400 hover:bg-[#131c30]"
                                   : "border-slate-100 hover:bg-slate-50",
                               )}
                               style={
-                                !isElectronics ? { color: style.accent } : {}
+                                !isElectronics && !isStreet ? { color: style.accent } : {}
                               }
                             >
                               Ver catálogo completo <ChevronRight size={12} />
@@ -1024,7 +1116,11 @@ function StoreLayoutInner() {
                 onClick={() => setSearchOpen((v) => !v)}
                 className={cn(
                   "flex items-center justify-center border transition-all",
-                  isElectronics
+                  isStreet
+                    ? "w-10 h-10 rounded-none border-[#383838] bg-black text-[#bcff00] hover:border-[#bcff00]"
+                    : isFragrance
+                      ? "w-10 h-10 rounded-full border-[#ddcdbc] bg-white text-[#765a4a] hover:text-[#40251d]"
+                    : isElectronics
                     ? "w-10 h-10 rounded-xl border-[#1e2d4a] bg-[#0e1525] text-slate-400 hover:text-white hover:border-blue-500/50"
                     : isFashion
                       ? "w-10 h-10 rounded-full border-[#e7d8ce] bg-white/80 text-[#7c5c54] hover:text-[#2d221f]"
@@ -1042,7 +1138,11 @@ function StoreLayoutInner() {
                 style={{ backgroundColor: style.accent }}
                 className={cn(
                   "flex items-center gap-2 text-white transition-all active:scale-95 relative",
-                  isElectronics
+                  isStreet
+                    ? "h-10 px-4 md:px-5 rounded-none shadow-[0_0_18px_rgba(188,255,0,.14)] text-black"
+                    : isFragrance
+                      ? "h-10 px-4 md:px-5 rounded-full shadow-[0_12px_25px_rgba(68,39,25,.18)]"
+                    : isElectronics
                     ? "h-10 px-4 md:px-5 rounded-xl shadow-[0_0_20px_rgba(59,130,246,0.35)]"
                     : isFashion
                       ? "h-10 px-4 md:px-5 rounded-full shadow-md shadow-[#b5877d]/25"
@@ -1056,7 +1156,7 @@ function StoreLayoutInner() {
                 <span
                   className={cn(
                     "hidden sm:inline",
-                     isFashion || isTechNova || isDoceria
+                     isFashion || isTechNova || isDoceria || isFragrance
                       ? "text-[11px] font-semibold tracking-[0.08em]"
                       : "text-[10px] font-black uppercase tracking-wider",
                   )}
@@ -1075,7 +1175,11 @@ function StoreLayoutInner() {
                 onClick={() => setMobileMenuOpen((v) => !v)}
                 className={cn(
                   "md:hidden flex items-center justify-center border",
-                  isElectronics
+                  isStreet
+                    ? "w-10 h-10 rounded-none border-[#383838] bg-black text-[#bcff00]"
+                    : isFragrance
+                      ? "w-10 h-10 rounded-full border-[#ddcdbc] bg-white text-[#765a4a]"
+                    : isElectronics
                     ? "w-10 h-10 rounded-xl border-[#1e2d4a] bg-[#0e1525] text-slate-400"
                      : isDoceria
                        ? "w-10 h-10 rounded-full border-pink-100 bg-white text-pink-500"
@@ -1100,7 +1204,11 @@ function StoreLayoutInner() {
                 exit={{ height: 0, opacity: 0 }}
                 className={cn(
                   "overflow-hidden border-t",
-                  isElectronics
+                  isStreet
+                    ? "border-[#383838] bg-black"
+                    : isFragrance
+                      ? "border-[#e5d7c7] bg-[#fffaf4]"
+                  : isElectronics
                     ? "border-[#1a2540] bg-[#070b12]"
                     : isFashion
                       ? "border-[#eeded4]"
@@ -1126,7 +1234,11 @@ function StoreLayoutInner() {
                       placeholder="Buscar produtos, categorias..."
                       className={cn(
                         "w-full pl-9 pr-4 h-10 text-sm outline-none transition-all",
-                        isElectronics
+                        isStreet
+                          ? "bg-[#111] border border-[#383838] rounded-none text-white placeholder:text-[#666] focus:border-[#bcff00]"
+                          : isFragrance
+                            ? "bg-white border border-[#ddcdbc] rounded-full focus:border-[#9c7252] focus:ring-2 focus:ring-[#efe1d2]"
+                        : isElectronics
                           ? "bg-[#0e1525] border border-[#1e2d4a] rounded-xl text-white placeholder:text-slate-600 focus:border-blue-500/70 focus:ring-2 focus:ring-blue-500/20"
                           : isFashion
                             ? "bg-white border border-[#ead7cc] rounded-full focus:border-[#c48a80] focus:ring-2 focus:ring-[#efd7d1]"
@@ -1141,7 +1253,7 @@ function StoreLayoutInner() {
                     style={{ backgroundColor: style.accent }}
                     className={cn(
                       "h-10 px-5 text-white text-xs font-black uppercase tracking-wider",
-                      isFashion || isTechNova ? "rounded-full" : "rounded-xl",
+                      isStreet ? "rounded-none text-black" : isFashion || isTechNova || isFragrance ? "rounded-full" : "rounded-xl",
                     )}
                   >
                     Buscar
@@ -1151,7 +1263,11 @@ function StoreLayoutInner() {
                     onClick={() => setSearchOpen(false)}
                     className={cn(
                       "h-10 w-10 flex items-center justify-center border text-slate-400",
-                      isFashion
+                      isStreet
+                        ? "border-[#383838] rounded-none text-[#bcff00]"
+                        : isFragrance
+                          ? "border-[#ddcdbc] rounded-full text-[#765a4a]"
+                      : isFashion
                         ? "border-[#ead7cc] rounded-full"
                         : isTechNova
                           ? "border-[#d7e4ff] rounded-full"
@@ -1174,7 +1290,11 @@ function StoreLayoutInner() {
                 exit={{ height: 0, opacity: 0 }}
                 className={cn(
                   "md:hidden overflow-hidden border-t",
-                  isElectronics
+                  isStreet
+                    ? "border-[#383838] bg-[#0a0a0a]"
+                    : isFragrance
+                      ? "border-[#e5d7c7] bg-[#fffaf4]"
+                  : isElectronics
                     ? "border-[#1a2540] bg-[#070b12]"
                     : isFashion
                       ? "border-[#eeded4] bg-[#fffaf5]"
@@ -1193,6 +1313,10 @@ function StoreLayoutInner() {
                         "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
                         isActive(l.path)
                           ? "text-white"
+                          : isStreet
+                            ? "text-[#ddd] hover:bg-[#1b1b1b]"
+                            : isFragrance
+                              ? "text-[#65493a] hover:bg-white"
                           : isTechNova
                             ? "text-[#28466b] hover:bg-white"
                             : "text-slate-700 hover:bg-slate-50",
@@ -1210,7 +1334,7 @@ function StoreLayoutInner() {
                     <p
                       className={cn(
                         "text-[10px] font-black uppercase tracking-widest px-4 mb-1",
-                        isTechNova ? "text-[#7690b3]" : "text-slate-400",
+                        isStreet ? "text-[#bcff00]" : isFragrance ? "text-[#9c7252]" : isTechNova ? "text-[#7690b3]" : "text-slate-400",
                       )}
                     >
                       Categorias
@@ -1222,7 +1346,11 @@ function StoreLayoutInner() {
                         onClick={() => setMobileMenuOpen(false)}
                         className={cn(
                           "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all",
-                          isTechNova
+                          isStreet
+                            ? "text-[#cfcfcf] hover:bg-[#1b1b1b]"
+                            : isFragrance
+                              ? "text-[#705343] hover:bg-white"
+                          : isTechNova
                             ? "text-[#466485] hover:bg-white"
                             : "text-slate-600 hover:bg-slate-50",
                         )}
@@ -1253,7 +1381,11 @@ function StoreLayoutInner() {
         <footer
           className={cn(
             "mt-20 border-t",
-            isUrban
+            isStreet
+              ? "bg-[#050505] text-white border-[#303030]"
+              : isFragrance
+                ? "bg-[#38231b] text-[#fff7ed] border-[#b88a66]"
+              : isUrban
               ? "bg-slate-950 text-slate-100 border-slate-800"
               : isDoceria
                 ? "bg-[#54291f] text-[#fff9ec] border-[#d7ad57]"
@@ -1269,7 +1401,7 @@ function StoreLayoutInner() {
           <div
             className={cn(
               "max-w-7xl mx-auto px-6 py-11 grid grid-cols-1 gap-9",
-               isUrban ? "sm:grid-cols-[1.5fr_1fr_1fr]" : isDoceria ? "sm:grid-cols-[1.5fr_.8fr_1.2fr]" : "sm:grid-cols-3",
+               isUrban || isStreet ? "sm:grid-cols-[1.5fr_1fr_1fr]" : isDoceria || isFragrance ? "sm:grid-cols-[1.5fr_.8fr_1.2fr]" : "sm:grid-cols-3",
             )}
           >
             <div>
@@ -1285,7 +1417,11 @@ function StoreLayoutInner() {
                 </div>
                 <h4
                   className={cn(
-                    isElectronics || isUrban
+                    isStreet
+                      ? "text-white font-black uppercase text-xl tracking-[-.06em]"
+                      : isFragrance
+                        ? "font-serif text-2xl font-semibold tracking-[-.04em] text-[#fff7ed]"
+                      : isElectronics || isUrban
                       ? "text-white font-black text-xl tracking-tight"
                       : isDoceria
                         ? "store-display text-2xl font-bold tracking-[-0.04em] text-[#fff9ec]"
@@ -1305,7 +1441,11 @@ function StoreLayoutInner() {
               <p
                 className={cn(
                   "text-xs leading-relaxed max-w-sm",
-                  isUrban
+                  isStreet
+                    ? "text-[#9b9b9b]"
+                    : isFragrance
+                      ? "text-[#ead6c3]"
+                    : isUrban
                     ? "text-slate-400"
                     : isElectronics
                       ? "text-slate-500"
@@ -1319,7 +1459,11 @@ function StoreLayoutInner() {
                 )}
               >
                 {storeData.tenant.footer_text ||
-                  (isDoceria
+                  (isStreet
+                    ? "Streetwear, drops e acessórios para vestir seu corre."
+                    : isFragrance
+                      ? "Perfumaria, presentes e autocuidado escolhidos para cada momento."
+                    : isDoceria
                     ? "Doces feitos por encomenda para adoçar celebrações, presentes e momentos especiais."
                     : isElectronics
                     ? "Os melhores eletrônicos com os melhores preços. Tecnologia de ponta ao seu alcance."
@@ -1334,7 +1478,11 @@ function StoreLayoutInner() {
               <p
                 className={cn(
                   "mb-4",
-                  isElectronics
+                  isStreet
+                    ? "text-[10px] font-black uppercase tracking-widest text-[#bcff00]"
+                    : isFragrance
+                      ? "text-[10px] font-bold uppercase tracking-[.2em] text-[#e8be93]"
+                    : isElectronics
                     ? "text-[10px] font-black uppercase tracking-widest text-blue-400/70"
                     : isDoceria
                       ? "text-[10px] font-extrabold uppercase tracking-[.2em] text-[#f2d68c]"
@@ -1354,7 +1502,11 @@ function StoreLayoutInner() {
                       to={l.path}
                       className={cn(
                         "text-xs transition-colors font-medium",
-                        isUrban
+                        isStreet
+                          ? "text-[#b4b4b4] hover:text-[#bcff00]"
+                          : isFragrance
+                            ? "text-[#ead6c3] hover:text-white"
+                        : isUrban
                           ? "text-slate-400 hover:text-white"
                           : isElectronics
                             ? "text-slate-500 hover:text-blue-400"
@@ -1377,7 +1529,11 @@ function StoreLayoutInner() {
               <p
                 className={cn(
                   "mb-4",
-                  isElectronics
+                  isStreet
+                    ? "text-[10px] font-black uppercase tracking-widest text-[#bcff00]"
+                    : isFragrance
+                      ? "text-[10px] font-bold uppercase tracking-[.2em] text-[#e8be93]"
+                    : isElectronics
                     ? "text-[10px] font-black uppercase tracking-widest text-blue-400/70"
                     : isDoceria
                       ? "text-[10px] font-extrabold uppercase tracking-[.2em] text-[#f2d68c]"
@@ -1397,7 +1553,11 @@ function StoreLayoutInner() {
                   rel="noopener noreferrer"
                   className={cn(
                     "flex items-center gap-3 transition-colors",
-                    isUrban
+                    isStreet
+                      ? "text-[#e1e1e1] hover:text-[#bcff00]"
+                      : isFragrance
+                        ? "text-[#f4e4d5] hover:text-white"
+                    : isUrban
                       ? "text-slate-200 hover:text-white"
                       : isElectronics
                         ? "text-slate-400 hover:text-white"
