@@ -878,8 +878,10 @@ function StoreLayoutInner() {
                     ? "w-10 h-10 rounded-none border border-[#bcff00] text-[#bcff00] bg-black"
                     : isFragrance
                       ? "w-11 h-11 rounded-full shadow-[0_10px_24px_rgba(68,39,25,.16)]"
-                    : isElectronics || isElectric
+                    : isElectronics
                     ? "w-11 h-11 rounded-xl shadow-[0_0_24px_rgba(59,130,246,0.5)]"
+                    : isElectric
+                    ? "w-11 h-11 rounded-md border border-orange-300/35 shadow-[0_0_24px_rgba(249,115,22,.38)]"
                      : isDoceria
                        ? "w-11 h-11 rounded-full shadow-[0_10px_25px_rgba(219,39,119,0.22)]"
                      : isFashion
@@ -955,8 +957,10 @@ function StoreLayoutInner() {
                         ? "text-[#bcff00] uppercase tracking-[0.22em]"
                         : isFragrance
                           ? "text-[#9c7252] tracking-[0.18em] uppercase"
-                        : isElectronics || isElectric
+                        : isElectronics
                         ? "text-blue-200/80 uppercase tracking-[0.22em]"
+                        : isElectric
+                        ? "text-orange-200/90 uppercase tracking-[0.22em]"
                         : "text-slate-400",
                       isFashion || isTechNova
                         ? "store-kicker tracking-[0.28em]"
@@ -996,6 +1000,8 @@ function StoreLayoutInner() {
                     ? "px-4 py-2 border text-[10px] font-black uppercase tracking-[.14em]"
                     : isFragrance
                       ? "px-4 py-2 rounded-full text-[11px] font-semibold tracking-[.05em]"
+                    : isElectric
+                    ? "px-4 py-2 rounded-md text-[11px] font-black uppercase tracking-wider border"
                     : isElectronics
                     ? "px-4 py-2 rounded-xl text-[11px] font-bold uppercase tracking-wider border"
                    : isDoceria
@@ -1011,6 +1017,8 @@ function StoreLayoutInner() {
                       ? "border-[#373737] text-[#d0d0d0] hover:border-[#bcff00] hover:text-[#bcff00]"
                       : isFragrance
                         ? "text-[#705343] hover:bg-[#f1e6da] hover:text-[#40251d]"
+                    : isElectric
+                      ? "border-[#394b5f] text-slate-200 hover:text-white hover:border-orange-400/70 hover:bg-orange-400/10"
                     : isElectronics
                       ? "border-[#1e2d4a] text-slate-400 hover:text-white hover:border-blue-500/50 hover:bg-blue-500/10"
                        : isDoceria
@@ -1056,6 +1064,8 @@ function StoreLayoutInner() {
                                 ? "bg-[#111] border-[#383838]"
                                 : isFragrance
                                   ? "bg-[#fffdfa] border-[#e6d7c7]"
+                              : isElectric
+                                ? "bg-[#0d1724] border-[#394b5f]"
                               : isElectronics
                                 ? "bg-[#0b1220] border-[#1e2d4a]"
                      : isDoceria
@@ -1080,6 +1090,8 @@ function StoreLayoutInner() {
                                         ? "hover:bg-[#1d1d1d]"
                                         : isFragrance
                                           ? "hover:bg-[#f5ede5]"
+                                      : isElectric
+                                        ? "hover:bg-[#172433]"
                                       : isElectronics
                                         ? "hover:bg-[#131c30]"
                                         : "hover:bg-slate-50",
@@ -1092,6 +1104,8 @@ function StoreLayoutInner() {
                                           ? "bg-black border-[#383838]"
                                           : isFragrance
                                             ? "bg-[#f5ede5] border-[#eadccd]"
+                                        : isElectric
+                                          ? "bg-[#07101a] border-[#394b5f]"
                                         : isElectronics
                                           ? "bg-[#070b12] border-[#1e2d4a]"
                                           : "bg-slate-50 border-slate-100",
@@ -1111,6 +1125,8 @@ function StoreLayoutInner() {
                                               ? "text-[#777]"
                                               : isFragrance
                                                 ? "text-[#a88060]"
+                                            : isElectric
+                                              ? "text-orange-200"
                                             : isElectronics
                                               ? "text-slate-600"
                                               : "text-slate-300"
@@ -1125,6 +1141,8 @@ function StoreLayoutInner() {
                                           ? "text-white"
                                           : isFragrance
                                             ? "text-[#56382a]"
+                                        : isElectric
+                                          ? "text-slate-100"
                                         : isElectronics
                                           ? "text-slate-200"
                      : isDoceria
@@ -1150,12 +1168,14 @@ function StoreLayoutInner() {
                                   ? "border-[#383838] text-[#bcff00] hover:bg-[#1c1c1c]"
                                   : isFragrance
                                     ? "border-[#eadccd] text-[#6e4935] hover:bg-[#f5ede5]"
+                                : isElectric
+                                  ? "border-[#394b5f] text-orange-300 hover:bg-[#172433]"
                                 : isElectronics
                                   ? "border-[#1e2d4a] text-blue-400 hover:bg-[#131c30]"
                                   : "border-slate-100 hover:bg-slate-50",
                               )}
                               style={
-                                !isElectronics && !isStreet ? { color: style.accent } : {}
+                                !isElectronics && !isElectric && !isStreet ? { color: style.accent } : {}
                               }
                             >
                               Ver catálogo completo <ChevronRight size={12} />

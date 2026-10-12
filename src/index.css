@@ -568,6 +568,33 @@ body {
 .store-theme-beauty .store-search-input input { border-color: #b98261; background: #fff; color: #393532; }
 .store-theme-beauty main { overflow-x: clip; }
 
+/* Elétrica Pro: linguagem industrial própria, com sinalização laranja e base azul-naval. */
+.store-theme-electric { background: #f6f8fb; color: #102033; }
+.store-theme-electric > header { background: rgba(7, 20, 38, .97) !important; border-color: #2e4359 !important; box-shadow: 0 10px 30px rgba(7, 20, 38, .28) !important; }
+.store-theme-electric > header p,
+.store-theme-electric > header span:not(.bg-white),
+.store-theme-electric > header a { color: #f8fafc !important; }
+.store-theme-electric > header nav a:not([style]) { color: #dbe6ef !important; }
+.store-theme-electric > header nav a:hover { color: #fff !important; }
+.store-theme-electric > header button[style] { background-color: #f97316 !important; }
+.store-theme-electric > footer { background: #071426 !important; border-color: #2e4359 !important; }
+.store-theme-electric > footer h4,
+.store-theme-electric > footer p,
+.store-theme-electric > footer a { color: #dbe6ef !important; }
+.store-theme-electric main { overflow-x: clip; }
+.store-theme-electric .electric-storefront { background-image: linear-gradient(rgba(19, 47, 75, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(19, 47, 75, .035) 1px, transparent 1px); background-size: 24px 24px; }
+.store-theme-electric article { border-radius: .85rem; }
+.store-theme-electric .store-search-input input { border-color: #42586e; background: #0d1724; color: #fff; }
+.store-theme-electric .store-search-input input::placeholder { color: #94a3b8; }
+.store-theme-electric .ui-button:focus-visible { ring-color: #fb923c; }
+
+@media (max-width: 767px) {
+  .store-theme-electric > header { box-shadow: 0 6px 18px rgba(7, 20, 38, .22) !important; }
+  .store-theme-electric main [class*="max-w-7xl"] { min-width: 0; }
+  .store-theme-electric main .grid-cols-2 > article { min-width: 0; }
+  .store-theme-electric .electric-storefront h1 { font-size: clamp(2.2rem, 10vw, 3.4rem); }
+}
+
 @media (max-width: 767px) {
   .store-theme-tech > header, .store-theme-cyber > header, .store-theme-luxury > header { backdrop-filter: blur(18px); }
   .store-theme-tech article, .store-theme-nexus_tech article, .store-theme-organic article { border-radius: 14px !important; }
