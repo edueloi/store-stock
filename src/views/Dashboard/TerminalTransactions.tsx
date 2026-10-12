@@ -3,9 +3,8 @@ import ExcelJS from "exceljs";
 import {
   Terminal, Search, Download, CheckCircle2, Loader2, Clock, XCircle, AlertTriangle, Ban,
 } from "lucide-react";
-import PageHeader from "../../components/layout/PageHeader";
 import { cn } from "../../lib/utils";
-import { Button, Select, Badge, FilterLineSearch } from "../../components/ui";
+import { Button, Select, Badge, FilterLineSearch, PageWrapper, PanelCard, SectionTitle } from "../../components/ui";
 
 type TerminalTxStatus = "approved" | "denied" | "cancelled" | "pending" | "error";
 
@@ -144,10 +143,11 @@ export default function TerminalTransactions() {
   );
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Relatório de Maquininha"
-        subtitle="Transações de cartão nas maquininhas físicas conectadas · NSU, autorização e taxas"
+    <PageWrapper>
+    <div className="min-w-0 space-y-4">
+      <SectionTitle
+        title="Maquininhas"
+        description="Transações de cartão, NSU, autorização e taxas"
         action={
           <Button
             variant="outline"
@@ -162,29 +162,29 @@ export default function TerminalTransactions() {
         }
       />
 
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-0 border-b border-slate-100 divide-x divide-slate-100">
+      <PanelCard padding="none" className="min-w-0 overflow-hidden">
+        <div className="grid grid-cols-2 divide-x divide-y divide-slate-100 border-b border-slate-100 sm:grid-cols-5 sm:divide-y-0">
           {[
             { label: "Total",       value: counts.total,    color: "text-slate-900" },
             { label: "Aprovadas",   value: counts.approved, color: "text-emerald-500" },
             { label: "Pendentes",   value: counts.pending,  color: "text-blue-500" },
             { label: "Com erro",    value: counts.error,    color: "text-rose-500" },
           ].map((k) => (
-            <div key={k.label} className="flex-1 px-5 py-4 flex flex-col gap-0.5">
-              <span className={cn("text-2xl font-semibold font-mono leading-none", k.color)}>{k.value}</span>
+            <div key={k.label} className="min-w-0 px-3 py-3 sm:px-5 sm:py-4">
+              <span className={cn("block truncate text-lg font-semibold font-mono leading-none sm:text-2xl", k.color)}>{k.value}</span>
               <span className="text-[11px] text-slate-500">{k.label}</span>
             </div>
           ))}
-          <div className="flex-1 px-5 py-4 flex flex-col gap-0.5">
-            <span className="text-2xl font-semibold font-mono leading-none text-slate-900">
+          <div className="min-w-0 px-3 py-3 sm:px-5 sm:py-4">
+            <span className="block truncate text-lg font-semibold font-mono leading-none text-slate-900 sm:text-2xl">
               {counts.volume.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
             </span>
             <span className="text-[11px] text-slate-500">Volume Aprovado</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
-          <div className="flex-1 min-w-[180px]">
+        <div className="grid grid-cols-1 gap-2 border-b border-slate-100 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_170px_150px] sm:px-4">
+          <div className="min-w-0">
             <FilterLineSearch
               aria-label="Buscar transações"
               placeholder="Buscar por NSU, autorização, pedido..."
@@ -196,7 +196,7 @@ export default function TerminalTransactions() {
             aria-label="Filtrar por maquininha"
             value={providerFilter}
             onChange={(e) => setProviderFilter(e.target.value)}
-            wrapperClassName="min-w-[170px]"
+            wrapperClassName="min-w-0"
             size="sm"
           >
             <option value="all">Todas as maquininhas</option>
@@ -208,7 +208,7 @@ export default function TerminalTransactions() {
             aria-label="Filtrar por status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as TerminalTxStatus | "all")}
-            wrapperClassName="min-w-[150px]"
+            wrapperClassName="min-w-0"
             size="sm"
           >
             <option value="all">Todos os status</option>
@@ -218,8 +218,8 @@ export default function TerminalTransactions() {
           </Select>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="max-w-full overflow-x-auto overscroll-x-contain">
+          <table className="min-w-[760px] w-full text-left border-collapse">
             <thead>
               <tr className="border-t border-slate-100 bg-zinc-50">
                 {["Data", "Maquininha", "Pedido", "Status", "Modo", "Bandeira", "NSU", "Autorização", "Valor"].map((h) => (
@@ -263,7 +263,8 @@ export default function TerminalTransactions() {
             </tbody>
           </table>
         </div>
-      </div>
+      </PanelCard>
     </div>
+    </PageWrapper>
   );
 }
