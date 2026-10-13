@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Heart, ShoppingBag } from "lucide-react";
 import type { Product } from "../../../../types";
-import { groups, imageOf, money, priceOf, useKit } from "./lib";
+import { groups, imageOf, money, priceOf, totalUnits, useKit } from "./lib";
 
 export function Price({ product, hidden, big }: { product: Product; hidden: boolean; big?: boolean }) {
   if (hidden) return <span className={`sport-price sport-price--ask${big ? " sport-big" : ""}`}>Sob consulta</span>;
@@ -17,8 +17,8 @@ export function Price({ product, hidden, big }: { product: Product; hidden: bool
 export default function Card({ product }: { product: Product }) {
   const { wishlist, toggleWishlist, addToCart, openCart, productPath, hidden, soldOut, catName, cart, tracks } = useKit();
   const inCart = cart.filter(i => i.id === product.id).reduce((s,i) => s + i.quantity, 0);
-  const stock = product.skus?.length ? product.skus.reduce((s,k)=>s+(Number(k.stock)||0),0) : Number(product.stock);
-  const limitReached = tracks && Number.isFinite(stock) && inCart >= stock;
+  const stock = totalUnits(product);
+  const limitReached = tracks && stock !== null && inCart >= stock;
   const img = imageOf(product);
   const { off, price, full } = priceOf(product);
   const out = soldOut(product) || !!limitReached;

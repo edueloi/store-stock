@@ -3,7 +3,7 @@ import { ArrowRight, Heart, PawPrint, ShieldCheck, Sparkles, Star } from "lucide
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { detectAnimal, tint } from "./animals";
 import Card from "./Card";
-import { imageOf, priceOf, useKit } from "./lib";
+import { priceOf, useKit } from "./lib";
 import "./styles.css";
 
 const Wave = ({ color }: { color: string }) => (
@@ -17,8 +17,7 @@ export default function StoreFront() {
   const featured = (active.some((p) => p.is_featured) ? active.filter((p) => p.is_featured) : active).slice(0, 8);
   const deals = active.filter((p) => priceOf(p).off).slice(0, 4);
   const title = tenant.hero_tagline || "Tudo para uma vida feliz de quatro patas";
-  const firstPhoto = imageOf(featured[0]);
-  const hero = tenant.banner_url || firstPhoto;
+  const hero = tenant.banner_url || "/store-assets/pet-companions-hero-v1.png";
   const words = title.trim().split(/\s+/);
   const cut = Math.max(1, words.length - 2);
 
@@ -48,7 +47,7 @@ export default function StoreFront() {
             </div>
             <div style={{ position: "relative", padding: "14px 10px 24px" }}>
               <div className="pet-blob">
-                {hero ? <img src={hero} alt="" className={tenant.banner_url ? "" : "contain"} /> : <PawPrint size={120} className="pet-blob-empty" />}
+                <img src={hero} alt="" fetchPriority="high" />
               </div>
               <span className="pet-sticker pet-float" style={{ left: 0, top: 0, ["--r" as string]: "-6deg" }}><Heart size={16} fill="currentColor" style={{ color: "var(--pt-accent)" }} /> Feito com carinho</span>
               {deals.length > 0 && !(sf.hide_prices === true || sf.checkout_mode === "order_request") && (
@@ -66,11 +65,11 @@ export default function StoreFront() {
               <span className="pet-pill-tag"><PawPrint size={16} /> Para quem é?</span>
               <h2 className="pet-h">{sf.home_categories_title || "Escolha o seu bichinho"}</h2>
             </div>
-            <div className="pet-bubbles">
-              {usedCategories.slice(0, 10).map((c, i) => {
+            <div className="pet-bubbles pet-category-tiles">
+              {usedCategories.slice(0, 6).map((c, i) => {
                 const a = detectAnimal(c.name);
                 return (
-                  <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className="pet-bubble">
+                  <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className="pet-bubble" style={{ background: tint(i) }}>
                     <span className="pet-bubble-ico" style={{ ["--b" as string]: tint(i) }}><a.Icon size={44} strokeWidth={1.8} /></span>
                     <span>{c.name}<small>{countIn(c.id)} {countIn(c.id) === 1 ? "produto" : "produtos"}</small></span>
                   </Link>
@@ -83,18 +82,18 @@ export default function StoreFront() {
 
       {deals.length > 0 && !(sf.hide_prices === true || sf.checkout_mode === "order_request") && (
         <>
-          <Wave color="var(--pt-sun)" />
-          <section className="pet-sec pet-sec--sun">
-            <div className="pet-wrap">
+          <Wave color="var(--pt-offers)" />
+          <section className="pet-sec pet-offers">
+            <div className="pet-wrap pet-offers-layout">
               <div className="pet-sec-head">
                 <span className="pet-pill-tag"><Star size={16} /> Ofertas</span>
-                <h2 className="pet-h">Preço de petisco!</h2>
+                <h2 className="pet-h">Ofertas especiais</h2>
                 <p>Ofertas especiais para cuidar do seu pet gastando menos.</p>
               </div>
               <div className="pet-grid">{deals.map((p, i) => <Card key={p.id} product={p} index={i} />)}</div>
             </div>
           </section>
-          <svg className="pet-wave" viewBox="0 0 1200 44" preserveAspectRatio="none" aria-hidden="true" style={{ transform: "scaleY(-1)", ["--wave" as string]: "var(--pt-sun)", marginTop: -1 }}>
+          <svg className="pet-wave" viewBox="0 0 1200 44" preserveAspectRatio="none" aria-hidden="true" style={{ transform: "scaleY(-1)", ["--wave" as string]: "var(--pt-offers)", marginTop: -1 }}>
             <path d="M0 22 C 150 0, 250 44, 400 22 S 650 0, 800 22 S 1050 44, 1200 22 V44 H0 Z" />
           </svg>
         </>

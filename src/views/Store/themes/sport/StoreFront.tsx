@@ -4,6 +4,7 @@ import StoreSEO from "../../../../components/store/StoreSEO";
 import Card from "./Card";
 import { imageOf, priceOf, useKit } from "./lib";
 import "./styles.css";
+import "./v3.css";
 export default function StoreFront(){
   const {tenant,active,path,sf,hidden,usedCategories,countIn,productPath}=useKit();
   const featured=(active.filter(p=>p.is_featured).length?active.filter(p=>p.is_featured):active).slice(0,8);

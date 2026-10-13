@@ -88,6 +88,88 @@
 .sport-drawer form { max-width: 80%; }
 .sport-drawer input { width: 100%; height: 48px; font-size: 16px; padding: 0 14px; border: 0; background: #fff; color: var(--sp-ink); }
 
+/* Sport V3 header */
+.sport-v3-header { position: sticky; top: 0; z-index: 40; background: #090b0e; color: #f7f7f5; border-bottom: 1px solid #282c31; }
+.sport-v3-header :focus-visible { outline: 3px solid var(--sp-accent); outline-offset: 3px; }
+.sv3-announcement { min-height: 34px; display: flex; align-items: center; background: #050607; color: #d7d9dc; border-bottom: 1px solid #282c31; font: 700 11px "Barlow Condensed", sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.sv3-announcement .sport-wrap { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.sv3-announcement-right { color: var(--sp-accent); }
+.sv3-header-main { display: grid; grid-template-columns: minmax(0, 180px) minmax(0, 1fr) minmax(200px, 300px) auto; align-items: center; gap: 16px; min-height: 76px; padding-top: 10px; padding-bottom: 10px; }
+.sv3-logo { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 50px; color: #fff !important; text-decoration: none; }
+.sv3-logo img { display: block; flex: 0 0 46px; width: 46px !important; min-width: 46px; max-width: 46px !important; height: 46px !important; max-height: 46px; object-fit: contain; }
+.sv3-logo strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 900 19px/1 "Barlow Condensed", sans-serif; letter-spacing: .04em; text-transform: uppercase; }
+.sv3-logo-mark { display: grid; place-items: center; flex: 0 0 46px; width: 46px; height: 46px; background: var(--sp-accent); color: #fff; font: 900 28px/1 "Barlow Condensed", sans-serif; }
+.sv3-navigation { display: flex; align-items: center; justify-content: center; gap: 2px; min-width: 0; }
+.sv3-navigation a, .sv3-navigation button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: #d7d9dc !important; white-space: nowrap; font: 800 13px "Barlow Condensed", sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+.sv3-navigation a:hover, .sv3-navigation button:hover, .sv3-navigation a[aria-current="page"] { color: #fff !important; background: #1a1d21; box-shadow: inset 0 -3px 0 var(--sp-accent); }
+.sv3-header-search { display: flex; align-items: center; min-width: 0; min-height: 42px; padding: 0 5px 0 12px; background: #16191d; border: 1px solid #3a3e43; color: #aeb3b8; }
+.sv3-header-search input { flex: 1; min-width: 0; height: 40px; padding: 0 9px; border: 0; outline: 0; background: transparent; color: #fff; font: 500 14px "Barlow", sans-serif; }
+.sv3-header-search input::placeholder { color: #aeb3b8; }
+.sv3-header-search button { display: grid; place-items: center; flex: 0 0 38px; width: 38px; height: 36px; border: 0; background: var(--sp-accent); color: #fff; }
+.sv3-cart { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 12px; border: 1px solid var(--sp-accent); background: var(--sp-accent); color: #fff; white-space: nowrap; font: 800 12px "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.sv3-cart b { display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; background: #0a0c0f; color: #fff; font-size: 11px; }
+.sv3-menu-trigger { display: none; width: 44px; height: 44px; place-items: center; border: 1px solid #3a3e43; background: #16191d; color: #fff; }
+.sv3-navstrip { background: #111418; border-top: 1px solid #282c31; }
+.sv3-navstrip-inner { display: flex; align-items: center; gap: 8px; min-height: 44px; overflow-x: auto; scrollbar-width: thin; }
+.sv3-navstrip-inner > button, .sv3-navstrip-inner > a { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 0 12px; border: 0; background: transparent; color: #d7d9dc !important; white-space: nowrap; font: 800 12px "Barlow Condensed", sans-serif; letter-spacing: .07em; text-transform: uppercase; }
+.sv3-navstrip-inner > button { background: #22272d; color: #fff !important; }
+.sv3-navstrip-inner > button:hover, .sv3-navstrip-inner > a:hover { color: #fff !important; background: #252a30; }
+.sv3-navstrip-inner > span { margin-left: auto; color: #aeb3b8; font: 600 11px "Barlow", sans-serif; white-space: nowrap; }
+.sv3-department-panel { position: absolute; top: 100%; left: 0; right: 0; z-index: 50; padding: 24px 0 28px; background: #f6f6f4; color: #111; border-bottom: 4px solid var(--sp-accent); box-shadow: 0 18px 32px rgba(0,0,0,.24); }
+.sv3-department-inner { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(220px, .9fr) minmax(0, 1.5fr); gap: 24px; align-items: start; }
+.sv3-department-top { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.sv3-department-top small { color: #72777d; font: 800 11px "Barlow Condensed", sans-serif; letter-spacing: .12em; }
+.sv3-department-top h2 { margin: 6px 0 0; font: 900 25px/1 "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.sv3-department-top button { display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid #d2d4d2; background: #fff; color: #111; }
+.sv3-department-search { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 12px; border: 1px solid #d2d4d2; background: #fff; }
+.sv3-department-search input { flex: 1; min-width: 0; height: 42px; border: 0; outline: 0; background: transparent; color: #111; font: 14px "Barlow", sans-serif; }
+.sv3-department-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sv3-department-item { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-height: 76px; padding: 12px; border: 1px solid #dedfdb; background: #fff; color: #111 !important; }
+.sv3-department-item:hover { border-color: var(--sp-accent); }
+.sv3-department-item strong { font: 800 15px "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.sv3-department-item span { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #666; font-size: 11px; }
+.sv3-department-all { background: #111418; color: #fff !important; border-color: #111418; }
+.sv3-department-all span { color: #d7d9dc; }
+.sv3-drawer-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; justify-content: flex-end; background: rgba(0,0,0,.62); }
+.sv3-drawer { width: min(440px, 92vw); height: 100%; overflow-y: auto; padding: 22px; background: #101317; color: #fff; box-shadow: -16px 0 40px rgba(0,0,0,.28); }
+.sv3-drawer-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; font: 900 22px "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.sv3-drawer-heading button, .sv3-drawer-search button { display: grid; place-items: center; width: 44px; height: 44px; border: 1px solid #3a3e43; background: #1a1e23; color: #fff; }
+.sv3-drawer-search { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; padding-left: 12px; background: #fff; color: #111; }
+.sv3-drawer-search input { flex: 1; min-width: 0; height: 44px; border: 0; outline: 0; background: transparent; color: #111; font-size: 14px; }
+.sv3-drawer-search button { background: var(--sp-accent); border: 0; }
+.sv3-drawer nav a { display: flex; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px solid #34383d; color: #fff !important; font: 800 21px "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.sv3-drawer nav a small { color: var(--sp-accent); font-size: 12px; }
+.sv3-drawer nav a svg { margin-left: auto; }
+.sv3-drawer h3 { margin: 24px 0 10px; color: var(--sp-accent); font: 800 14px "Barlow Condensed", sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.sv3-drawer-categories { display: flex; flex-wrap: wrap; gap: 8px; }
+.sv3-drawer-categories a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border: 1px solid #454a50; color: #e6e7e8 !important; font-size: 12px; }
+.sv3-drawer-categories a:hover { border-color: var(--sp-accent); color: #fff !important; }
+@media (max-width: 1100px) {
+  .sv3-header-main { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
+  .sv3-navigation { display: none; }
+  .sv3-menu-trigger { display: grid; grid-column: 3; grid-row: 1; }
+  .sv3-header-search { grid-column: 1 / -1; grid-row: 2; }
+  .sv3-cart { grid-column: 2; grid-row: 1; min-width: 44px; padding: 0 10px; }
+  .sv3-header-main { padding-top: 10px; padding-bottom: 10px; }
+  .sv3-navstrip-inner > span { display: none; }
+  .sv3-department-inner { grid-template-columns: 1fr 1fr; }
+  .sv3-department-grid { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .sv3-announcement { min-height: 30px; font-size: 9px; }
+  .sv3-announcement-right { display: none; }
+  .sv3-header-main { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .sv3-logo { gap: 8px; }
+  .sv3-logo img, .sv3-logo-mark { flex-basis: 38px; width: 38px !important; min-width: 38px; max-width: 38px !important; height: 38px !important; max-height: 38px; }
+  .sv3-logo strong { font-size: 16px; }
+  .sv3-cart { min-width: 42px; padding: 0 8px; }
+  .sv3-navstrip-inner { min-height: 42px; }
+  .sv3-navstrip-inner > button, .sv3-navstrip-inner > a { min-height: 34px; padding: 0 9px; font-size: 10px; }
+  .sv3-department-panel { max-height: calc(100dvh - 105px); overflow-y: auto; padding: 18px 0; }
+  .sv3-department-inner { grid-template-columns: 1fr; gap: 14px; }
+  .sv3-department-grid { grid-column: auto; grid-template-columns: 1fr; }
+}
+
 /* ===== Footer ===== */
 .sport-footer { background: var(--sp-ink); color: #fff; position: relative; overflow: hidden; margin-top: 0; }
 .sport-footer-band { background: var(--sp-accent); color: #fff; padding: 22px 0; clip-path: polygon(0 0, 100% 24%, 100% 100%, 0 100%); padding-top: 56px; }

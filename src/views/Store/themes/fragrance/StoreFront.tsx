@@ -11,7 +11,7 @@ export default function StoreFront() {
   const featuredAll = active.filter(p=>p.is_featured);
   const featured = (featuredAll.length ? featuredAll : active).slice(0, 8);
   const cats = categories.filter(c=>active.some(p=>p.category_id === c.id)).slice(0, 6);
-  const image = tenant.banner_url || productImage(featured[0]);
+  const image = tenant.banner_url || "/store-assets/fragrance-amber-hero-v1.png";
   const subtitle = tenant.about_text || "Uma seleção especial para acompanhar seus momentos.";
   const wa = whatsappLink(tenant.whatsapp);
   const add = (product: typeof featured[number]) => { const a=quickAdd(product); if(!a.hasOptions && !a.soldOut){a.add();openCart();} };

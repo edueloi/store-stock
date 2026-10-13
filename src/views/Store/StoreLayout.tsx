@@ -36,6 +36,7 @@ import { availableUnits, storeTracksStock } from "../../utils/storeStock";
 import { isSegment, segmentThemes } from "./themes/segments/registry";
 import { SegmentHeader, SegmentFooter } from "./themes/segments/Chrome";
 import "./themes/segments/styles.css";
+import "./themes/refined-carts.css";
 import { ownPages, ownChrome } from "./themes/own";
 
 // ── Store pages (lazy-loaded per theme)
@@ -1843,7 +1844,7 @@ function StoreLayoutInner() {
                         isElectronics || isFragrance ? "text-white" : "text-slate-900",
                       )}
                     >
-                      {segment ? storefront.cart_title || segment.cart : isUrban ? "Seu carrinho" : isFragrance ? "Sua sacola" : "Carrinho"}
+                      {storefront.cart_title || (segment ? segment.cart : isUrban ? "Seu carrinho" : isFragrance ? "Sua sacola" : "Carrinho")}
                     </h3>
                     <p
                       className={cn(

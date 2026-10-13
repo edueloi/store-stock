@@ -4,9 +4,10 @@ import { Cog, Facebook, Instagram, Menu, MessageCircle, ShoppingCart, X } from "
 import SearchBar from "../../../../components/layout/SearchBar";
 import { hoursList, useShop, waLink } from "./lib";
 import "./styles.css";
+import "./storefront.css";
 
 export function Header() {
-  const { tenant, categories, openCart, cartCount, path, vars, sf } = useShop();
+  const { tenant, openCart, cartCount, path, vars, sf } = useShop();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -26,7 +27,6 @@ export function Header() {
     setOpen(false);
   };
   const wa = waLink(tenant);
-  const sectors = categories.slice(0, 10);
   return (
     <header className="tg-scope tg-header" style={vars}>
       <div className="tg-ticker">
@@ -59,17 +59,11 @@ export function Header() {
           {links.map((l) => (
             <Link key={l.name} to={l.to} aria-current={pathname === l.to.split("?")[0] ? "page" : undefined}>{l.name}</Link>
           ))}
-          {sectors.length > 0 && <i />}
-          {sectors.map((c) => (
-            <Link key={c.id} className="tg-sector" to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link>
-          ))}
         </div>
       </nav>
       {open && (
         <nav className="tg-drawer" aria-label="Menu">
           {links.map((l) => <Link key={l.name} to={l.to} onClick={() => setOpen(false)}>{l.name}</Link>)}
-          {sectors.length > 0 && <small>Setores</small>}
-          {sectors.map((c) => <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} onClick={() => setOpen(false)}>{c.name}</Link>)}
         </nav>
       )}
     </header>

@@ -4,6 +4,7 @@ import { Instagram, Menu, MessageCircle, Search, ShoppingBag, Store, X } from "l
 import SearchBar from "../../../../components/layout/SearchBar";
 import { hoursLines, useKit, whatsappLink } from "./kit";
 import "./styles.css";
+import "./reference.css";
 
 export function Header() {
   const { tenant, categories, cart, openCart, path } = useKit();
@@ -53,7 +54,6 @@ export function Header() {
       <nav className={`fr-nav ${menuOpen ? "is-open" : ""}`} aria-label="Navegação principal">
         <div className="fr-wrap fr-nav-inner">
           {links.map((link) => <Link key={link.label} to={link.to} aria-current={pathname === link.to.split("?")[0] ? "page" : undefined}>{link.label}</Link>)}
-          {categories.slice(0, 6).map((category) => <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)}>{category.name}</Link>)}
         </div>
       </nav>
     </header>

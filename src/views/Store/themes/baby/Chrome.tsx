@@ -5,6 +5,7 @@ import SearchBar from "../../../../components/layout/SearchBar";
 import { hoursLines, useKit, whatsappLink } from "./kit";
 import { Balloon, Cloud, Star, Wave } from "./parts";
 import "./styles.css";
+import "./reference.css";
 
 export function Header() {
   const { tenant, categories, openCart, cartCount, path, sf, active } = useKit();

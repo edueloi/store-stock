@@ -3,35 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Cog, MessageCircle, PackageCheck, SearchCheck, ShieldCheck, Wrench } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { useShop, waLink } from "./lib";
+import { productRouteSegment } from "../../store-routing";
 import { SkuRow, TableHead } from "./parts";
 
 const hiddenLabel = { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" } as const;
-
-function Gauge({ a, b, c }: { a: number; b: number; c: number }) {
-  const ticks = Array.from({ length: 21 }, (_, i) => i);
-  return (
-    <div className="tg-panel tg-gauge" aria-hidden="true">
-      <svg viewBox="0 0 240 150">
-        <path d="M30 130 A90 90 0 0 1 210 130" fill="none" stroke="#2f3d50" strokeWidth="14" />
-        <path d="M30 130 A90 90 0 0 1 150 45" fill="none" stroke="var(--tg-accent)" strokeWidth="14" />
-        {ticks.map((i) => {
-          const ang = Math.PI + (i / 20) * Math.PI;
-          const r1 = 70;
-          const r2 = i % 5 === 0 ? 58 : 63;
-          return <line key={i} x1={120 + r1 * Math.cos(ang)} y1={130 + r1 * Math.sin(ang)} x2={120 + r2 * Math.cos(ang)} y2={130 + r2 * Math.sin(ang)} stroke="#a3b3c6" strokeWidth={i % 5 === 0 ? 2 : 1} />;
-        })}
-        <line x1="120" y1="130" x2="160" y2="82" stroke="#f1f5f9" strokeWidth="3" strokeLinecap="round" />
-        <circle cx="120" cy="130" r="8" fill="var(--tg-accent)" />
-        <text x="120" y="112" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="9" fill="#a3b3c6" letterSpacing="2">ESTOQUE</text>
-      </svg>
-      <div className="tg-gauge-stats">
-        <div><b>{a}</b><small>Peças</small></div>
-        <div><b>{b}</b><small>Setores</small></div>
-        <div><b>{c}</b><small>Destaques</small></div>
-      </div>
-    </div>
-  );
-}
 
 export default function StoreFront() {
   const { tenant, categories, active, sf, path, vars } = useShop();
@@ -74,7 +49,14 @@ export default function StoreFront() {
               </div>
             )}
           </div>
-          <Gauge a={active.length} b={sectors.length} c={highlighted.length} />
+          <div className="tg-hero-showcase">
+            {featured[0] ? <>
+              <Link to={path(`/produto/${productRouteSegment(featured[0])}`)} className="tg-showcase-photo">
+                {(featured[0].images?.[0] || featured[0].image_url) ? <img src={featured[0].images?.[0] || featured[0].image_url} alt={featured[0].name} /> : <Cog size={110} />}
+              </Link>
+              <div className="tg-showcase-caption"><span>EM DESTAQUE NA LOJA</span><Link to={path(`/produto/${productRouteSegment(featured[0])}`)}>{featured[0].name} <ArrowRight size={20} /></Link></div>
+            </> : <div className="tg-showcase-empty"><Wrench size={70} /><h2>Seu projeto começa pela peça certa.</h2><Link to={path("/sobre")}>Converse com a loja <ArrowRight size={18} /></Link></div>}
+          </div>
         </div>
       </section>
       <section className="tg-compat" aria-label="Compatibilidade">

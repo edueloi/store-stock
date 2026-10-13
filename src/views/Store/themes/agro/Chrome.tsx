@@ -4,6 +4,7 @@ import { Menu, ShoppingCart, Tractor, X } from "lucide-react";
 import SearchBar from "../../../../components/layout/SearchBar";
 import { hoursLines, useKit } from "./kit";
 import "./styles.css";
+import "./storefront.css";
 
 export function Header() {
   const { tenant, categories, cart, openCart, path, config } = useKit();
@@ -53,20 +54,16 @@ export function Header() {
           </button>
         </div>
       </div>
-      <nav className="agro-depts" aria-label="Departamentos">
+      <nav className="agro-depts" aria-label="Navegação principal">
         <div className="agro-wrap">
           {links.map((l) => (
             <Link key={l.to} to={l.to} aria-current={pathname === l.match && !activeCat ? "page" : undefined}>{l.name}</Link>
-          ))}
-          {categories.map((c) => (
-            <Link key={c.id} to={path("/catalogo", { cat: String(c.id) })} aria-current={activeCat === String(c.id) ? "page" : undefined}>{c.name}</Link>
           ))}
         </div>
       </nav>
       {menu && (
         <nav id="agro-drawer" className="agro-drawer" aria-label="Menu">
           {links.map((l) => <Link key={l.to} to={l.to}>{l.name}</Link>)}
-          {categories.map((c) => <Link key={c.id} to={path("/catalogo", { cat: String(c.id) })}>{c.name}</Link>)}
         </nav>
       )}
     </header>

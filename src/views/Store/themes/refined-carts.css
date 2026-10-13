@@ -1,0 +1,45 @@
+/* The checkout behavior is shared; each storefront retains its visual identity. */
+.store-theme-sport { --cart-paper:#f4f5f2; --cart-head:#101216; --cart-ink:#172019; --cart-action:#d92d24; --cart-rule:#d8ded8; --cart-font:'Barlow',sans-serif; }
+.store-theme-pet { --cart-paper:#fff9f1; --cart-head:#193c32; --cart-ink:#193c32; --cart-action:#c9444a; --cart-rule:#efdcd0; --cart-font:'Nunito',sans-serif; }
+.store-theme-baby { --cart-paper:#f8f5ef; --cart-head:#55786f; --cart-ink:#514638; --cart-action:#55786f; --cart-rule:#e1d9cd; --cart-font:'DM Sans',sans-serif; }
+.store-theme-fragrance { --cart-paper:#fff8ef; --cart-head:#372319; --cart-ink:#4b3224; --cart-action:#60412d; --cart-rule:#e4d2bf; --cart-font:'DM Sans',sans-serif; }
+.store-theme-coffee { --cart-paper:#faf6ee; --cart-head:#3d291c; --cart-ink:#423024; --cart-action:#664328; --cart-rule:#e3d8c8; --cart-font:'DM Sans',sans-serif; }
+.store-theme-agro { --cart-paper:#f5f7f1; --cart-head:#163f2d; --cart-ink:#173b2a; --cart-action:#24583c; --cart-rule:#d9e4cf; --cart-font:'Barlow',sans-serif; }
+.store-theme-auto_parts { --cart-paper:#f5f6f8; --cart-head:#192332; --cart-ink:#192332; --cart-action:#ac3417; --cart-rule:#d6dde5; --cart-font:'Barlow',sans-serif; }
+:is(.store-theme-sport,.store-theme-pet,.store-theme-baby,.store-theme-fragrance,.store-theme-coffee,.store-theme-agro,.store-theme-auto_parts) .fragrance-cart-drawer { background:var(--cart-paper)!important; font-family:var(--cart-font); border-color:var(--cart-rule)!important; max-width:min(100%,480px); }
+:is(.store-theme-sport,.store-theme-pet,.store-theme-baby,.store-theme-fragrance,.store-theme-coffee,.store-theme-agro,.store-theme-auto_parts) .fragrance-cart-head { background:var(--cart-head)!important; border-color:var(--cart-head)!important; padding:24px; height:auto; min-height:90px; }
+:is(.store-theme-sport,.store-theme-pet,.store-theme-baby,.store-theme-fragrance,.store-theme-coffee,.store-theme-agro,.store-theme-auto_parts) .fragrance-cart-head :is(h3,p,button) { color:#fff!important; }
+:is(.store-theme-sport,.store-theme-pet,.store-theme-baby,.store-theme-fragrance,.store-theme-coffee,.store-theme-agro,.store-theme-auto_parts) .fragrance-cart-head::after { display:none; }
+:is(.store-theme-sport,.store-theme-pet,.store-theme-baby,.store-theme-fragrance,.store-theme-coffee,.store-theme-agro,.store-theme-auto_parts) .fragrance-cart-content { background:var(--cart-paper)!important; padding:22px; }
+:is(.store-theme-sport,.store-theme-pet,.store-theme-baby,.store-theme-fragrance,.store-theme-coffee,.store-theme-agro,.store-theme-auto_parts) .fragrance-cart-item { background:#fff!important; border-color:var(--cart-rule)!important; box-shadow:none!important; }
+:is(.store-theme-sport,.store-theme-pet,.store-theme-baby,.store-theme-fragrance,.store-theme-coffee,.store-theme-agro,.store-theme-auto_parts) .fragrance-cart-item :is(h4,p) { color:var(--cart-ink)!important; }
+:is(.store-theme-sport,.store-theme-pet,.store-theme-baby,.store-theme-fragrance,.store-theme-coffee,.store-theme-agro,.store-theme-auto_parts) .fragrance-cart-total { background:var(--cart-head)!important; border-color:var(--cart-rule)!important; padding:22px; }
+:is(.store-theme-sport,.store-theme-pet,.store-theme-baby,.store-theme-fragrance,.store-theme-coffee,.store-theme-agro,.store-theme-auto_parts) .fragrance-cart-total > div > p { color:#fff!important; }
+:is(.store-theme-sport,.store-theme-pet,.store-theme-baby,.store-theme-fragrance,.store-theme-coffee,.store-theme-agro,.store-theme-auto_parts) .fragrance-cart-total > button { background:var(--cart-action)!important; box-shadow:none!important; font-size:12px; letter-spacing:.03em; }
+.store-theme-sport .fragrance-cart-item { border-radius:0; border-left:4px solid var(--cart-action); }
+.store-theme-sport .fragrance-cart-head h3 { font:800 27px 'Barlow Condensed',sans-serif; }
+.store-theme-sport .fragrance-cart-total > button { border-radius:0; }
+.store-theme-pet .fragrance-cart-head { border-radius:0 0 28px 28px; }
+.store-theme-pet .fragrance-cart-head h3 { font:600 25px 'Fredoka',sans-serif; text-transform:none; letter-spacing:0; }
+.store-theme-pet .fragrance-cart-item { border-radius:22px; padding:17px; }
+.store-theme-pet .fragrance-cart-total { border-radius:26px 26px 0 0; }
+.store-theme-baby .fragrance-cart-drawer { max-width:min(100%,540px); }
+.store-theme-baby .fragrance-cart-head h3 { font:500 29px 'Cormorant Garamond',Georgia,serif; text-transform:none; }
+.store-theme-baby .fragrance-cart-item { border:0; border-bottom:1px solid var(--cart-rule); border-radius:0; background:transparent!important; padding-block:20px; }
+.store-theme-baby .fragrance-cart-item > div:first-child { width:96px; height:110px; border-radius:4px; }
+.store-theme-baby .fragrance-cart-total > button { border:1px solid #bcd0c7; border-radius:999px; }
+.store-theme-fragrance .fragrance-cart-head h3 { font:500 26px 'Playfair Display',Georgia,serif; letter-spacing:0; text-transform:none; }
+.store-theme-fragrance .fragrance-cart-item { border-radius:0; padding:20px 0; border:0; border-bottom:1px solid var(--cart-rule); background:transparent!important; }
+.store-theme-fragrance .fragrance-cart-content :is(input,select) { border-color:#d6c0a8!important; background:#fffaf4!important; color:#4b3224; }
+.store-theme-fragrance .fragrance-cart-item .font-mono.font-black { color:#60412d!important; }
+.store-theme-fragrance .fragrance-cart-total > button { border-radius:999px!important; border:1px solid #a48368; }
+.store-theme-coffee .fragrance-cart-head h3 { font:500 25px 'Playfair Display',Georgia,serif; text-transform:none; }
+.store-theme-coffee .fragrance-cart-item { border-radius:3px; border-style:dashed; }
+.store-theme-coffee .fragrance-cart-total { border-top:3px double #a18a71!important; }
+.store-theme-agro .fragrance-cart-item { border-radius:7px; border-left:4px solid #9aa867; }
+.store-theme-agro .fragrance-cart-head h3 { font:600 25px 'Zilla Slab',Georgia,serif; text-transform:none; }
+.store-theme-auto_parts .fragrance-cart-drawer { max-width:min(100%,540px); }
+.store-theme-auto_parts .fragrance-cart-item { border-radius:4px; }
+.store-theme-auto_parts .fragrance-cart-head { border-bottom:4px solid #ff5d36!important; }
+.store-theme-auto_parts .fragrance-cart-head h3 { font:700 26px 'Barlow Condensed',sans-serif; }
+@media(max-width:500px) { .store-theme-baby .fragrance-cart-item > div:first-child { width:72px; height:85px; } }

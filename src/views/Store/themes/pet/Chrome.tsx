@@ -5,6 +5,7 @@ import SearchBar from "../../../../components/layout/SearchBar";
 import { detectAnimal } from "./animals";
 import { useKit } from "./lib";
 import "./styles.css";
+import "./reference.css";
 
 const DAY_LABELS: Record<string, string> = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom" };
 

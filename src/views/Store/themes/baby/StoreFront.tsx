@@ -14,7 +14,7 @@ export default function StoreFront() {
   const wa = whatsappLink(tenant.whatsapp);
   const title = tenant.hero_tagline || "Para os primeiros grandes momentos.";
   const subtitle = tenant.about_text || "Enxoval, presentes e carinho em cada detalhe da infância.";
-  const heroImage = tenant.banner_url || productImage(featured[0]);
+  const heroImage = tenant.banner_url || "/store-assets/baby-knit-hero-v1.png";
 
   return (
     <main className="bb-root bb-v2">
@@ -45,7 +45,7 @@ export default function StoreFront() {
         </div>
         <div className="bb-v2-hero-art">
           <div className="bb-v2-hero-frame">
-            {heroImage ? <img src={heroImage} alt={tenant.banner_url ? `Destaque de ${tenant.name}` : "Produto em destaque"} /> : <Cloud className="bb-hero-fallback" />}
+            <img src={heroImage} alt="" fetchPriority="high" />
           </div>
           <span className="bb-v2-hero-sticker" aria-hidden="true"><Star /> Com carinho</span>
         </div>

@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, Wheat } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { productImage, useKit } from "./kit";
-import { Card, Seal } from "./parts";
+import { Card } from "./parts";
 
 export default function StoreFront() {
   const { tenant, categories, active, config, path } = useKit();
@@ -18,12 +18,12 @@ export default function StoreFront() {
           <div>
             <span className="agro-tag is-gold">{config.segment_label || "Agropecuária & Campo"}</span>
             <h1>{tenant.hero_tagline || "A força do campo começa aqui."}</h1>
-            <p className="agro-lead">Produtos para cuidar da propriedade, dos animais e de cada dia de trabalho.</p>
+            <p className="agro-lead">{tenant.about_text || "Produtos para cuidar da propriedade, dos animais e de cada dia de trabalho."}</p>
             <Link className="agro-btn" to={path("/catalogo")}>{config.hero_button_label || "Ver o catálogo"} <ArrowRight size={18} aria-hidden /></Link>
           </div>
           <div className="agro-hero-pic">
             {hero ? <img src={hero} alt="" /> : <div className="agro-hero-fallback"><Wheat size={96} aria-hidden /></div>}
-            <Seal />
+            <div className="agro-hero-caption"><Wheat size={22} aria-hidden /><span>Da nossa loja<br /><strong>para a sua propriedade.</strong></span></div>
           </div>
         </div>
       </section>
@@ -43,10 +43,9 @@ export default function StoreFront() {
               <Link to={path("/catalogo")}>Todos os departamentos <ArrowRight size={16} aria-hidden /></Link>
             </div>
             <div className="agro-dept-grid">
-              {categories.map((c, i) => (
+              {categories.slice(0, 6).map((c, i) => (
                 <Link key={c.id} className="agro-dept" to={path("/catalogo", { cat: String(c.id) })}>
-                  <i aria-hidden>{String(i + 1).padStart(2, "0")}</i>
-                  <small>Depto {String(i + 1).padStart(2, "0")}</small>
+                  <Wheat size={28} aria-hidden />
                   <b>{c.name}</b>
                   <small>{countBy(c.id)} {countBy(c.id) === 1 ? "item" : "itens"} →</small>
                 </Link>
