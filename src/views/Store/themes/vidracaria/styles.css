@@ -1,0 +1,399 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap");
+
+/* ── VIDRAÇARIA THEME (VITRA) — estilos 100% independentes ── */
+:root {
+  --vitra-ink:         #17313b;
+  --vitra-muted:       #6c7e84;
+  --vitra-accent:      #ad7d51;
+  --vitra-accent-dark: #8b623f;
+  --vitra-bg:          #f5f7f6;
+  --vitra-cream:       #f0ebe5;
+  --vitra-line:        #e4e9e7;
+  --vitra-white:       #ffffff;
+  --vitra-shadow:      0 24px 70px rgba(10, 31, 36, 0.16);
+}
+
+.vitra-root {
+  font-family: 'DM Sans', sans-serif;
+  color: var(--vitra-ink);
+  background: var(--vitra-white);
+  -webkit-font-smoothing: antialiased;
+}
+
+.vitra-title-font {
+  font-family: 'Manrope', sans-serif;
+}
+
+/* ── Scrollbar ── */
+.vitra-root::-webkit-scrollbar       { width: 7px; }
+.vitra-root::-webkit-scrollbar-track { background: var(--vitra-bg); }
+.vitra-root::-webkit-scrollbar-thumb { background: #c5d0ce; border-radius: 4px; }
+.vitra-root::-webkit-scrollbar-thumb:hover { background: var(--vitra-accent); }
+
+/* ── TOPBAR ── */
+.vitra-topbar {
+  background: var(--vitra-ink);
+  color: #e8f0ee;
+  font-size: 12px;
+  padding: 9px 0;
+}
+.vitra-topbar-inner {
+  max-width: 1250px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+.vitra-topbar-inner span {
+  opacity: 0.85;
+}
+
+/* ── HEADER ── */
+.vitra-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(15px);
+  border-bottom: 1px solid var(--vitra-line);
+  transition: all 0.3s ease;
+}
+.vitra-header-inner {
+  max-width: 1250px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+}
+@media (max-width: 768px) {
+  .vitra-header-inner { height: 70px; }
+}
+
+/* Brand */
+.vitra-brand {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: var(--vitra-ink);
+}
+.vitra-brand-name {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: -1.5px;
+  line-height: 1;
+}
+.vitra-brand-name span {
+  color: var(--vitra-accent);
+}
+.vitra-brand-sub {
+  font-size: 9px;
+  letter-spacing: 3.2px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--vitra-muted);
+  margin-top: 2px;
+}
+
+/* Desktop Nav */
+.vitra-nav {
+  display: none;
+  align-items: center;
+  gap: 36px;
+}
+@media (min-width: 768px) {
+  .vitra-nav { display: flex; }
+}
+.vitra-nav a {
+  font-weight: 700;
+  font-size: 13px;
+  color: #42585d;
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: color 0.2s ease;
+  position: relative;
+  padding: 8px 0;
+}
+.vitra-nav a:hover,
+.vitra-nav a.active {
+  color: var(--vitra-accent-dark);
+}
+.vitra-nav a.active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--vitra-accent);
+}
+
+/* Tools (Search & Cart) */
+.vitra-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.vitra-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--vitra-line);
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--vitra-ink);
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.vitra-icon-btn:hover {
+  border-color: var(--vitra-accent);
+  color: var(--vitra-accent-dark);
+}
+.vitra-cart-badge {
+  position: absolute;
+  right: -4px;
+  top: -5px;
+  background: var(--vitra-accent);
+  color: #ffffff;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+  min-width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+}
+
+/* Mobile Menu Toggle */
+.vitra-mobile-btn {
+  display: flex;
+}
+@media (min-width: 768px) {
+  .vitra-mobile-btn { display: none; }
+}
+
+/* Mobile dropdown */
+.vitra-mobile-menu {
+  display: none;
+  background: #ffffff;
+  border-top: 1px solid var(--vitra-line);
+  padding: 1rem 1.5rem 1.5rem;
+}
+.vitra-mobile-menu.open { display: block; }
+.vitra-mobile-menu a {
+  display: block;
+  padding: 10px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--vitra-ink);
+  text-decoration: none;
+  border-bottom: 1px solid #f0f4f3;
+}
+.vitra-mobile-menu a:hover {
+  color: var(--vitra-accent);
+}
+
+/* ── BUTTONS ── */
+.vitra-btn-primary {
+  border: 0;
+  padding: 15px 28px;
+  font-weight: 800;
+  border-radius: 6px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  background: var(--vitra-accent);
+  color: #ffffff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s, transform 0.2s;
+  letter-spacing: 0.02em;
+}
+.vitra-btn-primary:hover {
+  background: var(--vitra-accent-dark);
+  transform: translateY(-1px);
+}
+
+.vitra-btn-secondary {
+  border: 1px solid #cbd7d5;
+  padding: 15px 28px;
+  font-weight: 800;
+  border-radius: 6px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  background: #ffffff;
+  color: var(--vitra-ink);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.vitra-btn-secondary:hover {
+  border-color: var(--vitra-accent);
+  color: var(--vitra-accent-dark);
+}
+
+.vitra-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-weight: 800;
+  color: var(--vitra-accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+.vitra-eyebrow::before {
+  content: "";
+  width: 30px;
+  height: 1px;
+  background: currentColor;
+}
+
+/* ── CATEGORY CARDS ── */
+.vitra-cat-card {
+  height: 315px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  background: #e1e9e8;
+  border-radius: 8px;
+  text-decoration: none;
+  display: block;
+}
+.vitra-cat-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.vitra-cat-card:hover img {
+  transform: scale(1.08);
+}
+.vitra-cat-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent 35%, rgba(14, 41, 47, 0.85));
+}
+.vitra-cat-content {
+  position: absolute;
+  z-index: 2;
+  bottom: 22px;
+  left: 23px;
+  right: 23px;
+  color: #ffffff;
+}
+.vitra-cat-content small {
+  opacity: 0.85;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-size: 10px;
+  display: block;
+}
+.vitra-cat-content h3 {
+  margin: 6px 0 0;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -0.5px;
+}
+
+/* ── PRODUCT CARD ── */
+.vitra-product-card {
+  background: #ffffff;
+  border: 1px solid var(--vitra-line);
+  cursor: pointer;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.vitra-product-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(25, 58, 57, 0.12);
+  border-color: #cbd8d6;
+}
+.vitra-product-img {
+  height: 250px;
+  background: #edf3f1;
+  position: relative;
+  overflow: hidden;
+}
+.vitra-product-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+.vitra-product-card:hover .vitra-product-img img {
+  transform: scale(1.05);
+}
+.vitra-pill {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  background: #ffffff;
+  color: var(--vitra-ink);
+  font-weight: 800;
+  font-size: 10px;
+  padding: 6px 10px;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* ── FOOTER ── */
+.vitra-footer {
+  background: #0d242b;
+  color: #b5c4c6;
+  padding: 68px 0 28px;
+}
+.vitra-footer-inner {
+  max-width: 1250px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+.vitra-footer-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1.3fr;
+  gap: 50px;
+  margin-bottom: 50px;
+}
+@media (max-width: 900px) {
+  .vitra-footer-grid { grid-template-columns: 1fr 1fr; gap: 30px; }
+}
+@media (max-width: 600px) {
+  .vitra-footer-grid { grid-template-columns: 1fr; }
+}
+.vitra-footer h4 {
+  color: #ffffff;
+  font-family: 'Manrope', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  margin: 0 0 18px;
+}
+.vitra-footer a.link {
+  display: block;
+  font-size: 13px;
+  color: #b5c4c6;
+  text-decoration: none;
+  margin-bottom: 12px;
+  transition: color 0.2s;
+}
+.vitra-footer a.link:hover {
+  color: var(--vitra-accent);
+}

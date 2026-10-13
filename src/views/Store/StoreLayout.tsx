@@ -119,6 +119,14 @@ function legacyThemePages(templateId: string | undefined) {
       Product: lazy(() => import("./themes/aura/StoreProduct")),
       About: lazy(() => import("./themes/aura/StoreAbout")),
     };
+  if (t === "vidracaria")
+    return {
+      Front: lazy(() => import("./themes/vidracaria/StoreFront")),
+      Catalog: lazy(() => import("./themes/vidracaria/StoreCatalog")),
+      Product: lazy(() => import("./themes/vidracaria/StoreProduct")),
+      About: lazy(() => import("./themes/vidracaria/StoreAbout")),
+    };
+
   if (t === "sport")
     return { Front: lazy(() => import("./themes/sport/StoreFront")), Catalog: lazy(() => import("./themes/sport/StoreCatalog")), Product: lazy(() => import("./themes/sport/StoreProduct")), About: lazy(() => import("./themes/sport/StoreAbout")) };
   if (t === "fitness")
@@ -340,6 +348,15 @@ const templates: Record<string, StoreStyle> = {
     font: "font-sans",
     radius: "rounded-2xl",
   },
+  vidracaria: {
+    bg: "bg-[#f5f7f6]",
+    card: "bg-white border-[#e4e9e7]",
+    accent: "#ad7d51",
+    text: "text-[#17313b]",
+    font: "font-sans",
+    radius: "rounded-md",
+  },
+
   sport: { bg: "bg-white", card: "bg-white border-slate-200", accent: "#ff3b30", text: "text-[#111111]", font: "font-sans", radius: "rounded-none" },
   fitness: { bg: "bg-[#f6f7f3]", card: "bg-white border-[#d8e0cf]", accent: "#b6ff25", text: "text-[#121612]", font: "font-sans", radius: "rounded-none" },
   pet: { bg: "bg-[#fffaf2]", card: "bg-white border-[#ffd8c8]", accent: "#ff6b6b", text: "text-[#283044]", font: "font-sans", radius: "rounded-[1.5rem]" },

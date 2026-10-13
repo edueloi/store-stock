@@ -3242,6 +3242,17 @@ export default function Settings({
                           textColor: "#111111",
                           badge: { bg: "#F3E5AB", text: "#8C7A6B" },
                         },
+                        {
+                          id: "vidracaria",
+                          name: "Vitra (Vidraçaria)",
+                          tag: "Vidros, Espelhos & Design",
+                          desc: "Design sofisticado em tons petróleo e bronze com Manrope/DM Sans para vidraçarias, espelhos, boxes e esquadrias sob medida.",
+                          color: "#ad7d51",
+                          bg: "#f5f7f6",
+                          cardBg: "#ffffff",
+                          textColor: "#17313b",
+                          badge: { bg: "#f0ebe5", text: "#8b623f" },
+                        },
                         { id: "sport", name: "Sport Pulse", tag: "Esportes & Sneakers", desc: "Tema de alta energia para roupas esportivas, tênis, bolas e acessórios.", color: "#ff3b30", bg: "#ffffff", cardBg: "#f3f4f4", textColor: "#111111", badge: { bg: "#ffe2df", text: "#bf241c" } },
                         { id: "fitness", name: "Fit Lab", tag: "Academia & Suplementos", desc: "Tema intenso para academia, treino, suplementos e roupas fitness.", color: "#b6ff25", bg: "#f6f7f3", cardBg: "#ffffff", textColor: "#121612", badge: { bg: "#e4ffb6", text: "#294000" } },
                         { id: "pet", name: "Pet & Co", tag: "Pet Shop & Cuidados", desc: "Vitrine calorosa e divertida para rações, brinquedos, higiene e cuidados dos pets.", color: "#ff6b6b", bg: "#fffaf2", cardBg: "#ffffff", textColor: "#283044", badge: { bg: "#ffe0d2", text: "#c34242" } },
@@ -3294,7 +3305,7 @@ export default function Settings({
                         ...segmentModelCards,
                       ] as const
                     ).map(t => isSegment(t.id) ? { ...t, name: segmentThemes[t.id].name, tag: segmentThemes[t.id].tag, desc: segmentThemes[t.id].desc, color: segmentThemes[t.id].accent, bg: segmentThemes[t.id].bg, cardBg: segmentThemes[t.id].surface, textColor: segmentThemes[t.id].ink } : t).filter((t) => modelCategory === "Todos" || (isSegment(t.id) && segmentThemes[t.id].group === modelCategory) || ({
-                      minimal: "Geral", cyber: "Tecnologia", organic: "Geral", luxury: "Geral", tech: "Tecnologia", nexus_tech: "Tecnologia", atelier: "Moda", urban: "Moda", doceria: "Comércio", fragrance: "Beleza", beauty: "Beleza", street: "Moda", streetwear: "Moda", aura: "Moda", sport: "Esportes & Fitness", fitness: "Esportes & Fitness", variety: "Comércio", toys: "Comércio", marketplace: "Comércio", electric: "Casa & Construção",
+                      minimal: "Geral", cyber: "Tecnologia", organic: "Geral", luxury: "Geral", tech: "Tecnologia", nexus_tech: "Tecnologia", atelier: "Moda", urban: "Moda", doceria: "Comércio", fragrance: "Beleza", beauty: "Beleza", street: "Moda", streetwear: "Moda", aura: "Moda", vidracaria: "Casa & Construção", sport: "Esportes & Fitness", fitness: "Esportes & Fitness", variety: "Comércio", toys: "Comércio", marketplace: "Comércio", electric: "Casa & Construção",
                     } as Record<string, string>)[t.id] === modelCategory || (modelCategory === "Comércio" && (t.id === "pet" || t.id === "paper")) || (modelCategory === "Casa & Construção" && t.id === "home")).map((t) => {
                       const isActive = tenant?.template_id === t.id;
                       const previewBase =

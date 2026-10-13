@@ -177,4 +177,123 @@
   background: #09090b !important;
 }
 
+/* ── VIDRAÇARIA (VITRA) CART ── */
+.store-theme-vidracaria .fragrance-cart-drawer {
+  background: #ffffff !important;
+  color: #17313b !important;
+  border-left: 1px solid #e4e9e7 !important;
+  font-family: 'DM Sans', sans-serif !important;
+  max-width: min(100%, 470px) !important;
+}
+.store-theme-vidracaria .fragrance-cart-head {
+  background: #ffffff !important;
+  border-bottom: 1px solid #e4e9e7 !important;
+  padding: 24px 26px !important;
+  height: auto !important;
+  min-height: 80px !important;
+}
+.store-theme-vidracaria .fragrance-cart-head :is(h3, p, span) {
+  color: #17313b !important;
+}
+.store-theme-vidracaria .fragrance-cart-head h3 {
+  font-family: 'Manrope', sans-serif !important;
+  font-size: 1.25rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.5px !important;
+}
+.store-theme-vidracaria .fragrance-cart-head button {
+  background: #f2f5f3 !important;
+  color: #17313b !important;
+  border-radius: 50% !important;
+  border: none !important;
+  transition: all 0.2s !important;
+}
+.store-theme-vidracaria .fragrance-cart-head button:hover {
+  background: #ad7d51 !important;
+  color: #ffffff !important;
+}
+.store-theme-vidracaria .fragrance-cart-content {
+  background: #f5f7f6 !important;
+  padding: 22px !important;
+}
+.store-theme-vidracaria .fragrance-cart-item {
+  background: #ffffff !important;
+  border: 1px solid #e4e9e7 !important;
+  border-radius: 8px !important;
+  padding: 14px !important;
+  box-shadow: none !important;
+  transition: border-color 0.2s !important;
+}
+.store-theme-vidracaria .fragrance-cart-item:hover {
+  border-color: #cbd8d6 !important;
+}
+.store-theme-vidracaria .fragrance-cart-item img,
+.store-theme-vidracaria .fragrance-cart-item > div:first-child {
+  border-radius: 6px !important;
+  background: #edf3f1 !important;
+  border: 1px solid #e4e9e7 !important;
+}
+.store-theme-vidracaria .fragrance-cart-item h4 {
+  color: #17313b !important;
+  font-weight: 700 !important;
+  font-size: 0.9rem !important;
+}
+.store-theme-vidracaria .fragrance-cart-item p,
+.store-theme-vidracaria .fragrance-cart-item span {
+  color: #6c7e84 !important;
+  font-size: 0.75rem !important;
+}
+.store-theme-vidracaria .fragrance-cart-item .font-mono,
+.store-theme-vidracaria .fragrance-cart-item strong {
+  color: #17313b !important;
+  font-weight: 800 !important;
+}
+.store-theme-vidracaria .fragrance-cart-total {
+  background: #ffffff !important;
+  border-top: 1px solid #e4e9e7 !important;
+  padding: 24px !important;
+}
+.store-theme-vidracaria .fragrance-cart-total p,
+.store-theme-vidracaria .fragrance-cart-total span {
+  color: #6c7e84 !important;
+}
+.store-theme-vidracaria .fragrance-cart-total .font-mono,
+.store-theme-vidracaria .fragrance-cart-total strong {
+  font-family: 'Manrope', sans-serif !important;
+  color: #17313b !important;
+  font-weight: 800 !important;
+  font-size: 1.35rem !important;
+}
+.store-theme-vidracaria .fragrance-cart-total > button,
+.store-theme-vidracaria .fragrance-cart-drawer button.w-full {
+  background: #ad7d51 !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  font-size: 0.85rem !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 15px rgba(173, 125, 81, 0.25) !important;
+  border: none !important;
+  transition: all 0.2s !important;
+}
+.store-theme-vidracaria .fragrance-cart-total > button:hover,
+.store-theme-vidracaria .fragrance-cart-drawer button.w-full:hover {
+  background: #8b623f !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 20px rgba(173, 125, 81, 0.35) !important;
+}
+.store-theme-vidracaria .fragrance-cart-drawer input,
+.store-theme-vidracaria .fragrance-cart-drawer select,
+.store-theme-vidracaria .fragrance-cart-drawer textarea {
+  background: #ffffff !important;
+  border: 1px solid #d6dfdc !important;
+  color: #17313b !important;
+  border-radius: 6px !important;
+}
+.store-theme-vidracaria .fragrance-cart-drawer input:focus,
+.store-theme-vidracaria .fragrance-cart-drawer select:focus,
+.store-theme-vidracaria .fragrance-cart-drawer textarea:focus {
+  border-color: #ad7d51 !important;
+}
+
+
 
