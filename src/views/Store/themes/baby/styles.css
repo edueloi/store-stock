@@ -505,3 +505,45 @@
  .bb-card,.bb-btn,.bb-bubble,.bb-card-photo img{transition:none}
  .bb-deco-balloon{animation:none}
 }
+
+/* BoxSys Baby V2: componentes aprimorados */
+.bb-v2-hero .bb-kicker{display:inline-flex;align-items:center;gap:.4rem}
+.bb-v2-hero{grid-template-columns:minmax(0,1fr);min-height:410px}
+.bb-v2-hero .bb-lead{max-width:500px}
+.bb-v2-highlights{display:flex;flex-wrap:wrap;gap:1rem;margin-top:1.7rem;color:var(--bb-soft);font-size:.8rem;font-weight:700}
+.bb-v2-highlights span{display:inline-flex;align-items:center;gap:.45rem}
+.bb-v2-highlights svg{color:var(--bb-accent)}
+.bb-v2-hero-art{position:relative;justify-self:center;width:min(100%,470px);aspect-ratio:1.15}
+.bb-v2-hero-frame{position:absolute;inset:0;background:var(--bb-pink);border-radius:32px 110px 32px 110px;overflow:hidden;box-shadow:0 18px 38px -25px rgba(74,43,56,.35);display:grid;place-items:center}
+.bb-v2-hero-frame img{width:100%;height:100%;object-fit:cover}
+.bb-v2-hero-sticker{position:absolute;right:-7px;bottom:15px;display:inline-flex;align-items:center;gap:6px;padding:10px 14px;border-radius:100px;background:white;color:var(--bb-accent);box-shadow:0 8px 28px -16px #765;font:800 .8rem Nunito,system-ui}
+.bb-v2-hero-sticker svg{width:15px;height:15px}
+.bb-v2-category-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.bb-v2-category{min-width:0;border:1px solid var(--bb-line);border-radius:19px;background:#fff;padding:13px;display:grid;justify-items:center;text-align:center;gap:6px;transition:transform .2s,box-shadow .2s}
+.bb-v2-category:hover{transform:translateY(-3px);box-shadow:var(--bb-shadow)}
+.bb-v2-category-photo{display:grid;place-items:center;width:100%;aspect-ratio:1.25;border-radius:13px;background:var(--tint,var(--bb-pink));overflow:hidden}
+.bb-v2-category-photo img{width:100%;height:100%;object-fit:cover}
+.bb-v2-category-photo>svg{width:38px;color:var(--bb-accent)}
+.bb-v2-category-title{font-weight:800;font-size:.9rem;line-height:1.25}
+.bb-v2-category-count{font-size:.72rem;color:var(--bb-soft)}
+.bb-v2-story{padding:30px 18px 55px;background:var(--bb-bg)}
+.bb-v2-story-content{max-width:720px;margin:auto;padding:32px 25px;text-align:center;border:1px solid var(--bb-line);border-radius:23px;background:#fff}
+.bb-v2-story-content h2{font-size:clamp(1.5rem,3vw,2.15rem);margin:.5rem 0}
+.bb-v2-story-content>p:not(.bb-kicker){color:var(--bb-soft);line-height:1.65;margin:12px auto 20px;max-width:580px}
+.bb-v2-filters-heading{display:flex;gap:.5rem;align-items:center;font-size:.87rem;color:var(--bb-ink)}
+.bb-v2-toolbar{padding:20px;background:#fff;border:1px solid var(--bb-line);border-radius:20px;max-width:1140px}
+.bb-v2-toolbar .bb-chips{padding-top:3px}
+.bb-v2-page-head{padding-bottom:1.8rem}
+.bb-v2-product .bb-frame{padding:12px;border-radius:23px;max-width:none;background:#fff;border:1px solid var(--bb-line);box-shadow:var(--bb-shadow)}
+.bb-v2-product .bb-frame-arch{aspect-ratio:1/1;border-radius:15px;background:#fbf8f6}
+.bb-v2-product .bb-frame-arch img{padding:14px}
+.bb-v2-product .bb-buy{border-radius:22px;padding:25px;border-width:1px;box-shadow:var(--bb-shadow)}
+.bb-v2-product .bb-buy-bow,.bb-v2-product .bb-frame-balloon{display:none}
+.bb-v2-product .bb-opt{border-radius:11px;font-size:.87rem}
+.bb-v2-product .bb-opt.is-on{box-shadow:none;background:color-mix(in srgb,var(--bb-accent) 8%,white)}
+.bb-v2-whatsapp{display:inline-flex;align-items:center;gap:8px;margin-top:17px;color:var(--bb-accent)!important;font-size:.88rem;font-weight:800;text-decoration:underline!important;text-underline-offset:4px}
+.bb-v2-product .bb-badge-lg{top:22px;right:22px;transform:none}
+@media(min-width:600px){.bb-v2-category-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(min-width:900px){.bb-v2-hero{grid-template-columns:minmax(0,1fr) minmax(0,.92fr);gap:50px;min-height:480px}.bb-v2-category-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.bb-v2-product{gap:3rem}}
+@media(max-width:599px){.bb-v2-hero{padding-top:1.8rem;gap:1.6rem}.bb-v2-hero-art{max-width:320px}.bb-v2-hero-frame{border-radius:20px 65px 20px 65px}.bb-v2-hero-sticker{right:0}.bb-v2-toolbar{margin-inline:12px;padding:14px}.bb-v2-product .bb-buy{padding:20px 15px}.bb-v2-product .bb-buy-row{gap:10px}.bb-v2-product .bb-add{min-width:0;flex-basis:100%;order:3}.bb-v2-product .bb-price-lg strong{font-size:1.65rem}}
+@media(prefers-reduced-motion:reduce){.bb-v2-category{transition:none}}
