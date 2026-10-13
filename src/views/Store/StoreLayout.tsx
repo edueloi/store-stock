@@ -105,6 +105,20 @@ function legacyThemePages(templateId: string | undefined) {
       Product: lazy(() => import("./themes/street/StoreProduct")),
       About: lazy(() => import("./themes/street/StoreAbout")),
     };
+  if (t === "streetwear")
+    return {
+      Front: lazy(() => import("./themes/streetwear/StoreFront")),
+      Catalog: lazy(() => import("./themes/streetwear/StoreCatalog")),
+      Product: lazy(() => import("./themes/streetwear/StoreProduct")),
+      About: lazy(() => import("./themes/streetwear/StoreAbout")),
+    };
+  if (t === "aura")
+    return {
+      Front: lazy(() => import("./themes/aura/StoreFront")),
+      Catalog: lazy(() => import("./themes/aura/StoreCatalog")),
+      Product: lazy(() => import("./themes/aura/StoreProduct")),
+      About: lazy(() => import("./themes/aura/StoreAbout")),
+    };
   if (t === "sport")
     return { Front: lazy(() => import("./themes/sport/StoreFront")), Catalog: lazy(() => import("./themes/sport/StoreCatalog")), Product: lazy(() => import("./themes/sport/StoreProduct")), About: lazy(() => import("./themes/sport/StoreAbout")) };
   if (t === "fitness")
@@ -309,6 +323,22 @@ const templates: Record<string, StoreStyle> = {
     text: "text-white",
     font: "font-sans",
     radius: "rounded-none",
+  },
+  streetwear: {
+    bg: "bg-[#09090b]",
+    card: "bg-[#18181b] border-[#27272a]",
+    accent: "#facc15",
+    text: "text-zinc-100",
+    font: "font-sans",
+    radius: "rounded-xl",
+  },
+  aura: {
+    bg: "bg-[#FAF9F6]",
+    card: "bg-white border-[#E5DBD0]",
+    accent: "#D4AF37",
+    text: "text-[#111111]",
+    font: "font-sans",
+    radius: "rounded-2xl",
   },
   sport: { bg: "bg-white", card: "bg-white border-slate-200", accent: "#ff3b30", text: "text-[#111111]", font: "font-sans", radius: "rounded-none" },
   fitness: { bg: "bg-[#f6f7f3]", card: "bg-white border-[#d8e0cf]", accent: "#b6ff25", text: "text-[#121612]", font: "font-sans", radius: "rounded-none" },

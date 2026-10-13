@@ -1,0 +1,391 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap");
+
+/* ── TEMA AURA FEMININA — 100% isolado, zero herança ── */
+:root {
+  --aura-50: #FBF9F7;
+  --aura-100: #F4EFEB;
+  --aura-200: #E5DBD0;
+  --aura-300: #D1C2B2;
+  --aura-600: #8C7A6B;
+  --aura-800: #4A3F35;
+  --aura-900: #2A241F;
+  --aura-gold: #D4AF37;
+  --aura-gold-light: #F3E5AB;
+  --aura-dark: #111111;
+  --aura-offwhite: #FAF9F6;
+}
+
+.aura-root {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--aura-offwhite);
+  color: var(--aura-dark);
+}
+
+.aura-serif {
+  font-family: 'Playfair Display', serif;
+}
+
+/* Custom Scrollbar */
+.aura-root::-webkit-scrollbar {
+  width: 6px;
+}
+.aura-root::-webkit-scrollbar-track {
+  background: var(--aura-100);
+}
+.aura-root::-webkit-scrollbar-thumb {
+  background: var(--aura-300);
+  border-radius: 3px;
+}
+.aura-root::-webkit-scrollbar-thumb:hover {
+  background: var(--aura-gold);
+}
+
+/* Top Announcement */
+.aura-announcement {
+  background-color: var(--aura-dark);
+  color: var(--aura-offwhite);
+  font-size: 11px;
+  padding: 8px 16px;
+  text-align: center;
+  letter-spacing: 0.15em;
+  font-weight: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.aura-announcement strong {
+  color: var(--aura-gold);
+  font-weight: 700;
+}
+
+/* Header */
+.aura-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: rgba(250, 249, 246, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--aura-200);
+  transition: all 0.3s ease;
+}
+
+.aura-header-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.aura-brand-link {
+  text-decoration: none;
+  text-align: center;
+  display: inline-block;
+}
+
+@media (min-width: 1024px) {
+  .aura-brand-link {
+    text-align: left;
+  }
+}
+
+.aura-brand-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.6rem;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  color: var(--aura-dark);
+  text-transform: uppercase;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.aura-brand-sub {
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: var(--aura-600);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-top: 2px;
+  display: block;
+}
+
+.aura-nav-desktop {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .aura-nav-desktop {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+}
+
+.aura-nav-desktop a {
+  color: var(--aura-dark);
+  text-decoration: none;
+  padding: 6px 0;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.aura-nav-desktop a:hover {
+  color: var(--aura-gold);
+  border-color: var(--aura-gold);
+}
+
+.aura-nav-desktop a.sale-link {
+  color: #dc2626;
+  font-weight: 600;
+}
+.aura-nav-desktop a.sale-link:hover {
+  color: #b91c1c;
+  border-color: #dc2626;
+}
+
+.aura-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.aura-search-wrap {
+  position: relative;
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .aura-search-wrap {
+    display: flex;
+    align-items: center;
+  }
+}
+
+.aura-search-input {
+  background-color: var(--aura-50);
+  border: 1px solid var(--aura-200);
+  font-size: 0.75rem;
+  border-radius: 9999px;
+  padding: 8px 16px 8px 36px;
+  width: 12rem;
+  color: var(--aura-dark);
+  outline: none;
+  transition: all 0.2s;
+}
+
+@media (min-width: 1024px) {
+  .aura-search-input {
+    width: 15rem;
+  }
+}
+
+.aura-search-input:focus {
+  border-color: var(--aura-gold);
+  box-shadow: 0 0 0 1px var(--aura-gold);
+}
+
+.aura-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--aura-600);
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
+.aura-icon-btn {
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--aura-dark);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.aura-icon-btn:hover {
+  color: var(--aura-gold);
+}
+
+.aura-badge-cart {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background-color: var(--aura-dark);
+  color: var(--aura-offwhite);
+  font-weight: 700;
+  font-size: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aura-badge-wish {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background-color: var(--aura-gold);
+  color: var(--aura-dark);
+  font-weight: 700;
+  font-size: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mobile search */
+.aura-mobile-search {
+  padding: 8px 16px 12px;
+  border-top: 1px solid var(--aura-200);
+  background: var(--aura-offwhite);
+}
+
+.aura-mobile-search input {
+  width: 100%;
+  background: var(--aura-50);
+  border: 1px solid var(--aura-200);
+  font-size: 0.8rem;
+  border-radius: 9999px;
+  padding: 10px 16px 10px 36px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+/* Mobile Menu Panel */
+.aura-mobile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  transition: opacity 0.3s;
+}
+
+.aura-mobile-panel {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  max-width: 300px;
+  background: var(--aura-offwhite);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 51;
+}
+
+.aura-mobile-panel.open {
+  transform: translateX(0);
+}
+
+.aura-mobile-panel nav a {
+  display: block;
+  padding: 10px 0;
+  color: var(--aura-dark);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.aura-mobile-panel nav a:hover {
+  color: var(--aura-gold);
+}
+
+/* Footer */
+.aura-footer {
+  background-color: var(--aura-dark);
+  color: var(--aura-200);
+  padding-top: 4rem;
+  padding-bottom: 3rem;
+  font-size: 0.85rem;
+}
+
+.aura-footer-inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.aura-footer-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  padding-bottom: 3rem;
+  border-bottom: 1px solid var(--aura-800);
+}
+
+@media (min-width: 768px) {
+  .aura-footer-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.aura-footer h4 {
+  color: #fff;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  margin-bottom: 1rem;
+}
+
+.aura-footer ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.aura-footer ul a {
+  color: var(--aura-300);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 300;
+  transition: color 0.2s;
+}
+
+.aura-footer ul a:hover {
+  color: var(--aura-gold);
+}
+
+.aura-footer-bottom {
+  padding-top: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: #71717a;
+}
+
+@media (min-width: 768px) {
+  .aura-footer-bottom {
+    flex-direction: row;
+  }
+}

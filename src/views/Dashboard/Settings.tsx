@@ -3220,6 +3220,28 @@ export default function Settings({
                           textColor: "#ffffff",
                           badge: { bg: "#bcff00", text: "#111111" },
                         },
+                        {
+                          id: "streetwear",
+                          name: "Streetwear & Skate",
+                          tag: "Urbano & Industrial",
+                          desc: "Visual escuro com amarelo industrial, dot grid e tipografia bold para skate e streetwear.",
+                          color: "#facc15",
+                          bg: "#09090b",
+                          cardBg: "#18181b",
+                          textColor: "#f4f4f5",
+                          badge: { bg: "#facc1522", text: "#facc15" },
+                        },
+                        {
+                          id: "aura",
+                          name: "Aura Feminina",
+                          tag: "Moda & Sofisticação",
+                          desc: "Visual refinado em tons areia e dourado com tipografia nobre para moda feminina e alta costura.",
+                          color: "#D4AF37",
+                          bg: "#FAF9F6",
+                          cardBg: "#ffffff",
+                          textColor: "#111111",
+                          badge: { bg: "#F3E5AB", text: "#8C7A6B" },
+                        },
                         { id: "sport", name: "Sport Pulse", tag: "Esportes & Sneakers", desc: "Tema de alta energia para roupas esportivas, tênis, bolas e acessórios.", color: "#ff3b30", bg: "#ffffff", cardBg: "#f3f4f4", textColor: "#111111", badge: { bg: "#ffe2df", text: "#bf241c" } },
                         { id: "fitness", name: "Fit Lab", tag: "Academia & Suplementos", desc: "Tema intenso para academia, treino, suplementos e roupas fitness.", color: "#b6ff25", bg: "#f6f7f3", cardBg: "#ffffff", textColor: "#121612", badge: { bg: "#e4ffb6", text: "#294000" } },
                         { id: "pet", name: "Pet & Co", tag: "Pet Shop & Cuidados", desc: "Vitrine calorosa e divertida para rações, brinquedos, higiene e cuidados dos pets.", color: "#ff6b6b", bg: "#fffaf2", cardBg: "#ffffff", textColor: "#283044", badge: { bg: "#ffe0d2", text: "#c34242" } },
@@ -3272,7 +3294,7 @@ export default function Settings({
                         ...segmentModelCards,
                       ] as const
                     ).map(t => isSegment(t.id) ? { ...t, name: segmentThemes[t.id].name, tag: segmentThemes[t.id].tag, desc: segmentThemes[t.id].desc, color: segmentThemes[t.id].accent, bg: segmentThemes[t.id].bg, cardBg: segmentThemes[t.id].surface, textColor: segmentThemes[t.id].ink } : t).filter((t) => modelCategory === "Todos" || (isSegment(t.id) && segmentThemes[t.id].group === modelCategory) || ({
-                      minimal: "Geral", cyber: "Tecnologia", organic: "Geral", luxury: "Geral", tech: "Tecnologia", nexus_tech: "Tecnologia", atelier: "Moda", urban: "Moda", doceria: "Comércio", fragrance: "Beleza", beauty: "Beleza", street: "Moda", sport: "Esportes & Fitness", fitness: "Esportes & Fitness", variety: "Comércio", toys: "Comércio", marketplace: "Comércio", electric: "Casa & Construção",
+                      minimal: "Geral", cyber: "Tecnologia", organic: "Geral", luxury: "Geral", tech: "Tecnologia", nexus_tech: "Tecnologia", atelier: "Moda", urban: "Moda", doceria: "Comércio", fragrance: "Beleza", beauty: "Beleza", street: "Moda", streetwear: "Moda", aura: "Moda", sport: "Esportes & Fitness", fitness: "Esportes & Fitness", variety: "Comércio", toys: "Comércio", marketplace: "Comércio", electric: "Casa & Construção",
                     } as Record<string, string>)[t.id] === modelCategory || (modelCategory === "Comércio" && (t.id === "pet" || t.id === "paper")) || (modelCategory === "Casa & Construção" && t.id === "home")).map((t) => {
                       const isActive = tenant?.template_id === t.id;
                       const previewBase =
