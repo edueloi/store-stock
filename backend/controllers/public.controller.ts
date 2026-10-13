@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
+import { storeSelectionLabel } from '../utils/store-selection';
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { getTenantAccessState } from "../utils/tenant-access";
 import { createStoreOrderPdf } from "../services/store-order-pdf.service";
@@ -14,12 +15,14 @@ import {
 interface CheckoutItemInput {
   id: number;
   quantity: number;
+  selected_options?: Record<string, string>;
 }
 
 interface CheckoutOrderItem {
   product_id: number;
   quantity: number;
   unit_price: number;
+  dimensions_label?: string | null;
 }
 
 type CepZone = { name?: string; from?: string; to?: string; fee?: number };
@@ -348,7 +351,7 @@ export async function requestStoreOrder(req: Request, res: Response) {
       return;
     }
 
-    const orderItems: Array<{ product_id: number; quantity: number; unit_price: number; name: string; sku: string | null }> = [];
+    const orderItems: Array<{ product_id: number; quantity: number; unit_price: number; name: string; sku: string | null; dimensions_label: string | null }> = [];
     let total = 0;
     for (const item of items) {
       if (!Number.isInteger(item.quantity) || item.quantity < 1) {
@@ -362,7 +365,9 @@ export async function requestStoreOrder(req: Request, res: Response) {
       }
       const unitPrice = Number(product.discount_price ?? product.price);
       total += unitPrice * item.quantity;
-      orderItems.push({ product_id: product.id, quantity: item.quantity, unit_price: unitPrice, name: product.name, sku: product.sku });
+      const selection = storeSelectionLabel(product, item.selected_options);
+      if (selection === false) { res.status(422).json({ error: 'Confira as opções selecionadas do produto.' }); return; }
+      orderItems.push({ product_id: product.id, quantity: item.quantity, unit_price: unitPrice, name: selection ? `${product.name} (${selection})` : product.name, sku: product.sku, dimensions_label: selection });
     }
 
     const phone = comparablePhone(customerInfo.phone);
@@ -411,7 +416,7 @@ export async function requestStoreOrder(req: Request, res: Response) {
         delivery_method: "to_confirm",
         shipping_amount: 0,
         payment_method: "to_confirm",
-        items: { create: orderItems.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })) },
+        items: { create: orderItems.map(({ product_id, quantity, unit_price, dimensions_label }) => ({ product_id, quantity, unit_price, dimensions_label })) },
         actions: appliedReward ? {
           create: {
             tenant_id: tenant.id,
@@ -526,10 +531,13 @@ export async function checkout(req: Request, res: Response) {
       total += unitPrice * item.quantity;
       grossAmount += Number(product.price) * item.quantity;
       discountAmount += Math.max(0, Number(product.price) - unitPrice) * item.quantity;
+      const selection = storeSelectionLabel(product, item.selected_options);
+      if (selection === false) { res.status(422).json({ error: 'Confira as opções selecionadas do produto.' }); return; }
       orderItems.push({
         product_id: product.id,
         quantity: item.quantity,
         unit_price: unitPrice,
+        dimensions_label: selection,
       });
     }
 

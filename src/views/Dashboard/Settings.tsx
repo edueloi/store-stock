@@ -6,6 +6,7 @@ import React, {
   useMemo,
 } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { segmentModelCards, segmentThemes, isSegment } from '../Store/themes/segments/registry';
 import {
   Store,
   Palette,
@@ -3080,7 +3081,7 @@ export default function Settings({
                     das cores e da sensação da sua loja.
                   </p>
                   <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                    {["Todos", "Geral", "Moda", "Beleza", "Tecnologia", "Comércio", "Esportes & Fitness", "Casa & Construção"].map((category) => (
+                    {["Todos", "Geral", "Moda", "Beleza", "Tecnologia", "Comércio", "Esportes & Fitness", "Casa & Construção", "Agro & Pet", "Auto & Ferramentas", "Infantil & Família", "Cultura & Lazer", "Sabores & Presentes", "Saúde & Hospitalar"].map((category) => (
                       <button key={category} type="button" onClick={() => setModelCategory(category)} className={cn("shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors", modelCategory === category ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700")}>{category}</button>
                     ))}
                   </div>
@@ -3268,8 +3269,9 @@ export default function Settings({
                           textColor: "#0f172a",
                           badge: { bg: "#ffedd5", text: "#c2410c" },
                         },
+                        ...segmentModelCards,
                       ] as const
-                    ).filter((t) => modelCategory === "Todos" || ({
+                    ).map(t => isSegment(t.id) ? { ...t, name: segmentThemes[t.id].name, tag: segmentThemes[t.id].tag, desc: segmentThemes[t.id].desc, color: segmentThemes[t.id].accent, bg: segmentThemes[t.id].bg, cardBg: segmentThemes[t.id].surface, textColor: segmentThemes[t.id].ink } : t).filter((t) => modelCategory === "Todos" || (isSegment(t.id) && segmentThemes[t.id].group === modelCategory) || ({
                       minimal: "Geral", cyber: "Tecnologia", organic: "Geral", luxury: "Geral", tech: "Tecnologia", nexus_tech: "Tecnologia", atelier: "Moda", urban: "Moda", doceria: "Comércio", fragrance: "Beleza", beauty: "Beleza", street: "Moda", sport: "Esportes & Fitness", fitness: "Esportes & Fitness", variety: "Comércio", toys: "Comércio", marketplace: "Comércio", electric: "Casa & Construção",
                     } as Record<string, string>)[t.id] === modelCategory || (modelCategory === "Comércio" && (t.id === "pet" || t.id === "paper")) || (modelCategory === "Casa & Construção" && t.id === "home")).map((t) => {
                       const isActive = tenant?.template_id === t.id;
@@ -3280,12 +3282,12 @@ export default function Settings({
                       return (
                         <div
                           key={t.id}
-                          onClick={() => setT({ template_id: t.id })}
+                          onClick={() => setT({ template_id: t.id, ...(isSegment(t.id) ? { primary_color: t.color } : {}) })}
                           role="button"
                           tabIndex={0}
                           onKeyDown={(event) => {
                             if (event.key === "Enter" || event.key === " ")
-                              setT({ template_id: t.id });
+                              setT({ template_id: t.id, ...(isSegment(t.id) ? { primary_color: t.color } : {}) });
                           }}
                           className={cn(
                             "min-w-[200px] sm:min-w-0 rounded-lg border text-left transition-all relative overflow-hidden group shrink-0 flex flex-col cursor-pointer",
@@ -3904,7 +3906,7 @@ export default function Settings({
                         Textos da vitrine
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        Personalize a linguagem exibida no modelo Urban Edit.
+                        Personalize os títulos da vitrine, das categorias e do catálogo. Os modelos setoriais também usam estes textos.
                       </p>
                       <div className="grid gap-4 md:grid-cols-2">
                         <Field label="Título do catálogo">
@@ -3915,6 +3917,18 @@ export default function Settings({
                             }
                             placeholder="Todos os produtos"
                           />
+                        </Field>
+                        <Field label="Descrição curta do segmento">
+                          <TextInput value={storefront.segment_label || ''} onChange={(value) => setStorefront({ segment_label: value })} placeholder="Ex.: Agropecuária & Cuidados" />
+                        </Field>
+                        <Field label="Botão principal da vitrine">
+                          <TextInput value={storefront.hero_button_label || ''} onChange={(value) => setStorefront({ hero_button_label: value })} placeholder="Explorar catálogo" />
+                        </Field>
+                        <Field label="Título da página Sobre">
+                          <TextInput value={storefront.about_title || ''} onChange={(value) => setStorefront({ about_title: value })} placeholder="Conheça a nossa história" />
+                        </Field>
+                        <Field label="Título do carrinho">
+                          <TextInput value={storefront.cart_title || ''} onChange={(value) => setStorefront({ cart_title: value })} placeholder="Usar o título do modelo" />
                         </Field>
                         <Field label="Descrição do catálogo">
                           <TextInput

@@ -32,12 +32,21 @@ import WhatsAppWidget from "../../components/store/WhatsAppWidget";
 import SearchBar from "../../components/layout/SearchBar";
 import { buildStorePath, resolveStoreSlug } from "./store-routing";
 import { getVariationImages } from "../../utils/variationImages";
+import { isSegment, segmentThemes } from "./themes/segments/registry";
+import { SegmentHeader, SegmentFooter } from "./themes/segments/Chrome";
+import "./themes/segments/styles.css";
 
 // ── Store pages (lazy-loaded per theme)
 import { lazy, Suspense } from "react";
 
 function themePages(templateId: string | undefined) {
   const t = templateId || "minimal";
+  if (isSegment(t)) return {
+    Front: lazy(() => import('./themes/segments/Pages').then(m => ({ default: m.Front }))),
+    Catalog: lazy(() => import('./themes/segments/Pages').then(m => ({ default: m.Catalog }))),
+    Product: lazy(() => import('./themes/segments/Pages').then(m => ({ default: m.Product }))),
+    About: lazy(() => import('./themes/segments/Pages').then(m => ({ default: m.About }))),
+  };
   if (t === "minimal")
     return {
       Front: lazy(() => import("./themes/minimal/StoreFront")),
@@ -448,7 +457,7 @@ function StoreLayoutInner() {
     "previewTheme",
   );
   const templateId =
-    requestedPreviewTemplate && templates[requestedPreviewTemplate]
+    requestedPreviewTemplate && (templates[requestedPreviewTemplate] || isSegment(requestedPreviewTemplate))
       ? requestedPreviewTemplate
       : storeData?.tenant.template_id;
   if (templateId !== lastTemplateRef.current || pagesRef.current === null) {
@@ -492,9 +501,10 @@ function StoreLayoutInner() {
       ? `${product.id}-${variationLabel}`
       : `${product.id}`;
     const variationImages = getVariationImages(product, options || {});
+    const pricedProduct = isSegment(templateId || '') ? { ...product, price: Number(product.discount_price ?? product.price) } : product;
     const productForCart = variationImages.length
-      ? { ...product, image_url: variationImages[0], images: variationImages }
-      : product;
+      ? { ...pricedProduct, image_url: variationImages[0], images: variationImages }
+      : pricedProduct;
     setCart((prev) => {
       const existing = prev.find((i) => i.cartItemId === cartItemId);
       if (existing)
@@ -544,6 +554,7 @@ function StoreLayoutInner() {
   const storefront = storeData?.tenant.policies?.storefront || {};
   const checkoutMode = storefront.checkout_mode || "whatsapp";
   const isOrderRequest = checkoutMode === "order_request";
+  const hideStorePrices = isOrderRequest || storefront.hide_prices === true;
 
   const handleWhatsAppCheckout = () => {
     const lines = cart.map((i) => {
@@ -551,9 +562,9 @@ function StoreLayoutInner() {
       const varPart = i.variationLabel ? ` (${i.variationLabel})` : "";
       const unitPrice = Number(i.price).toFixed(2);
       const lineTotal = (Number(i.price) * i.quantity).toFixed(2);
-      return `*${i.quantity}x* ${i.name}${skuPart}${varPart}%0A   Unitário: R$ ${unitPrice} · Total: R$ ${lineTotal}`;
+      return hideStorePrices ? `*${i.quantity}x* ${i.name}${skuPart}${varPart}` : `*${i.quantity}x* ${i.name}${skuPart}${varPart}%0A   Unitário: R$ ${unitPrice} · Total: R$ ${lineTotal}`;
     });
-    const msg = `Olá! Gostaria de fazer um pedido:%0A%0A${lines.join("%0A%0A")}%0A%0A*Total do pedido: R$ ${total.toFixed(2)}*%0A%0AFavor confirmar disponibilidade.`;
+    const msg = `Olá! Gostaria de fazer um pedido:%0A%0A${lines.join("%0A%0A")}%0A%0A${hideStorePrices ? 'Valores a confirmar com a loja.' : `*Total do pedido: R$ ${total.toFixed(2)}*`}%0A%0AFavor confirmar disponibilidade.`;
     window.open(
       `https://wa.me/${storeData?.tenant.whatsapp?.replace(/\D/g, "")}?text=${msg}`,
       "_blank",
@@ -680,7 +691,7 @@ function StoreLayoutInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tenantId: storeData.tenant.id,
-          items: cart.map((item) => ({ id: item.id, quantity: item.quantity })),
+          items: cart.map((item) => ({ id: item.id, quantity: item.quantity, selected_options: item.selectedOptions })),
           customerInfo: checkoutForm,
         }),
       });
@@ -706,7 +717,7 @@ function StoreLayoutInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           tenantId: storeData.tenant.id,
-          items: cart.map((item) => ({ id: item.id, quantity: item.quantity })),
+          items: cart.map((item) => ({ id: item.id, quantity: item.quantity, selected_options: item.selectedOptions })),
           customerInfo: { name: checkoutForm.name, phone: checkoutForm.phone, email: checkoutForm.email },
           loyaltyRewardId: selectedLoyaltyRewardId || undefined,
         }),
@@ -763,10 +774,11 @@ function StoreLayoutInner() {
     );
   }
 
+  const segment = isSegment(templateId || '') ? segmentThemes[templateId as keyof typeof segmentThemes] : null;
   const style: StoreStyle = {
     ...(templates[templateId || "minimal"] || templates.minimal),
     accent:
-      storeData.tenant.primary_color ||
+      (requestedPreviewTemplate && segment ? segment.accent : storeData.tenant.primary_color) || segment?.accent ||
       templates[templateId || "minimal"]?.accent ||
       "#2563eb",
   };
@@ -843,11 +855,11 @@ function StoreLayoutInner() {
   return (
     <StoreContext.Provider value={ctx}>
       <div
-        className={cn("min-h-screen", `store-theme-${templateId || "minimal"}`, style.bg, style.text, style.font)}
-        style={isDoceria ? ({ "--doceria-accent": style.accent } as React.CSSProperties) : undefined}
+        className={cn("min-h-screen", `store-theme-${templateId || "minimal"}`, segment && `segment-shell segment-${templateId} segment-layout-${segment.layout}`, style.bg, style.text, style.font)}
+        style={segment ? ({ '--seg-accent': style.accent, '--seg-bg': segment.bg, '--seg-ink': segment.ink, '--seg-surface': segment.surface } as React.CSSProperties) : isDoceria ? ({ "--doceria-accent": style.accent } as React.CSSProperties) : undefined}
       >
         {/* ── NAVBAR ─────────────────────────────────────────────── */}
-        <header
+        {segment ? <SegmentHeader /> : <header
           className={cn(
             "sticky top-0 z-50 border-b shadow-sm",
             isMarketplace
@@ -1451,7 +1463,7 @@ function StoreLayoutInner() {
               </motion.div>
             )}
           </AnimatePresence>
-        </header>
+        </header>}
 
         {/* ── PAGES ──────────────────────────────────────────────── */}
         <main>
@@ -1466,7 +1478,7 @@ function StoreLayoutInner() {
         </main>
 
         {/* ── FOOTER ─────────────────────────────────────────────── */}
-        <footer
+        {segment ? <SegmentFooter /> : <footer
           className={cn(
             "mt-20 border-t",
             isStreet
@@ -1744,7 +1756,7 @@ function StoreLayoutInner() {
               <a href="https://boxsys.com.br" target="_blank" rel="noreferrer" className="font-bold underline-offset-4 hover:underline">BoxSys</a>
             </p>
           </div>
-        </footer>
+        </footer>}
 
         {/* WhatsApp Widget */}
         {storefront.show_whatsapp_widget !== false && (
@@ -1805,7 +1817,7 @@ function StoreLayoutInner() {
                         isElectronics || isFragrance ? "text-white" : "text-slate-900",
                       )}
                     >
-                      {isUrban ? "Seu carrinho" : isFragrance ? "Sua sacola" : "Carrinho"}
+                      {segment ? storefront.cart_title || segment.cart : isUrban ? "Seu carrinho" : isFragrance ? "Sua sacola" : "Carrinho"}
                     </h3>
                     <p
                       className={cn(
@@ -1828,6 +1840,7 @@ function StoreLayoutInner() {
                     </p>
                   </div>
                   <button
+                    aria-label="Fechar carrinho"
                     onClick={() => setIsCartOpen(false)}
                     className={cn(
                       "p-2 rounded-xl",
@@ -1942,8 +1955,8 @@ function StoreLayoutInner() {
                               {item.variationLabel}
                             </p>
                           )}
-                          {isOrderRequest ? (
-                            <p className="mt-1 text-[9px] font-extrabold uppercase tracking-wide text-[#bd3437]">Sob encomenda · valor a confirmar</p>
+                          {hideStorePrices ? (
+                            <p className="mt-1 text-[9px] font-extrabold uppercase tracking-wide text-[#bd3437]">Valor a confirmar com a loja</p>
                           ) : <div className="flex items-center gap-2 mt-1">
                             <p
                               className={cn(
@@ -1953,7 +1966,7 @@ function StoreLayoutInner() {
                                   : "text-slate-400",
                               )}
                             >
-                              R$ {Number(item.price).toFixed(2)} un.
+                              {Number(item.price).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })} un.
                             </p>
                             <span
                               className={
@@ -1972,8 +1985,7 @@ function StoreLayoutInner() {
                                   : "text-emerald-600",
                               )}
                             >
-                              R${" "}
-                              {(Number(item.price) * item.quantity).toFixed(2)}
+                              {(Number(item.price) * item.quantity).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })}
                             </p>
                           </div>}
                           <div className="flex items-center gap-2 mt-2">
@@ -1988,6 +2000,7 @@ function StoreLayoutInner() {
                               )}
                             >
                               <button
+                                aria-label="Diminuir quantidade no carrinho"
                                 onClick={() =>
                                   updateQuantity(item.cartItemId, -1)
                                 }
@@ -2010,6 +2023,7 @@ function StoreLayoutInner() {
                                 {item.quantity}
                               </span>
                               <button
+                                aria-label="Aumentar quantidade no carrinho"
                                 onClick={() =>
                                   updateQuantity(item.cartItemId, 1)
                                 }
@@ -2025,6 +2039,7 @@ function StoreLayoutInner() {
                               </button>
                             </div>
                             <button
+                              aria-label={`Remover ${item.name} do carrinho`}
                               onClick={() => removeFromCart(item.cartItemId)}
                               className={isDoceria ? "text-[#a56e1e] hover:text-red-600 transition-colors" : "text-slate-500 hover:text-red-500 transition-colors"}
                             >
@@ -2123,8 +2138,8 @@ function StoreLayoutInner() {
                       >
                         {isOrderRequest ? "Estimativa da encomenda" : isUrban ? "Resumo do pedido" : "Total"}
                       </p>
-                      {isOrderRequest ? (
-                        <p className="text-right text-[10px] font-bold leading-snug text-[#70541c]">Valores e prazo<br />confirmados pela fábrica</p>
+                      {hideStorePrices ? (
+                        <p className="text-right text-[10px] font-bold leading-snug text-[#70541c]">Valores e prazo<br />confirmados pela loja</p>
                       ) : (
                         <p
                           className={cn(
@@ -2140,7 +2155,7 @@ function StoreLayoutInner() {
                                   : "text-white",
                           )}
                         >
-                          R$ {total.toFixed(2)}
+                          {total.toLocaleString('pt-BR', { style:'currency', currency:'BRL' })}
                         </p>
                       )}
                     </div>
@@ -2236,7 +2251,7 @@ function StoreLayoutInner() {
               )}
             >
               <ShoppingCart size={16} />
-              {cartCount} {cartCount === 1 ? "item" : "itens"}{isOrderRequest ? " no pedido" : ` · R$ ${total.toFixed(2)}`}
+              {cartCount} {cartCount === 1 ? "item" : "itens"}{hideStorePrices ? " no pedido" : ` · ${total.toLocaleString('pt-BR', { style:'currency', currency:'BRL' })}`}
             </button>
           </motion.div>
         )}

@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { storeSelectionLabel } from '../backend/utils/store-selection';
+const product = { attributes: [{ name: 'Cor', values: ['Azul', 'Verde'] }, { name: 'Tamanho', values: ['P', 'G'] }] };
+assert.equal(storeSelectionLabel(product, { Cor: 'Verde', Tamanho: 'G' }), 'Cor: Verde · Tamanho: G');
+assert.equal(storeSelectionLabel(product, { Cor: 'Verde' }), false);
+assert.equal(storeSelectionLabel(product, { Cor: 'Vermelho', Tamanho: 'G' }), false);
+assert.equal(storeSelectionLabel(product, { Cor: 'Azul', Tamanho: 'P', Extra: 'Inválido' }), false);
+assert.equal(storeSelectionLabel(product, []), false);
+assert.equal(storeSelectionLabel(product, undefined), null);
+assert.equal(storeSelectionLabel({}, {}), null);
+assert.equal(storeSelectionLabel({ variations: [{ name: 'Peso', options: [{ value: '10 kg' }] }] }, { Peso: '10 kg' }), 'Peso: 10 kg');
+console.log('PASS: checkout selection labels, invalid choices and legacy compatibility');

@@ -32,6 +32,10 @@ export interface StorePolicies {
     catalog_description?: string;
     home_categories_title?: string;
     home_featured_title?: string;
+    segment_label?: string;
+    hero_button_label?: string;
+    about_title?: string;
+    cart_title?: string;
     show_whatsapp_widget?: boolean;
     /** Mantém os preços internos no sistema, mas os oculta na vitrine pública. */
     hide_prices?: boolean;
