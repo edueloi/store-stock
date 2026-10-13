@@ -38,6 +38,7 @@ export interface DebtPaymentReceipt {
   installmentNumber: number;
   installmentsTotal: number;
   amount: number;
+  discount?: number;
   paymentMethod: string;
   remainingBalance: number;
   paidAt?: Date;
@@ -87,6 +88,10 @@ export function buildDebtPaymentReceiptText(
   text += `${thermalThin}\n`;
   text += thermalRow("Forma de pagamento", receipt.paymentMethod) + "\n";
   text += `${thermalRule}\n`;
+  if (receipt.discount && receipt.discount > 0) {
+    text += thermalRow("VALOR ORIGINAL", `R$ ${thermalMoney(receipt.amount + receipt.discount)}`) + "\n";
+    text += thermalRow("DESCONTO CONCEDIDO", `- R$ ${thermalMoney(receipt.discount)}`) + "\n";
+  }
   text += thermalRow("VALOR RECEBIDO", `R$ ${thermalMoney(receipt.amount)}`) + "\n";
   text += thermalRow("SALDO DO CREDIÁRIO", `R$ ${thermalMoney(Math.max(0, receipt.remainingBalance))}`) + "\n";
   text += `${thermalRule}\n`;

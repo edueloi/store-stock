@@ -500,9 +500,13 @@ async function registerDebtPaymentMulti(
   segments: DebtPaymentSegmentInput[],
   installmentId?: number | null,
   paymentDate = new Date(),
+  discount = 0,
 ) {
   const totalAmount = Math.round(segments.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100;
-  if (segments.length === 0 || totalAmount <= 0) throw new Error("INVALID_AMOUNT");
+  const cleanDiscount = Math.max(0, Math.round((Number(discount) || 0) * 100) / 100);
+  const settledAmount = Math.round((totalAmount + cleanDiscount) * 100) / 100;
+
+  if (settledAmount <= 0) throw new Error("INVALID_AMOUNT");
 
   const debt = await prisma.customerDebt.findFirst({ where: { id: debtId, tenant_id: tenantId } });
   if (!debt) throw new Error("NOT_FOUND");
@@ -511,7 +515,7 @@ async function registerDebtPaymentMulti(
   const remaining = Number(debt.amount) - Number(debt.amount_paid);
   // Sem troco em fiado — quitar até o saldo devedor, nunca além (mesma tolerância de
   // arredondamento já usada em registerDebtPayment).
-  if (totalAmount > remaining + 0.005) throw new Error("INVALID_AMOUNT");
+  if (settledAmount > remaining + 0.005) throw new Error("INVALID_AMOUNT");
 
   let installment = null;
   if (installmentId) {
@@ -521,7 +525,7 @@ async function registerDebtPaymentMulti(
     if (!installment) throw new Error("INSTALLMENT_NOT_FOUND");
     if (installment.status === "paid") throw new Error("INSTALLMENT_ALREADY_PAID");
     const installmentRemaining = Number(installment.amount) - Number(installment.amount_paid);
-    if (totalAmount > installmentRemaining + 0.005) throw new Error("INVALID_AMOUNT");
+    if (settledAmount > installmentRemaining + 0.005) throw new Error("INVALID_AMOUNT");
   }
 
   const customer = await prisma.customer.findUnique({ where: { id: debt.customer_id } });
@@ -543,7 +547,7 @@ async function registerDebtPaymentMulti(
         select: { id: true },
       })
     : null;
-  if (tenantData?.require_cash_session && isPaymentToday(paymentDate) && !openSession) {
+  if (tenantData?.require_cash_session && isPaymentToday(paymentDate) && !openSession && totalAmount > 0) {
     throw new Error("CASH_SESSION_REQUIRED");
   }
   const cashSessionId = openSession?.id ?? null;
@@ -577,8 +581,28 @@ async function registerDebtPaymentMulti(
       createdPayments.push(payment);
     }
 
+    if (cleanDiscount > 0) {
+      const discountPayment = await tx.customerDebtPayment.create({
+        data: {
+          tenant_id: tenantId,
+          debt_id: debtId,
+          installment_id: installmentId || null,
+          amount: cleanDiscount,
+          payment_method: "discount",
+          card_brand: null,
+          installments: null,
+          gross_amount: cleanDiscount,
+          fee_amount: null,
+          net_amount: cleanDiscount,
+          cash_session_id: null,
+          paid_at: paymentDate,
+        },
+      });
+      createdPayments.push(discountPayment);
+    }
+
     if (installment) {
-      const installmentAmountPaid = Number(installment.amount_paid) + totalAmount;
+      const installmentAmountPaid = Number(installment.amount_paid) + settledAmount;
       const installmentFullyPaid = installmentAmountPaid >= Number(installment.amount) - 0.005;
       await tx.customerDebtInstallment.update({
         where: { id: installment.id },
@@ -590,7 +614,7 @@ async function registerDebtPaymentMulti(
       });
     }
 
-    const newAmountPaid = Number(debt.amount_paid) + totalAmount;
+    const newAmountPaid = Number(debt.amount_paid) + settledAmount;
     const isFullyPaid = newAmountPaid >= Number(debt.amount) - 0.005;
 
     // Se a dívida inteira foi quitada mas o pagamento não veio vinculado a uma
@@ -621,20 +645,40 @@ async function registerDebtPaymentMulti(
       include: { installments: { orderBy: { number: "asc" } } },
     });
 
-    // Um Finance por segmento (não agregado) — cada CustomerDebtPayment já é sua
-    // própria transação no ledger, e carrega a taxa exata do segmento sem precisar
-    // ratear depois (Finance.payment_method também é uma coluna de método único, não
-    // suportaria uma string composta tipo a de Order).
-    for (const p of createdPayments) {
+    // Registra no financeiro: o desconto NÃO entra como despesa/prejuízo ("valor perdido"),
+    // entra devidamente no campo discount_amount com o gross_amount correspondente.
+    const moneyPayments = createdPayments.filter((p) => p.payment_method !== "discount");
+    if (moneyPayments.length > 0) {
+      for (let i = 0; i < moneyPayments.length; i++) {
+        const p = moneyPayments[i];
+        const segDiscount = i === 0 && cleanDiscount > 0 ? cleanDiscount : null;
+        const segGross = Number(p.gross_amount ?? p.amount) + (segDiscount ?? 0);
+        await tx.finance.create({
+          data: {
+            tenant_id: tenantId,
+            type: "income",
+            description: `Pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}${segDiscount ? ` (Desconto: R$ ${segDiscount.toFixed(2)})` : ""}`,
+            amount: Number(p.net_amount ?? p.amount),
+            gross_amount: segGross,
+            fee_amount: p.fee_amount ? Number(p.fee_amount) : null,
+            discount_amount: segDiscount,
+            payment_method: p.payment_method,
+            source: "debt_payment",
+            date: paymentDate,
+          },
+        });
+      }
+    } else if (cleanDiscount > 0) {
       await tx.finance.create({
         data: {
           tenant_id: tenantId,
           type: "income",
-          description: `Pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}`,
-          amount: Number(p.net_amount ?? p.amount),
-          gross_amount: Number(p.gross_amount ?? p.amount),
-          fee_amount: p.fee_amount ? Number(p.fee_amount) : null,
-          payment_method: p.payment_method,
+          description: `Desconto fiado concedido — ${customer?.name ?? "Cliente"}: ${debt.description} (Desconto: R$ ${cleanDiscount.toFixed(2)})`,
+          amount: 0,
+          gross_amount: cleanDiscount,
+          fee_amount: null,
+          discount_amount: cleanDiscount,
+          payment_method: "discount",
           source: "debt_payment",
           date: paymentDate,
         },
@@ -650,19 +694,23 @@ export async function payDebtMulti(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const userId = getUserId(req);
     const debtId = Number(req.params.debtId);
-    const { payments, installment_id, paid_at } = req.body as {
+    const { payments, installment_id, paid_at, discount } = req.body as {
       payments: DebtPaymentSegmentInput[];
       installment_id?: number;
       paid_at?: string;
+      discount?: number;
     };
 
-    if (!Array.isArray(payments) || payments.length === 0) {
-      res.status(422).json({ error: "Informe ao menos uma forma de pagamento" });
+    const cleanDiscount = Math.max(0, Math.round((Number(discount) || 0) * 100) / 100);
+    const hasPayments = Array.isArray(payments) && payments.some((p) => (Number(p.amount) || 0) > 0);
+
+    if (!hasPayments && cleanDiscount <= 0) {
+      res.status(422).json({ error: "Informe ao menos uma forma de pagamento ou um desconto" });
       return;
     }
 
     const { debt: updated, payments: createdPayments } = await registerDebtPaymentMulti(
-      tenantId, userId, debtId, payments, installment_id, parseDebtPaymentDate(paid_at),
+      tenantId, userId, debtId, payments || [], installment_id, parseDebtPaymentDate(paid_at), cleanDiscount,
     );
 
     emitToTenant(tenantId, "finance:changed", { debtId });
@@ -745,17 +793,21 @@ export async function reverseDebtPayment(req: Request, res: Response) {
 
       await tx.customerDebtPayment.delete({ where: { id: paymentId } });
 
-      await tx.finance.create({
-        data: {
-          tenant_id: tenantId,
-          type: "expense",
-          description: `Estorno de pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}`,
-          amount,
-          payment_method: payment.payment_method,
-          source: "debt_payment_reversal",
-          date: localDateString(),
-        },
-      });
+      // Se não era desconto concedido, cria lançamento de estorno no financeiro.
+      // Descontos concedidos não geram despesa no estorno, apenas reabrem o saldo da dívida.
+      if (payment.payment_method !== "discount") {
+        await tx.finance.create({
+          data: {
+            tenant_id: tenantId,
+            type: "expense",
+            description: `Estorno de pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}`,
+            amount,
+            payment_method: payment.payment_method,
+            source: "debt_payment_reversal",
+            date: localDateString(),
+          },
+        });
+      }
     });
 
     const updated = await prisma.customerDebt.findUnique({

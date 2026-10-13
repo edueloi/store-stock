@@ -146,7 +146,7 @@ function suggestedInterest(remaining: number, due_date: string, rate: number, gr
 // do backend (backend/controllers/sales.controller.ts), para exibir de forma
 // legível o formato composto "method-brand-installments:amount|...".
 const PM_LABELS: Record<string, string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário",
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", discount: "Desconto concedido",
 };
 
 function formatPaymentMethod(pm?: string): string {
@@ -241,11 +241,13 @@ export default function CustomerDetail() {
   const [debtPaymentDate, setDebtPaymentDate] = useState(todayInputDate);
   const [payingDebts, setPayingDebts] = useState(false);
   const [payDebtsError, setPayDebtsError] = useState<string | null>(null);
+  const [debtDiscount, setDebtDiscount] = useState("");
 
   // Parcelas do crediário
   const [selectedInstallmentIds, setSelectedInstallmentIds] = useState<Set<number>>(new Set());
   const [installmentPayAmounts, setInstallmentPayAmounts] = useState<Record<number, string>>({});
   const [installmentPaySegments, setInstallmentPaySegments] = useState<Record<number, PaymentSegment[]>>({});
+  const [installmentDiscounts, setInstallmentDiscounts] = useState<Record<number, string>>({});
   const [payingInstallmentId, setPayingInstallmentId] = useState<number | null>(null);
   const [payInstallmentError, setPayInstallmentError] = useState<Record<number, string>>({});
 
@@ -382,6 +384,7 @@ export default function CustomerDetail() {
     setSelectedDebtIds(new Set([debtId]));
     setPayAmounts({ [debtId]: remaining.toFixed(2) });
     setPaySegments([newPaymentSegment(remaining.toFixed(2))]);
+    setDebtDiscount("");
     setDebtPaymentDate(todayInputDate());
     setPayDebtsError(null);
   }
@@ -389,8 +392,36 @@ export default function CustomerDetail() {
   function cancelDebtPayment() {
     setSelectedDebtIds(new Set());
     setPayAmounts({});
+    setDebtDiscount("");
     setPaySegments([newPaymentSegment()]);
     setPayDebtsError(null);
+  }
+
+  function handleDebtDiscountChange(val: string, debtId: number, remaining: number) {
+    setDebtDiscount(val);
+    const discountNum = Math.max(0, Math.min(remaining, Number(val) || 0));
+    const newToPay = Math.max(0, remaining - discountNum);
+    setPayAmounts({ [debtId]: newToPay.toFixed(2) });
+    setPaySegments((prev) => {
+      if (!prev || prev.length <= 1) {
+        return [newPaymentSegment(newToPay > 0 ? newToPay.toFixed(2) : "0.00")];
+      }
+      return prev;
+    });
+  }
+
+  function handleInstallmentDiscountChange(instId: number, val: string, remaining: number) {
+    setInstallmentDiscounts((prev) => ({ ...prev, [instId]: val }));
+    const discountNum = Math.max(0, Math.min(remaining, Number(val) || 0));
+    const newDue = Math.max(0, remaining - discountNum);
+    setInstallmentPayAmounts((prev) => ({ ...prev, [instId]: newDue.toFixed(2) }));
+    setInstallmentPaySegments((prev) => {
+      const current = prev[instId];
+      if (!current || current.length <= 1) {
+        return { ...prev, [instId]: [newPaymentSegment(newDue > 0 ? newDue.toFixed(2) : "0.00")] };
+      }
+      return prev;
+    });
   }
 
   async function handlePaySelectedDebts() {
@@ -398,34 +429,34 @@ export default function CustomerDetail() {
     setPayingDebts(true);
     setPayDebtsError(null);
     try {
+      const totalDiscount = Math.max(0, Number(debtDiscount) || 0);
       const payments = paySegments
         .filter((s) => (Number(s.amount) || 0) > 0)
         .map((s) => ({ method: s.method, brand: s.cardBrand, installments: s.installments, amount: Math.round(Number(s.amount) * 100) / 100 }));
-      if (payments.length === 0) { setPayDebtsError("Informe ao menos uma forma de pagamento"); return; }
+      if (payments.length === 0 && totalDiscount <= 0) { setPayDebtsError("Informe ao menos uma forma de pagamento ou um desconto"); return; }
 
       const selectedDebts = Array.from(selectedDebtIds).map((debtId) => {
         const debt = detail.debts.find((item) => item.id === debtId);
         const remaining = debt ? Number(debt.amount) - Number(debt.amount_paid ?? 0) : 0;
         const requested = Number(payAmounts[debtId] ?? 0);
-        return { debtId, amount: Math.min(Math.max(0, requested), remaining) };
-      }).filter((debt) => debt.amount > 0);
+        return { debtId, amount: Math.min(Math.max(0, requested), remaining), remaining };
+      }).filter((debt) => debt.remaining > 0);
 
-      const requestedTotal = selectedDebts.reduce((sum, debt) => sum + debt.amount, 0);
       const receivedTotal = payments.reduce((sum, payment) => sum + payment.amount, 0);
-      if (receivedTotal > requestedTotal + 0.005) {
-        setPayDebtsError("O valor recebido é maior que o total selecionado das dívidas.");
+      const totalRemaining = selectedDebts.reduce((sum, debt) => sum + debt.remaining, 0);
+      if (receivedTotal + totalDiscount > totalRemaining + 0.005) {
+        setPayDebtsError("O valor recebido + desconto é maior que o total das dívidas selecionadas.");
         return;
       }
 
-      // Consome exatamente o que foi recebido. Quando o pagamento é parcial,
-      // o restante da dívida permanece em aberto; nunca se aumenta o valor dos
-      // segmentos para quitar uma dívida inteira.
       const pendingPayments = payments.map((payment) => ({ ...payment }));
       let remainingToAllocate = Math.round(receivedTotal * 100) / 100;
+      let remainingDiscountToAllocate = Math.round(totalDiscount * 100) / 100;
 
-      for (const { debtId, amount } of selectedDebts) {
-        if (remainingToAllocate <= 0.005) break;
-        let amountForDebt = Math.min(amount, remainingToAllocate);
+      for (const { debtId, remaining } of selectedDebts) {
+        if (remainingToAllocate <= 0.005 && remainingDiscountToAllocate <= 0.005) break;
+
+        let amountForDebt = Math.min(remaining, remainingToAllocate);
         const debtPayments: typeof payments = [];
 
         for (const payment of pendingPayments) {
@@ -438,23 +469,51 @@ export default function CustomerDetail() {
           amountForDebt = Math.round((amountForDebt - allocated) * 100) / 100;
         }
 
-        if (debtPayments.length === 0) break;
-        // Cada chamada recebe somente a parcela efetivamente alocada. Antes,
-        // a escala podia transformar R$ 500 recebidos em baixa de R$ 1.000.
+        const allocatedTotal = debtPayments.reduce((sum, payment) => sum + payment.amount, 0);
+        remainingToAllocate = Math.round((remainingToAllocate - allocatedTotal) * 100) / 100;
+
+        let discountForDebt = 0;
+        if (remainingDiscountToAllocate > 0.005) {
+          const maxDiscountForDebt = Math.max(0, remaining - allocatedTotal);
+          discountForDebt = Math.min(remainingDiscountToAllocate, maxDiscountForDebt);
+          discountForDebt = Math.round(discountForDebt * 100) / 100;
+          remainingDiscountToAllocate = Math.round((remainingDiscountToAllocate - discountForDebt) * 100) / 100;
+        }
+
+        if (debtPayments.length === 0 && discountForDebt <= 0) break;
+
         const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-multi`, {
           method: "POST", headers: authH(),
-          body: JSON.stringify({ payments: debtPayments, paid_at: debtPaymentDate }),
+          body: JSON.stringify({ payments: debtPayments, paid_at: debtPaymentDate, discount: discountForDebt }),
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           setPayDebtsError(data.error || "Falha ao registrar pagamento");
           return;
         }
-        const allocatedTotal = debtPayments.reduce((sum, payment) => sum + payment.amount, 0);
-        remainingToAllocate = Math.round((remainingToAllocate - allocatedTotal) * 100) / 100;
       }
+
+      // Imprime comprovante se houve recebimento ou desconto
+      const debtIdFirst = Array.from(selectedDebtIds)[0];
+      const debtFirst = detail.debts.find((item) => item.id === debtIdFirst);
+      const remainingFirst = debtFirst ? Number(debtFirst.amount) - Number(debtFirst.amount_paid ?? 0) : 0;
+      const methodLabel = payments.length > 1 ? "Múltiplas formas" : (payments[0] ? (PM_LABELS[payments[0].method] ?? payments[0].method) : "Desconto concedido");
+      const receipt = buildDebtPaymentReceiptText(tenantInfo, {
+        customerName: detail.name,
+        debtDescription: debtFirst?.description || "Crediário",
+        installmentNumber: 0,
+        installmentsTotal: debtFirst?.installments?.length ?? 0,
+        amount: receivedTotal,
+        discount: totalDiscount,
+        paymentMethod: methodLabel,
+        remainingBalance: Math.max(0, remainingFirst - (receivedTotal + totalDiscount)),
+        paidAt: new Date(`${debtPaymentDate}T12:00:00`),
+      });
+      await printThermalText(receipt, `Recibo de pagamento — ${detail.name}`);
+
       setSelectedDebtIds(new Set());
       setPayAmounts({});
+      setDebtDiscount("");
       setPaySegments([newPaymentSegment()]);
       await fetchDetail(detail.id);
     } finally {
@@ -471,11 +530,19 @@ export default function CustomerDetail() {
     if (checked) {
       setInstallmentPayAmounts((prev) => ({ ...prev, [installmentId]: prev[installmentId] ?? remaining.toFixed(2) }));
       setDebtPaymentDate(todayInputDate());
+    } else {
+      setInstallmentDiscounts((prev) => {
+        const next = { ...prev };
+        delete next[installmentId];
+        return next;
+      });
     }
   }
 
   async function handlePayInstallment(debtId: number, installmentId: number, installmentNumber: number, amount: number) {
-    if (!detail || amount <= 0) return;
+    if (!detail) return;
+    const discount = Math.max(0, Number(installmentDiscounts[installmentId]) || 0);
+    if (amount <= 0 && discount <= 0) return;
     setPayingInstallmentId(installmentId);
     setPayInstallmentError((prev) => { const next = { ...prev }; delete next[installmentId]; return next; });
     try {
@@ -483,28 +550,29 @@ export default function CustomerDetail() {
       const payments = segments
         .filter((s) => (Number(s.amount) || 0) > 0)
         .map((s) => ({ method: s.method, brand: s.cardBrand, installments: s.installments, amount: Number(s.amount) }));
-      if (payments.length === 0) {
-        setPayInstallmentError((prev) => ({ ...prev, [installmentId]: "Informe ao menos uma forma de pagamento" }));
+      if (payments.length === 0 && discount <= 0) {
+        setPayInstallmentError((prev) => ({ ...prev, [installmentId]: "Informe ao menos uma forma de pagamento ou um desconto" }));
         return;
       }
       const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-multi`, {
         method: "POST", headers: authH(),
-        body: JSON.stringify({ payments, installment_id: installmentId, paid_at: debtPaymentDate }),
+        body: JSON.stringify({ payments, installment_id: installmentId, paid_at: debtPaymentDate, discount }),
       });
       if (res.ok) {
-        const methodLabel = payments.length > 1 ? "Múltiplas formas" : PM_LABELS[payments[0].method] ?? payments[0].method;
+        const methodLabel = payments.length > 1 ? "Múltiplas formas" : (payments[0] ? (PM_LABELS[payments[0].method] ?? payments[0].method) : "Desconto concedido");
         const debt = detail.debts.find((item) => item.id === debtId);
         const totalOpenBeforePayment = debt?.installments?.reduce(
           (sum, item) => sum + Math.max(0, Number(item.amount) - Number(item.amount_paid || 0)), 0
-        ) ?? amount;
+        ) ?? (amount + discount);
         const receipt = buildDebtPaymentReceiptText(tenantInfo, {
           customerName: detail.name,
           debtDescription: debt?.description || "Crediário",
           installmentNumber,
           installmentsTotal: debt?.installments?.length || installmentNumber,
           amount,
+          discount,
           paymentMethod: methodLabel,
-          remainingBalance: totalOpenBeforePayment - amount,
+          remainingBalance: Math.max(0, totalOpenBeforePayment - (amount + discount)),
           paidAt: new Date(`${debtPaymentDate}T12:00:00`),
         });
         await printThermalText(receipt, `Pagamento de parcela — ${detail.name}`);
@@ -516,6 +584,7 @@ export default function CustomerDetail() {
       setSelectedInstallmentIds((prev) => { const next = new Set(prev); next.delete(installmentId); return next; });
       setInstallmentPayAmounts((prev) => { const next = { ...prev }; delete next[installmentId]; return next; });
       setInstallmentPaySegments((prev) => { const next = { ...prev }; delete next[installmentId]; return next; });
+      setInstallmentDiscounts((prev) => { const next = { ...prev }; delete next[installmentId]; return next; });
       await fetchDetail(detail.id);
     } finally {
       setPayingInstallmentId(null);
@@ -1102,16 +1171,36 @@ export default function CustomerDetail() {
                               </div>
                               {inst.status === "open" && selectedInstallmentIds.has(inst.id) && (
                                 <div className="space-y-2 pt-1">
-                                  <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
-                                    <Input
-                                      size="sm"
-                                      label="Data do recebimento"
-                                      type="date"
-                                      value={debtPaymentDate}
-                                      max={todayInputDate()}
-                                      onChange={(event) => setDebtPaymentDate(event.target.value)}
-                                    />
-                                    {debtPaymentDate !== todayInputDate() && <p className="mt-1 text-[11px] leading-snug text-amber-700">O histórico e o financeiro usam esta data; caixa fechado não é alterado.</p>}
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white p-2.5">
+                                    <div>
+                                      <Input
+                                        size="sm"
+                                        label="Data do recebimento"
+                                        type="date"
+                                        value={debtPaymentDate}
+                                        max={todayInputDate()}
+                                        onChange={(event) => setDebtPaymentDate(event.target.value)}
+                                      />
+                                      {debtPaymentDate !== todayInputDate() && <p className="mt-1 text-[10px] leading-snug text-amber-700">Histórico e financeiro usam esta data.</p>}
+                                    </div>
+                                    <div>
+                                      <Input
+                                        size="sm"
+                                        label="Desconto (R$)"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max={instRemaining}
+                                        placeholder="0,00"
+                                        value={installmentDiscounts[inst.id] ?? ""}
+                                        onChange={(e) => handleInstallmentDiscountChange(inst.id, e.target.value, instRemaining)}
+                                      />
+                                      {Number(installmentDiscounts[inst.id] || 0) > 0 && (
+                                        <p className="mt-1 text-[10px] leading-snug text-emerald-700 font-medium">
+                                          Abate na parcela e entra em Descontos no Financeiro.
+                                        </p>
+                                      )}
+                                    </div>
                                   </div>
                                   <PaymentSegmentsEditor
                                     segments={installmentPaySegments[inst.id] ?? [newPaymentSegment((installmentPayAmounts[inst.id] ?? instRemaining.toFixed(2)))]}
@@ -1119,7 +1208,7 @@ export default function CustomerDetail() {
                                     cardFees={cardFees}
                                     maxInstallments={maxInstallments}
                                     enabledBrands={enabledBrands}
-                                    totalToPay={Number(installmentPayAmounts[inst.id] ?? instRemaining)}
+                                    totalToPay={Math.max(0, instRemaining - (Number(installmentDiscounts[inst.id]) || 0))}
                                     allowPartial
                                   />
                                   {payInstallmentError[inst.id] && (
@@ -1132,9 +1221,9 @@ export default function CustomerDetail() {
                                     iconLeft={<CheckCircle2 size={13} />}
                                     loading={payingInstallmentId === inst.id}
                                     disabled={payingInstallmentId === inst.id}
-                                    onClick={() => handlePayInstallment(d.id, inst.id, inst.number, (installmentPaySegments[inst.id] ?? []).reduce((s, seg) => s + (Number(seg.amount) || 0), 0) || instRemaining)}
+                                    onClick={() => handlePayInstallment(d.id, inst.id, inst.number, (installmentPaySegments[inst.id] ?? []).reduce((s, seg) => s + (Number(seg.amount) || 0), 0))}
                                   >
-                                    Confirmar pagamento
+                                    Confirmar recebimento
                                   </Button>
                                 </div>
                               )}
@@ -1160,35 +1249,54 @@ export default function CustomerDetail() {
                       {isExpanded && hasPayments && (
                         <div className="space-y-1.5 border-t border-slate-100 px-3 pb-3 pt-2">
                           <p className="text-[11px] text-slate-500">Pagamentos registrados</p>
-                          {d.payments!.map((p) => (
-                            <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5">
-                              <div className="min-w-0">
-                                <p className="text-[11px] font-semibold tabular-nums text-slate-700">{fmt(Number(p.amount))}</p>
-                                <p className="text-[11px] text-slate-500">
-                                  {p.payment_method ? PM_LABELS[p.payment_method] ?? p.payment_method : "—"} · {fmtDate(p.paid_at)}
-                                </p>
+                          {d.payments!.map((p) => {
+                            const isDiscount = p.payment_method === "discount";
+                            return (
+                              <div key={p.id} className={cn(
+                                "flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5",
+                                isDiscount ? "border-amber-200 bg-amber-50/60" : "border-slate-200 bg-slate-50"
+                              )}>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <p className={cn("text-[11px] font-semibold tabular-nums", isDiscount ? "text-amber-700" : "text-slate-700")}>
+                                      {isDiscount ? `- ${fmt(Number(p.amount))}` : fmt(Number(p.amount))}
+                                    </p>
+                                    {isDiscount && (
+                                      <span className="rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold text-amber-800 uppercase tracking-wider">
+                                        Desconto
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-slate-500">
+                                    {isDiscount ? "Desconto concedido" : (p.payment_method ? PM_LABELS[p.payment_method] ?? p.payment_method : "—")} · {fmtDate(p.paid_at)}
+                                  </p>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-1.5">
+                                {!isDiscount && (
+                                  <>
+                                    <Button variant="outline" size="xs" title="Imprimir recibo deste pagamento" iconLeft={<Printer size={11} />} onClick={() => printDebtPaymentReceipt(d, p)}>
+                                      Imprimir recibo
+                                    </Button>
+                                    <Button variant="outline" size="xs" title="Enviar comprovante por e-mail" iconLeft={<Mail size={11} />} loading={sendingDebtEmailKey === `p${p.id}`} onClick={() => sendDebtEmail(d, p)}>
+                                      Enviar por e-mail
+                                    </Button>
+                                  </>
+                                )}
+                                <Button
+                                  variant="danger"
+                                  size="xs"
+                                  title={isDiscount ? "Cancelar desconto concedido" : "Estornar pagamento"}
+                                  iconLeft={<XCircle size={11} />}
+                                  loading={reversingPaymentId === p.id}
+                                  disabled={reversingPaymentId === p.id}
+                                  onClick={() => handleReversePayment(d.id, p.id, Number(p.amount))}
+                                >
+                                  {isDiscount ? "Cancelar desconto" : "Estornar"}
+                                </Button>
+                                </div>
                               </div>
-                              <div className="flex shrink-0 items-center gap-1.5">
-                              <Button variant="outline" size="xs" title="Imprimir recibo deste pagamento" iconLeft={<Printer size={11} />} onClick={() => printDebtPaymentReceipt(d, p)}>
-                                Imprimir recibo
-                              </Button>
-                              <Button variant="outline" size="xs" title="Enviar comprovante por e-mail" iconLeft={<Mail size={11} />} loading={sendingDebtEmailKey === `p${p.id}`} onClick={() => sendDebtEmail(d, p)}>
-                                Enviar por e-mail
-                              </Button>
-                              <Button
-                                variant="danger"
-                                size="xs"
-                                title="Estornar pagamento"
-                                iconLeft={<XCircle size={11} />}
-                                loading={reversingPaymentId === p.id}
-                                disabled={reversingPaymentId === p.id}
-                                onClick={() => handleReversePayment(d.id, p.id, Number(p.amount))}
-                              >
-                                Estornar
-                              </Button>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1197,35 +1305,55 @@ export default function CustomerDetail() {
               </div>
             )}
 
-            {paymentHistory.length > 0 && (
+            {paymentHistory.length > 0 && (() => {
+              const totalMoney = paymentHistory.filter((h) => h.payment.payment_method !== "discount").reduce((sum, h) => sum + Number(h.payment.amount), 0);
+              const totalDisc = paymentHistory.filter((h) => h.payment.payment_method === "discount").reduce((sum, h) => sum + Number(h.payment.amount), 0);
+              return (
               <PanelCard
                 title="Histórico de pagamentos"
-                description={`${paymentHistory.length} pagamento${paymentHistory.length !== 1 ? "s" : ""} · total recebido ${fmt(paymentHistory.reduce((sum, h) => sum + Number(h.payment.amount), 0))}`}
+                description={`${paymentHistory.length} registro${paymentHistory.length !== 1 ? "s" : ""} · total recebido ${fmt(totalMoney)}${totalDisc > 0 ? ` · descontos ${fmt(totalDisc)}` : ""}`}
                 contentClassName="p-0"
               >
                 <ul className="divide-y divide-slate-100">
-                  {paymentHistory.map(({ debt, payment }) => (
-                    <li key={`${debt.id}-${payment.id}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                  {paymentHistory.map(({ debt, payment }) => {
+                    const isDisc = payment.payment_method === "discount";
+                    return (
+                    <li key={`${debt.id}-${payment.id}`} className={cn("flex flex-wrap items-center justify-between gap-2 px-3 py-2", isDisc && "bg-amber-50/40")}>
                       <div className="min-w-0">
-                        <p className="break-words text-xs font-medium text-slate-800">{debt.description}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="break-words text-xs font-medium text-slate-800">{debt.description}</p>
+                          {isDisc && (
+                            <span className="rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold text-amber-800 uppercase tracking-wider">
+                              Desconto
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] text-slate-500">
-                          {fmtDate(payment.paid_at)} · {payment.payment_method ? PM_LABELS[payment.payment_method] ?? payment.payment_method : "Forma não informada"}
+                          {fmtDate(payment.paid_at)} · {isDisc ? "Desconto concedido" : (payment.payment_method ? PM_LABELS[payment.payment_method] ?? payment.payment_method : "Forma não informada")}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold tabular-nums text-emerald-700">{fmt(Number(payment.amount))}</span>
-                        <Button variant="outline" size="xs" iconLeft={<Printer size={11} />} onClick={() => printDebtPaymentReceipt(debt, payment)}>
-                          Imprimir recibo
-                        </Button>
-                        <Button variant="outline" size="xs" iconLeft={<Mail size={11} />} loading={sendingDebtEmailKey === `p${payment.id}`} onClick={() => sendDebtEmail(debt, payment)}>
-                          Enviar por e-mail
-                        </Button>
+                        <span className={cn("text-xs font-semibold tabular-nums", isDisc ? "text-amber-700" : "text-emerald-700")}>
+                          {isDisc ? `- ${fmt(Number(payment.amount))}` : fmt(Number(payment.amount))}
+                        </span>
+                        {!isDisc && (
+                          <>
+                            <Button variant="outline" size="xs" iconLeft={<Printer size={11} />} onClick={() => printDebtPaymentReceipt(debt, payment)}>
+                              Imprimir recibo
+                            </Button>
+                            <Button variant="outline" size="xs" iconLeft={<Mail size={11} />} loading={sendingDebtEmailKey === `p${payment.id}`} onClick={() => sendDebtEmail(debt, payment)}>
+                              Enviar por e-mail
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               </PanelCard>
-            )}
+              );
+            })()}
 
             {selectedDebtIds.size > 0 && (
               <ContentCard className="sticky bottom-0 space-y-3 border-violet-200">
@@ -1234,38 +1362,77 @@ export default function CustomerDetail() {
                   const debt = detail.debts.find((item) => item.id === debtId);
                   const remaining = debt ? Number(debt.amount) - Number(debt.amount_paid ?? 0) : 0;
                   const receiving = paySegments.reduce((sum, segment) => sum + (Number(segment.amount) || 0), 0);
-                  const afterPayment = Math.max(0, remaining - receiving);
+                  const discountNum = Math.max(0, Number(debtDiscount) || 0);
+                  const afterPayment = Math.max(0, remaining - receiving - discountNum);
                   return (
                     <div className="flex items-start justify-between gap-3 rounded-lg border border-violet-100 bg-violet-50 px-3 py-2.5">
                       <div className="min-w-0">
                         <p className="text-[11px] font-medium text-violet-500">Receber pagamento</p>
                         <p className="mt-0.5 truncate text-xs font-semibold text-slate-800">{debt?.description ?? "Dívida selecionada"}</p>
-                        <p className="mt-0.5 text-[11px] text-slate-500">Em aberto: {fmt(remaining)} · Após esta baixa: {fmt(afterPayment)}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">
+                          Em aberto: {fmt(remaining)} · Recebendo: {fmt(receiving)}{discountNum > 0 ? ` · Desconto: ${fmt(discountNum)}` : ""} · Após esta baixa: {fmt(afterPayment)}
+                        </p>
                       </div>
                       <Button variant="outline" size="xs" onClick={cancelDebtPayment}>Cancelar</Button>
                     </div>
                   );
                 })()}
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-                  <Input
-                    wrapperClassName="max-w-[200px]"
-                    label="Data em que o pagamento foi recebido"
-                    type="date"
-                    value={debtPaymentDate}
-                    max={todayInputDate()}
-                    onChange={(event) => setDebtPaymentDate(event.target.value)}
-                  />
-                  {debtPaymentDate !== todayInputDate() && <p className="mt-1.5 text-[11px] leading-snug text-amber-700">Lançamento retroativo: ficará no histórico do crediário e no financeiro da data informada. Um caixa já fechado não será alterado automaticamente.</p>}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                  <div>
+                    <Input
+                      label="Data em que o pagamento foi recebido"
+                      type="date"
+                      value={debtPaymentDate}
+                      max={todayInputDate()}
+                      onChange={(event) => setDebtPaymentDate(event.target.value)}
+                    />
+                    {debtPaymentDate !== todayInputDate() && <p className="mt-1.5 text-[11px] leading-snug text-amber-700">Lançamento retroativo: histórico e financeiro usam esta data.</p>}
+                  </div>
+                  <div>
+                    {(() => {
+                      const debtId = Array.from(selectedDebtIds)[0];
+                      const debt = detail.debts.find((item) => item.id === debtId);
+                      const remaining = debt ? Number(debt.amount) - Number(debt.amount_paid ?? 0) : 0;
+                      return (
+                        <>
+                          <Input
+                            label="Desconto (R$)"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max={remaining}
+                            placeholder="0,00"
+                            value={debtDiscount}
+                            onChange={(event) => handleDebtDiscountChange(event.target.value, debtId, remaining)}
+                          />
+                          {Number(debtDiscount) > 0 && (
+                            <p className="mt-1.5 text-[11px] leading-snug text-emerald-700 font-medium">
+                              Desconto concedido: abate no saldo e entra no financeiro como Desconto.
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
-                <PaymentSegmentsEditor
-                  segments={paySegments}
-                  onChange={setPaySegments}
-                  cardFees={cardFees}
-                  maxInstallments={maxInstallments}
-                  enabledBrands={enabledBrands}
-                  totalToPay={Array.from(selectedDebtIds).reduce((s, id) => s + Number(payAmounts[id] ?? 0), 0)}
-                  allowPartial
-                />
+                {(() => {
+                  const debtId = Array.from(selectedDebtIds)[0];
+                  const debt = detail.debts.find((item) => item.id === debtId);
+                  const remaining = debt ? Number(debt.amount) - Number(debt.amount_paid ?? 0) : 0;
+                  const discountNum = Math.max(0, Number(debtDiscount) || 0);
+                  const toPay = Math.max(0, remaining - discountNum);
+                  return (
+                    <PaymentSegmentsEditor
+                      segments={paySegments}
+                      onChange={setPaySegments}
+                      cardFees={cardFees}
+                      maxInstallments={maxInstallments}
+                      enabledBrands={enabledBrands}
+                      totalToPay={toPay}
+                      allowPartial
+                    />
+                  );
+                })()}
                 {payDebtsError && <Alert variant="error">{payDebtsError}</Alert>}
                 <Button
                   variant="success"
