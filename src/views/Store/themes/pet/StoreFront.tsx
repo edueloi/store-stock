@@ -52,7 +52,7 @@ export default function StoreFront() {
               </div>
               <span className="pet-sticker pet-float" style={{ left: 0, top: 0, ["--r" as string]: "-6deg" }}><Heart size={16} fill="currentColor" style={{ color: "var(--pt-accent)" }} /> Feito com carinho</span>
               {deals.length > 0 && !(sf.hide_prices === true || sf.checkout_mode === "order_request") && (
-                <span className="pet-sticker pet-float" style={{ right: 0, bottom: 4, background: "var(--pt-sun)", ["--r" as string]: "4deg" }}><Sparkles size={16} /> {deals.length} {deals.length === 1 ? "oferta" : "ofertas"} hoje</span>
+                <span className="pet-sticker pet-float" style={{ right: 0, bottom: 4, background: "var(--pt-sun)", ["--r" as string]: "4deg" }}><Sparkles size={16} /> {deals.length} {deals.length === 1 ? "oferta" : "ofertas"} disponíveis</span>
               )}
             </div>
           </div>

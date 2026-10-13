@@ -3,6 +3,7 @@ import { Droplets, Heart, ShoppingBag, Sparkles } from "lucide-react";
 import { productRouteSegment } from "../../store-routing";
 import type { Product } from "../../../../types";
 import { money, optionGroups, productImage, useKit } from "./kit";
+import { availableUnits } from "../../../../utils/storeStock";
 import "./styles.css";
 
 export const fragranceImage = (product?: Product) => productImage(product) || null;
@@ -28,9 +29,13 @@ export function FragranceProductCard({ product, path, category, saved, onFavorit
   const image = fragranceImage(product);
   const productPath = path(`/produto/${productRouteSegment(product)}`);
   const needsOptions = optionGroups(product).length > 0;
+  const { tracks, cart } = useKit();
+  const units = tracks ? availableUnits(product) : null;
+  const inCart = cart.filter((i) => i.id === product.id).reduce((sum, i) => sum + i.quantity, 0);
+  const soldOut = tracks && units !== null && units <= inCart;
   return (
-    <article className={`fr-product group relative min-w-0 border-t border-[#ddcdbd] pt-3 ${index % 3 === 1 ? "sm:mt-8" : ""}`}>
-      <Link to={productPath} className="fr-product-image relative grid aspect-[4/5] place-items-center overflow-hidden bg-[#f0e5d9] p-5 transition duration-300 group-hover:bg-[#ead8c7]" aria-label={product.name}>
+    <article className={`fr-product group relative min-w-0 border-t border-[var(--fr-line)] pt-3 `}>
+      <Link to={productPath} className="fr-product-image relative grid aspect-[4/5] place-items-center overflow-hidden bg-[#f5efe7] p-5 transition duration-300 group-hover:bg-[#eee3d8]" aria-label={product.name}>
         <span className="absolute left-0 top-0 h-1 w-14 bg-[#9c7252] transition-all duration-300 group-hover:w-28" />
         {image ? <img src={image} alt="" loading="lazy" className="h-full w-full object-contain transition duration-500 group-hover:scale-105" /> : <Droplets size={42} strokeWidth={1} className="text-[#9c7252]" />}
         {product.is_featured && <span className="absolute bottom-3 left-3 border border-[#cfb49b] bg-white/90 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[.14em] text-[#6e3f2c]">Destaque</span>}
@@ -42,12 +47,12 @@ export function FragranceProductCard({ product, path, category, saved, onFavorit
         <p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#9c7252]">{category || "Coleção"}</p>
         <Link to={productPath} className="mt-2 block min-h-11 text-[15px] font-semibold leading-snug text-[#332019] transition hover:text-[#6e3f2c]">{product.name}</Link>
         <div className="mt-4 flex items-center justify-between gap-2 border-t border-[#e6d8c8] pt-3">
-          <strong className="text-sm font-semibold text-[#6e3f2c]">{hidePrices ? "Sob consulta" : money(Number(product.discount_price || product.price))}</strong>
+          <strong className="text-sm font-semibold text-[#6e3f2c]">{hidePrices ? "Sob consulta" : money(Number(product.discount_price ?? product.price))}</strong>
           {needsOptions ? (
             <Link to={productPath} className="inline-flex h-10 items-center gap-2 border border-[#9c7252] px-3 text-[9px] font-bold uppercase tracking-[.1em] text-[#6e3f2c] transition hover:bg-[#6e3f2c] hover:text-white">Ver opções</Link>
           ) : (
-            <button type="button" onClick={onAdd} className="inline-flex h-10 items-center gap-2 border border-[#9c7252] px-3 text-[9px] font-bold uppercase tracking-[.1em] text-[#6e3f2c] transition hover:bg-[#6e3f2c] hover:text-white" aria-label={`Adicionar ${product.name} ao pedido`}>
-              <ShoppingBag size={14} /><span className="hidden sm:inline">Adicionar</span>
+            <button type="button" disabled={soldOut} onClick={onAdd} className="inline-flex h-10 items-center gap-2 border border-[#9c7252] px-3 text-[9px] font-bold uppercase tracking-[.1em] text-[#6e3f2c] transition hover:bg-[#6e3f2c] hover:text-white" aria-label={soldOut ? `${product.name} indisponível` : `Adicionar ${product.name} ao pedido`}>
+              <ShoppingBag size={14} /><span className="hidden sm:inline">{soldOut ? "Esgotado" : "Adicionar"}</span>
             </button>
           )}
         </div>

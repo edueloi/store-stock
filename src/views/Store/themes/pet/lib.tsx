@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useStore } from "../../StoreLayout";
 import { buildStorePath, productRouteSegment, resolveStoreSlug } from "../../store-routing";
@@ -62,9 +62,10 @@ export function useProductForm(product: Product | undefined) {
   const [note, setNote] = useState("");
   const [active, setActive] = useState(0);
   const choices = useMemo(() => (product ? groups(product) : []), [product]);
+  useEffect(() => { setSelected({}); setQty(1); setNote(""); setActive(0); }, [product?.id]);
   const ready = choices.every((g) => selected[g.name]);
   const tracks = storeTracksStock(tenant);
-  const units = product && tracks ? availableUnits(product, choices.length ? selected : undefined) : null;
+  const units = product && tracks ? availableUnits(product, ready ? selected : undefined) : null;
   const inCart = product
     ? cart
         .filter((i) => i.id === product.id && choices.every((g) => i.selectedOptions?.[g.name] === selected[g.name]))
@@ -72,7 +73,7 @@ export function useProductForm(product: Product | undefined) {
     : 0;
   const max = units === null ? 99 : Math.max(0, units - inCart);
   const quantity = Math.max(1, Math.min(qty, Math.max(1, max)));
-  const canAdd = !!product && ready && (units === null || max > 0);
+  const canAdd = !!product && ready && (units === null || max > 0) && quantity <= max;
   const base = product ? (Array.isArray(product.images) && product.images.length ? product.images : product.image_url ? [product.image_url] : []) : [];
   const variant = getVariationImages(product, selected);
   const images = variant.length ? variant : base;

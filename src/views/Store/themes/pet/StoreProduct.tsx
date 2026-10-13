@@ -106,7 +106,7 @@ export default function StoreProduct() {
             ))}
             {missing.length > 0 && <p className="pet-hint" role="status">Escolha {missing.map((m) => m.name.toLowerCase()).join(" e ")} para continuar.</p>}
 
-            <StockAvailability product={product} tenant={tenant} selected={f.choices.length ? f.selected : undefined} className="mb-3" />
+            <StockAvailability product={product} tenant={tenant} selected={f.ready && f.choices.length ? f.selected : undefined} className="mb-3" />
 
             <div className="pet-opt" style={{ marginTop: 12 }}>
               <label className="pet-opt-label" htmlFor="pet-note"><span>Observação</span><span>opcional</span></label>

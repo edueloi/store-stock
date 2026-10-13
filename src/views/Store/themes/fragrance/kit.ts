@@ -32,7 +32,7 @@ export function useKit() {
   const sf = store.tenant.policies?.storefront || {};
   const hidden = sf.hide_prices === true || sf.checkout_mode === "order_request";
   const tracks = storeTracksStock(store.tenant);
-  const active = useMemo(() => store.products.filter((p) => p.is_active), [store.products]);
+  const active = useMemo(() => store.products.filter((p) => p.is_active && (!tracks || availableUnits(p) === null || availableUnits(p)! > 0)), [store.products, tracks]);
   const cartCount = store.cart.reduce((s, i) => s + i.quantity, 0);
   const catName = (p: Product) =>
     store.categories.find((c) => c.id === p.category_id)?.name || p.category_name || "";
@@ -54,7 +54,7 @@ export function useQuickAdd() {
     const hasOptions = optionGroups(p).length > 0;
     const units = tracks ? availableUnits(p) : null;
     const inCart = cart.filter((i) => i.id === p.id).reduce((s, i) => s + i.quantity, 0);
-    const soldOut = units !== null && units - inCart <= 0;
+    const soldOut = tracks && units !== null && units - inCart <= 0;
     return { hasOptions, soldOut, add: () => !hasOptions && !soldOut && addToCart(p) };
   };
 }
@@ -98,10 +98,10 @@ export function useBuy(product: Product | undefined) {
     setAdded(false);
   }, [product?.id]);
   const soldOut = tracks && units !== null && ready && maxQty <= 0;
-  const canAdd = !!product && ready && !soldOut && maxQty >= qty && qty >= 1;
+  const canAdd = !!product && product.is_active && ready && !soldOut && maxQty >= qty && qty >= 1;
   const add = () => {
     if (!product || !canAdd) return;
-    const options = { ...selected, ...(note.trim() ? { Observação: note.trim() } : {}) };
+    const options = { ...selected }; // Não misturar observação com opções de estoque/variações.
     for (let i = 0; i < qty; i++) addToCart(product, Object.keys(options).length ? options : undefined);
     setAdded(true);
   };

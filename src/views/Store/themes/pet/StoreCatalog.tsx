@@ -74,7 +74,7 @@ export default function StoreCatalog() {
             <option value="featured">Queridinhos</option>
             {!hidden && <option value="menor">Menor preço</option>}
             {!hidden && <option value="maior">Maior preço</option>}
-            <option value="ofertas">Ofertas primeiro</option>
+            {!hidden && <option value="ofertas">Ofertas primeiro</option>}
             <option value="nome">Nome (A-Z)</option>
           </select>
         </div>
