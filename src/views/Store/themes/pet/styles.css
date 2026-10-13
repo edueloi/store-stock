@@ -35,30 +35,32 @@
 @media (prefers-reduced-motion: reduce) { .pet-btn, .pet-card, .pet-bubble { transition: none !important; } .pet-float { animation: none !important; } }
 
 /* ===== Header ===== */
-.pet-header { position: sticky; top: 0; z-index: 40; padding: 10px 0 0; background: linear-gradient(var(--pt-cream) 70%, transparent); }
-.pet-bar { display: flex; align-items: center; gap: 10px; background: #fff; border: 2px solid var(--pt-ink); border-radius: 999px; padding: 6px 8px 6px 14px; box-shadow: 0 5px 0 var(--pt-ink); min-height: 62px; }
+.pet-header { position: sticky; top: 0; z-index: 40; padding: 0; background: var(--pt-cream); border-bottom: 2px solid var(--pt-ink); }
+.pet-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; background: #fff; border: 0; border-radius: 0; padding: 10px 4px; min-height: 72px; }
 .pet-logo { display: flex; align-items: center; gap: 10px; font-family: "Fredoka"; font-weight: 700; font-size: 21px; min-width: 0; }
 .pet-logo-mark { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50% 50% 50% 14px; background: var(--pt-accent); color: var(--pt-ink); display: grid; place-items: center; border: 2px solid var(--pt-ink); transform: rotate(-8deg); }
 .pet-logo img { height: 38px; width: auto; max-width: 100px; object-fit: contain; }
 .pet-logo-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 38vw; }
-.pet-nav { display: none; gap: 4px; margin-left: 10px; }
+.pet-nav { display: none; gap: 4px; margin-left: 0; }
 .pet-nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 999px; font-weight: 800; font-size: 15px; }
 .pet-nav a:hover { background: var(--pt-sand); }
 .pet-nav a[aria-current="page"] { background: var(--pt-sun); }
 .pet-search { display: none; flex: 1; max-width: 320px; margin-left: auto; }
 .pet-search input { font-size: 16px !important; height: 46px !important; border-radius: 999px !important; background: var(--pt-sand) !important; border: 2px solid transparent !important; font-weight: 700; box-shadow: none !important; }
 .pet-search input:focus { border-color: var(--pt-ink) !important; }
-.pet-acts { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.pet-acts { display: flex; align-items: center; gap: 6px; grid-column: 2; grid-row: 1; margin-left: 0; }
 .pet-round { position: relative; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: var(--pt-sand); border: 2px solid var(--pt-ink); color: var(--pt-ink); }
 .pet-round--cart { background: var(--pt-accent); color: var(--pt-ink); }
 .pet-badge-n { position: absolute; top: -8px; right: -6px; min-width: 22px; height: 22px; padding: 0 5px; background: var(--pt-sun); color: var(--pt-ink); border: 2px solid var(--pt-ink); border-radius: 11px; font-weight: 800; font-size: 12px; display: grid; place-items: center; }
 .pet-burger { display: grid; }
-@media (min-width: 960px) { .pet-nav { display: flex; } .pet-search { display: block; } .pet-acts { margin-left: 0; } .pet-burger { display: none; } .pet-mcats-wrap--hide-lg { display: none; } }
-.pet-mcats { display: flex; gap: 8px; overflow-x: auto; padding: 12px 2px 6px; scrollbar-width: none; }
-.pet-mcats::-webkit-scrollbar { display: none; }
-.pet-mcat { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px 0 10px; background: #fff; border: 2px solid var(--pt-ink); border-radius: 999px; font-weight: 800; font-size: 14px; }
-.pet-mcat:hover { background: var(--pt-sun); }
-.pet-mcat svg { color: var(--pt-accent); }
+@media (min-width: 960px) {
+  .pet-bar { grid-template-columns: minmax(170px, auto) minmax(0, 1fr) minmax(180px, 280px) auto; gap: 12px; }
+  .pet-logo { grid-column: 1; grid-row: 1; }
+  .pet-nav { display: flex; grid-column: 2; grid-row: 1; justify-content: center; }
+  .pet-search { display: block; grid-column: 3; grid-row: 1; margin-left: 0; }
+  .pet-acts { grid-column: 4; grid-row: 1; }
+  .pet-burger { display: none; }
+}
 .pet-sheet { margin-top: 10px; background: #fff; border: 2px solid var(--pt-ink); border-radius: 28px 28px 28px 10px; padding: 14px; box-shadow: 0 5px 0 var(--pt-ink); }
 .pet-sheet a.pet-sl { display: flex; align-items: center; min-height: 52px; padding: 0 14px; border-radius: 18px; font-family: "Fredoka"; font-size: 20px; font-weight: 600; }
 .pet-sheet a.pet-sl:hover { background: var(--pt-sand); }

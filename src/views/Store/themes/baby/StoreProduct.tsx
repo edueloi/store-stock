@@ -107,7 +107,7 @@ export default function StoreProduct() {
           ))}
 
           <StockAvailability product={product} tenant={tenant} selected={buy.ready ? buy.selected : undefined} className="bb-stock" />
-          {missing.length > 0 && <p className="bb-hint">Escolha {missing.join(" e ")} para colocar na sacola.</p>}
+          {missing.length > 0 && <p className="bb-hint">Selecione {missing.join(" e ")} antes de adicionar à sacola.</p>}
 
           <div className="bb-buy-row">
             <div className="bb-qty" role="group" aria-label="Quantidade">
@@ -120,7 +120,7 @@ export default function StoreProduct() {
               </button>
             </div>
             <button className="bb-btn bb-btn-main bb-add" onClick={buy.add} disabled={!buy.canAdd}>
-              <ShoppingBag size={18} /> {buy.soldOut ? "Esgotado" : "Colocar na sacola"}
+              <ShoppingBag size={18} /> {buy.soldOut ? "Esgotado" : "Adicionar à sacola"}
             </button>
             <button className="bb-heart bb-heart-inline" aria-pressed={liked} aria-label={liked ? "Remover dos favoritos" : "Favoritar"} onClick={() => toggleWishlist(product.id)}>
               <Heart size={20} fill={liked ? "currentColor" : "none"} />
@@ -128,16 +128,16 @@ export default function StoreProduct() {
           </div>
           {wa && (
             <a className="bb-link" href={wa} target="_blank" rel="noreferrer">
-              Tirar uma dúvida pelo WhatsApp
+              Falar com a loja pelo WhatsApp
             </a>
           )}
         </section>
       </div>
 
       {more.length > 0 && (
-        <section className="bb-section">
+        <section className="bb-section bb-related">
           <header className="bb-head">
-            <h2 className="bb-script">Combina com esse carinho</h2>
+            <h2 className="bb-script">Você também pode gostar</h2>
           </header>
           <div className="bb-grid">
             {more.map((x, i) => (

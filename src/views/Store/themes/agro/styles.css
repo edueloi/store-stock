@@ -175,6 +175,7 @@
 .agro-crumbs a { color: var(--agro-ink); display: inline-flex; min-height: 32px; align-items: center; }
 .agro-prod { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 36px; align-items: start; padding-bottom: 56px; }
 .agro-gallery { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 14px; }
+.agro-gallery:not(:has(.agro-thumbs)) { grid-template-columns: minmax(0, 1fr); }
 .agro-thumbs { display: flex; flex-direction: column; gap: 10px; max-height: 560px; overflow-y: auto; }
 .agro-thumbs button { width: 84px; height: 84px; padding: 4px; border: 3px solid var(--agro-ink); background: var(--agro-paper); cursor: pointer; flex: none; }
 .agro-thumbs button[aria-current="true"] { background: var(--agro-gold); }

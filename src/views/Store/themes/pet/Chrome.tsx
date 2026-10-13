@@ -9,7 +9,7 @@ import "./styles.css";
 const DAY_LABELS: Record<string, string> = { seg: "Seg", ter: "Ter", qua: "Qua", qui: "Qui", sex: "Sex", sab: "Sáb", dom: "Dom" };
 
 export function Header() {
-  const { tenant, usedCategories, cart, openCart, path } = useKit();
+  const { tenant, cart, openCart, path } = useKit();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [menu, setMenu] = useState(false);
@@ -74,16 +74,6 @@ export function Header() {
               ))}
             </nav>
           </div>
-        )}
-        {usedCategories.length > 0 && (
-          <nav className="pet-mcats" aria-label="Categorias">
-            {usedCategories.slice(0, 12).map((c) => {
-              const { Icon } = detectAnimal(c.name);
-              return (
-                <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className="pet-mcat"><Icon size={18} />{c.name}</Link>
-              );
-            })}
-          </nav>
         )}
       </div>
     </header>
