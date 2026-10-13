@@ -218,3 +218,102 @@
 .sw-footer-bottom-links { display: flex; gap: 1.5rem; }
 .sw-footer-bottom-links a { color: #52525b; text-decoration: none; }
 .sw-footer-bottom-links a:hover { color: #a1a1aa; }
+
+/* ── Streetwear Custom Components ── */
+@keyframes swPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .4; transform: scale(0.85); }
+}
+.sw-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--sw-accent);
+  display: inline-block;
+  animation: swPulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Brands Strip */
+.sw-brands-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+}
+.sw-brand-item {
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #71717a;
+  transition: all .25s ease;
+  user-select: none;
+}
+.sw-brand-item:hover {
+  color: var(--sw-accent);
+  transform: scale(1.08);
+  text-shadow: 0 0 16px rgba(250, 204, 21, 0.4);
+}
+
+/* Product Card animations */
+.sw-product-card {
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease !important;
+}
+.sw-product-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--sw-accent) !important;
+  box-shadow: 0 12px 30px -10px rgba(250, 204, 21, 0.15);
+}
+
+/* Size Buttons in PDP */
+.sw-size-btn {
+  min-width: 44px;
+  height: 44px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all .2s ease;
+  background: #18181b;
+  border: 1px solid #3f3f46;
+  color: #f4f4f5;
+}
+.sw-size-btn:hover {
+  border-color: var(--sw-accent);
+  color: var(--sw-accent);
+}
+.sw-size-btn.active {
+  background: var(--sw-accent) !important;
+  color: #000 !important;
+  border-color: var(--sw-accent) !important;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.3);
+}
+
+/* Accordion Tab in PDP */
+.sw-tab-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 0;
+  background: none;
+  border: none;
+  border-top: 1px solid #27272a;
+  color: #f4f4f5;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: color .2s;
+}
+.sw-tab-btn:hover {
+  color: var(--sw-accent);
+}
+

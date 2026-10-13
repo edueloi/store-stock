@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Search, X } from "lucide-react";
+import { ArrowUpDown, Flame, Search, X, Zap } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { useStore } from "../../StoreLayout";
 import { buildStorePath, resolveStoreSlug } from "../../store-routing";
@@ -12,20 +12,29 @@ export default function StoreCatalog() {
   const { tenant, products, categories, addToCart, wishlist, toggleWishlist } = useStore();
   const slug = resolveStoreSlug(routeSlug);
   const path = (suffix = "") => buildStorePath(slug, suffix);
+
   const [query, setQuery] = useState(params.get("q") || "");
+  const [sortBy, setSortBy] = useState<"featured" | "price_asc" | "price_desc" | "name">("featured");
   const categoryId = params.get("cat") ? Number(params.get("cat")) : null;
 
-  const visible = useMemo(
-    () =>
-      products.filter(
-        (p) =>
-          p.is_active &&
-          (!categoryId || p.category_id === categoryId) &&
-          (!query ||
-            `${p.name} ${p.description || ""}`.toLowerCase().includes(query.toLowerCase())),
-      ),
-    [products, categoryId, query],
-  );
+  const visible = useMemo(() => {
+    let list = products.filter(
+      (p) =>
+        p.is_active &&
+        (!categoryId || p.category_id === categoryId) &&
+        (!query ||
+          `${p.name} ${p.description || ""}`.toLowerCase().includes(query.toLowerCase())),
+    );
+
+    if (sortBy === "price_asc") {
+      list = [...list].sort((a, b) => Number(a.discount_price || a.price) - Number(b.discount_price || b.price));
+    } else if (sortBy === "price_desc") {
+      list = [...list].sort((a, b) => Number(b.discount_price || b.price) - Number(a.discount_price || a.price));
+    } else if (sortBy === "name") {
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return list;
+  }, [products, categoryId, query, sortBy]);
 
   const choose = (id: number | null) => {
     const next = new URLSearchParams(params);
@@ -34,121 +43,261 @@ export default function StoreCatalog() {
     setParams(next);
   };
 
-  const S = {
-    bg: "#09090b",
-    surface: "#18181b",
-    accent: "#facc15",
-    ink: "#f4f4f5",
-    muted: "#71717a",
-    border: "1px solid #27272a",
-  } as const;
+  const currentCategoryName = categories.find((c) => c.id === categoryId)?.name;
 
   return (
     <main
       className="sw-root"
-      style={{ minHeight: "100vh", background: S.bg, color: S.ink, fontFamily: "'Inter', sans-serif", paddingBottom: "4rem" }}
+      style={{
+        minHeight: "100vh",
+        background: "#09090b",
+        color: "#f4f4f5",
+        fontFamily: "'Inter', sans-serif",
+        paddingBottom: "5rem",
+      }}
     >
       <StoreSEO
-        title={`Catálogo | ${tenant.name}`}
-        description={`Catálogo streetwear da ${tenant.name}.`}
+        title={`Catálogo Oficial | ${tenant.name}`}
+        description={`Explore todos os drops e peças exclusivas da ${tenant.name}.`}
         image={tenant.banner_url || tenant.logo_url}
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
-        keywords={`${tenant.name}, streetwear, catálogo, drops`}
+        keywords={`${tenant.name}, streetwear, catálogo, drops, moda urbana`}
       />
 
-      {/* ── Header section ── */}
-      <section style={{ background: S.surface, borderBottom: S.border, padding: "3.5rem 1.5rem 2.5rem" }}>
+      {/* ── HEADER BANNER ── */}
+      <section
+        style={{
+          background: "linear-gradient(180deg, #18181b 0%, #09090b 100%)",
+          borderBottom: "1px solid #27272a",
+          padding: "4rem 1.5rem 3rem",
+        }}
+      >
         <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <p style={{ fontSize: 10, fontWeight: 700, color: S.accent, textTransform: "uppercase", letterSpacing: ".22em", margin: "0 0 .75rem" }}>
-            Catálogo / drop atual
-          </p>
-          <h1 style={{ fontSize: "clamp(2rem,6vw,4rem)", fontWeight: 900, textTransform: "uppercase", lineHeight: .85, letterSpacing: "-.05em", margin: 0 }}>
-            Escolha sua<br />
-            <span style={{ color: S.accent }}>próxima peça.</span>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#facc15", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".18em", marginBottom: ".75rem" }}>
+            <Zap size={14} /> CATÁLOGO & DROPS ATIVOS
+          </div>
+          <h1
+            style={{
+              fontSize: "clamp(2.25rem, 6vw, 4.25rem)",
+              fontWeight: 900,
+              textTransform: "uppercase",
+              lineHeight: 0.9,
+              letterSpacing: "-0.05em",
+              margin: "0 0 1rem",
+            }}
+          >
+            ESCOLHA SUA<br />
+            <span style={{ color: "#facc15" }}>PRÓXIMA PEÇA.</span>
           </h1>
+          <p style={{ color: "#a1a1aa", fontSize: ".95rem", maxWidth: 540, margin: 0 }}>
+            {tenant.about_text || "Toda a coleção autêntica disponível para entrega rápida e pronta retirada."}
+          </p>
         </div>
       </section>
 
-      {/* ── Filters ── */}
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem 0" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", borderBottom: S.border, paddingBottom: "1.5rem" }}>
-          {/* Category pills */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: ".5rem", overflowX: "auto", scrollbarWidth: "none" }}>
+      {/* ── FILTER & SEARCH TOOLBAR ── */}
+      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "2.5rem 1.5rem 0" }}>
+        <div
+          style={{
+            background: "#18181b",
+            border: "1px solid #27272a",
+            borderRadius: "1.25rem",
+            padding: "1.25rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.25rem",
+          }}
+        >
+          {/* Top row: Search and Sort */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "center", justifyContent: "space-between" }}>
+            {/* Search input */}
+            <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 460 }}>
+              <Search
+                size={16}
+                style={{
+                  position: "absolute",
+                  left: 14,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "#facc15",
+                  pointerEvents: "none",
+                }}
+              />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar por nome, estampa, peça..."
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  background: "#09090b",
+                  border: "1px solid #3f3f46",
+                  borderRadius: "12px",
+                  padding: "12px 40px 12px 42px",
+                  fontSize: ".875rem",
+                  color: "#f4f4f5",
+                  outline: "none",
+                  fontFamily: "'Inter', sans-serif",
+                  transition: "border-color .2s",
+                }}
+                onFocus={(e) => ((e.currentTarget as HTMLInputElement).style.borderColor = "#facc15")}
+                onBlur={(e) => ((e.currentTarget as HTMLInputElement).style.borderColor = "#3f3f46")}
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery("")}
+                  style={{
+                    position: "absolute",
+                    right: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    color: "#71717a",
+                    cursor: "pointer",
+                  }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+
+            {/* Sort Dropdown */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <ArrowUpDown size={14} style={{ color: "#facc15" }} />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                style={{
+                  background: "#09090b",
+                  border: "1px solid #3f3f46",
+                  borderRadius: "12px",
+                  color: "#f4f4f5",
+                  padding: "11px 16px",
+                  fontSize: ".8rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: ".05em",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="featured">Relevância / Destaques</option>
+                <option value="price_asc">Menor Preço</option>
+                <option value="price_desc">Maior Preço</option>
+                <option value="name">Nome (A - Z)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Category Filter Pills */}
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: ".5rem",
+              borderTop: "1px solid rgba(255, 255, 255, 0.06)",
+              paddingTop: "1rem",
+            }}
+          >
             <button
               onClick={() => choose(null)}
               style={{
-                flexShrink: 0, border: `1px solid ${!categoryId ? S.accent : "#3f3f46"}`,
-                background: !categoryId ? S.accent : "transparent",
+                flexShrink: 0,
+                border: `1px solid ${!categoryId ? "#facc15" : "#3f3f46"}`,
+                background: !categoryId ? "#facc15" : "#09090b",
                 color: !categoryId ? "#000" : "#a1a1aa",
-                padding: "8px 16px", fontSize: 10, fontWeight: 700,
-                textTransform: "uppercase", letterSpacing: ".1em",
-                borderRadius: 10, cursor: "pointer", transition: "all .2s",
+                padding: "8px 16px",
+                fontSize: 11,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: ".08em",
+                borderRadius: 10,
+                cursor: "pointer",
+                transition: "all .2s",
               }}
             >
-              Tudo ({products.filter((p) => p.is_active).length})
+              Todos ({products.filter((p) => p.is_active).length})
             </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => choose(cat.id)}
-                style={{
-                  flexShrink: 0,
-                  border: `1px solid ${categoryId === cat.id ? S.accent : "#3f3f46"}`,
-                  background: categoryId === cat.id ? S.accent : "transparent",
-                  color: categoryId === cat.id ? "#000" : "#a1a1aa",
-                  padding: "8px 16px", fontSize: 10, fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: ".1em",
-                  borderRadius: 10, cursor: "pointer", transition: "all .2s",
-                }}
-              >
-                {cat.name}
-              </button>
-            ))}
+            {categories.map((cat) => {
+              const isSelected = categoryId === cat.id;
+              const count = products.filter((p) => p.is_active && p.category_id === cat.id).length;
+              if (count === 0) return null;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => choose(cat.id)}
+                  style={{
+                    flexShrink: 0,
+                    border: `1px solid ${isSelected ? "#facc15" : "#3f3f46"}`,
+                    background: isSelected ? "#facc15" : "#09090b",
+                    color: isSelected ? "#000" : "#a1a1aa",
+                    padding: "8px 16px",
+                    fontSize: 11,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: ".08em",
+                    borderRadius: 10,
+                    cursor: "pointer",
+                    transition: "all .2s",
+                  }}
+                >
+                  {cat.name} ({count})
+                </button>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Search */}
-          <div style={{ position: "relative", maxWidth: 380 }}>
-            <Search size={15} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: S.accent, pointerEvents: "none" }} />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar no drop..."
-              style={{
-                width: "100%", boxSizing: "border-box",
-                background: "#000", border: "1px solid #3f3f46",
-                borderRadius: 10, padding: "10px 40px 10px 40px",
-                fontSize: ".875rem", color: S.ink,
-                outline: "none", fontFamily: "'Inter', sans-serif",
-                transition: "border-color .2s",
+        {/* Status info bar */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: "1.75rem",
+            marginBottom: "1.5rem",
+          }}
+        >
+          <p style={{ fontSize: 11, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: ".12em", margin: 0 }}>
+            {visible.length} {visible.length === 1 ? "peça encontrada" : "peças encontradas"}
+          </p>
+
+          {(categoryId || query) && (
+            <button
+              onClick={() => {
+                choose(null);
+                setQuery("");
               }}
-              onFocus={(e) => ((e.currentTarget as HTMLInputElement).style.borderColor = S.accent)}
-              onBlur={(e) => ((e.currentTarget as HTMLInputElement).style.borderColor = "#3f3f46")}
-            />
-            {query && (
-              <button
-                onClick={() => setQuery("")}
-                style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "#71717a", cursor: "pointer" }}
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+              style={{
+                background: "none",
+                border: "none",
+                color: "#facc15",
+                fontSize: 11,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: ".08em",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+              }}
+            >
+              <X size={12} /> Limpar filtros
+            </button>
+          )}
         </div>
 
-        {/* Results count */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "1.25rem", marginBottom: "1.5rem" }}>
-          <p style={{ fontSize: 10, fontWeight: 600, color: S.muted, textTransform: "uppercase", letterSpacing: ".12em", margin: 0 }}>
-            {visible.length} peças encontradas
-          </p>
-          <p style={{ fontSize: 10, fontWeight: 700, color: S.accent, textTransform: "uppercase", letterSpacing: ".12em", margin: 0 }}>
-            {categories.find((c) => c.id === categoryId)?.name || "Todos os drops"}
-          </p>
-        </div>
-
-        {/* Grid */}
+        {/* Products Grid */}
         {visible.length > 0 ? (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: ".75rem" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+              gap: "1.25rem",
+            }}
+          >
             {visible.map((product) => (
               <SwProductCard
                 key={product.id}
