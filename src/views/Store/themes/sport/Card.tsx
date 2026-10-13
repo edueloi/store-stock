@@ -15,10 +15,13 @@ export function Price({ product, hidden, big }: { product: Product; hidden: bool
 }
 
 export default function Card({ product }: { product: Product }) {
-  const { wishlist, toggleWishlist, addToCart, openCart, productPath, hidden, soldOut, catName } = useKit();
+  const { wishlist, toggleWishlist, addToCart, openCart, productPath, hidden, soldOut, catName, cart, tracks } = useKit();
+  const inCart = cart.filter(i => i.id === product.id).reduce((s,i) => s + i.quantity, 0);
+  const stock = product.skus?.length ? product.skus.reduce((s,k)=>s+(Number(k.stock)||0),0) : Number(product.stock);
+  const limitReached = tracks && Number.isFinite(stock) && inCart >= stock;
   const img = imageOf(product);
   const { off, price, full } = priceOf(product);
-  const out = soldOut(product);
+  const out = soldOut(product) || !!limitReached;
   const hasChoices = groups(product).length > 0;
   const saved = wishlist.includes(product.id);
   const pct = off && full > 0 ? Math.round((1 - price / full) * 100) : 0;
@@ -44,6 +47,7 @@ export default function Card({ product }: { product: Product }) {
             className="sport-add"
             aria-label={`Adicionar ${product.name} ao carrinho`}
             onClick={() => {
+              if (out) return;
               addToCart(product);
               openCart();
             }}

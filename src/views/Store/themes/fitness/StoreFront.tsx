@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Zap, Dumbbell } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import Card from "./Card";
 import { imageOf, priceOf, useKit } from "./lib";
@@ -11,10 +11,8 @@ export default function StoreFront() {
   const deals = active.filter((p) => priceOf(p).off).length;
   const cats = categories.filter((c) => countIn(c.id) > 0);
   const withPhoto = active.find((p) => imageOf(p));
-  const bar = (n: number, max: number) => `${Math.max(6, Math.min(100, Math.round((n / Math.max(max, 1)) * 100)))}%`;
-  const maxv = Math.max(active.length, cats.length, deals, 1);
-  const title = tenant.hero_tagline || "Treine forte. Evolua todo dia.";
-  const hero = tenant.banner_url;
+    const title = tenant.hero_tagline || "Treine forte. Evolua todo dia.";
+  const hero = tenant.banner_url || imageOf(withPhoto);
 
   return (
     <main className="ft-root">
@@ -37,30 +35,19 @@ export default function StoreFront() {
                 <Link to={path("/sobre")} className="ft-btn ft-btn--line">Conhecer a loja</Link>
               </div>
             </div>
-            <div className="ft-panel ft-bracket" aria-label="Painel de performance da loja">
-              {hero && <img className="ft-panel-img" src={hero} alt="" />}
-              <div className="ft-panel-head"><span>Painel de performance</span><span>{new Date().toLocaleDateString("pt-BR")}</span></div>
-              {[
-                ["Produtos", active.length],
-                ["Categorias", cats.length],
-                ["Ofertas", deals],
-              ].map(([label, n]) => (
-                <div className="ft-meter" key={label as string}>
-                  <div className="ft-meter-top"><span>{label}</span><b>{n}</b></div>
-                  <div className="ft-bar-track"><div className="ft-bar-fill" style={{ width: bar(n as number, maxv) }} /></div>
-                </div>
-              ))}
-              {withPhoto && (
-                <Link to={path(`/catalogo`)} className="ft-hero-media" aria-label="Ver catálogo">
-                  <img src={imageOf(withPhoto)} alt={withPhoto.name} />
-                </Link>
-              )}
+            <div className="ft-showcase ft-bracket">
+              <div className="ft-showcase-noise" aria-hidden="true" />
+              {hero ? <img className="ft-showcase-img" src={hero} alt="" /> : <Dumbbell className="ft-showcase-symbol" size={130} strokeWidth={1} />}
+              <div className="ft-showcase-overlay" />
+              <span className="ft-showcase-label"><Zap size={15} /> PERFORMANCE / EVERY DAY</span>
+              <span className="ft-showcase-corner">NO EXCUSES <ArrowUpRight size={17} /></span>
+              <div className="ft-showcase-bottom"><strong>FOCO.<br/>FORÇA.<br/><em>EVOLUÇÃO.</em></strong><span>MOVE YOUR LIMITS</span></div>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="ft-wrap" aria-label="Metas da loja" style={{ paddingTop: 12 }}>
+      <section className="ft-wrap" aria-label="Números da loja" style={{ paddingTop: 12 }}>
         <div className="ft-goals">
           <div className="ft-goal"><b>{active.length}<i>un.</i></b><span>produtos no catálogo</span></div>
           <div className="ft-goal"><b>{cats.length}</b><span>categorias de treino</span></div>

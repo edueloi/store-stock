@@ -5,6 +5,7 @@ import {
 import type { ComponentType } from "react";
 import type { Product, Tenant } from "../../../../types";
 import { imageOf, inStock, money, priceInfo, productHref, useKit, variationGroups } from "./kit";
+import { availableUnits } from "../../../../utils/storeStock";
 
 type Icon = ComponentType<{ size?: number; strokeWidth?: number }>;
 const DEPT_ICONS: [string[], Icon][] = [
@@ -39,10 +40,12 @@ export function installmentText(tenant: Tenant, price: number): string | null {
 }
 
 export function Card({ product, compare, list = false }: { product: Product; compare?: { on: boolean; disabled: boolean; toggle: () => void }; list?: boolean }) {
-  const { tenant, addToCart, path, hidePrices } = useKit();
+  const { tenant, addToCart, openCart, cart, path, hidePrices, tracks } = useKit();
   const info = priceInfo(product);
   const img = imageOf(product);
-  const has = inStock(product, tenant);
+  const remaining = tracks ? availableUnits(product) : null;
+  const already = cart.filter((item) => item.id === product.id).reduce((total, item) => total + item.quantity, 0);
+  const has = inStock(product, tenant) && (remaining === null || remaining > already);
   const needsOptions = variationGroups(product).length > 0;
   const href = productHref(path, product);
   const inst = hidePrices ? null : installmentText(tenant, info.price);
@@ -70,13 +73,13 @@ export function Card({ product, compare, list = false }: { product: Product; com
           {needsOptions || !has ? (
             <Link to={href} className="elx-btn elx-btn-ghost">{has ? "Escolher opções" : "Ver produto"}</Link>
           ) : (
-            <button type="button" className="elx-btn" onClick={() => addToCart(product)}><ShoppingCart size={16} /> {hidePrices ? "Incluir no pedido" : "Adicionar"}</button>
+            <button type="button" className="elx-btn" onClick={() => { addToCart(product); openCart(); }}><ShoppingCart size={16} /> {hidePrices ? "Incluir no pedido" : "Adicionar"}</button>
           )}
         </div>
         {compare && (
           <label className={`elx-compare${compare.on ? " is-on" : ""}`}>
             <input type="checkbox" checked={compare.on} disabled={compare.disabled && !compare.on} onChange={compare.toggle} />
-            <span>Comparar</span>
+            <span>Comparar produtos</span>
           </label>
         )}
       </div>

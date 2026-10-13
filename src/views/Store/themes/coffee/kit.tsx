@@ -48,7 +48,7 @@ export function useKit() {
 export function priceInfo(p: Product, hidden: boolean) {
   if (hidden) return { now: "Sob consulta", old: null as string | null, off: false };
   const base = Number(p.price);
-  const sale = p.discount_price != null && Number(p.discount_price) > 0 ? Number(p.discount_price) : null;
+  const sale = p.discount_price != null && Number(p.discount_price) > 0 && Number(p.discount_price) < base ? Number(p.discount_price) : null;
   const now = sale ?? base;
   return { now: money(now), old: sale != null && sale < base ? money(base) : null, off: sale != null && sale < base };
 }

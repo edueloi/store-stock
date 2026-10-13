@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Clock, Facebook, Grid2x2, Instagram, MapPin, Menu, MessageCircle, ShoppingCart, X } from "lucide-react";
+import { Clock, Facebook, Grid2x2, Instagram, MapPin, Menu, MessageCircle, Search, ShoppingCart, X } from "lucide-react";
 import SearchBar from "../../../../components/layout/SearchBar";
 import { cartCount, hoursList, useKit, whatsappLink } from "./kit";
 import { deptIcon } from "./parts";
 import "./styles.css";
 
 export function Header() {
-  const { tenant, categories, cart, openCart, path } = useKit();
+  const { tenant, usedCategories, cart, openCart, path } = useKit();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
   const [query, setQuery] = useState("");
@@ -52,11 +52,11 @@ export function Header() {
         </Link>
         <form className="elx-search" role="search" onSubmit={submit}>
           <SearchBar value={query} onChange={setQuery} placeholder="Busque por produto, marca ou código" />
-          <button type="submit" className="elx-search-go">Buscar</button>
+          <button type="submit" className="elx-search-go"><Search size={19} /> <span>Buscar</span></button>
         </form>
         <button type="button" className="elx-cart" aria-label={`Abrir carrinho, ${count} ${count === 1 ? "item" : "itens"}`} onClick={openCart}>
           <ShoppingCart size={22} />
-          <span className="elx-cart-text">Meu carrinho</span>
+          <span className="elx-cart-text">Carrinho</span>
           <b>{count}</b>
         </button>
       </div>
@@ -65,7 +65,7 @@ export function Header() {
           <button type="button" className="elx-all" aria-expanded={open} aria-controls="elx-mega" onClick={() => setOpen((v) => !v)}>
             <Grid2x2 size={18} /> Todos os departamentos
           </button>
-          {categories.slice(0, 8).map((c) => {
+          {usedCategories.slice(0, 8).map((c) => {
             const Icon = deptIcon(c.name);
             return <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)}><Icon size={16} /> {c.name}</Link>;
           })}
@@ -82,11 +82,11 @@ export function Header() {
             </div>
             <p className="elx-mega-title">Departamentos</p>
             <ul className="elx-mega-grid">
-              {categories.map((c) => {
+              {usedCategories.map((c) => {
                 const Icon = deptIcon(c.name);
                 return <li key={c.id}><Link to={path(`/catalogo?cat=${c.id}`)}><Icon size={20} /> {c.name}</Link></li>;
               })}
-              {categories.length === 0 && <li className="elx-mega-empty">Nenhum departamento cadastrado.</li>}
+              {usedCategories.length === 0 && <li className="elx-mega-empty">Nenhum departamento cadastrado.</li>}
             </ul>
           </div>
         </div>

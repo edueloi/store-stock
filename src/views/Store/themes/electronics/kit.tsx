@@ -26,7 +26,8 @@ export function useKit() {
     [store.products],
   );
   const tracks = storeTracksStock(store.tenant);
-  return { ...store, slug, path, preview, sf, hidePrices, active, tracks };
+  const usedCategories = store.categories.filter((c) => active.some((p) => p.category_id === c.id));
+  return { ...store, slug, path, preview, sf, hidePrices, active, tracks, usedCategories };
 }
 
 export const productHref = (path: (s?: string) => string, p: Product) => path(`/produto/${productRouteSegment(p)}`);

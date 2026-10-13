@@ -46,19 +46,19 @@ export default function StoreCatalog() {
       if (selected && p.category_id !== selected) return false;
       if (term && !`${p.name} ${p.sku || ""} ${p.description || ""}`.toLowerCase().includes(term)) return false;
       const info = priceInfo(p);
-      if (onlyOffers && !info.hasDiscount) return false;
+      if (!hidePrices && onlyOffers && !info.hasDiscount) return false;
       if (onlyStock && !inStock(p, tenant)) return false;
-      if (lo !== null && info.price < lo) return false;
-      if (hi !== null && info.price > hi) return false;
+      if (!hidePrices && lo !== null && info.price < lo) return false;
+      if (!hidePrices && hi !== null && info.price > hi) return false;
       return true;
     });
-    if (sort === "low") out.sort((a, b) => priceInfo(a).price - priceInfo(b).price);
-    if (sort === "high") out.sort((a, b) => priceInfo(b).price - priceInfo(a).price);
-    if (sort === "off") out.sort((a, b) => priceInfo(b).pct - priceInfo(a).pct);
+    if (!hidePrices && sort === "low") out.sort((a, b) => priceInfo(a).price - priceInfo(b).price);
+    if (!hidePrices && sort === "high") out.sort((a, b) => priceInfo(b).price - priceInfo(a).price);
+    if (!hidePrices && sort === "off") out.sort((a, b) => priceInfo(b).pct - priceInfo(a).pct);
     if (sort === "name") out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
     if (sort === "recent") out.sort((a, b) => b.id - a.id);
     return out;
-  }, [active, urlQ, selected, sort, onlyOffers, onlyStock, min, max, tenant]);
+  }, [active, urlQ, selected, sort, onlyOffers, onlyStock, min, max, tenant, hidePrices]);
 
   const counts = useMemo(() => {
     const m = new Map<number, number>();

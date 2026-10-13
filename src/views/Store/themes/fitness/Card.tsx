@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { Heart, Plus, ArrowRight } from "lucide-react";
 import type { Product } from "../../../../types";
+import { availableUnits } from "../../../../utils/storeStock";
+import { availableUnits } from "../../../../utils/storeStock";
 import { groups, imageOf, money, priceOf, useKit } from "./lib";
 
 export function Price({ product, hidden }: { product: Product; hidden: boolean }) {
@@ -15,10 +17,13 @@ export function Price({ product, hidden }: { product: Product; hidden: boolean }
 }
 
 export default function Card({ product }: { product: Product }) {
-  const { wishlist, toggleWishlist, addToCart, openCart, productPath, hidden, soldOut, catName } = useKit();
+  const { wishlist, toggleWishlist, addToCart, openCart, productPath, hidden, soldOut, catName, tracks, cart } = useKit();
   const img = imageOf(product);
   const { off, price, full } = priceOf(product);
   const out = soldOut(product);
+  const units = tracks ? availableUnits(product) : null;
+  const inCart = cart.filter((item) => item.id === product.id).reduce((sum, item) => sum + item.quantity, 0);
+  const quickUnavailable = out || (units !== null && units <= inCart);
   const choices = groups(product).length > 0;
   const saved = wishlist.includes(product.id);
   const pct = off && full > 0 ? Math.round((1 - price / full) * 100) : 0;
@@ -36,10 +41,10 @@ export default function Card({ product }: { product: Product }) {
         <Link to={productPath(product)} className="ft-card-name">{product.name}</Link>
         <div className="ft-card-foot">
           <Price product={product} hidden={hidden} />
-          {choices || out ? (
+          {choices || quickUnavailable ? (
             <Link to={productPath(product)} className="ft-add" aria-label={`Ver opções de ${product.name}`}><ArrowRight size={18} /></Link>
           ) : (
-            <button className="ft-add" aria-label={`Adicionar ${product.name} ao carrinho`} onClick={() => { addToCart(product); openCart(); }}>
+            <button className="ft-add" aria-label={`Adicionar ${product.name} ao carrinho`} onClick={() => { if (quickUnavailable) return; addToCart(product); openCart(); }}>
               <Plus size={20} />
             </button>
           )}

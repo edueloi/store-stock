@@ -1,134 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { ChevronDown, Plus } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { ArrowRight, Check, LayoutGrid, List, Search, SlidersHorizontal, X } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import SearchBar from "../../../../components/layout/SearchBar";
-import Card from "./Card";
-import { norm, priceOf, useKit } from "./lib";
+import Card, { Price } from "./Card";
+import { imageOf, norm, priceOf, groups, useKit } from "./lib";
 import "./styles.css";
-
-const PAGE = 12;
-
-export default function StoreCatalog() {
-  const { tenant, active, categories, sf, countIn } = useKit();
-  const [params, setParams] = useSearchParams();
-  const q = params.get("q") || "";
-  const cat = params.get("cat") || params.get("categoria") || "";
-  const sort = params.get("sort") || "featured";
-  const [limit, setLimit] = useState(PAGE);
-  const [filters, setFilters] = useState(false);
-  useEffect(() => setLimit(PAGE), [q, cat, sort]);
-
-  const update = (key: string, value: string) => {
-    const next = new URLSearchParams(params);
-    if (key === "cat") next.delete("categoria");
-    if (value) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: key === "q" });
-  };
-
-  const visible = useMemo(() => {
-    const term = norm(q.trim());
-    const list = active.filter(
-      (p) => (!cat || String(p.category_id) === cat) && (!term || norm(`${p.name} ${p.sku || ""} ${p.description || ""}`).includes(term)),
-    );
-    const by = (fn: (a: (typeof list)[number], b: (typeof list)[number]) => number) => [...list].sort(fn);
-    if (sort === "menor") return by((a, b) => priceOf(a).price - priceOf(b).price);
-    if (sort === "maior") return by((a, b) => priceOf(b).price - priceOf(a).price);
-    if (sort === "nome") return by((a, b) => a.name.localeCompare(b.name, "pt-BR"));
-    if (sort === "ofertas") return by((a, b) => Number(priceOf(b).off) - Number(priceOf(a).off));
-    return by((a, b) => Number(b.is_featured) - Number(a.is_featured));
-  }, [active, q, cat, sort]);
-
-  const catName = categories.find((c) => String(c.id) === cat)?.name;
-  const hidden = sf.hide_prices === true || sf.checkout_mode === "order_request";
-  const title = sf.catalog_title || "Catálogo";
-
-  return (
-    <main className="sport-root">
-      <StoreSEO
-        title={`${catName || title} | ${tenant.name}`}
-        description={sf.catalog_description || tenant.about_text || `Produtos da ${tenant.name}.`}
-        url={typeof window !== "undefined" ? window.location.href : ""}
-        siteName={tenant.name}
-      />
-      <section className="sport-cat-hero">
-        <div className="sport-wrap">
-          <span className="sport-kicker">{sf.segment_label || "Todos os produtos"}</span>
-          <h1 className="sport-h">{catName || title}</h1>
-          <p>{sf.catalog_description || "Filtre por categoria, ordene por preço e encontre o equipamento certo."}</p>
-        </div>
-      </section>
-
-      <div className="sport-wrap">
-        <div className="sport-layout">
-          <aside className="sport-side" aria-label="Filtros">
-            <button className="sport-filter-toggle" aria-expanded={filters} onClick={() => setFilters((v) => !v)}>
-              <span>Categorias{catName ? `: ${catName}` : ""}</span>
-              <ChevronDown size={20} style={{ transform: filters ? "rotate(180deg)" : undefined }} />
-            </button>
-            <h3>Categorias</h3>
-            <ul className={`sport-filter-list${filters ? " is-open" : ""}`}>
-              <li>
-                <button aria-pressed={!cat} onClick={() => { update("cat", ""); setFilters(false); }}>
-                  Todos <em>{active.length}</em>
-                </button>
-              </li>
-              {categories.filter((c) => countIn(c.id) > 0).map((c) => (
-                <li key={c.id}>
-                  <button aria-pressed={cat === String(c.id)} onClick={() => { update("cat", String(c.id)); setFilters(false); }}>
-                    {c.name} <em>{countIn(c.id)}</em>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </aside>
-
-          <section aria-live="polite">
-            <div className="sport-tools">
-              <div className="sport-tsearch">
-                <SearchBar value={q} onChange={(v) => update("q", v)} placeholder="Buscar por nome ou código" />
-              </div>
-              <label className="sport-sr" htmlFor="sport-sort">Ordenar</label>
-              <select id="sport-sort" className="sport-select" value={sort} onChange={(e) => update("sort", e.target.value === "featured" ? "" : e.target.value)}>
-                <option value="featured">Destaques</option>
-                {!hidden && <option value="menor">Menor preço</option>}
-                {!hidden && <option value="maior">Maior preço</option>}
-                <option value="ofertas">Ofertas primeiro</option>
-                <option value="nome">Nome (A-Z)</option>
-              </select>
-            </div>
-            <p className="sport-count">
-              {visible.length} {visible.length === 1 ? "produto" : "produtos"}
-              {q && ` para "${q}"`}
-            </p>
-            {visible.length ? (
-              <>
-                <div className="sport-grid sport-grid--3">
-                  {visible.slice(0, limit).map((p) => (
-                    <Card key={p.id} product={p} />
-                  ))}
-                </div>
-                {limit < visible.length && (
-                  <div className="sport-more">
-                    <button className="sport-btn sport-btn--dark" onClick={() => setLimit((l) => l + PAGE)}>
-                      <Plus size={18} /> Ver mais ({visible.length - limit})
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="sport-empty">
-                <h3 className="sport-h">Nada em campo</h3>
-                <p>Nenhum produto encontrado. Tente outro termo ou limpe os filtros.</p>
-                <button className="sport-btn" style={{ marginTop: 16 }} onClick={() => setParams(params.get("previewTheme") ? { previewTheme: params.get("previewTheme") as string } : {})}>
-                  Limpar filtros
-                </button>
-              </div>
-            )}
-          </section>
-        </div>
-      </div>
-    </main>
-  );
+const SIZE=12;
+export default function StoreCatalog(){
+ const {tenant,active,path,sf,hidden,usedCategories,countIn,catName,productPath,soldOut,addToCart,openCart,cart,tracks}=useKit();
+ const [params,setParams]=useSearchParams();const q=params.get("q")||"";const cat=params.get("cat")||params.get("categoria")||"";const sort=params.get("sort")||"featured";
+ const [mobileFilters,setMobileFilters]=useState(false);const [view,setView]=useState<"grid"|"list">("grid");const [limit,setLimit]=useState(SIZE);const [availableOnly,setAvailableOnly]=useState(false);const [saleOnly,setSaleOnly]=useState(false);const [min,setMin]=useState("");const [max,setMax]=useState("");const [catSearch,setCatSearch]=useState("");
+ const update=(key:string,value:string)=>{const n=new URLSearchParams(params);if(key==="cat")n.delete("categoria");if(value)n.set(key,value);else n.delete(key);setParams(n,{replace:key==="q"});};
+ useEffect(()=>setLimit(SIZE),[q,cat,sort,availableOnly,saleOnly,min,max]);
+ const results=useMemo(()=>{const term=norm(q.trim());const low=min.trim()!==""?Number(min):null;const high=max.trim()!==""?Number(max):null;const items=active.filter(p=>{const price=priceOf(p);return (!cat||String(p.category_id)===cat)&&(!term||norm(`${p.name} ${p.sku||""} ${p.description||""}`).includes(term))&&(!availableOnly||!soldOut(p))&&(!saleOnly||price.off)&&(hidden||((low===null||price.price>=low)&&(high===null||price.price<=high)));});const by=(fn:(a:typeof items[number],b:typeof items[number])=>number)=>[...items].sort(fn);if(!hidden&&sort==="menor")return by((a,b)=>priceOf(a).price-priceOf(b).price);if(!hidden&&sort==="maior")return by((a,b)=>priceOf(b).price-priceOf(a).price);if(sort==="nome")return by((a,b)=>a.name.localeCompare(b.name,"pt-BR"));if(!hidden&&sort==="ofertas")return by((a,b)=>Number(priceOf(b).off)-Number(priceOf(a).off));return by((a,b)=>Number(b.is_featured)-Number(a.is_featured));},[active,q,cat,sort,availableOnly,saleOnly,min,max,hidden,tracks]);
+ const selected=usedCategories.find(c=>String(c.id)===cat);const reset=()=>{const n=new URLSearchParams(params);["q","cat","categoria","sort"].forEach(k=>n.delete(k));setParams(n);setAvailableOnly(false);setSaleOnly(false);setMin("");setMax("");};
+ const quickAdd=(p:typeof active[number])=>{if(soldOut(p)||groups(p).length)return;const remaining=tracks?cart.filter(i=>i.id===p.id).reduce((s,i)=>s+i.quantity,0):0;if(tracks&&remaining>=((p.skus?.length?p.skus.reduce((s,k)=>s+(Number(k.stock)||0),0):Number(p.stock))||0))return;addToCart(p);openCart();};
+ return <main className="sport-root sv3-root"><StoreSEO title={`${selected?.name||sf.catalog_title||"Catálogo"} | ${tenant.name}`} description={sf.catalog_description||tenant.about_text||`Produtos da ${tenant.name}.`} image={tenant.banner_url||tenant.logo_url} url={typeof window!=="undefined"?window.location.href:""} siteName={tenant.name}/>
+ <section className="sv3-catalog-banner"><div className="sport-wrap"><nav className="sv3-crumbs"><Link to={path()}>Início</Link><span>/</span><span>Catálogo</span>{selected&&<><span>/</span><span>{selected.name}</span></>}</nav><span className="sv3-overline">ESCOLHA SUA PRÓXIMA CONQUISTA</span><h1>{selected?.name||sf.catalog_title||"Explore o catálogo"}</h1><p>{sf.catalog_description||"Tudo para acompanhar seu esporte e seu estilo."}</p></div></section>
+ <div className="sport-wrap sv3-catalog-container"><aside className={`sv3-filter-sidebar ${mobileFilters?"is-open":""}`} aria-label="Filtros do catálogo"><div className="sv3-filter-head"><strong>Filtros</strong><button className="sv3-filter-close" onClick={()=>setMobileFilters(false)} aria-label="Fechar filtros"><X size={20}/></button></div><div className="sv3-filter-section"><h3>Categorias</h3><label className="sv3-mini-search"><Search size={15}/><input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar categoria"/></label><div className="sv3-category-list"><button aria-pressed={!cat} onClick={()=>{update("cat","");setMobileFilters(false);}}><span>Todas</span><small>{active.length}</small></button>{usedCategories.filter(c=>norm(c.name).includes(norm(catSearch))).sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")).map(c=><button key={c.id} aria-pressed={cat===String(c.id)} onClick={()=>{update("cat",String(c.id));setMobileFilters(false);}}><span>{c.name}</span><small>{countIn(c.id)}</small></button>)}</div></div><div className="sv3-filter-section"><h3>Disponibilidade</h3><label className="sv3-check"><input type="checkbox" checked={availableOnly} onChange={e=>setAvailableOnly(e.target.checked)}/> Produtos disponíveis</label></div>{!hidden&&<div className="sv3-filter-section"><h3>Preço e ofertas</h3><label className="sv3-check"><input type="checkbox" checked={saleOnly} onChange={e=>setSaleOnly(e.target.checked)}/> Somente ofertas</label><div className="sv3-price-range"><label>De R$<input type="number" min="0" value={min} onChange={e=>setMin(e.target.value)} placeholder="0"/></label><label>Até R$<input type="number" min="0" value={max} onChange={e=>setMax(e.target.value)} placeholder="Máximo"/></label></div></div>}<button onClick={reset} className="sv3-clear-filter">Limpar filtros <X size={16}/></button></aside>
+ <section className="sv3-catalog-main"><div className="sv3-catalog-tools"><button className="sv3-filter-mobile" onClick={()=>setMobileFilters(true)}><SlidersHorizontal size={18}/> Filtros</button><label className="sv3-catalog-search"><Search size={18}/><input aria-label="Buscar produtos" value={q} onChange={e=>update("q",e.target.value)} placeholder="Buscar produto ou código"/>{q&&<button onClick={()=>update("q","")} aria-label="Limpar busca"><X size={16}/></button>}</label><label className="sv3-sort"><span>Ordenar</span><select value={sort} onChange={e=>update("sort",e.target.value==="featured"?"":e.target.value)}><option value="featured">Destaques</option>{!hidden&&<><option value="menor">Menor preço</option><option value="maior">Maior preço</option><option value="ofertas">Ofertas primeiro</option></>}<option value="nome">Nome A–Z</option></select></label><div className="sv3-view-switch"><button aria-label="Visualização em grade" aria-pressed={view==="grid"} onClick={()=>setView("grid")}><LayoutGrid size={19}/></button><button aria-label="Visualização em lista" aria-pressed={view==="list"} onClick={()=>setView("list")}><List size={19}/></button></div></div><div className="sv3-results-head"><span><strong>{results.length}</strong> {results.length===1?"produto encontrado":"produtos encontrados"}</span>{(q||cat||saleOnly||availableOnly||min||max)&&<button onClick={reset}>Limpar seleção <X size={15}/></button>}</div>{results.length===0?<div className="sv3-empty"><Search size={40}/><h2>Nenhum produto encontrado</h2><p>Tente outra busca ou remova alguns filtros.</p><button onClick={reset} className="sv3-primary">Limpar filtros <ArrowRight size={17}/></button></div>:view==="grid"?<div className="sv3-product-grid sv3-catalog-grid">{results.slice(0,limit).map(p=><Card key={p.id} product={p}/>)}</div>:<div className="sv3-products-list">{results.slice(0,limit).map(p=><article className="sv3-product-row" key={p.id}><Link to={productPath(p)} className="sv3-row-photo">{imageOf(p)&&<img src={imageOf(p)} alt={p.name}/>}</Link><div><span>{catName(p.category_id)}</span><Link to={productPath(p)}><strong>{p.name}</strong></Link>{p.sku&&<small>Ref. {p.sku}</small>}</div><Price product={p} hidden={hidden}/>{groups(p).length||soldOut(p)?<Link className="sv3-row-action" to={productPath(p)}>Ver opções <ArrowRight size={16}/></Link>:<button className="sv3-row-action" onClick={()=>quickAdd(p)}>Adicionar <ArrowRight size={16}/></button>}</article>)}</div>}{limit<results.length&&<div className="sv3-load-more"><button className="sv3-secondary" onClick={()=>setLimit(n=>n+SIZE)}>Carregar mais produtos <ArrowRight size={18}/></button></div>}</section></div></main>
 }

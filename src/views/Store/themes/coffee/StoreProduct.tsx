@@ -18,7 +18,7 @@ export default function StoreProduct() {
       <main className="cf-root">
         <div className="cf-emptybox cf-notfound">
           <Coffee size={44} aria-hidden="true" />
-          <h1>Item fora do cardápio</h1>
+          <h1>Produto não encontrado</h1>
           <Link to={path("/catalogo")} className="cf-btn">
             Voltar ao cardápio
           </Link>
@@ -57,9 +57,9 @@ export default function StoreProduct() {
         )}
       </nav>
 
-      <div className="cf-product">
-        <section className="cf-gallery" aria-label="Fotos do produto">
-          <div className="cf-bigarch">
+      <div className="cf-product cf-new-product">
+        <section className="cf-gallery cf-new-gallery" aria-label="Fotos do produto">
+          <div className="cf-bigarch cf-new-stage">
             <Steam className="cf-steam" />
             {buy.gallery.length ? <img src={buy.gallery[buy.photo] || buy.gallery[0]} alt={product.name} /> : <Bean className="cf-arch-bean" />}
             {p.off && <em className="cf-tag cf-tag-lg">Oferta</em>}
@@ -75,7 +75,7 @@ export default function StoreProduct() {
           )}
         </section>
 
-        <section className="cf-card">
+        <section className="cf-card cf-new-buybox">
           {category && <p className="cf-eyebrow">{category.name}</p>}
           <h1>{product.name}</h1>
           {product.sku && <p className="cf-ref">Ref. {product.sku}</p>}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AlertCircle, Check, Heart, Minus, MessageCircle, Package, Plus, RefreshCcw, Share2, ShieldCheck, ShoppingCart, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
@@ -11,7 +11,7 @@ import "./styles.css";
 
 export default function StoreProduct() {
   const { productId } = useParams();
-  const { tenant, products, categories, active, addToCart, openCart, path, hidePrices, tracks, wishlist, toggleWishlist } = useKit();
+  const { tenant, products, categories, active, cart, addToCart, openCart, path, hidePrices, tracks, wishlist, toggleWishlist } = useKit();
   const product = products.find((p) => p.id === parseProductIdFromRoute(productId));
   const groups = useMemo(() => (product ? variationGroups(product) : []), [product]);
   const [picked, setPicked] = useState<Record<string, string>>({});
@@ -19,6 +19,7 @@ export default function StoreProduct() {
   const [photo, setPhoto] = useState(0);
   const [warn, setWarn] = useState(false);
   const [note, setNote] = useState("");
+  useEffect(() => { setPicked({}); setQty(1); setPhoto(0); setWarn(false); }, [product?.id]);
 
   if (!product || !product.is_active) {
     return <div className="elx-page"><div className="elx-wrap"><Empty title="Produto não encontrado" text="Ele pode ter sido removido ou estar indisponível." to={path("/catalogo")} action="Voltar ao catálogo" /></div></div>;
@@ -26,7 +27,9 @@ export default function StoreProduct() {
 
   const info = priceInfo(product);
   const ready = groups.every((g) => picked[g.name]);
-  const max = maxQuantity(product, tenant, picked, ready);
+  const units = maxQuantity(product, tenant, picked, ready);
+  const inCart = cart.filter((item) => item.id === product.id && groups.every((g) => item.selectedOptions?.[g.name] === picked[g.name])).reduce((sum, item) => sum + item.quantity, 0);
+  const max = tracks ? Math.max(0, units - inCart) : 99;
   const soldOut = !inStock(product, tenant) || (ready && max === 0);
   const qtyNow = Math.min(qty, Math.max(1, max));
   const base = Array.isArray(product.images) && product.images.length ? product.images : imageOf(product) ? [imageOf(product)] : [];
@@ -55,11 +58,11 @@ export default function StoreProduct() {
   };
   const add = () => {
     if (!ready) { setWarn(true); return; }
-    if (soldOut) return;
+    if (soldOut || qtyNow > max) return;
     for (let i = 0; i < qtyNow; i++) addToCart(product, groups.length ? picked : undefined);
     openCart();
   };
-  const share = async () => { const r = await shareLink(product.name); if (r) { setNote(r); setTimeout(() => setNote(""), 2500); } };
+  const share = async () => { const r = await shareLink(product.name); if (r) setNote(r); };
 
   return (
     <div className="elx-page">

@@ -266,3 +266,79 @@
 .ft-contact svg { color: var(--ft-accent); flex: 0 0 auto; margin-top: 3px; }
 .ft-contact h3 { font-family: "JetBrains Mono", monospace; font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--ft-accent); margin: 0 0 14px; font-weight: 500; }
 .ft-about-img { width: 100%; max-height: 360px; object-fit: cover; border-radius: 4px; filter: grayscale(1) contrast(1.1); border: 1px solid var(--ft-line); margin-bottom: 14px; }
+
+/* Fit Lab V2 — camada de identidade. Isolada no prefixo ft-. */
+.ft-root,.ft-header,.ft-footer,.ft-dock{--ft-accent:var(--theme-accent,#c6ff36);--ft-bg:#080b0c;--ft-panel:#141a1c;--ft-panel2:#1d2627;--ft-line:#2a3637;--ft-muted:#acbab8;--ft-text:#f3f7f3;--ft-on:#0b100c}
+.ft-root{background-image:radial-gradient(circle at 75% 2%,rgba(122,154,128,.12),transparent 33%),linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px);background-size:auto,68px 68px,68px 68px}
+.ft-root::before{display:none}
+.ft-wrap{max-width:1320px}
+.ft-header{box-shadow:0 12px 40px rgba(0,0,0,.24)}
+.ft-logo{font-size:20px;letter-spacing:-.045em}
+.ft-logo-mark{width:34px;height:34px;transform:skew(-9deg)}
+.ft-nav a{font-weight:700}
+.ft-btn{border-radius:8px;transform:translateZ(0);transition:transform .22s ease,box-shadow .22s ease,background .22s ease}
+.ft-btn:hover:not(:disabled){transform:translateY(-3px);box-shadow:0 10px 32px color-mix(in srgb,var(--ft-accent) 22%,transparent)}
+.ft-btn:active:not(:disabled){transform:translateY(0)}
+.ft-hero{padding:clamp(28px,5vw,74px) 0 30px}
+.ft-hero-grid{align-items:center;gap:clamp(24px,4vw,62px)}
+.ft-hero h1{font-size:clamp(44px,7.4vw,108px);line-height:.89;letter-spacing:-.065em;max-width:850px;overflow-wrap:anywhere}
+.ft-hero .ft-tag{border-color:color-mix(in srgb,var(--ft-accent) 48%,transparent);background:color-mix(in srgb,var(--ft-accent) 8%,var(--ft-bg));border-radius:50px}
+.ft-lead{font-size:clamp(15px,1.6vw,19px)!important;line-height:1.6!important}
+.ft-showcase{isolation:isolate;position:relative;min-height:clamp(360px,42vw,570px);background:linear-gradient(155deg,#27382e,#0e1717);overflow:hidden;border:1px solid #4c6052;border-radius:18px;box-shadow:0 34px 90px -45px rgba(0,0,0,.85)}
+.ft-showcase-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:contrast(1.11) saturate(.82);animation:ft-hero-zoom 16s ease-in-out infinite alternate}
+.ft-showcase-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,13,11,.24),rgba(7,13,11,.14) 45%,rgba(7,13,11,.92)),linear-gradient(90deg,rgba(7,13,11,.34),transparent)}
+.ft-showcase-noise{position:absolute;inset:0;z-index:2;pointer-events:none;background-image:radial-gradient(rgba(255,255,255,.16) .8px,transparent .8px);background-size:14px 14px;opacity:.09}
+.ft-showcase-symbol{position:absolute;top:27%;left:36%;color:var(--ft-accent);opacity:.65}
+.ft-showcase-label,.ft-showcase-corner{position:absolute;z-index:3;font:700 11px/1.4 'JetBrains Mono',monospace;letter-spacing:.12em;display:flex;align-items:center;gap:8px}
+.ft-showcase-label{left:22px;top:24px;color:var(--ft-accent)}
+.ft-showcase-corner{right:22px;top:24px;color:#fff}
+.ft-showcase-bottom{position:absolute;z-index:3;left:clamp(20px,5vw,44px);right:26px;bottom:30px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.ft-showcase-bottom strong{font-family:'Chakra Petch',sans-serif;font-size:clamp(42px,5.4vw,78px);line-height:.86;letter-spacing:-.07em;font-weight:700}
+.ft-showcase-bottom em{font-style:normal;color:var(--ft-accent)}
+.ft-showcase-bottom>span{font:600 10px 'JetBrains Mono',monospace;letter-spacing:.18em;writing-mode:vertical-rl}
+@keyframes ft-hero-zoom{from{transform:scale(1)}to{transform:scale(1.10)}}
+.ft-goals{border-radius:12px;overflow:hidden;gap:1px;background:var(--ft-line)}
+.ft-goal{background:var(--ft-panel);border:0;padding:clamp(16px,2.6vw,28px)}
+.ft-goal b{font-size:clamp(37px,5vw,62px);font-variant-numeric:tabular-nums}
+.ft-section{padding:clamp(38px,6vw,76px) 0}
+.ft-section-head h2{font-size:clamp(30px,5vw,60px);line-height:.98}
+.ft-rows{border-top:1px solid #476050}
+.ft-row{min-height:84px;transition:background .25s,padding .25s,color .25s}
+.ft-row:hover{background:color-mix(in srgb,var(--ft-accent) 8%,var(--ft-panel));padding-left:20px}
+.ft-row:hover .t{color:var(--ft-accent)}
+.ft-row .t{font-size:clamp(19px,3.1vw,32px);transition:color .2s}
+.ft-grid{gap:clamp(10px,1.6vw,22px)}
+.ft-card{border-radius:12px;background:linear-gradient(160deg,#182022,#111718);box-shadow:0 10px 40px rgba(0,0,0,.11);transition:transform .32s cubic-bezier(.2,.7,.2,1),box-shadow .32s,border-color .32s}
+.ft-card::before{width:0}
+.ft-card:hover{transform:translateY(-9px);box-shadow:0 24px 55px rgba(0,0,0,.36)}
+.ft-card-media{background:linear-gradient(145deg,#f7f8f2,#dce4dc);overflow:hidden}
+.ft-card-media img{transition:transform .55s cubic-bezier(.2,.7,.2,1);padding:clamp(12px,2vw,28px)}
+.ft-card:hover .ft-card-media img{transform:scale(1.09) rotate(-1.5deg)}
+.ft-card-body{padding:clamp(12px,1.8vw,20px)}
+.ft-card-cat{color:#bccbc2}
+.ft-card-name{font-size:clamp(14px,1.4vw,17px)}
+.ft-price{font-size:clamp(15px,1.75vw,21px)}
+.ft-fav{background:rgba(255,255,255,.9);border-radius:50%;right:10px;top:10px}
+.ft-add{background:var(--ft-accent);color:var(--ft-on);border:0;border-radius:9px}
+.ft-add:hover{transform:scale(1.07)}
+.ft-steps{gap:18px}
+.ft-step{border-left:0;border-top:3px solid var(--ft-accent);border-radius:12px;padding:28px}
+.ft-cta-block{border-radius:16px;padding:clamp(26px,5vw,54px);position:relative;overflow:hidden}
+.ft-cta-block::after{content:'//';position:absolute;right:2%;top:-90px;font-size:290px;color:rgba(0,0,0,.06);font-weight:700;pointer-events:none}
+.ft-cat-head{padding:clamp(35px,6vw,82px) 0 32px}
+.ft-cat-head h1{font-size:clamp(40px,7vw,82px)}
+.ft-toolbar{background:rgba(13,18,19,.95)}
+.ft-tab,.ft-select,.ft-controls .ft-s input{border-radius:8px!important}
+.ft-li,.ft-empty,.ft-box,.ft-tabs2,.ft-stage{border-radius:12px}
+.ft-stage{background:radial-gradient(circle at 50% 30%,#fff,#e1e8e0);overflow:hidden}
+.ft-stage img{transition:transform .4s}.ft-stage:hover img{transform:scale(1.045)}
+.ft-box{padding:clamp(20px,3vw,36px)}
+.ft-box h1{line-height:1.03}
+.ft-val,.ft-note,.ft-qty,.ft-select{border-radius:8px}
+.ft-thumbs button{border-radius:8px}
+.ft-tabs2{overflow:hidden}
+.ft-footer{background:linear-gradient(180deg,#101817,#070b0b)}
+.ft-dock{box-shadow:0 -10px 45px rgba(0,0,0,.25)}
+@media(max-width:899px){.ft-showcase{min-height:400px}.ft-hero h1{max-width:650px}.ft-dock{gap:10px}}
+@media(max-width:600px){.ft-wrap{padding-inline:15px}.ft-hero h1{font-size:clamp(41px,13vw,65px)}.ft-showcase{min-height:360px}.ft-showcase-bottom strong{font-size:51px}.ft-showcase-corner{display:none}.ft-goal{padding:18px 12px}.ft-goal b{font-size:39px}.ft-goal span{font-size:10px}.ft-card-body{padding:12px}.ft-card-foot{align-items:center}.ft-row{grid-template-columns:32px 1fr 22px;gap:7px}.ft-row .c{display:none}.ft-card-name{font-size:14px}.ft-price{font-size:15px}.ft-hero-cta .ft-btn{flex:1 1 auto;padding:0 15px}.ft-buy .ft-btn{flex-basis:100%}.ft-footer{padding-bottom:80px}}
+@media(prefers-reduced-motion:reduce){.ft-showcase-img{animation:none}.ft-card,.ft-card-media img,.ft-stage img,.ft-btn,.ft-row{transition:none!important}}

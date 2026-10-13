@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, Minus, Plus, ShoppingBag } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
@@ -15,7 +15,8 @@ export default function StoreProduct() {
   const { tenant, products, path, hidden, catName, active, tracks } = useKit();
   const product = products.find((p) => p.id === parseProductIdFromRoute(productId));
   const f = useProductForm(product);
-  const [tab, setTab] = useState<"desc" | "uso" | "ben">("desc");
+  const [tab, setTab] = useState<"desc" | "details">("desc");
+  useEffect(() => setTab("desc"), [productId]);
 
   if (!product || !product.is_active)
     return (
@@ -30,19 +31,12 @@ export default function StoreProduct() {
   const category = catName(product.category_id);
   const related = active.filter((p) => p.id !== product.id && p.category_id === product.category_id).slice(0, 4);
   const missing = f.choices.filter((g) => !f.selected[g.name]);
-  const noStock = f.units !== null && f.ready && f.max === 0;
+  const noStock = tracks && f.units !== null && f.ready && f.max === 0;
   const img = f.images[f.active] || f.images[0];
   const pct = off && full > 0 ? Math.round((1 - price / full) * 100) : 0;
   const lines = (product.description || "").split(/\n+/).map((l) => l.trim()).filter(Boolean);
   const bullets = lines.filter((l) => /^[-•*]\s*/.test(l)).map((l) => l.replace(/^[-•*]\s*/, ""));
-  const benefits = bullets.length
-    ? bullets
-    : [
-        category ? `Categoria: ${category}` : "Item selecionado pela loja",
-        product.sku ? `Referência ${product.sku}` : "Atendimento direto com a loja",
-        f.choices.length ? `Opções disponíveis: ${f.choices.map((g) => g.name.toLowerCase()).join(", ")}` : "Pronto para adicionar ao carrinho",
-        hidden ? "Valores confirmados no atendimento" : off ? `Oferta com ${pct}% de desconto` : "Preço transparente, sem surpresas",
-      ];
+  const details = bullets.length ? bullets : [category ? `Categoria: ${category}` : "Item selecionado pela loja", ...(product.sku ? [`Referência ${product.sku}`] : []), ...(f.choices.length ? [`Opções: ${f.choices.map((g) => g.name).join(", ")}`] : [])];
   const segs = f.units === null ? 0 : Math.min(10, Math.ceil((Math.min(f.units, 20) / 20) * 10));
 
   return (
@@ -143,20 +137,14 @@ export default function StoreProduct() {
 
         <section className="ft-tabs2" aria-label="Detalhes do produto">
           <div className="ft-tabs2-nav" role="tablist">
-            {([["desc", "Descrição"], ["uso", "Como usar"], ["ben", "Benefícios"]] as const).map(([id, label]) => (
+            {([["desc", "Descrição"], ["details", "Informações do produto"]] as const).map(([id, label]) => (
               <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{label}</button>
             ))}
           </div>
           <div className="ft-tabs2-body" role="tabpanel">
             {tab === "desc" && (lines.length ? lines.filter((l) => !/^[-•*]\s*/.test(l)).map((l, i) => <p key={i}>{l}</p>) : <p>Esta ficha ainda não tem descrição. Fale com a loja para mais detalhes sobre {product.name}.</p>)}
-            {tab === "uso" && (
-              <>
-                <p>Siga sempre as orientações do rótulo e do fabricante. Em caso de dúvidas sobre a rotina de uso, consulte um profissional de saúde ou de educação física.</p>
-                <p>Precisa de ajuda para escolher? Chame a loja pelo atendimento e informe seu objetivo de treino.</p>
-              </>
-            )}
-            {tab === "ben" && <ul className="ft-checks">{benefits.map((b, i) => <li key={i}><Check size={16} />{b}</li>)}</ul>}
-          </div>
+                         {tab === "details" && <ul className="ft-checks">{details.map((detail, i) => <li key={i}><Check size={16} />{detail}</li>)}</ul>}
+</div>
         </section>
 
         {related.length > 0 && (

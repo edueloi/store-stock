@@ -12,7 +12,7 @@ export const money = (v: number | string | undefined | null) =>
 export const imageOf = (p?: Product | null): string =>
   (Array.isArray(p?.images) && p!.images![0]) || p?.image_url || "";
 
-export const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+export const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 export const groups = (p: Product) =>
   p.attributes?.length
@@ -64,7 +64,7 @@ export function useProductForm(product: Product | undefined) {
   const choices = useMemo(() => (product ? groups(product) : []), [product]);
   const ready = choices.every((g) => selected[g.name]);
   const tracks = storeTracksStock(tenant);
-  const units = product && tracks ? availableUnits(product, choices.length ? selected : undefined) : null;
+  const units = product && tracks ? availableUnits(product, choices.length && !ready ? undefined : choices.length ? selected : undefined) : null;
   const inCart = product
     ? cart
         .filter((i) => i.id === product.id && choices.every((g) => i.selectedOptions?.[g.name] === selected[g.name]))
@@ -72,7 +72,7 @@ export function useProductForm(product: Product | undefined) {
     : 0;
   const max = units === null ? 99 : Math.max(0, units - inCart);
   const quantity = Math.max(1, Math.min(qty, Math.max(1, max)));
-  const canAdd = !!product && ready && (units === null || max > 0);
+  const canAdd = !!product && product.is_active && ready && (units === null || max > 0);
   const base = product ? (Array.isArray(product.images) && product.images.length ? product.images : product.image_url ? [product.image_url] : []) : [];
   const variant = getVariationImages(product, selected);
   const images = variant.length ? variant : base;

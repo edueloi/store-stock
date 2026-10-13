@@ -5,12 +5,13 @@ import StoreSEO from "../../../../components/store/StoreSEO";
 import SearchBar from "../../../../components/layout/SearchBar";
 import Card, { Price } from "./Card";
 import { groups, imageOf, norm, priceOf, useKit } from "./lib";
+import { availableUnits } from "../../../../utils/storeStock";
 import "./styles.css";
 
 const PAGE = 12;
 
 export default function StoreCatalog() {
-  const { tenant, active, categories, sf, hidden, countIn, catName, productPath, soldOut, addToCart, openCart } = useKit();
+  const { tenant, active, categories, sf, hidden, countIn, catName, productPath, soldOut, addToCart, openCart, tracks, cart } = useKit();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") || "";
   const cat = params.get("cat") || params.get("categoria") || "";
@@ -31,8 +32,8 @@ export default function StoreCatalog() {
     const term = norm(q.trim());
     const list = active.filter((p) => (!cat || String(p.category_id) === cat) && (!term || norm(`${p.name} ${p.sku || ""} ${p.description || ""}`).includes(term)));
     const by = (fn: (a: (typeof list)[number], b: (typeof list)[number]) => number) => [...list].sort(fn);
-    if (sort === "menor") return by((a, b) => priceOf(a).price - priceOf(b).price);
-    if (sort === "maior") return by((a, b) => priceOf(b).price - priceOf(a).price);
+    if (!hidden && sort === "menor") return by((a, b) => priceOf(a).price - priceOf(b).price);
+    if (!hidden && sort === "maior") return by((a, b) => priceOf(b).price - priceOf(a).price);
     if (sort === "nome") return by((a, b) => a.name.localeCompare(b.name, "pt-BR"));
     return by((a, b) => Number(b.is_featured) - Number(a.is_featured));
   }, [active, q, cat, sort]);
@@ -94,6 +95,9 @@ export default function StoreCatalog() {
             <div className="ft-list">
               {visible.slice(0, limit).map((p) => {
                 const out = soldOut(p);
+                const stock = tracks ? availableUnits(p) : null;
+                const already = cart.filter((item) => item.id === p.id).reduce((total, item) => total + item.quantity, 0);
+                const quickUnavailable = out || (stock !== null && stock <= already);
                 const choices = groups(p).length > 0;
                 return (
                   <article className={`ft-li${out ? " ft-out" : ""}`} key={p.id}>
@@ -104,10 +108,10 @@ export default function StoreCatalog() {
                     </div>
                     <div className="ft-li-side">
                       <Price product={p} hidden={hidden} />
-                      {choices || out ? (
+                      {choices || quickUnavailable ? (
                         <Link to={productPath(p)} className="ft-add" aria-label={`Ver opções de ${p.name}`}><ArrowRight size={18} /></Link>
                       ) : (
-                        <button className="ft-add" aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => { addToCart(p); openCart(); }}><Plus size={20} /></button>
+                        <button className="ft-add" aria-label={`Adicionar ${p.name} ao carrinho`} onClick={() => { if (quickUnavailable) return; addToCart(p); openCart(); }}><Plus size={20} /></button>
                       )}
                     </div>
                   </article>
