@@ -55,9 +55,6 @@ export function Header() {
           {navLinks.map((link) => (
             <Link key={link.label} to={link.to}>{link.label}</Link>
           ))}
-          {categories.slice(0, 4).map((cat) => (
-            <Link key={cat.id} to={path(`/catalogo?cat=${cat.id}`)}>{cat.name}</Link>
-          ))}
         </nav>
 
         {/* Actions */}
@@ -90,9 +87,6 @@ export function Header() {
         </div>
         {navLinks.map((link) => (
           <Link key={link.label} to={link.to} onClick={() => setMenuOpen(false)}>{link.label}</Link>
-        ))}
-        {categories.slice(0, 6).map((cat) => (
-          <Link key={cat.id} to={path(`/catalogo?cat=${cat.id}`)} onClick={() => setMenuOpen(false)}>{cat.name}</Link>
         ))}
         {tenant.whatsapp && (
           <a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>

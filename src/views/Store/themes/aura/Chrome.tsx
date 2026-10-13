@@ -76,11 +76,6 @@ export function Header() {
           <nav className="aura-nav-desktop">
             <Link to={path()}>Início</Link>
             <Link to={path("/catalogo")}>Catálogo</Link>
-            {categories.slice(0, 4).map((cat) => (
-              <Link key={cat.id} to={path(`/catalogo?cat=${cat.id}`)}>
-                {cat.name}
-              </Link>
-            ))}
             <Link to={path("/sobre")}>Sobre</Link>
           </nav>
 
@@ -144,19 +139,10 @@ export function Header() {
                   Início
                 </Link>
                 <Link to={path("/catalogo")} onClick={() => setMenuOpen(false)}>
-                  Todas as Peças
+                  Catálogo
                 </Link>
-                {categories.map((cat) => (
-                  <Link
-                    key={cat.id}
-                    to={path(`/catalogo?cat=${cat.id}`)}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    {cat.name}
-                  </Link>
-                ))}
                 <Link to={path("/sobre")} onClick={() => setMenuOpen(false)}>
-                  Nossa História
+                  Sobre
                 </Link>
               </nav>
             </div>
