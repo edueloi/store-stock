@@ -36,11 +36,18 @@ import { availableUnits, storeTracksStock } from "../../utils/storeStock";
 import { isSegment, segmentThemes } from "./themes/segments/registry";
 import { SegmentHeader, SegmentFooter } from "./themes/segments/Chrome";
 import "./themes/segments/styles.css";
+import { ownPages, ownChrome } from "./themes/own";
 
 // ── Store pages (lazy-loaded per theme)
 import { lazy, Suspense } from "react";
 
 function themePages(templateId: string | undefined) {
+  const base = legacyThemePages(templateId);
+  const own = ownPages(templateId || "minimal");
+  return { ...base, ...own };
+}
+
+function legacyThemePages(templateId: string | undefined) {
   const t = templateId || "minimal";
   if (isSegment(t)) return {
     Front: lazy(() => import('./themes/segments/Pages').then(m => ({ default: m.Front }))),
@@ -472,6 +479,8 @@ function StoreLayoutInner() {
     About: StoreAbout,
   } = pagesRef.current;
 
+  const chrome = useMemo(() => ownChrome(templateId || "minimal"), [templateId]);
+
   useEffect(() => {
     const endpoint = storeSlug
       ? `/api/public/store/${storeSlug}`
@@ -869,10 +878,10 @@ function StoreLayoutInner() {
     <StoreContext.Provider value={ctx}>
       <div
         className={cn("min-h-screen", `store-theme-${templateId || "minimal"}`, segment && `segment-shell segment-${templateId} segment-layout-${segment.layout}`, style.bg, style.text, style.font)}
-        style={segment ? ({ '--seg-accent': style.accent, '--seg-bg': segment.bg, '--seg-ink': segment.ink, '--seg-surface': segment.surface } as React.CSSProperties) : isDoceria ? ({ "--doceria-accent": style.accent } as React.CSSProperties) : undefined}
+        style={{ '--theme-accent': style.accent, ...(segment ? { '--seg-accent': style.accent, '--seg-bg': segment.bg, '--seg-ink': segment.ink, '--seg-surface': segment.surface } : isDoceria ? { "--doceria-accent": style.accent } : {}) } as unknown as React.CSSProperties}
       >
         {/* ── NAVBAR ─────────────────────────────────────────────── */}
-        {segment ? <SegmentHeader /> : <header
+        {chrome ? <Suspense fallback={null}><chrome.Header /></Suspense> : segment ? <SegmentHeader /> : <header
           className={cn(
             "sticky top-0 z-50 border-b shadow-sm",
             isMarketplace
@@ -1491,7 +1500,7 @@ function StoreLayoutInner() {
         </main>
 
         {/* ── FOOTER ─────────────────────────────────────────────── */}
-        {segment ? <SegmentFooter /> : <footer
+        {chrome ? <Suspense fallback={null}><chrome.Footer /></Suspense> : segment ? <SegmentFooter /> : <footer
           className={cn(
             "mt-20 border-t",
             isStreet

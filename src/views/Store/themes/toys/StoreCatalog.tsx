@@ -1,8 +1,98 @@
-import { useMemo,useState } from "react";
-import { useParams,useSearchParams } from "react-router-dom";
-import { Search,X } from "lucide-react";
+import { Puzzle } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath,resolveStoreSlug } from "../../store-routing";
-import { ToyCard,ToyEmpty,toyHide } from "./ThemeParts";
-export default function StoreCatalog(){const {slug:routeSlug}=useParams();const [params,setParams]=useSearchParams();const {tenant,products,categories,addToCart,wishlist,toggleWishlist}=useStore();const slug=resolveStoreSlug(routeSlug);const path=(s="")=>buildStorePath(slug,s);const [q,setQ]=useState(params.get("q")||"");const cat=params.get("cat")?Number(params.get("cat")):null;const visible=useMemo(()=>products.filter(p=>p.is_active&&(!cat||p.category_id===cat)&&(!q||`${p.name} ${p.description||""}`.toLowerCase().includes(q.toLowerCase()))),[products,cat,q]);const select=(id:number|null)=>{const n=new URLSearchParams(params);if(id)n.set("cat",String(id));else n.delete("cat");setParams(n)};return <main className="min-h-screen bg-[#f7f3ff] pb-16 text-[#43306f]"><StoreSEO title={`Brinquedos | ${tenant.name}`} description={`Catálogo de brinquedos da ${tenant.name}.`} image={tenant.banner_url||tenant.logo_url} url={typeof window!=="undefined"?window.location.href:""} siteName={tenant.name}/><section className="bg-[#7148d5] px-5 py-14 text-white"><div className="mx-auto max-w-7xl"><p className="text-[10px] font-black uppercase tracking-[.22em] text-[#ffdc65]">Catálogo de brincadeiras</p><h1 className="mt-3 text-5xl font-black tracking-[-.07em]">Escolha o próximo<br/>sorriso.</h1></div></section><div className="mx-auto max-w-7xl px-5 py-8"><div className="flex flex-col gap-4 border-b border-[#dcd3fc] pb-6 lg:flex-row lg:justify-between"><div className="flex max-w-full gap-2 overflow-x-auto"><button onClick={()=>select(null)} className={`shrink-0 rounded-full px-4 py-3 text-[10px] font-black uppercase ${!cat?"bg-[#7148d5] text-white":"bg-white text-[#665985]"}`}>Todos</button>{categories.map(c=><button key={c.id} onClick={()=>select(c.id)} className={`shrink-0 rounded-full px-4 py-3 text-[10px] font-black uppercase ${cat===c.id?"bg-[#7148d5] text-white":"bg-white text-[#665985]"}`}>{c.name}</button>)}</div><div className="relative w-full lg:w-80"><Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7148d5]"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar brinquedo" className="h-11 w-full rounded-full border border-[#cfc2f7] bg-white pl-11 pr-10 text-sm outline-none focus:border-[#7148d5]"/>{q&&<button onClick={()=>setQ("")} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8679a8]"><X size={15}/></button>}</div></div><div className="mt-6 flex justify-between text-[10px] font-bold uppercase"><span className="text-[#7d70a5]">{visible.length} brinquedos encontrados</span><span className="text-[#7148d5]">{categories.find(c=>c.id===cat)?.name||"Todas as categorias"}</span></div>{visible.length?<div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{visible.map(p=><ToyCard key={p.id} product={p} path={path} category={categories.find(c=>c.id===p.category_id)?.name} saved={wishlist.includes(p.id)} onFavorite={()=>toggleWishlist(p.id)} onAdd={()=>addToCart(p)} hidePrices={toyHide(tenant)}/>)}</div>:<div className="mt-7"><ToyEmpty onClear={()=>{select(null);setQ("")}}/></div>}</div></main>}
+import SearchBar from "../../../../components/layout/SearchBar";
+import { useCatalog } from "./kit";
+import { Empty, ProductCard, Shapes } from "./parts";
+import "./styles.css";
+
+export default function StoreCatalog() {
+  const c = useCatalog(12);
+  const { tenant, sf, categories, active, hidden } = c;
+  const title = sf.catalog_title || "Escolha o próximo sorriso";
+  const desc = sf.catalog_description || "Brinquedos para todas as idades e todas as brincadeiras.";
+  const current = categories.find((x) => x.id === c.cat);
+  return (
+    <div className="toys-page toys-catalog">
+      <StoreSEO
+        title={`${current ? `${current.name} | ` : ""}${title} | ${tenant.name}`}
+        description={desc}
+        image={tenant.banner_url || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+      <header className="toys-cat-hero">
+        <Shapes />
+        <span className="toys-pill">
+          <Puzzle size={15} /> Catálogo
+        </span>
+        <h1>{title}</h1>
+        <p>{desc}</p>
+      </header>
+
+      <div className="toys-cat-body">
+        <div className="toys-toolbar">
+          <div className="toys-search toys-search-wide" role="search">
+            <SearchBar value={c.q} onChange={(v) => c.setParam("q", v)} placeholder="Buscar por nome ou código" />
+          </div>
+          <label className="toys-select">
+            <span className="toys-sr">Ordenar por</span>
+            <select value={c.sort} onChange={(e) => c.setParam("sort", e.target.value === "destaques" ? null : e.target.value)}>
+              <option value="destaques">Destaques primeiro</option>
+              <option value="nome">Nome (A a Z)</option>
+              {!hidden && <option value="menor">Menor preço</option>}
+              {!hidden && <option value="maior">Maior preço</option>}
+            </select>
+          </label>
+        </div>
+
+        <div className="toys-filters" role="group" aria-label="Categorias">
+          <button type="button" className="toys-filter toys-tint-0" aria-pressed={!c.cat} onClick={() => c.setParam("categoria", null)}>
+            Todos <small>{active.length}</small>
+          </button>
+          {categories.map((cat, i) => (
+            <button
+              key={cat.id}
+              type="button"
+              className={`toys-filter toys-tint-${(i + 1) % 4}`}
+              aria-pressed={c.cat === cat.id}
+              onClick={() => c.setParam("categoria", String(cat.id))}
+            >
+              {cat.name} <small>{active.filter((p) => p.category_id === cat.id).length}</small>
+            </button>
+          ))}
+        </div>
+
+        <p className="toys-count" role="status">
+          {c.list.length} {c.list.length === 1 ? "brinquedo encontrado" : "brinquedos encontrados"}
+          {current ? ` em ${current.name}` : ""}
+        </p>
+
+        {c.list.length ? (
+          <>
+            <div className="toys-grid">
+              {c.shown.map((p, i) => (
+                <ProductCard key={p.id} product={p} index={i} />
+              ))}
+            </div>
+            {c.hasMore && (
+              <div className="toys-more">
+                <button type="button" className="toys-btn toys-btn-solid toys-btn-lg" onClick={c.more}>
+                  Ver mais brinquedos
+                </button>
+                <span>
+                  Mostrando {c.shown.length} de {c.list.length}
+                </span>
+              </div>
+            )}
+          </>
+        ) : (
+          <Empty
+            title={active.length ? "Esse brinquedo não apareceu" : "Ainda não há brinquedos por aqui"}
+            text={active.length ? "Tente outro nome ou veja outra categoria." : "Volte em breve, estamos preparando novidades."}
+            onClear={active.length ? c.clear : undefined}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

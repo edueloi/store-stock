@@ -1,7 +1,127 @@
-import { Link,useParams } from "react-router-dom";
-import { ArrowRight,Gift,MapPin,MessageCircle,Puzzle } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Clock, Gift, MapPin, MessageCircle, Puzzle, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath,resolveStoreSlug } from "../../store-routing";
-import { toyImage } from "./ThemeParts";
-export default function StoreAbout(){const {slug:routeSlug}=useParams();const {tenant,products,categories}=useStore();const slug=resolveStoreSlug(routeSlug);const path=(s="")=>buildStorePath(slug,s);const active=products.filter(p=>p.is_active),images=active.map(toyImage).filter(Boolean) as string[],about=tenant.about_text||"Uma loja feita para transformar presentes e brincadeiras em momentos especiais para toda a família.";return <main className="min-h-screen bg-[#f7f3ff] pb-16 text-[#43306f]"><StoreSEO title={`A loja | ${tenant.name}`} description={about} image={tenant.banner_url||tenant.logo_url} url={typeof window!=="undefined"?window.location.href:""} siteName={tenant.name}/><section className="bg-[#ffcc32] px-5 py-16"><div className="mx-auto max-w-6xl"><p className="text-[10px] font-black uppercase tracking-[.22em]">Sobre a loja</p><h1 className="mt-4 text-5xl font-black tracking-[-.07em]">Aqui a diversão<br/>tem endereço.</h1></div></section><div className="mx-auto max-w-6xl px-5 py-14"><section className="grid gap-10 lg:grid-cols-[1fr_.9fr]"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#7148d5]">Nossa brincadeira</p><p className="mt-5 whitespace-pre-line text-lg leading-8 text-[#786c9f]">{about}</p><div className="mt-8 flex gap-3"><Link to={path("/catalogo")} className="inline-flex h-11 items-center gap-2 rounded-full bg-[#7148d5] px-5 text-[10px] font-black uppercase text-white">Ver brinquedos <ArrowRight size={14}/></Link>{tenant.whatsapp&&<a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-full border border-[#d2c8f2] px-5 text-[10px] font-black uppercase"><MessageCircle size={14}/> WhatsApp</a>}</div></div><div className="grid grid-cols-2 gap-3 rounded-[2rem] bg-[#e3dcff] p-3">{images.slice(0,2).map((img,i)=><img key={img} src={img} alt="Brinquedos da loja" className={`h-full min-h-56 w-full rounded-[1.3rem] bg-white object-contain p-4 ${i?"mt-9":"mb-9"}`}/>)||<div className="col-span-2 grid place-items-center text-center text-[#7148d5]"><Puzzle size={40}/><p className="mt-3 text-sm font-bold">As fotos dos brinquedos aparecem aqui.</p></div>}</div></section><section className="mt-10 grid gap-3 sm:grid-cols-3"><div className="rounded-[1.5rem] bg-white p-6 shadow-sm"><p className="text-4xl font-black text-[#7148d5]">{active.length}</p><p className="mt-1 text-[10px] font-black uppercase text-[#8478aa]">Brinquedos</p></div><div className="rounded-[1.5rem] bg-white p-6 shadow-sm"><p className="text-4xl font-black text-[#7148d5]">{categories.length}</p><p className="mt-1 text-[10px] font-black uppercase text-[#8478aa]">Categorias</p></div><div className="rounded-[1.5rem] bg-white p-6 shadow-sm">{tenant.address?<><MapPin size={20} className="text-[#7148d5]"/><p className="mt-3 text-sm font-bold">{tenant.address}</p></>:<><Gift size={20} className="text-[#7148d5]"/><p className="mt-3 text-sm font-bold">Presentes e pedidos online</p></>}</div></section></div></main>}
+import { hoursLines, productImage, useKit, whatsappLink } from "./kit";
+import { Shapes } from "./parts";
+import "./styles.css";
+
+export default function StoreAbout() {
+  const { tenant, active, categories, path, sf } = useKit();
+  const hours = hoursLines(tenant.business_hours);
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
+  const about = tenant.about_text || `${tenant.name} reúne brinquedos escolhidos com carinho para dar asas à imaginação.`;
+  const photo = tenant.banner_url || productImage(active.find((p) => p.is_featured) || active[0]);
+  const policies = tenant.policies;
+  const stats = [
+    { n: active.length, label: "brinquedos no catálogo" },
+    { n: categories.length, label: "categorias para explorar" },
+  ];
+  return (
+    <div className="toys-page toys-about">
+      <StoreSEO
+        title={`${sf.about_title || "Nossa loja"} | ${tenant.name}`}
+        description={about}
+        image={tenant.banner_url || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+      <header className="toys-about-hero">
+        <Shapes />
+        <div className="toys-about-copy">
+          <span className="toys-pill">
+            <Puzzle size={15} /> Quem somos
+          </span>
+          <h1>{sf.about_title || `Bem-vindo à ${tenant.name}!`}</h1>
+          <p>{about}</p>
+          <div className="toys-actions">
+            <Link className="toys-btn toys-btn-yellow toys-btn-lg" to={path("/catalogo")}>
+              Ver os brinquedos <ArrowRight size={19} />
+            </Link>
+            {wa && (
+              <a className="toys-btn toys-btn-white toys-btn-lg" href={wa} target="_blank" rel="noreferrer">
+                <MessageCircle size={19} /> Falar com a loja
+              </a>
+            )}
+          </div>
+        </div>
+        <div className="toys-about-art">
+          <div className="toys-polaroid toys-polaroid-tilt">
+            <div className="toys-polaroid-img">{photo ? <img src={photo} alt={tenant.name} /> : <Puzzle size={80} aria-label="Sem imagem" />}</div>
+            <span className="toys-polaroid-cap">{tenant.name}</span>
+          </div>
+        </div>
+      </header>
+
+      <section className="toys-section">
+        <div className="toys-stats">
+          {stats.map((s, i) => (
+            <div key={s.label} className={`toys-stat toys-tint-${i}`}>
+              <strong>{s.n}</strong>
+              <span>{s.label}</span>
+            </div>
+          ))}
+          <div className="toys-stat toys-tint-2">
+            <strong>
+              <Gift size={34} aria-hidden="true" />
+            </strong>
+            <span>presentes para toda ocasião</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="toys-section toys-info">
+        {(tenant.show_address && tenant.address) || hours.length > 0 || wa ? (
+          <article className="toys-info-card toys-tint-1">
+            <h2>Venha nos visitar</h2>
+            {tenant.show_address && tenant.address && (
+              <p>
+                <MapPin size={18} aria-hidden="true" /> {tenant.address}
+              </p>
+            )}
+            {wa && (
+              <p>
+                <MessageCircle size={18} aria-hidden="true" />
+                <a href={wa} target="_blank" rel="noreferrer">
+                  {tenant.whatsapp}
+                </a>
+              </p>
+            )}
+            {hours.length > 0 && (
+              <dl className="toys-hours toys-hours-dark">
+                <dt className="toys-hours-title">
+                  <Clock size={16} aria-hidden="true" /> Horários
+                </dt>
+                {hours.map((h) => (
+                  <div key={h.day}>
+                    <dt>{h.day}</dt>
+                    <dd>{h.text}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </article>
+        ) : null}
+        {policies?.shipping && (
+          <article className="toys-info-card toys-tint-2">
+            <h2>
+              <Truck size={22} aria-hidden="true" /> Entrega
+            </h2>
+            <p className="toys-pre">{policies.shipping}</p>
+          </article>
+        )}
+        {policies?.returns && (
+          <article className="toys-info-card toys-tint-3">
+            <h2>Trocas e devoluções</h2>
+            <p className="toys-pre">{policies.returns}</p>
+          </article>
+        )}
+        {policies?.exchange && (
+          <article className="toys-info-card toys-tint-0">
+            <h2>Trocas</h2>
+            <p className="toys-pre">{policies.exchange}</p>
+          </article>
+        )}
+      </section>
+    </div>
+  );
+}

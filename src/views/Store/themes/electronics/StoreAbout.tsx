@@ -1,203 +1,60 @@
-import { Link, useParams } from "react-router-dom";
-import { MapPin, Phone, Instagram, Facebook, ArrowRight, Package } from "lucide-react";
-import { cn } from "../../../../lib/utils";
-import { useStore } from "../../StoreLayout";
+import { Link } from "react-router-dom";
+import { Clock, Facebook, Instagram, MapPin, MessageCircle, RefreshCcw, ShieldCheck, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { hoursList, useKit, whatsappLink } from "./kit";
+import "./styles.css";
 
 export default function StoreAbout() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, products, style } = useStore();
-  const slug = resolveStoreSlug(routeSlug);
-
+  const { tenant, active, categories, path, sf } = useKit();
+  const wa = whatsappLink(tenant);
+  const hours = hoursList(tenant);
+  const pol = tenant.policies;
+  const cards = [
+    { icon: ShieldCheck, t: "Garantia", v: pol?.warranty_days ? `${pol.warranty_days} dias de garantia${pol.warranty_resolution_days ? `, com resolução em até ${pol.warranty_resolution_days} dias` : ""}.` : "" },
+    { icon: Truck, t: "Entrega", v: pol?.shipping || "" },
+    { icon: RefreshCcw, t: "Trocas e devoluções", v: [pol?.returns, pol?.exchange].filter(Boolean).join(" ") },
+  ].filter((c) => c.v);
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 space-y-12">
-      <StoreSEO
-        title={`Sobre — ${tenant.name}`}
-        description={tenant.about_text || `Conheça a ${tenant.name}: quem somos, onde estamos e como comprar. Atendimento via WhatsApp.`}
-        url={typeof window !== "undefined" ? window.location.href : ""}
-        siteName={tenant.name}
-        image={tenant.banner_url || tenant.logo_url}
-        keywords={`${tenant.name}, sobre, quem somos, contato, ${tenant.address || "loja online"}`}
-        jsonLd={{
-          "@context": "https://schema.org",
-          "@type": "AboutPage",
-          "name": `Sobre — ${tenant.name}`,
-          "description": tenant.about_text || `Sobre a loja ${tenant.name}`,
-          "url": typeof window !== "undefined" ? window.location.href : "",
-          "mainEntity": {
-            "@type": "Store",
-            "name": tenant.name,
-            "telephone": tenant.whatsapp ? `+${tenant.whatsapp.replace(/\D/g, "")}` : undefined,
-            "address": tenant.address ? { "@type": "PostalAddress", "streetAddress": tenant.address } : undefined,
-          },
-        }}
-      />
-
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-[10px] font-bold uppercase text-slate-500 tracking-wider">
-        <Link to={buildStorePath(slug)} className="hover:text-blue-400 transition-colors">Início</Link>
-        <span>/</span>
-        <span className="text-slate-300">Sobre</span>
-      </nav>
-
-      {/* Hero */}
-      <div className="grid md:grid-cols-2 gap-12 items-center">
-        <div>
-          <p style={{ color: style.accent }} className="text-[11px] font-black uppercase tracking-[0.4em] mb-3">
-            Quem somos
-          </p>
-          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tighter leading-none text-white mb-6">
-            {tenant.name}
-          </h1>
-          <p className="text-slate-400 leading-relaxed text-sm font-medium">
-            {tenant.about_text || "Nossa loja oferece produtos selecionados com qualidade e dedicação. Priorizamos a satisfação de cada cliente, garantindo uma experiência de compra segura, ágil e prazerosa."}
-          </p>
-          <div className="flex flex-wrap gap-3 mt-8">
-            <Link
-              to={buildStorePath(slug, "/catalogo")}
-              style={{ backgroundColor: style.accent }}
-              className="flex items-center gap-2 px-6 h-11 rounded-2xl text-white text-xs font-black uppercase tracking-widest shadow-lg hover:opacity-90 transition-all"
-            >
-              Ver produtos <ArrowRight size={13} />
-            </Link>
-            {tenant.whatsapp && (
-              <a
-                href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-6 h-11 rounded-2xl border border-[#1e2d4a] text-slate-300 text-xs font-black uppercase tracking-widest hover:bg-[#0e1525] transition-all"
-              >
-                Falar conosco
-              </a>
-            )}
-          </div>
+    <div className="elx-page">
+      <StoreSEO title={`Sobre — ${tenant.name}`} description={tenant.about_text || `Conheça a ${tenant.name}.`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+      <section className="elx-about-hero" style={tenant.banner_url ? { backgroundImage: `url(${tenant.banner_url})` } : undefined}>
+        <div className="elx-wrap">
+          <span className="elx-tag">Quem somos</span>
+          <h1>{sf.about_title || `Sobre a ${tenant.name}`}</h1>
+          <ul className="elx-about-stats">
+            <li><strong>{active.length}</strong><span>produtos</span></li>
+            <li><strong>{categories.length}</strong><span>departamentos</span></li>
+            {wa && <li><strong>WhatsApp</strong><span>atendimento direto</span></li>}
+          </ul>
         </div>
-
-        <div className={cn("aspect-square bg-[#080c14] relative overflow-hidden border border-[#1e2d4a]", style.radius)}>
-          {tenant.banner_url ? (
-            <img src={tenant.banner_url} className="w-full h-full object-cover opacity-80" alt="Sobre" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <span className="text-white/5 font-black text-[120px] uppercase tracking-tighter select-none">
-                {tenant.name.charAt(0)}
-              </span>
-            </div>
+      </section>
+      <div className="elx-wrap elx-about-grid">
+        <article className="elx-panel">
+          <h2>Nossa loja</h2>
+          <p className="elx-about-text">{tenant.about_text || `${tenant.name} reúne tecnologia selecionada, atendimento próximo e compra simples.`}</p>
+          <Link to={path("/catalogo")} className="elx-btn elx-btn-inline">Ver produtos</Link>
+        </article>
+        <aside className="elx-panel">
+          <h2>Contato</h2>
+          {wa && <a href={wa} target="_blank" rel="noreferrer" className="elx-line"><MessageCircle size={17} /> {tenant.whatsapp}</a>}
+          {tenant.show_address && tenant.address && <p className="elx-line"><MapPin size={17} /> {tenant.address}</p>}
+          {tenant.instagram_url && <a href={tenant.instagram_url} target="_blank" rel="noreferrer" className="elx-line"><Instagram size={17} /> Instagram</a>}
+          {tenant.facebook_url && <a href={tenant.facebook_url} target="_blank" rel="noreferrer" className="elx-line"><Facebook size={17} /> Facebook</a>}
+          {hours.length > 0 && (
+            <>
+              <h3><Clock size={15} /> Horário de atendimento</h3>
+              <ul className="elx-hours-list">{hours.map((h) => <li key={h.day}><span>{h.day}</span><b>{h.text}</b></li>)}</ul>
+            </>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent" />
-          <div className="absolute bottom-6 left-6">
-            <p className="text-white font-black text-2xl uppercase tracking-tighter">{tenant.name}</p>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className="w-2 h-2 bg-emerald-400 rounded-full" />
-              <span className="text-[11px] font-bold uppercase tracking-wider text-white/60">Loja ativa</span>
-            </div>
-          </div>
-        </div>
+        </aside>
       </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { value: products.filter(p => p.is_active).length, label: "Produtos ativos" },
-          { value: products.filter(p => p.is_featured).length, label: "Destaques" },
-          { value: products.filter(p => p.discount_price).length, label: "Em promoção" },
-          { value: "100%", label: "Atendimento via WA" },
-        ].map((s, i) => (
-          <div key={i} className={cn("p-5 border text-center", style.card, style.radius)}>
-            <p className="text-3xl font-black" style={{ color: style.accent }}>{s.value}</p>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Contact & Info */}
-      <div className="grid md:grid-cols-2 gap-8">
-        <div className={cn("p-6 border space-y-5", style.card, style.radius)}>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Contato & Localização</p>
-
-          {tenant.whatsapp && (
-            <a
-              href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-4 group"
-            >
-              <div className="w-11 h-11 bg-[#25D366] rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
-                <Phone size={18} className="text-white" />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">WhatsApp</p>
-                <p className="text-sm font-black text-slate-800 font-mono group-hover:text-emerald-600 transition-colors">
-                  +{tenant.whatsapp}
-                </p>
-              </div>
-            </a>
-          )}
-
-          {tenant.address && (
-            <div className="flex items-start gap-4">
-              <div className="w-11 h-11 bg-slate-100 rounded-2xl flex items-center justify-center shrink-0">
-                <MapPin size={18} className="text-slate-500" />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Endereço</p>
-                <p className="text-sm font-medium text-slate-700 leading-snug">{tenant.address}</p>
-              </div>
-            </div>
-          )}
-
-          {(tenant.instagram_url || tenant.facebook_url) && (
-            <div className="flex items-center gap-3 pt-2 border-t border-[#1e2d4a]">
-              {tenant.instagram_url && (
-                <a
-                  href={`https://instagram.com/${tenant.instagram_url.replace("@", "")}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center text-white hover:scale-105 transition-transform shadow-sm"
-                >
-                  <Instagram size={16} />
-                </a>
-              )}
-              {tenant.facebook_url && (
-                <a
-                  href={`https://facebook.com/${tenant.facebook_url}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white hover:scale-105 transition-transform shadow-sm"
-                >
-                  <Facebook size={16} />
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className={cn("p-6 border space-y-4 flex flex-col", style.card, style.radius)}>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Por que comprar conosco?</p>
-          {[
-            "Produtos com qualidade verificada",
-            "Atendimento rápido via WhatsApp",
-            "Pedido confirmado antes do pagamento",
-            "Trocas e devoluções em até 7 dias",
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <div style={{ backgroundColor: style.accent + "20" }} className="w-7 h-7 rounded-full flex items-center justify-center shrink-0">
-                <span style={{ color: style.accent }} className="text-[10px] font-black">✓</span>
-              </div>
-              <p className="text-sm font-medium text-slate-700">{item}</p>
-            </div>
-          ))}
-          <div className="mt-auto pt-4">
-            <Link
-              to={buildStorePath(slug, "/catalogo")}
-              style={{ backgroundColor: style.accent }}
-              className="w-full h-10 flex items-center justify-center gap-2 text-white text-[11px] font-black uppercase tracking-widest rounded-xl transition-all hover:opacity-90"
-            >
-              <Package size={14} /> Explorar catálogo
-            </Link>
+      {cards.length > 0 && (
+        <div className="elx-wrap">
+          <div className="elx-pol-grid">
+            {cards.map(({ icon: Icon, t, v }) => <section key={t} className="elx-pol"><Icon size={26} strokeWidth={1.6} /><h3>{t}</h3><p>{v}</p></section>)}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,151 @@
-import { Link,useParams } from "react-router-dom";
-import { ArrowRight,Gift,MessageCircle,Puzzle,ShoppingBag,Star } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Gift, MessageCircle, Puzzle, ShoppingBag, Sparkles, Star } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath,resolveStoreSlug } from "../../store-routing";
-import { ToyCard,toyHide,toyImage } from "./ThemeParts";
-export default function StoreFront(){const {slug:routeSlug}=useParams();const {tenant,products,categories,addToCart,wishlist,toggleWishlist}=useStore();const slug=resolveStoreSlug(routeSlug);const path=(suffix="")=>buildStorePath(slug,suffix);const active=products.filter((p)=>p.is_active),featured=(active.filter((p)=>p.is_featured).length?active.filter((p)=>p.is_featured):active).slice(0,4),shown=categories.filter((c)=>active.some((p)=>p.category_id===c.id)).slice(0,6),hero=tenant.banner_url||toyImage(featured[0]);return <main className="min-h-screen overflow-hidden bg-[#f7f3ff] text-[#43306f]"><StoreSEO title={`${tenant.name} | Brinquedos`} description={tenant.about_text||`Brinquedos, presentes e diversão na ${tenant.name}.`} image={hero} url={typeof window!=="undefined"?window.location.href:""} siteName={tenant.name}/><section className="bg-[#ffcc32] px-5 py-2 text-center text-[9px] font-black uppercase tracking-[.22em] text-[#503773]">Diversão, imaginação e presentes especiais</section><section className="px-4 pt-4 sm:px-6"><div className="relative isolate overflow-hidden rounded-[2.5rem] bg-[#7148d5] px-6 py-14 md:min-h-[510px] md:px-14"><div className="absolute inset-0 opacity-45" style={hero?{backgroundImage:`linear-gradient(90deg,rgba(82,48,164,.88),rgba(82,48,164,.18)),url(${hero})`,backgroundSize:"cover",backgroundPosition:"center"}:{background:"radial-gradient(circle at 83% 25%,#ffcc32 0,transparent 20%),radial-gradient(circle at 65% 75%,#ef6b92 0,transparent 18%)"}}/><div className="absolute -right-10 top-12 text-[#ffcc32]/30"><Star size={190} fill="currentColor"/></div><div className="relative z-10 max-w-xl text-white"><p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.25em] text-[#ffdc65]"><Star size={14} fill="currentColor"/> {tenant.name}</p><h1 className="mt-6 text-5xl font-black leading-[.87] tracking-[-.07em] sm:text-6xl">{tenant.hero_tagline||"Um mundo inteiro para brincar."}</h1><p className="mt-6 max-w-md text-sm leading-relaxed text-[#f0eaff]">{tenant.about_text||"Brinquedos e presentes que fazem cada momento ficar ainda mais divertido."}</p><div className="mt-8 flex flex-wrap gap-3"><Link to={path("/catalogo")} className="inline-flex h-12 items-center gap-2 rounded-full bg-[#ffcc32] px-5 text-[10px] font-black uppercase tracking-wider text-[#503773]"><ShoppingBag size={15}/> Ver brinquedos <ArrowRight size={15}/></Link>{tenant.whatsapp&&<a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noreferrer" className="inline-flex h-12 items-center gap-2 rounded-full border border-white/35 px-5 text-[10px] font-black uppercase tracking-wider"><MessageCircle size={15}/> Falar com a loja</a>}</div></div></div></section><section className="mx-auto max-w-7xl px-5 py-14"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#7148d5]">Escolha a diversão</p><h2 className="mt-2 text-3xl font-black tracking-[-.05em]">Por onde a brincadeira começa?</h2></div><div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{shown.map((c,i)=>{const sample=active.find((p)=>p.category_id===c.id),image=sample&&toyImage(sample),colors=["bg-[#e3dcff]","bg-[#d7f5f1]","bg-[#ffe4a0]","bg-[#ffdbe5]","bg-[#dcf1c9]","bg-[#dceaff]"];return <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className={`group relative min-h-36 overflow-hidden rounded-[1.6rem] p-5 ${colors[i%colors.length]}`}>{image&&<img src={image} alt="" className="absolute right-2 top-0 h-full w-1/2 object-contain transition group-hover:scale-110"/>}<div className="relative z-10 flex h-full flex-col justify-between"><Puzzle size={21} className="text-[#7148d5]"/><strong className="max-w-[10rem] text-lg leading-tight">{c.name}</strong></div></Link>})}</div></section><section className="bg-white py-14"><div className="mx-auto max-w-7xl px-5"><div className="flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#f0547b]">Mais legais</p><h2 className="mt-2 text-3xl font-black tracking-[-.05em]">Favoritos da brincadeira.</h2></div><Link to={path("/catalogo")} className="text-[10px] font-black uppercase text-[#7148d5]">Ver todos</Link></div><div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{featured.map((p)=><ToyCard key={p.id} product={p} path={path} category={categories.find((c)=>c.id===p.category_id)?.name} saved={wishlist.includes(p.id)} onFavorite={()=>toggleWishlist(p.id)} onAdd={()=>addToCart(p)} hidePrices={toyHide(tenant)}/>)}</div></div></section><section className="mx-auto grid max-w-7xl gap-3 px-5 py-14 sm:grid-cols-3">{[[Gift,"Presente sem erro","Escolha e envie seu pedido online."],[Puzzle,"Muita diversão","Um catálogo para todas as idades."],[MessageCircle,"Ajuda de verdade","Nossa equipe está no WhatsApp."]].map(([Icon,title,text]:any)=><div key={title} className="rounded-[1.6rem] bg-[#e3dcff] p-6"><Icon size={22} className="text-[#7148d5]"/><p className="mt-4 font-black">{title}</p><p className="mt-1 text-sm text-[#766b9d]">{text}</p></div>)}</section></main>}
+import { productRouteSegment } from "../../store-routing";
+import { productImage, useKit, whatsappLink } from "./kit";
+import { ProductCard, Shapes } from "./parts";
+import "./styles.css";
+
+export default function StoreFront() {
+  const { tenant, categories, active, path, sf } = useKit();
+  const featured = [...active.filter((p) => p.is_featured), ...active.filter((p) => !p.is_featured)].slice(0, tenant.featured_limit || 8);
+  const hero = active.find((p) => p.is_featured) || active[0];
+  const heroImage = tenant.banner_url || productImage(hero);
+  const cats = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 8);
+  const title = tenant.hero_tagline || "Brincar é a coisa mais séria do mundo!";
+  const about = tenant.about_text || "Brinquedos escolhidos com carinho para imaginar, montar, descobrir e se divertir.";
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
+  const steps = [
+    { icon: Puzzle, title: "Escolha", text: "Passeie pelas categorias e encontre o brinquedo ideal." },
+    { icon: ShoppingBag, title: "Monte o pedido", text: "Selecione as opções, adicione à sacola e revise tudo." },
+    { icon: Gift, title: "Combine a entrega", text: "Finalize e acerte entrega e pagamento com a loja." },
+  ];
+
+  return (
+    <div className="toys-page toys-home">
+      <StoreSEO
+        title={`${tenant.name} | Brinquedos`}
+        description={about}
+        image={heroImage || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+
+      <section className="toys-hero">
+        <Shapes />
+        <div className="toys-hero-copy">
+          <span className="toys-pill">
+            <Sparkles size={15} /> {sf.segment_label || "Mundo dos brinquedos"}
+          </span>
+          <h1>{title}</h1>
+          <p>{about}</p>
+          <div className="toys-actions">
+            <Link className="toys-btn toys-btn-yellow toys-btn-lg" to={path("/catalogo")}>
+              {sf.hero_button_label || "Ver os brinquedos"} <ArrowRight size={19} />
+            </Link>
+            {wa && (
+              <a className="toys-btn toys-btn-white toys-btn-lg" href={wa} target="_blank" rel="noreferrer">
+                <MessageCircle size={19} /> Falar com a loja
+              </a>
+            )}
+          </div>
+        </div>
+        <div className="toys-hero-art">
+          <div className="toys-polaroid">
+            <div className="toys-polaroid-img">{heroImage ? <img src={heroImage} alt={hero?.name || tenant.name} /> : <Puzzle size={84} aria-label="Sem imagem" />}</div>
+            {hero && (
+              <Link className="toys-polaroid-cap" to={path(`/produto/${productRouteSegment(hero)}`)}>
+                {hero.name}
+              </Link>
+            )}
+          </div>
+          <span className="toys-burst" aria-hidden="true">
+            <Star size={26} fill="currentColor" />
+          </span>
+        </div>
+      </section>
+
+      {cats.length > 0 && (
+        <section className="toys-section">
+          <header className="toys-head">
+            <span className="toys-pill toys-pill-pink">Categorias</span>
+            <h2>{sf.home_categories_title || "Qual é a brincadeira de hoje?"}</h2>
+          </header>
+          <div className="toys-tiles">
+            {cats.map((c, i) => {
+              const sample = active.find((p) => p.category_id === c.id);
+              const img = c.cover_url || productImage(sample);
+              return (
+                <Link key={c.id} className={`toys-tile toys-tint-${i % 4}`} to={path(`/catalogo?categoria=${c.id}`)}>
+                  <span className="toys-tile-img">{img ? <img src={img} alt="" loading="lazy" /> : <Puzzle size={36} aria-hidden="true" />}</span>
+                  <strong>{c.name}</strong>
+                  <span className="toys-tile-go" aria-hidden="true">
+                    <ArrowRight size={16} />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="toys-section">
+        <header className="toys-head toys-head-row">
+          <div>
+            <span className="toys-pill toys-pill-mint">Destaques</span>
+            <h2>{sf.home_featured_title || "Os queridinhos da turma"}</h2>
+          </div>
+          <Link className="toys-btn toys-btn-line" to={path("/catalogo")}>
+            Ver todos <ArrowRight size={17} />
+          </Link>
+        </header>
+        {featured.length ? (
+          <div className="toys-grid">
+            {featured.map((p, i) => (
+              <ProductCard key={p.id} product={p} index={i} />
+            ))}
+          </div>
+        ) : (
+          <p className="toys-note">Os brinquedos estão sendo preparados. Volte em breve!</p>
+        )}
+      </section>
+
+      <section className="toys-section toys-steps-wrap">
+        <header className="toys-head">
+          <span className="toys-pill toys-pill-sky">Como funciona</span>
+          <h2>É só chegar e brincar</h2>
+        </header>
+        <ol className="toys-steps">
+          {steps.map(({ icon: Icon, title: t, text }, i) => (
+            <li key={t} className={`toys-step toys-tint-${i % 4}`}>
+              <span className="toys-step-n">{i + 1}</span>
+              <Icon size={30} aria-hidden="true" />
+              <h3>{t}</h3>
+              <p>{text}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="toys-cta">
+        <Shapes />
+        <h2>Ficou com dúvida? A gente ajuda!</h2>
+        <p>Converse com a loja e encontre o presente certo.</p>
+        <div className="toys-actions toys-actions-center">
+          {wa ? (
+            <a className="toys-btn toys-btn-yellow toys-btn-lg" href={wa} target="_blank" rel="noreferrer">
+              <MessageCircle size={19} /> Chamar no WhatsApp
+            </a>
+          ) : (
+            <Link className="toys-btn toys-btn-yellow toys-btn-lg" to={path("/catalogo")}>
+              Ver o catálogo <ArrowRight size={19} />
+            </Link>
+          )}
+          <Link className="toys-btn toys-btn-white toys-btn-lg" to={path("/sobre")}>
+            Conheça a loja
+          </Link>
+        </div>
+      </section>
+    </div>
+  );
+}

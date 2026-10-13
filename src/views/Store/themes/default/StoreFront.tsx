@@ -1,571 +1,102 @@
-import React from "react";
-import { Link, useParams } from "react-router-dom";
-import { motion } from "motion/react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Headphones, ShieldCheck, Store, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import {
-  ArrowRight, Package, ShoppingBag, Star,
-  Zap, TrendingUp, ChevronRight, Tag, Leaf, Sun, Heart,
-} from "lucide-react";
-import { cn } from "../../../../lib/utils";
-import { useStore, StoreStyle } from "../../StoreLayout";
-import { Product } from "../../../../types";
-import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
-import { productHasStock } from "../../../../utils/productStock";
-
-// ── Decorative helpers ────────────────────────────────────────────────────────
-
-function DotTexture({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn("absolute inset-0 pointer-events-none", className)}
-      style={{
-        backgroundImage: "radial-gradient(circle, #d9770618 1px, transparent 1px)",
-        backgroundSize: "24px 24px",
-      }}
-    />
-  );
-}
-
-function BlobDecor() {
-  return (
-    <>
-      <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-amber-100/40 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-10 -left-10 w-48 h-48 rounded-full bg-orange-100/30 blur-3xl pointer-events-none" />
-    </>
-  );
-}
-
-function LeafSVG({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 60 60" className={cn("w-12 h-12 text-amber-300/60", className)} fill="currentColor">
-      <path d="M30 5 C10 15 5 35 30 55 C55 35 50 15 30 5Z" />
-    </svg>
-  );
-}
-
-// ── Section Header ────────────────────────────────────────────────────────────
-
-function SectionHeader({ title, icon, link, linkLabel, accent }: {
-  title: string; icon?: React.ReactNode; link: string; linkLabel?: string; accent: string;
-}) {
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-8">
-      <div className="flex items-center gap-3">
-        <div className="w-1 h-6 rounded-full" style={{ backgroundColor: accent }} />
-        {icon && <span style={{ color: accent }}>{icon}</span>}
-        <h2 className="text-xl font-serif font-bold tracking-tight text-stone-800">{title}</h2>
-      </div>
-      <Link
-        to={link}
-        className="flex items-center gap-1 transition-colors text-[10px] font-semibold uppercase tracking-wider text-amber-600 hover:text-amber-800"
-      >
-        {linkLabel || "Ver todos"} <ChevronRight size={12} />
-      </Link>
-    </div>
-  );
-}
-
-// ── Product Card ──────────────────────────────────────────────────────────────
-
-function ProductCard({ product, index, slug, style, onAddToCart }: {
-  product: Product;
-  index: number;
-  slug: string;
-  style: StoreStyle;
-  onAddToCart: (product: Product) => void;
-  key?: React.Key;
-}) {
-  const img = (Array.isArray(product.images) && (product.images as string[])[0]) || product.image_url || null;
-  const hasDiscount = !!product.discount_price;
-  const pct = hasDiscount ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100) : 0;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05, duration: 0.4 }}
-      whileHover={{ y: -4 }}
-    >
-      <Link
-        to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
-        className={cn(
-          "group flex flex-col border overflow-hidden transition-all duration-300 rounded-2xl",
-          "bg-[#fffbf5] border-[#f0e6d3]",
-          "hover:shadow-[0_8px_32px_rgba(217,119,6,0.15)] hover:border-amber-200"
-        )}
-      >
-        <div className="overflow-hidden relative aspect-square bg-amber-50/60">
-          {img
-            ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-            : <div className="w-full h-full flex items-center justify-center text-amber-200"><Package size={36} strokeWidth={1} /></div>}
-          {hasDiscount && (
-            <span className="absolute top-2 right-2 text-white text-[9px] font-bold px-2 py-0.5 shadow rounded-full bg-terracotta-500"
-              style={{ backgroundColor: "#c2713a" }}>
-              -{pct}%
-            </span>
-          )}
-          {product.is_featured && (
-            <span
-              className="absolute top-2 left-2 text-[8px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: "#d9770620", color: "#d97706", border: "1px solid #d9770640" }}
-            >
-              <Star size={7} className="inline -mt-0.5 mr-0.5" fill="currentColor" />Top
-            </span>
-          )}
-        </div>
-        <div className="flex flex-col p-4 gap-1">
-          <p className="text-[10px] text-amber-600/70 uppercase tracking-widest font-semibold">{product.category_name || "Geral"}</p>
-          <p className="text-[13px] font-semibold text-stone-700 leading-snug line-clamp-2 group-hover:text-stone-900 transition-colors">{product.name}</p>
-          <div className="flex items-center justify-between mt-2">
-            {hasDiscount ? (
-              <div>
-                <span className="text-[9px] line-through text-stone-400 font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <p className="text-sm font-bold font-mono leading-tight" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</p>
-              </div>
-            ) : (
-              <p className="text-sm font-bold font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</p>
-            )}
-            <button
-              onClick={e => { e.preventDefault(); onAddToCart(product); }}
-              style={{ backgroundColor: style.accent }}
-              className="shrink-0 text-white transition-all active:scale-90 w-8 h-8 flex items-center justify-center shadow-sm hover:shadow-[0_4px_12px_rgba(217,119,6,0.35)] rounded-xl"
-            >
-              <span className="text-base font-bold leading-none">+</span>
-            </button>
-          </div>
-        </div>
-      </Link>
-    </motion.div>
-  );
-}
-
-// ── Main Component ────────────────────────────────────────────────────────────
+import { Card } from "./parts";
+import { whatsappLink, useKit } from "./kit";
+import "./styles.css";
 
 export default function StoreFront() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, categories, products, addToCart, style, templateId } = useStore();
-  const slug = resolveStoreSlug(routeSlug);
-  const storePath = (suffix = "") => buildStorePath(slug, suffix);
-  const isDoceria = templateId === "doceria";
-  const isMadeToOrder = tenant.policies?.storefront?.checkout_mode === "order_request";
-  const defaultTagline = isDoceria
-    ? "Doces feitos com carinho para celebrar os pequenos e grandes momentos."
-    : "Produtos naturais e artesanais selecionados com cuidado para você.";
-
-  const featuredLimit = tenant.featured_limit ?? 4;
-  const bestsellerLimit = tenant.bestseller_limit ?? 8;
-  const CATEGORY_DISPLAY_LIMIT = 6;
-
-  const allActive = products.filter(p => p.is_active && (isMadeToOrder || productHasStock(p)));
-  const featured = allActive.filter(p => p.is_featured).slice(0, featuredLimit);
-  const onSale = allActive.filter(p => p.discount_price);
-
-  const bestSellers = [
-    ...allActive.filter(p => p.is_featured),
-    ...allActive.filter(p => !p.is_featured).sort((a, b) => b.stock_quantity - a.stock_quantity),
-  ]
-    .filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i)
-    .slice(0, bestsellerLimit);
-
-  const getImg = (p: Product | undefined) =>
-    p ? ((Array.isArray(p.images) && (p.images as string[])[0]) || p.image_url || null) : null;
+  const { tenant, categories, active, path, sf } = useKit();
+  const wa = whatsappLink(tenant);
+  const featured = active.filter((p) => p.is_featured);
+  const limit = tenant.featured_limit && tenant.featured_limit > 0 ? Math.min(tenant.featured_limit, 8) : 8;
+  const best = (featured.length ? featured : active).slice(0, limit);
+  const bestIds = new Set(best.map((p) => p.id));
+  const newest = [...active].sort((a, b) => b.id - a.id);
+  const launches = [...newest.filter((p) => !bestIds.has(p.id)), ...newest.filter((p) => bestIds.has(p.id))].slice(0, 4);
+  const withProducts = categories.filter((c) => active.some((p) => p.category_id === c.id));
+  const catImage = (id: number) => {
+    const p = active.find((x) => x.category_id === id && (x.images?.[0] || x.image_url));
+    return p ? p.images?.[0] || p.image_url : "";
+  };
+  const benefits = [
+    { icon: Truck, title: "Retirada ou entrega", text: "Combine a melhor forma de receber seu pedido." },
+    { icon: Headphones, title: "Atendimento humano", text: wa ? "Tire dúvidas direto pelo WhatsApp." : "Fale com a loja antes de comprar." },
+    { icon: ShieldCheck, title: "Compra segura", text: "Pedido acompanhado do carrinho ao atendimento." },
+  ];
+  const about = tenant.about_text || "";
 
   return (
-    <div className={cn("space-y-0", isDoceria ? "bg-[#fff7fb]" : "bg-[#fefaf6]")}>
-      <StoreSEO
-        title={`${tenant.name} — Loja Online`}
-        description={tenant.about_text || `Bem-vindo à ${tenant.name}. Confira nossos produtos, promoções e novidades. Atendimento via WhatsApp.`}
-        image={tenant.banner_url || tenant.logo_url}
-        url={typeof window !== "undefined" ? window.location.href : ""}
-        siteName={tenant.name}
-        keywords={`${tenant.name}, loja online, ${categories.map(c => c.name).join(", ")}, comprar, promoções`}
-        jsonLd={{
-          "@context": "https://schema.org",
-          "@type": "Store",
-          "name": tenant.name,
-          "description": tenant.about_text || `Loja online ${tenant.name}`,
-          "url": typeof window !== "undefined" ? window.location.href : "",
-          "image": tenant.logo_url || tenant.banner_url || "",
-          "telephone": tenant.whatsapp ? `+${tenant.whatsapp.replace(/\D/g, "")}` : undefined,
-          "address": tenant.address ? { "@type": "PostalAddress", "streetAddress": tenant.address } : undefined,
-          "priceRange": "$$",
-          "openingHours": "Mo-Su 00:00-23:59",
-          "sameAs": [
-            tenant.instagram_url ? `https://instagram.com/${tenant.instagram_url.replace("@", "")}` : undefined,
-            tenant.facebook_url ? `https://facebook.com/${tenant.facebook_url}` : undefined,
-          ].filter(Boolean),
-        }}
-      />
+    <div className="dfl-page">
+      <StoreSEO title={`${tenant.name} — Loja online`} description={tenant.hero_tagline || about || `Conheça os produtos da ${tenant.name}.`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
 
-      {/* ── HERO ──────────────────────────────────────────────── */}
-      {tenant.banner_url ? (
-        <div className="relative h-[50vh] md:h-[65vh] w-full overflow-hidden">
-          <img src={tenant.banner_url} className="w-full h-full object-cover" alt="Banner" />
-          <div className="absolute inset-0 bg-gradient-to-r from-stone-900/80 via-stone-900/50 to-transparent flex items-center">
-            <div className="max-w-7xl mx-auto px-8 w-full">
-              <motion.div
-                initial={{ opacity: 0, x: -24 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6 }}
-              >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] mb-3 text-amber-300">
-                  {isDoceria ? "Feito com carinho por" : "Bem-vindo à"}
-                </p>
-                <h1 className="text-3xl md:text-5xl lg:text-6xl font-serif font-bold text-white leading-[0.95] tracking-tight">
-                  {tenant.name}
-                </h1>
-                {tenant.about_text && (
-                  <p className="text-white/70 mt-4 max-w-md text-[13px] leading-relaxed font-light">{tenant.about_text}</p>
-                )}
-                <div className="flex flex-wrap gap-3 mt-8">
-                  <Link
-                    to={storePath("/catalogo")}
-                    style={{ backgroundColor: style.accent }}
-                    className="flex items-center gap-2 px-6 h-11 text-white text-[11px] font-bold uppercase tracking-widest shadow-[0_4px_20px_rgba(217,119,6,0.4)] hover:shadow-[0_6px_28px_rgba(217,119,6,0.55)] hover:opacity-90 transition-all active:scale-95 rounded-2xl"
-                  >
-                    <ShoppingBag size={14} /> Ver Catálogo
-                  </Link>
-                  {categories.length > 0 && (
-                    <a href="#categorias" className="flex items-center gap-2 px-6 h-11 border border-white/30 bg-white/10 backdrop-blur-sm text-white text-[11px] font-bold uppercase tracking-widest hover:bg-white/20 transition-all rounded-2xl">
-                      Categorias <ArrowRight size={12} />
-                    </a>
-                  )}
-                </div>
-              </motion.div>
-            </div>
+      <section className="dfl-hero" style={tenant.banner_url ? { backgroundImage: `url(${tenant.banner_url})` } : undefined}>
+        <div className="dfl-hero-shade" />
+        <div className="dfl-wrap dfl-hero-in">
+          <div className="dfl-hero-card">
+            <span className="dfl-hero-kicker">{sf.segment_label || "Bem-vindo à loja"}</span>
+            <h1>{tenant.hero_tagline || tenant.name}</h1>
+            <p>{about ? about.slice(0, 140) + (about.length > 140 ? "…" : "") : "Confira nossos produtos e monte seu pedido com praticidade."}</p>
+            <Link to={path("/catalogo")} className="dfl-btn dfl-btn-inline">{sf.hero_button_label || "Ver produtos"} <ArrowRight size={16} /></Link>
           </div>
-        </div>
-      ) : (
-        <div
-          className="relative overflow-hidden"
-          style={{
-            background: "linear-gradient(135deg, #fefaf6 0%, #fdf7ef 60%, #fef9f0 100%)",
-            minHeight: "56vh",
-          }}
-        >
-          <DotTexture />
-          <BlobDecor />
-
-          <div className="relative max-w-7xl mx-auto px-8 py-24 md:py-36">
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              <div className="flex items-center gap-3 mb-5">
-                <LeafSVG />
-                <div className="h-px w-12 bg-amber-300/60" />
-                <p className="text-[10px] font-semibold uppercase tracking-[0.35em] text-amber-600">
-                  Bem-vindo à nossa loja
-                </p>
-              </div>
-
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-serif font-bold text-stone-800 leading-[0.92] tracking-tight max-w-2xl">
-                {tenant.name}
-              </h1>
-
-              <p className="text-stone-500 mt-6 max-w-lg text-sm font-normal leading-relaxed">
-                {tenant.hero_tagline || defaultTagline}
-              </p>
-
-              <div className="flex flex-wrap gap-3 mt-10">
-                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-                  <Link
-                    to={storePath("/catalogo")}
-                    style={{ backgroundColor: style.accent }}
-                    className="inline-flex items-center gap-2 px-7 h-11 text-white text-[11px] font-bold uppercase tracking-widest shadow-[0_4px_20px_rgba(217,119,6,0.35)] hover:shadow-[0_6px_28px_rgba(217,119,6,0.5)] transition-all rounded-2xl"
-                  >
-                    <ShoppingBag size={14} /> {isDoceria ? "Ver delícias" : "Explorar Catálogo"} <ArrowRight size={12} />
-                  </Link>
-                </motion.div>
-                {onSale.length > 0 && (
-                  <Link
-                    to={storePath("/catalogo")}
-                    className="inline-flex items-center gap-2 px-7 h-11 border border-amber-200 bg-white/80 text-stone-700 text-[11px] font-bold uppercase tracking-widest hover:border-amber-300 hover:bg-white hover:shadow transition-all rounded-2xl"
-                  >
-                    <Zap size={12} style={{ color: style.accent }} />
-                    {onSale.length} {onSale.length === 1 ? "Oferta especial" : isDoceria ? "Ofertas doces" : "Promoções"}
-                  </Link>
-                )}
-              </div>
-
-              {/* Category pills */}
-              {categories.length > 0 && (
-                <motion.div
-                  className="flex flex-wrap gap-2 mt-10"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35, duration: 0.5 }}
-                >
-                  {categories.slice(0, 5).map((cat, i) => (
-                    <motion.div
-                      key={cat.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.4 + i * 0.06 }}
-                    >
-                      <Link
-                        to={storePath(`/catalogo?cat=${cat.id}`)}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] font-semibold bg-white/70 border border-amber-200/70 text-stone-600 hover:bg-amber-50 hover:border-amber-300 hover:text-amber-700 transition-all backdrop-blur-sm shadow-sm"
-                      >
-                        🌿 {cat.name}
-                      </Link>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </motion.div>
-          </div>
-        </div>
-      )}
-
-      {/* ── STATS BAR ─────────────────────────────────────────── */}
-      <div className="bg-[#fdf7ef] border-y border-amber-100/80">
-        <div className="max-w-7xl mx-auto px-8 py-5 flex flex-wrap items-center gap-8 md:gap-14">
-          {[
-            { value: allActive.length, label: "Produtos", icon: <Leaf size={14} /> },
-            { value: categories.length, label: "Categorias", icon: <Sun size={14} /> },
-            { value: featured.length, label: "Destaques", icon: <Star size={14} /> },
-            { value: onSale.length, label: "Promoções", icon: <Heart size={14} /> },
-          ].map((s, i) => (
-            <motion.div
-              key={i}
-              className="flex items-center gap-2.5"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.08 }}
-            >
-              <span style={{ color: style.accent }} className="opacity-60">{s.icon}</span>
-              <span className="text-lg font-bold tabular-nums font-serif" style={{ color: style.accent }}>{s.value}</span>
-              <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-widest">{s.label}</span>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── CATEGORIES ────────────────────────────────────────── */}
-      {categories.length > 0 && (
-        <section id="categorias" className="max-w-7xl mx-auto px-4 md:px-8 py-16">
-          <SectionHeader
-            title="Categorias"
-            icon={<Leaf size={15} />}
-            link={storePath("/catalogo")}
-            linkLabel="Ver catálogo"
-            accent={style.accent}
-          />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {categories.slice(0, CATEGORY_DISPLAY_LIMIT).map((cat, i) => {
-              const count = allActive.filter(p => p.category_id === cat.id).length;
-              return (
-                <motion.div
-                  key={cat.id}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.06 }}
-                  whileHover={{ y: -3 }}
-                >
-                  <Link
-                    to={storePath(`/catalogo?cat=${cat.id}`)}
-                    className="group relative overflow-hidden flex flex-col items-center text-center gap-2 p-4 border rounded-2xl bg-[#fffbf5] border-[#f0e6d3] hover:border-amber-300 hover:shadow-[0_6px_20px_rgba(217,119,6,0.12)] transition-all"
-                  >
-                    <img src={cat.cover_url || "/category-covers/store-boxsys-default.png"} alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.10] group-hover:opacity-[0.16] transition-opacity" />
-                    <div
-                      style={{ backgroundColor: style.accent + "18" }}
-                      className="relative w-9 h-9 flex items-center justify-center group-hover:scale-110 transition-transform duration-300 rounded-xl"
-                    >
-                      <Leaf size={15} style={{ color: style.accent }} />
-                    </div>
-                    <p className="relative text-[11px] font-semibold text-stone-700 leading-tight tracking-tight">{cat.name}</p>
-                    <span className="relative text-[9px] text-stone-400 font-medium">{count} {count === 1 ? "produto" : "produtos"}</span>
-                  </Link>
-                </motion.div>
-              );
-            })}
-          </div>
-          {categories.length > CATEGORY_DISPLAY_LIMIT && (
-            <div className="mt-6 text-center">
-              <Link
-                to={storePath("/catalogo")}
-                className="inline-flex items-center gap-2 px-5 h-9 border border-amber-200 bg-white text-stone-600 text-[11px] font-semibold uppercase tracking-wider hover:border-amber-300 hover:shadow-sm transition-all rounded-xl"
-              >
-                +{categories.length - CATEGORY_DISPLAY_LIMIT} mais categorias <ChevronRight size={12} />
-              </Link>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* ── FEATURED ──────────────────────────────────────────── */}
-      {featured.length > 0 && (
-        <section className="py-16 bg-[#fdf7ef] relative overflow-hidden">
-          <DotTexture className="opacity-50" />
-          <div className="relative max-w-7xl mx-auto px-8">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-1 h-6 rounded-full" style={{ backgroundColor: style.accent }} />
-                <Star size={15} style={{ color: style.accent }} />
-                <h2 className="text-xl font-serif font-bold tracking-tight text-stone-800">Destaques</h2>
-                <span
-                  className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-                  style={{ backgroundColor: style.accent + "22", color: style.accent, border: `1px solid ${style.accent}40` }}
-                >
-                  {featured.length}
-                </span>
-              </div>
-              <Link
-                to={storePath("/catalogo")}
-                className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-amber-600 hover:text-amber-800 transition-colors"
-              >
-                Ver catálogo <ChevronRight size={12} />
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-              {featured.map((product, i) => {
-                const img = getImg(product);
-                const hasDiscount = !!product.discount_price;
-                const pct = hasDiscount ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100) : 0;
-
-                return (
-                  <motion.div
-                    key={product.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.08 }}
-                    whileHover={{ y: -5 }}
-                    className="group bg-[#fffbf5] border border-[#f0e6d3] overflow-hidden hover:border-amber-200 hover:shadow-[0_10px_36px_rgba(217,119,6,0.14)] transition-all duration-300 rounded-2xl"
-                  >
-                    <Link to={storePath(`/produto/${productRouteSegment(product)}`)} className="block relative overflow-hidden" style={{ aspectRatio: "16/10" }}>
-                      {img
-                        ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                        : <div className="w-full h-full flex items-center justify-center bg-amber-50/80 text-amber-200">
-                            <Package size={36} strokeWidth={1} />
-                          </div>}
-                      <div className="absolute inset-0 bg-gradient-to-t from-stone-900/40 to-transparent" />
-                      {hasDiscount && (
-                        <span className="absolute top-3 right-3 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow"
-                          style={{ backgroundColor: "#c2713a" }}>-{pct}%</span>
-                      )}
-                      <span
-                        className="absolute top-3 left-3 flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded-full"
-                        style={{ backgroundColor: style.accent + "28", color: style.accent, border: `1px solid ${style.accent}50` }}
-                      >
-                        <Star size={8} fill="currentColor" /> Destaque
-                      </span>
-                    </Link>
-                    <div className="p-4 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[11px] font-semibold text-stone-800 line-clamp-1 tracking-tight">{product.name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <p className="text-[13px] font-bold font-mono" style={{ color: style.accent }}>
-                            R$ {Number(product.discount_price || product.price).toFixed(2)}
-                          </p>
-                          {hasDiscount && (
-                            <span className="text-[9px] text-stone-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => addToCart(product)}
-                        style={{ backgroundColor: style.accent }}
-                        className="w-8 h-8 flex items-center justify-center shrink-0 text-white shadow-[0_3px_12px_rgba(217,119,6,0.3)] active:scale-90 transition-all rounded-xl hover:shadow-[0_5px_18px_rgba(217,119,6,0.45)]"
-                      >
-                        <ShoppingBag size={13} />
-                      </button>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── BEST SELLERS ──────────────────────────────────────── */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
-          <SectionHeader
-            title="Mais Vendidos"
-            icon={<TrendingUp size={15} />}
-            link={storePath("/catalogo")}
-            linkLabel="Ver catálogo"
-            accent={style.accent}
-          />
-          {bestSellers.length === 0 ? (
-            <div className="py-16 text-center text-stone-400">
-              <Package size={40} strokeWidth={1} className="mx-auto mb-4 opacity-30" />
-              <p className="text-xs font-semibold uppercase tracking-wider">Nenhum produto disponível</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {bestSellers.map((product, i) => (
-                <ProductCard key={product.id} product={product} index={i} slug={slug} style={style} onAddToCart={addToCart} />
-              ))}
-            </div>
-          )}
         </div>
       </section>
 
-      {/* ── ON SALE ───────────────────────────────────────────── */}
-      {onSale.length > 0 && (
-        <section className="py-16 bg-[#fdf7ef] relative overflow-hidden">
-          <BlobDecor />
-          <div className="relative max-w-7xl mx-auto px-4 md:px-8">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-1 h-6 rounded-full" style={{ backgroundColor: "#c2713a" }} />
-                <Zap size={14} style={{ color: "#c2713a" }} />
-                <h2 className="text-xl font-serif font-bold tracking-tight text-stone-800">Promoções</h2>
-                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full border"
-                  style={{ backgroundColor: "#c2713a18", color: "#c2713a", borderColor: "#c2713a40" }}>
-                  {onSale.length} oferta{onSale.length !== 1 ? "s" : ""}
-                </span>
-              </div>
-              <Link
-                to={storePath("/catalogo")}
-                className="flex items-center gap-1 transition-colors text-[10px] font-semibold uppercase tracking-wider text-amber-600 hover:text-amber-800"
-              >
-                Ver todas <ChevronRight size={12} />
-              </Link>
-            </div>
+      <div className="dfl-wrap">
+        <ul className="dfl-benefits">
+          {benefits.map(({ icon: Icon, title, text }) => (
+            <li key={title}><Icon size={28} strokeWidth={1.6} /><div><strong>{title}</strong><span>{text}</span></div></li>
+          ))}
+        </ul>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {onSale.slice(0, 4).map((product, i) => {
-                const pct = Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100);
-                const img = getImg(product);
+        {withProducts.length > 0 && (
+          <section className="dfl-section">
+            <div className="dfl-section-head"><h2>{sf.home_categories_title || "Compre por categoria"}</h2><Link to={path("/catalogo")}>Ver tudo</Link></div>
+            <div className="dfl-cat-grid">
+              {withProducts.slice(0, 8).map((c) => {
+                const img = c.cover_url || catImage(c.id);
                 return (
-                  <motion.div
-                    key={product.id}
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.06 }}
-                    whileHover={{ y: -4 }}
-                  >
-                    <Link
-                      to={storePath(`/produto/${productRouteSegment(product)}`)}
-                      className="group flex flex-col border transition-all overflow-hidden hover:shadow-[0_8px_32px_rgba(194,113,58,0.18)] rounded-2xl bg-[#fffbf5] border-[#f0e6d3] hover:border-amber-200"
-                    >
-                      <div className="aspect-square bg-amber-50/60 overflow-hidden relative">
-                        {img
-                          ? <img src={img} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                          : <div className="w-full h-full flex items-center justify-center text-amber-200"><Package size={36} strokeWidth={1} /></div>}
-                        <span className="absolute top-2 right-2 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow"
-                          style={{ backgroundColor: "#c2713a" }}>-{pct}%</span>
-                      </div>
-                      <div className="p-4">
-                        <p className="text-[13px] font-medium text-stone-700 line-clamp-2 leading-snug">{product.name}</p>
-                        <div className="flex items-center gap-2 mt-3">
-                          <span className="text-sm font-bold font-mono" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</span>
-                          <span className="text-[9px] text-stone-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </Link>
-                  </motion.div>
+                  <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className="dfl-cat">
+                    <span className="dfl-cat-pic">{img ? <img src={img} alt="" loading="lazy" /> : <Store size={26} />}</span>
+                    <span>{c.name}</span>
+                  </Link>
                 );
               })}
             </div>
+          </section>
+        )}
+
+        {best.length > 0 && (
+          <section className="dfl-section">
+            <div className="dfl-section-head"><h2>{sf.home_featured_title || "Mais vendidos"}</h2><Link to={path("/catalogo")}>Ver todos</Link></div>
+            <div className="dfl-grid">{best.map((p) => <Card key={p.id} product={p} />)}</div>
+          </section>
+        )}
+      </div>
+
+      {active.length > 4 && (
+        <section className="dfl-promo">
+          <div className="dfl-wrap dfl-promo-in">
+            <div>
+              <h2>{sf.catalog_title || "Todo o catálogo em um só lugar"}</h2>
+              <p>{sf.catalog_description || "Filtre por categoria, ordene por preço e encontre o que precisa."}</p>
+            </div>
+            <Link to={path("/catalogo")} className="dfl-btn dfl-btn-inline dfl-btn-light">Explorar catálogo <ArrowRight size={16} /></Link>
           </div>
         </section>
+      )}
+
+      {launches.length > 0 && (
+        <div className="dfl-wrap">
+          <section className="dfl-section">
+            <div className="dfl-section-head"><h2>Lançamentos</h2><Link to={path("/catalogo")}>Ver mais</Link></div>
+            <div className="dfl-grid">{launches.map((p) => <Card key={p.id} product={p} />)}</div>
+          </section>
+        </div>
+      )}
+
+      {active.length === 0 && (
+        <div className="dfl-wrap"><p className="dfl-note">Em breve novos produtos por aqui.</p></div>
       )}
     </div>
   );

@@ -1,682 +1,235 @@
-import { useState } from "react";
-import StockAvailability from "../../../../components/store/StockAvailability";
-import { useParams, Link } from "react-router-dom";
-import { motion, AnimatePresence } from "motion/react";
-import {
-  ShoppingCart, Heart, Share2, ChevronLeft, ChevronRight,
-  Package, Plus, Minus, Check, Flame, Tag, AlertCircle,
-  Shield, Truck, Star, Sparkles,
-} from "lucide-react";
-import { cn } from "../../../../lib/utils";
-import { useStore } from "../../StoreLayout";
+import { useMemo, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { Check, ChevronLeft, ChevronRight, Heart, MessageCircle, Minus, Package, Plus, Share2, ShoppingBag } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { buildStorePath, resolveStoreSlug, parseProductIdFromRoute, productRouteSegment } from "../../store-routing";
-import { productHasStock } from "../../../../utils/productStock";
+import StockAvailability from "../../../../components/store/StockAvailability";
+import { useStore } from "../../StoreLayout";
+import { parseProductIdFromRoute } from "../../store-routing";
 import { getVariationImages } from "../../../../utils/variationImages";
+import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
+import { groups, money, optionDisabled, pricesHidden, unitPrice, useTheme, waLink } from "./lib";
+import { Card, PERKS, Price } from "./parts";
+import "./styles.css";
 
 export default function StoreProduct() {
-  const { slug: routeSlug, productId } = useParams();
-  const { products, categories, addToCart, style, openCart, tenant } = useStore();
-  const slug = resolveStoreSlug(routeSlug);
+  const { productId } = useParams();
+  const { products, categories, tenant, addToCart, openCart, wishlist, toggleWishlist } = useStore();
+  const { path } = useTheme();
+  const product = products.find((p) => p.id === parseProductIdFromRoute(productId));
+  const [active, setActive] = useState(0);
+  const [quantity, setQuantity] = useState(1);
+  const [selected, setSelected] = useState<Record<string, string>>({});
+  const [added, setAdded] = useState(false);
+  const optsRef = useRef<HTMLDivElement>(null);
+  const gs = useMemo(() => (product ? groups(product) : []), [product]);
 
-  const product = products.find(p => p.id === parseProductIdFromRoute(productId));
-  const baseImages = Array.isArray(product?.images) && product.images.length > 0
-    ? product.images as string[]
-    : product?.image_url ? [product.image_url] : [];
-  const [activeImg, setActiveImg] = useState(0);
-  const [imgDirection, setImgDirection] = useState(0);
-
-  const normalizedVariations = (() => {
-    if (Array.isArray(product?.variations) && product.variations.length > 0) {
-      return product.variations;
-    }
-    if (Array.isArray(product?.attributes) && product.attributes.length > 0 && Array.isArray(product?.skus)) {
-      return product.attributes.map(attr => ({
-        name: attr.name,
-        options: attr.values.map(val => {
-          const totalStock = (product.skus ?? [])
-            .filter(sku => sku.combo[attr.name] === val)
-            .reduce((sum, sku) => sum + (sku.stock ?? 0), 0);
-          return { value: val, stock: totalStock };
-        }),
-      }));
-    }
-    return [];
-  })();
-  const attrColorsMap: Record<string, Record<string, string>> = Object.fromEntries(
-    (product?.attributes || []).map(a => [a.name, a.colors || {}])
-  );
-  const hasVariations = normalizedVariations.length > 0;
-  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
-    if (!normalizedVariations.length) return {};
-    return Object.fromEntries(
-      normalizedVariations.map(v => {
-        const available = v.options.filter(o => o.stock > 0);
-        return [v.name, available.length === 1 ? available[0].value : ""];
-      })
-    );
-  });
-  const [showVariationError, setShowVariationError] = useState(false);
-  const [qty, setQty] = useState(1);
-  const [inWishlist, setInWishlist] = useState(false);
-  const [justAdded, setJustAdded] = useState(false);
-  const variationImages = getVariationImages(product, selectedOptions);
-  const allImages = variationImages.length > 0 ? variationImages : baseImages;
-
-  // ── Not found ─────────────────────────────────────────────────────────────
-  if (!product) {
+  if (!product || !product.is_active) {
     return (
-      <div className="max-w-7xl mx-auto px-6 py-28 text-center">
-        <div className="tech-pulse w-20 h-20 rounded-[1.8rem] border border-[#dbe6ff] bg-[#f4f8ff] flex items-center justify-center mx-auto mb-6">
-          <Package size={36} strokeWidth={1} className="text-[#b0c4de]" />
+      <main className="nx-page">
+        <div className="nx-wrap nx-emptybox">
+          <Package size={44} aria-hidden="true" />
+          <h2>Produto não encontrado</h2>
+          <Link to={path("/catalogo")} className="nx-btn">Voltar ao catálogo</Link>
         </div>
-        <p className="store-display text-3xl font-semibold text-[#071426] mb-2">Produto não encontrado</p>
-        <p className="text-[13px] text-[#6a85a8] mb-6">Este produto pode ter sido removido ou o link está desatualizado.</p>
-        <Link
-          to={buildStorePath(slug, "/catalogo")}
-          style={{ backgroundColor: style.accent }}
-          className="inline-flex items-center gap-2 px-7 h-11 rounded-full text-white text-[11px] font-semibold uppercase tracking-[0.18em] shadow-[0_12px_28px_rgba(37,99,235,0.26)]"
-        >
-          <ChevronLeft size={13} /> Voltar ao catálogo
-        </Link>
-      </div>
+      </main>
     );
   }
 
-  // ── Computed ──────────────────────────────────────────────────────────────
-  const category = categories.find(c => c.id === product.category_id);
-  const discountPct = product.discount_price
-    ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100)
-    : 0;
-  const related = products
-    .filter(p => p.is_active && p.category_id === product.category_id && p.id !== product.id)
-    .slice(0, 4);
+  const hidden = pricesHidden(tenant);
+  const baseImages = Array.isArray(product.images) && product.images.length ? product.images : product.image_url ? [product.image_url] : [];
+  const varImages = getVariationImages(product, selected);
+  const images = varImages.length ? varImages : baseImages;
+  const cat = categories.find((c) => c.id === product.category_id);
+  const ready = gs.every((g) => selected[g.name]);
+  const units = storeTracksStock(tenant) ? availableUnits(product, selected) : null;
+  const soldOut = units === 0;
+  const max = units === null ? 99 : Math.max(1, units);
+  const qty = Math.min(Math.max(1, quantity), max);
+  const price = unitPrice(product);
+  const url = typeof window !== "undefined" ? window.location.href : "";
+  const related = products.filter((p) => p.is_active && p.type !== "internal" && p.id !== product.id && p.category_id === product.category_id).slice(0, 3);
 
-  const allVariationsSelected = !hasVariations || normalizedVariations.every(v => !!selectedOptions[v.name]);
-
-  const selectedStocks = normalizedVariations.map(v => {
-    const opt = v.options.find(o => o.value === selectedOptions[v.name]);
-    return opt?.stock ?? 0;
-  });
-  const minStock = product.sale_unit && product.sale_unit !== "unidade"
-    ? 99
-    : selectedStocks.length > 0
-    ? (allVariationsSelected ? Math.min(...selectedStocks) : 99)
-    : (product.stock_quantity ?? 99);
-
-  // ── Handlers ──────────────────────────────────────────────────────────────
-  const handleAddToCart = () => {
-    if (!allVariationsSelected) {
-      setShowVariationError(true);
-      setTimeout(() => setShowVariationError(false), 3000);
+  const pick = (name: string, value: string) => {
+    setSelected((s) => ({ ...s, [name]: s[name] === value ? "" : value }));
+    setActive(0);
+  };
+  const add = () => {
+    if (!ready) {
+      optsRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
-    for (let i = 0; i < qty; i++) {
-      addToCart(product, hasVariations ? selectedOptions : undefined);
-    }
-    setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 2200);
+    if (soldOut) return;
+    for (let i = 0; i < qty; i += 1) addToCart(product, gs.length ? selected : undefined);
+    setAdded(true);
+    window.setTimeout(() => setAdded(false), 1600);
     openCart();
   };
-
-  const handleSelectOption = (variationName: string, value: string) => {
-    setSelectedOptions(prev => ({ ...prev, [variationName]: value }));
-    setActiveImg(0);
-    setShowVariationError(false);
-  };
-
-  const navigateImg = (dir: number) => {
-    setImgDirection(dir);
-    setActiveImg(i => (i + dir + allImages.length) % allImages.length);
-  };
-
-  const handleShare = async () => {
-    const url = window.location.href;
-    const title = product.name;
-    const text = `${product.name}${product.description ? ` — ${product.description.slice(0, 100)}` : ""}\nR$ ${Number(product.discount_price || product.price).toFixed(2)}`;
-    if (navigator.share) {
-      try { await navigator.share({ title, text, url }); return; } catch { /* fall through */ }
+  const share = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: product.name, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+    } catch {
+      /* cancelado */
     }
-    await navigator.clipboard.writeText(url);
-    alert("Link copiado!");
   };
-
-  const handleShareWhatsApp = () => {
-    const url = window.location.href;
-    const finalPrice = Number(product.discount_price || product.price).toFixed(2);
-    const originalPrice = Number(product.price).toFixed(2);
-    const hasDiscount = !!product.discount_price;
-    const variations = Object.entries(selectedOptions)
-      .filter(([, v]) => v)
-      .map(([k, v]) => `▸ *${k}:* ${v}`)
-      .join("\n");
-    const lines: string[] = [];
-    lines.push(`🛍️ *Olá! Gostaria de fazer um pedido:*`);
-    lines.push(``);
-    lines.push(`📦 *${product.name}*`);
-    if (product.sku) lines.push(`🔖 Cód: ${product.sku}`);
-    if (category) lines.push(`🏷️ Categoria: ${category.name}`);
-    lines.push(``);
-    if (variations) {
-      lines.push(`✅ *Variações selecionadas:*`);
-      lines.push(variations);
-      lines.push(``);
-    }
-    if (hasDiscount) {
-      lines.push(`💰 *Preço:* ~~R$ ${originalPrice}~~ → *R$ ${finalPrice}*`);
-      lines.push(`🎉 Economia de R$ ${(Number(product.price) - Number(product.discount_price)).toFixed(2)}`);
-    } else {
-      lines.push(`💰 *Preço:* R$ ${finalPrice}`);
-    }
-    lines.push(``);
-    lines.push(`🔗 Ver produto: ${url}`);
-    lines.push(``);
-    lines.push(`_Favor confirmar disponibilidade e prazo de entrega._`);
-    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
-  };
-
-  const productUrl = typeof window !== "undefined" ? window.location.href : "";
-  const productPrice = Number(product.discount_price || product.price).toFixed(2);
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(160deg,#f8fbff_0%,#fafcff_60%,#f4f8ff_100%)]">
+    <main className="nx-page">
       <StoreSEO
         title={`${product.name} — ${tenant.name}`}
-        description={product.description || `Compre ${product.name} na ${tenant.name}. R$ ${productPrice}. Atendimento via WhatsApp.`}
-        image={allImages[0]}
-        url={productUrl}
+        description={product.description || `${product.name} na ${tenant.name}.`}
+        image={images[0]}
+        url={url}
         type="product"
-        price={productPrice}
+        price={hidden ? undefined : String(price)}
         siteName={tenant.name}
-        keywords={`${product.name}, ${category?.name || ""}, ${tenant.name}, comprar, preço`}
         jsonLd={{
           "@context": "https://schema.org",
           "@type": "Product",
-          "name": product.name,
-          "description": product.description || product.name,
-          "image": allImages,
-          "sku": product.sku || String(product.id),
-          "brand": { "@type": "Brand", "name": tenant.name },
-          "offers": {
-            "@type": "Offer",
-            "url": productUrl,
-            "priceCurrency": "BRL",
-            "price": productPrice,
-            "itemCondition": "https://schema.org/NewCondition",
-            "availability": productHasStock(product)
-              ? "https://schema.org/InStock"
-              : "https://schema.org/OutOfStock",
-            "seller": { "@type": "Organization", "name": tenant.name },
-          },
-          ...(category ? { "category": category.name } : {}),
+          name: product.name,
+          description: product.description || product.name,
+          image: baseImages,
+          sku: product.sku || String(product.id),
+          ...(cat ? { category: cat.name } : {}),
+          ...(hidden
+            ? {}
+            : {
+                offers: {
+                  "@type": "Offer",
+                  url,
+                  priceCurrency: "BRL",
+                  price: String(price),
+                  itemCondition: "https://schema.org/NewCondition",
+                  availability: soldOut ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+                  seller: { "@type": "Organization", name: tenant.name },
+                },
+              }),
         }}
       />
-
-      <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 space-y-12">
-
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8baed0]">
-          <Link to={buildStorePath(slug)} className="hover:text-[#071426] transition-colors">Início</Link>
-          <ChevronRight size={10} />
-          <Link to={buildStorePath(slug, "/catalogo")} className="hover:text-[#071426] transition-colors">Catálogo</Link>
-          {category && (
+      <div className="nx-wrap">
+        <p className="nx-crumb nx-crumb-p">
+          <Link to={path()}>Início</Link> / <Link to={path("/catalogo")}>Catálogo</Link>
+          {cat && (
             <>
-              <ChevronRight size={10} />
-              <Link to={buildStorePath(slug, `/catalogo?cat=${category.id}`)} className="hover:text-[#071426] transition-colors">{category.name}</Link>
+              {" "}/ <Link to={path(`/catalogo?cat=${cat.id}`)}>{cat.name}</Link>
             </>
           )}
-          <ChevronRight size={10} />
-          <span className="truncate max-w-[180px] text-[#071426]">{product.name}</span>
-        </nav>
+        </p>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            MAIN PRODUCT
-        ═══════════════════════════════════════════════════════════════════ */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-14 items-start">
-
-          {/* ── Gallery ────────────────────────────────────────── */}
-          <motion.div
-            initial={{ opacity: 0, x: -24 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="space-y-3 sticky top-6"
-          >
-            {/* Main image */}
-            <div className={cn(
-              "relative overflow-hidden group aspect-square tech-panel tech-grid border border-[#dbe6ff] bg-[linear-gradient(160deg,#f4f8ff_0%,#edf4ff_100%)] shadow-[0_4px_40px_rgba(37,99,235,0.08)]",
-              style.radius
-            )}>
-              <AnimatePresence mode="wait">
-                {allImages.length > 0 ? (
-                  <motion.img
-                    key={activeImg}
-                    src={allImages[activeImg]}
-                    alt={product.name}
-                    initial={{ opacity: 0, scale: 1.03 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.98 }}
-                    transition={{ duration: 0.25 }}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Package size={80} strokeWidth={1} className="text-[#c5d8f5]" />
-                  </div>
-                )}
-              </AnimatePresence>
-
-              {/* Overlaid badges */}
-              <div className="absolute top-4 left-4 flex flex-col gap-2">
-                {discountPct > 0 && (
-                  <span className="text-white text-[11px] font-bold px-3 py-1.5 rounded-full shadow-lg bg-gradient-to-r from-[#ef4444] to-[#f97316]">
-                    -{discountPct}% OFF
-                  </span>
-                )}
-                {product.is_featured && (
-                  <span className="text-white text-[10px] font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg bg-gradient-to-r from-[#f59e0b] to-[#f97316]">
-                    <Flame size={10} /> Destaque
-                  </span>
-                )}
-              </div>
-
-              {/* Nav arrows */}
-              {allImages.length > 1 && (
+        <div className="nx-prod">
+          <section className="nx-gallery" aria-label="Fotos do produto">
+            <div className="nx-stage">
+              {images.length ? <img src={images[Math.min(active, images.length - 1)]} alt={product.name} /> : <Package size={72} aria-hidden="true" />}
+              {product.discount_price != null && <span className="nx-badge">Oferta</span>}
+              {images.length > 1 && (
                 <>
-                  <button
-                    onClick={() => navigateImg(-1)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all bg-white/90 hover:bg-white border border-[#dbe6ff] text-[#4e6c8e]"
-                  >
-                    <ChevronLeft size={16} />
+                  <button type="button" className="nx-arrow nx-prev" aria-label="Foto anterior" onClick={() => setActive((i) => (i - 1 + images.length) % images.length)}>
+                    <ChevronLeft size={20} />
                   </button>
-                  <button
-                    onClick={() => navigateImg(1)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all bg-white/90 hover:bg-white border border-[#dbe6ff] text-[#4e6c8e]"
-                  >
-                    <ChevronRight size={16} />
+                  <button type="button" className="nx-arrow nx-next" aria-label="Próxima foto" onClick={() => setActive((i) => (i + 1) % images.length)}>
+                    <ChevronRight size={20} />
                   </button>
-                  {/* Dot indicators */}
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-                    {allImages.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setActiveImg(i)}
-                        className={cn(
-                          "h-1.5 rounded-full transition-all duration-300",
-                          i === activeImg ? "w-5 bg-white shadow" : "w-1.5 bg-white/45"
-                        )}
-                      />
-                    ))}
-                  </div>
                 </>
               )}
             </div>
-
-            {/* Thumbnails */}
-            {allImages.length > 1 && (
-              <div className="flex gap-2.5 overflow-x-auto pb-1 no-scrollbar">
-                {allImages.map((img, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveImg(i)}
-                    className={cn(
-                      "w-16 h-16 sm:w-[72px] sm:h-[72px] shrink-0 overflow-hidden rounded-[1.1rem] border-2 transition-all",
-                      i === activeImg
-                        ? "shadow-[0_4px_16px_rgba(37,99,235,0.22)] scale-105"
-                        : "border-[#dbe6ff] hover:border-[#b3caff] opacity-70 hover:opacity-100"
-                    )}
-                    style={i === activeImg ? { borderColor: style.accent } : {}}
-                  >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+            {images.length > 1 && (
+              <div className="nx-thumbs">
+                {images.map((img, i) => (
+                  <button key={img + i} type="button" className={i === active ? "is-on" : ""} aria-label={`Ver foto ${i + 1}`} onClick={() => setActive(i)}>
+                    <img src={img} alt="" />
                   </button>
                 ))}
               </div>
             )}
-          </motion.div>
+          </section>
 
-          {/* ── Details panel ──────────────────────────────────── */}
-          <motion.div
-            initial={{ opacity: 0, x: 24 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.55, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <div className="tech-panel rounded-[2.2rem] border border-[#dbe6ff] bg-white/92 p-6 sm:p-8 md:p-10 shadow-[0_4px_40px_rgba(37,99,235,0.08)] space-y-6">
+          <aside className="nx-buy">
+            {cat && <p className="nx-kicker nx-kicker-dark">{cat.name}</p>}
+            <h1>{product.name}</h1>
+            {product.sku && <p className="nx-ref">Ref. {product.sku}</p>}
+            <Price product={product} large />
+            {!hidden && product.discount_price != null && <p className="nx-save">Você economiza {money(Number(product.price) - price)}</p>}
 
-              {/* Category + name */}
-              <div>
-                {category && (
-                  <Link
-                    to={buildStorePath(slug, `/catalogo?cat=${category.id}`)}
-                    className="inline-flex items-center gap-1.5 mb-3 store-kicker text-[10px] font-semibold hover:opacity-70 transition-opacity"
-                    style={{ color: style.accent }}
-                  >
-                    <Tag size={10} /> {category.name}
-                  </Link>
-                )}
-
-                {/* Feature badges */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe6ff] bg-white px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#5b7898]">
-                    <Shield size={9} /> Compra segura
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe6ff] bg-white px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#5b7898]">
-                    <Truck size={9} /> Entrega rápida
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dbe6ff] bg-white px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-[#5b7898]">
-                    <Sparkles size={9} /> Premium
-                  </span>
-                </div>
-
-                <h1 className="store-display text-[2.8rem] sm:text-5xl md:text-[3.5rem] leading-[0.9] text-[#071426]">
-                  {product.name}
-                </h1>
-                {product.sku && (
-                  <p className="text-[10px] font-mono mt-2 uppercase tracking-widest text-[#9ab3cc]">
-                    Cód: <span className="font-bold text-[#6a85a8]">{product.sku}</span>
-                  </p>
-                )}
-              </div>
-
-              {/* Price */}
-              <div className="pb-5 border-b border-[#e2ecff]">
-                {product.discount_price ? (
-                  <div className="flex items-end gap-4">
-                    <span className="store-display text-[3.2rem] sm:text-5xl leading-none text-[#071426]">
-                      R$ {Number(product.discount_price).toFixed(2)}
-                    </span>
-                    <div className="flex flex-col pb-1 gap-0.5">
-                      <span className="text-sm line-through font-mono text-[#b0c4de]">
-                        R$ {Number(product.price).toFixed(2)}
-                      </span>
-                      <span className="text-[10px] font-bold uppercase text-red-500 flex items-center gap-1">
-                        Economia R$ {(Number(product.price) - Number(product.discount_price)).toFixed(2)}
-                      </span>
-                    </div>
+            <div ref={optsRef} className="nx-opts">
+              {gs.map((g) => (
+                <fieldset key={g.name}>
+                  <legend>{g.name} <b>{selected[g.name] || ""}</b></legend>
+                  <div>
+                    {g.values.map((v) => {
+                      const off = optionDisabled(tenant, product, selected, g.name, v);
+                      const on = selected[g.name] === v;
+                      const hex = g.colors?.[v];
+                      return (
+                        <button key={v} type="button" disabled={off} aria-pressed={on} className={`nx-opt ${on ? "is-on" : ""}`} onClick={() => pick(g.name, v)}>
+                          {hex && <i style={{ background: hex }} aria-hidden="true" />}
+                          {on && <Check size={14} aria-hidden="true" />} {v}
+                        </button>
+                      );
+                    })}
                   </div>
-                ) : (
-                  <span className="store-display text-[3.2rem] sm:text-5xl leading-none" style={{ color: style.accent }}>
-                    R$ {Number(product.price).toFixed(2)}
-                  </span>
-                )}
-              </div>
-
-              {/* Description */}
-              {product.description && (
-                <p className="text-[14px] md:text-[15px] text-[#4e6c8e] leading-relaxed">
-                  {product.description}
-                </p>
-              )}
-
-              {/* Variations */}
-              {normalizedVariations.length > 0 && (
-                <div className="space-y-4 border-t border-[#dbe6ff] pt-4">
-                  {normalizedVariations.map((v, vi) => {
-                    const isColor = /cor|color/i.test(v.name);
-                    const error = showVariationError && !selectedOptions[v.name];
-                    return (
-                      <div key={vi} className="space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className={cn(
-                            "text-[10px] font-bold uppercase tracking-[0.22em] flex items-center gap-1.5",
-                            error ? "text-red-500" : "text-[#8baed0]"
-                          )}>
-                            {error && <AlertCircle size={11} />}
-                            {v.name}
-                          </span>
-                          {selectedOptions[v.name] ? (
-                            <span className="text-[12px] font-semibold text-[#071426] bg-[#edf4ff] px-2.5 py-0.5 rounded-full">
-                              {selectedOptions[v.name]}
-                            </span>
-                          ) : (
-                            <span className="text-[11px] text-[#8baed0] italic">Selecione</span>
-                          )}
-                        </div>
-                        <AnimatePresence>
-                          {error && (
-                            <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
-                              className="text-[10px] text-red-500 font-semibold">
-                              Escolha {v.name.toLowerCase()} antes de adicionar ao carrinho
-                            </motion.p>
-                          )}
-                        </AnimatePresence>
-                        <div className="flex flex-wrap gap-2">
-                          {v.options.map((opt, oi) => {
-                            const isSelected = selectedOptions[v.name] === opt.value;
-                            const outOfStock = opt.stock === 0;
-                            if (isColor) {
-                              const COMMON_COLORS: Record<string, string> = {
-                                vermelho: "#e53e3e", red: "#e53e3e", azul: "#3182ce", blue: "#3182ce",
-                                verde: "#38a169", green: "#38a169", amarelo: "#ecc94b", yellow: "#ecc94b",
-                                preto: "#1a202c", black: "#1a202c", branco: "#f7fafc", white: "#f7fafc",
-                                cinza: "#718096", gray: "#718096", grey: "#718096", rosa: "#ed64a6", pink: "#ed64a6",
-                                roxo: "#805ad5", purple: "#805ad5", laranja: "#ed8936", orange: "#ed8936",
-                                marrom: "#7b4f2e", brown: "#7b4f2e",
-                              };
-                              const adminHex = attrColorsMap[v.name]?.[opt.value];
-                              const bgColor = adminHex || COMMON_COLORS[opt.value.toLowerCase()] || "#9ca3af";
-                              const r = parseInt(bgColor.slice(1, 3), 16), g = parseInt(bgColor.slice(3, 5), 16), b = parseInt(bgColor.slice(5, 7), 16);
-                              const isLight = (r * 299 + g * 587 + b * 114) / 1000 > 160;
-                              return (
-                                <button key={oi} disabled={outOfStock} onClick={() => handleSelectOption(v.name, opt.value)} title={opt.value}
-                                  className={cn("relative flex flex-col items-center gap-1 transition-all duration-200", outOfStock ? "opacity-40 cursor-not-allowed" : "cursor-pointer")}>
-                                  <span className={cn("w-9 h-9 rounded-full border-2 flex items-center justify-center transition-all duration-200",
-                                    isSelected ? "scale-110 shadow-lg border-[#2563eb] ring-2 ring-offset-2" : outOfStock ? "border-[#dbe6ff]" : "border-transparent hover:scale-105 hover:border-[#b3caff]")}
-                                    style={{ backgroundColor: bgColor }}>
-                                    {isSelected && <Check size={14} strokeWidth={3} className={isLight ? "text-slate-700" : "text-white"} />}
-                                  </span>
-                                  <span className={cn("text-[9px] font-semibold uppercase tracking-wide", isSelected ? "text-[#071426]" : "text-[#8baed0]")}>{opt.value}</span>
-                                </button>
-                              );
-                            }
-                            return (
-                              <button key={oi} disabled={outOfStock} onClick={() => handleSelectOption(v.name, opt.value)}
-                                className={cn(
-                                  "relative min-w-[3rem] h-11 px-4 rounded-[1rem] border-2 text-sm font-semibold transition-all duration-200 flex flex-col items-center justify-center leading-none",
-                                  isSelected ? "text-white shadow-[0_8px_20px_rgba(37,99,235,0.24)] scale-105"
-                                    : outOfStock ? "text-[#c5d8f5] border-[#edf4ff] bg-[#f8fbff] cursor-not-allowed"
-                                    : "text-[#4e6c8e] border-[#dbe6ff] bg-white hover:border-[#b3caff] hover:shadow-sm hover:scale-105"
-                                )}
-                                style={isSelected ? { backgroundColor: style.accent, borderColor: style.accent } : {}}>
-                                {outOfStock ? <span className="line-through">{opt.value}</span> : opt.value}
-                                {opt.stock > 0 && opt.stock <= 5 && <span className="text-[8px] font-semibold mt-0.5 opacity-75 leading-none">só {opt.stock}!</span>}
-                                {outOfStock && <span className="text-[8px] font-semibold mt-0.5 text-red-400 leading-none">esgot.</span>}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Low stock warning */}
-              <AnimatePresence>
-                {minStock > 0 && minStock <= 10 && allVariationsSelected && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.97 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.97 }}
-                    className="flex items-center gap-2.5 px-4 py-3 rounded-[1.2rem] bg-amber-50 border border-amber-200"
-                  >
-                    <span className="w-2 h-2 bg-amber-400 rounded-full tech-pulse" />
-                    <p className="text-[11px] font-semibold text-amber-700">
-                      Restam apenas {minStock} unidade{minStock !== 1 ? "s" : ""} em estoque!
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <StockAvailability product={product} tenant={tenant} selected={selectedOptions} className="mb-3" />
-            {/* Quantity + Add to cart */}
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Qty control */}
-                <div className="flex items-center h-12 overflow-hidden border border-[#dbe6ff] bg-[#f4f8ff] rounded-full shadow-[0_2px_10px_rgba(37,99,235,0.07)]">
-                  <button
-                    onClick={() => setQty(q => Math.max(1, q - 1))}
-                    className="w-12 h-full flex items-center justify-center text-[#4e6c8e] hover:text-[#071426] hover:bg-white/60 transition-all"
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <span className="w-10 text-center font-bold text-[13px] text-[#071426]">{qty}</span>
-                  <button
-                    onClick={() => setQty(q => Math.min(minStock, q + 1))}
-                    className="w-12 h-full flex items-center justify-center text-[#4e6c8e] hover:text-[#071426] hover:bg-white/60 transition-all"
-                  >
-                    <Plus size={14} />
-                  </button>
-                </div>
-
-                {/* Add to cart */}
-                <button
-                  onClick={handleAddToCart}
-                  disabled={minStock === 0}
-                  style={minStock > 0 ? { backgroundColor: style.accent } : {}}
-                  className={cn(
-                    "flex-1 min-w-[200px] sm:min-w-0 h-12 flex items-center justify-center gap-2.5 text-white font-semibold text-[11px] uppercase tracking-[0.18em] rounded-full transition-all active:scale-95",
-                    minStock > 0
-                      ? "shadow-[0_14px_34px_rgba(37,99,235,0.28)] hover:shadow-[0_18px_42px_rgba(37,99,235,0.38)] hover:-translate-y-0.5"
-                      : "bg-[#e2ecff] text-[#9ab3cc] cursor-not-allowed !shadow-none"
-                  )}
-                >
-                  <AnimatePresence mode="wait">
-                    {justAdded ? (
-                      <motion.span
-                        key="added"
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="flex items-center gap-2"
-                      >
-                        <Check size={15} strokeWidth={2.5} /> Adicionado!
-                      </motion.span>
-                    ) : minStock === 0 ? (
-                      <motion.span key="unavail" className="flex items-center gap-2">
-                        Indisponível
-                      </motion.span>
-                    ) : (
-                      <motion.span
-                        key="add"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="flex items-center gap-2"
-                      >
-                        <ShoppingCart size={15} /> Adicionar ao Carrinho
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </button>
-
-                {/* Wishlist */}
-                <button
-                  onClick={() => setInWishlist(v => !v)}
-                  className={cn(
-                    "w-12 h-12 rounded-full border-2 flex items-center justify-center transition-all shrink-0",
-                    inWishlist
-                      ? "bg-red-50 border-red-300 text-red-500 shadow-[0_4px_16px_rgba(239,68,68,0.18)]"
-                      : "border-[#dbe6ff] text-[#8baed0] hover:border-red-300 hover:text-red-400"
-                  )}
-                >
-                  <Heart size={16} fill={inWishlist ? "currentColor" : "none"} />
-                </button>
-              </div>
-
-              {/* Trust row */}
-              <div className="grid grid-cols-3 gap-2 pt-2">
-                {[
-                  { icon: <Shield size={13} />, label: "Compra segura" },
-                  { icon: <Truck size={13} />, label: "Entrega ágil" },
-                  { icon: <Star size={13} />, label: "Qualidade garantida" },
-                ].map((item, i) => (
-                  <div key={i} className="flex flex-col items-center gap-1.5 p-3 rounded-[1.1rem] border border-[#e2ecff] bg-white/60 text-center">
-                    <span style={{ color: style.accent }}>{item.icon}</span>
-                    <p className="text-[9px] font-semibold text-[#6a85a8] leading-tight">{item.label}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Share */}
-              <div className="flex items-center gap-4 pt-2 border-t border-[#e2ecff]">
-                <button
-                  onClick={handleShare}
-                  className="flex items-center gap-2 text-[11px] font-semibold text-[#8baed0] hover:text-[#071426] transition-colors"
-                >
-                  <Share2 size={13} /> Compartilhar
-                </button>
-                <button
-                  onClick={handleShareWhatsApp}
-                  className="flex items-center gap-2 text-[11px] font-semibold text-[#8baed0] hover:text-[#25D366] transition-colors"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                  </svg>
-                  Enviar no WhatsApp
-                </button>
-              </div>
+                </fieldset>
+              ))}
+              {gs.length > 0 && !ready && <p className="nx-hint">Selecione as opções para adicionar ao carrinho.</p>}
             </div>
-          </motion.div>
+
+            <StockAvailability product={product} tenant={tenant} selected={selected} className="nx-stock" />
+
+            <div className="nx-buy-row">
+              <div className="nx-qty" role="group" aria-label="Quantidade">
+                <button type="button" aria-label="Diminuir quantidade" onClick={() => setQuantity(Math.max(1, qty - 1))}><Minus size={16} /></button>
+                <output>{qty}</output>
+                <button type="button" aria-label="Aumentar quantidade" disabled={qty >= max} onClick={() => setQuantity(Math.min(max, qty + 1))}><Plus size={16} /></button>
+              </div>
+              <button type="button" className="nx-btn nx-btn-lg nx-buy-btn" disabled={soldOut} onClick={add}>
+                {added ? <Check size={18} aria-hidden="true" /> : <ShoppingBag size={18} aria-hidden="true" />}
+                {soldOut ? "Esgotado" : added ? "Adicionado" : "Adicionar ao carrinho"}
+              </button>
+            </div>
+            <div className="nx-buy-links">
+              <button type="button" aria-pressed={wishlist.includes(product.id)} onClick={() => toggleWishlist(product.id)}>
+                <Heart size={16} fill={wishlist.includes(product.id) ? "currentColor" : "none"} aria-hidden="true" /> Favoritar
+              </button>
+              <button type="button" onClick={share}><Share2 size={16} aria-hidden="true" /> Compartilhar</button>
+              {tenant.whatsapp && (
+                <a href={waLink(tenant, `Olá! Tenho interesse em ${product.name}.`)} target="_blank" rel="noreferrer">
+                  <MessageCircle size={16} aria-hidden="true" /> Tirar dúvida
+                </a>
+              )}
+            </div>
+            <ul className="nx-mini-perks">
+              {PERKS.map(({ icon: Icon, title }) => (
+                <li key={title}><Icon size={16} aria-hidden="true" /> {title}</li>
+              ))}
+            </ul>
+          </aside>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════════
-            RELATED PRODUCTS
-        ═══════════════════════════════════════════════════════════════════ */}
-        {related.length > 0 && (
-          <section>
-            <div className="flex items-end justify-between mb-8">
-              <div>
-                <p className="store-kicker text-[10px] font-semibold text-[#7b9ac0] mb-2">Da mesma linha</p>
-                <h2 className="store-display text-[2.4rem] md:text-5xl font-semibold tracking-[-0.04em] text-[#071426] leading-[0.92]">
-                  Produtos Relacionados
-                </h2>
+        <section className="nx-detail">
+          <div>
+            <p className="nx-kicker nx-kicker-dark">Detalhes</p>
+            <h2>Sobre este produto</h2>
+            <p className="nx-desc">{product.description || "Fale com a loja para conhecer todos os detalhes deste produto."}</p>
+          </div>
+          <div className="nx-perks-col">
+            {PERKS.map(({ icon: Icon, title, text }) => (
+              <div key={title} className="nx-perk nx-perk-sm">
+                <span className="nx-perk-ico"><Icon size={20} aria-hidden="true" /></span>
+                <div><h3>{title}</h3><p>{text}</p></div>
               </div>
-              <Link
-                to={buildStorePath(slug, `/catalogo${category ? `?cat=${category.id}` : ""}`)}
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-[#d7e4ff] bg-white/80 px-5 py-2.5 text-[10px] font-semibold tracking-[0.16em] uppercase text-[#4d6990] hover:text-[#071426] hover:border-[#b3caff] hover:bg-white transition-all"
-              >
-                Ver todos <ChevronRight size={12} />
-              </Link>
-            </div>
+            ))}
+          </div>
+        </section>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
-              {related.map((p, i) => {
-                const img = (Array.isArray(p.images) && (p.images as string[])[0]) || p.image_url || null;
-                return (
-                  <motion.div
-                    key={p.id}
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.06 }}
-                    className="h-full"
-                  >
-                    <Link
-                      to={buildStorePath(slug, `/produto/${productRouteSegment(p)}`)}
-                      className={cn(
-                        "group flex flex-col h-full border overflow-hidden transition-all duration-300 tech-panel tech-card-sheen bg-white/90 hover:-translate-y-1.5 hover:shadow-[0_24px_60px_rgba(37,99,235,0.15)]",
-                        style.card,
-                        style.radius
-                      )}
-                    >
-                      <div className="overflow-hidden aspect-square tech-grid bg-[linear-gradient(160deg,#f4f8ff_0%,#edf4ff_100%)]">
-                        {img
-                          ? <img src={img} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                          : <div className="w-full h-full flex items-center justify-center"><Package size={32} strokeWidth={1} className="text-[#c5d8f5]" /></div>
-                        }
-                      </div>
-                      <div className="p-4 flex flex-col gap-2">
-                        <p className="store-display text-[1.1rem] sm:text-[1.25rem] font-semibold text-[#071426] line-clamp-2 leading-[1.02] group-hover:text-[#1d4ed8] transition-colors">
-                          {p.name}
-                        </p>
-                        <p className="store-display text-[1.3rem] sm:text-[1.5rem] font-semibold mt-auto" style={{ color: style.accent }}>
-                          R$ {Number(p.discount_price || p.price).toFixed(2)}
-                        </p>
-                      </div>
-                    </Link>
-                  </motion.div>
-                );
-              })}
-            </div>
+        {related.length > 0 && (
+          <section className="nx-sec">
+            <header className="nx-sec-h"><p className="nx-kicker nx-kicker-dark">Continue explorando</p><h2>Você também pode gostar</h2></header>
+            <div className="nx-grid">{related.map((p) => <Card key={p.id} product={p} />)}</div>
           </section>
         )}
       </div>
-    </div>
+    </main>
   );
 }

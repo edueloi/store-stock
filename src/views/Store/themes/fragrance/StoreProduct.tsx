@@ -6,7 +6,7 @@ import StoreSEO from "../../../../components/store/StoreSEO";
 import { Button } from "../../../../components/ui";
 import { useStore } from "../../StoreLayout";
 import { buildStorePath, parseProductIdFromRoute, resolveStoreSlug } from "../../store-routing";
-import { fragranceHidePrices, fragranceImage, fragranceMoney } from "./ThemeParts";
+import { fragranceHidePrices, fragranceImage, fragranceMoney } from "./parts";
 
 export default function StoreProduct() {
   const { slug: routeSlug, productId } = useParams();
@@ -24,7 +24,7 @@ export default function StoreProduct() {
     return [];
   }, [product]);
 
-  if (!product) return <main className="grid min-h-[60vh] place-items-center bg-[#f5f7fb] p-6 text-center"><div><Droplets className="mx-auto text-blue-500" size={45}/><h1 className="mt-4 text-xl font-semibold text-slate-950">Produto não encontrado</h1><Link to={path("/catalogo")} className="mt-5 inline-block rounded-xl bg-blue-600 px-5 py-3 text-xs font-semibold text-white">Voltar à coleção</Link></div></main>;
+  if (!product) return <main className="fragrance-page grid min-h-[60vh] place-items-center p-6 text-center"><div><Droplets className="mx-auto text-[#9c7252]" size={45}/><h1 className="mt-4 text-xl font-semibold text-[#332019]">Produto não encontrado</h1><Link to={path("/catalogo")} className="mt-5 inline-block rounded-xl bg-[#6e3f2c] px-5 py-3 text-xs font-semibold text-white">Voltar à coleção</Link></div></main>;
 
   const image = fragranceImage(product);
   const hidePrices = fragranceHidePrices(tenant);
@@ -37,7 +37,7 @@ export default function StoreProduct() {
     setAdded(true);
   };
 
-  return <main className="min-h-screen bg-[#f5f7fb] pb-12 text-slate-950">
+  return <main className="fragrance-page min-h-screen bg-[#f8f4ee] pb-12 text-[#332019]">
     <StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description || `${product.name} na ${tenant.name}.`} image={image} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name}/>
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-10">
       <Link to={path("/catalogo")} className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.16em] text-blue-700"><ArrowLeft size={15}/> Voltar à coleção</Link>

@@ -1,670 +1,146 @@
-import React, { useState, useRef, useEffect } from "react";
-import { useParams, useSearchParams, Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { SlidersHorizontal, X } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { motion, AnimatePresence } from "motion/react";
-import {
-  Search, X, LayoutGrid, List, ArrowUpDown, Check,
-  ChevronDown, Package, Heart, Eye, Plus, Flame, SlidersHorizontal, Leaf,
-} from "lucide-react";
-import { cn } from "../../../../lib/utils";
-import { useStore } from "../../StoreLayout";
-import { Product } from "../../../../types";
-import { buildStorePath, resolveStoreSlug, productRouteSegment } from "../../store-routing";
+import { Card, Empty } from "./parts";
+import { categoryFromParams, money, priceInfo, useKit, withCategory } from "./kit";
+import "./styles.css";
 
-type SortKey = "default" | "price_asc" | "price_desc" | "name";
-type ViewMode = "grid" | "list";
+const PAGE = 12;
+const SORTS = [
+  { id: "relevance", label: "Mais relevantes" },
+  { id: "recent", label: "Mais recentes" },
+  { id: "low", label: "Menor preço" },
+  { id: "high", label: "Maior preço" },
+  { id: "name", label: "Nome (A–Z)" },
+];
 
 export default function StoreCatalog() {
-  const { slug: routeSlug } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { categories, products, addToCart, style, tenant, wishlist, toggleWishlist } = useStore();
-  const slug = resolveStoreSlug(routeSlug);
+  const { tenant, categories, active, path, sf, hidePrices } = useKit();
+  const [params, setParams] = useSearchParams();
+  const q = (params.get("q") || "").trim();
+  const selected = categoryFromParams(params, categories);
+  const [sort, setSort] = useState("relevance");
+  const [min, setMin] = useState("");
+  const [max, setMax] = useState("");
+  const [shown, setShown] = useState(PAGE);
+  const [filters, setFilters] = useState(false);
+  const title = sf.catalog_title || "Todos os produtos";
+  const description = sf.catalog_description || "Escolha seus produtos, confira os detalhes e monte seu pedido.";
 
-  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
-  const [selectedCategory, setSelectedCategory] = useState<number | null>(
-    searchParams.get("cat") ? Number(searchParams.get("cat")) : null
-  );
-  const [priceRange, setPriceRange] = useState<[number, number] | null>(null);
-  const [sortBy, setSortBy] = useState<SortKey>("default");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [showSortMenu, setShowSortMenu] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 20;
-  const sortRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { setShown(PAGE); }, [q, selected, sort, min, max]);
 
-  useEffect(() => {
-    const q = searchParams.get("q") || "";
-    const cat = searchParams.get("cat") ? Number(searchParams.get("cat")) : null;
-    setSearchTerm(q);
-    setSelectedCategory(cat);
-    setCurrentPage(1);
-  }, [searchParams]);
+  const counts = useMemo(() => {
+    const map = new Map<number, number>();
+    active.forEach((p) => p.category_id && map.set(p.category_id, (map.get(p.category_id) || 0) + 1));
+    return map;
+  }, [active]);
 
-  useEffect(() => { setCurrentPage(1); }, [priceRange, sortBy]);
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setShowSortMenu(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  const updateParams = (key: string, val: string | null) => {
-    const p = new URLSearchParams(searchParams);
-    if (val) p.set(key, val); else p.delete(key);
-    setSearchParams(p, { replace: true });
-  };
-
-  const filtered = products
-    .filter(p => p.is_active)
-    .filter(p =>
-      (searchTerm === "" || p.name.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (selectedCategory === null || p.category_id === selectedCategory) &&
-      (priceRange === null || (Number(p.price) >= priceRange[0] && Number(p.price) < priceRange[1]))
-    )
-    .sort((a, b) => {
-      if (sortBy === "price_asc") return Number(a.price) - Number(b.price);
-      if (sortBy === "price_desc") return Number(b.price) - Number(a.price);
-      if (sortBy === "name") return a.name.localeCompare(b.name);
-      return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
+  const list = useMemo(() => {
+    const term = q.toLowerCase();
+    const lo = min ? Number(min) : null;
+    const hi = max ? Number(max) : null;
+    const out = active.filter((p) => {
+      if (selected && p.category_id !== selected) return false;
+      if (term && !`${p.name} ${p.sku || ""} ${p.description || ""}`.toLowerCase().includes(term)) return false;
+      const price = priceInfo(p).price;
+      if (lo !== null && price < lo) return false;
+      if (hi !== null && price > hi) return false;
+      return true;
     });
+    if (sort === "recent") out.sort((a, b) => b.id - a.id);
+    if (sort === "low") out.sort((a, b) => priceInfo(a).price - priceInfo(b).price);
+    if (sort === "high") out.sort((a, b) => priceInfo(b).price - priceInfo(a).price);
+    if (sort === "name") out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    if (sort === "relevance") out.sort((a, b) => Number(b.is_featured) - Number(a.is_featured));
+    return out;
+  }, [active, q, selected, sort, min, max]);
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
-  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  const sortLabels: Record<SortKey, string> = {
-    default: "Relevância",
-    price_asc: "Menor preço",
-    price_desc: "Maior preço",
-    name: "A → Z",
+  const setCat = (id: number | null) => setParams(withCategory(params, id));
+  const clearAll = () => {
+    const next = new URLSearchParams(params);
+    ["q", "cat", "categoria"].forEach((k) => next.delete(k));
+    setParams(next);
+    setMin(""); setMax("");
   };
-
-  const catName = selectedCategory
-    ? categories.find(c => c.id === selectedCategory)?.name
-    : null;
-
-  const pageTitle = catName ? `${catName} — ${tenant.name}` : `Catálogo — ${tenant.name}`;
+  const currentCat = categories.find((c) => c.id === selected);
+  const hasFilter = Boolean(q || selected || min || max);
 
   return (
-    <div className="min-h-screen bg-[#fefaf6]">
-      <StoreSEO
-        title={pageTitle}
-        description={`Confira ${catName ? `os melhores produtos de ${catName}` : "todo o catálogo"} da ${tenant.name}. Preços e promoções atualizados, atendimento via WhatsApp.`}
-        url={typeof window !== "undefined" ? window.location.href : ""}
-        siteName={tenant.name}
-        keywords={`${catName ? `${catName}, ` : ""}${tenant.name}, catálogo, produtos, comprar online, promoções${categories.map(c => `, ${c.name}`).join("")}`}
-        jsonLd={{
-          "@context": "https://schema.org",
-          "@type": "CollectionPage",
-          "name": pageTitle,
-          "description": `Catálogo de produtos da ${tenant.name}`,
-          "url": typeof window !== "undefined" ? window.location.href : "",
-          "numberOfItems": filtered.length,
-        }}
-      />
-
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-8">
-
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-[10px] font-bold uppercase mb-6 text-stone-400 tracking-wider">
-          <Link to={buildStorePath(slug)} className="transition-colors hover:text-amber-700">Início</Link>
-          <span>/</span>
-          <span className="text-stone-700">Catálogo</span>
-          {catName && <><span>/</span><span style={{ color: style.accent }}>{catName}</span></>}
+    <div className="dfl-page">
+      <StoreSEO title={`${currentCat ? currentCat.name : title} — ${tenant.name}`} description={description} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+      <div className="dfl-wrap">
+        <nav className="dfl-crumbs" aria-label="Você está em">
+          <Link to={path()}>Início</Link><span>/</span>
+          <span aria-current="page">{currentCat ? currentCat.name : "Catálogo"}</span>
         </nav>
-
-        <div className="flex gap-6">
-
-          {/* ── SIDEBAR ──────────────────────────────────────────── */}
-          <aside className="hidden lg:flex flex-col gap-1.5 w-56 shrink-0">
-            <div className="bg-[#fffbf5] border border-[#f0e6d3] rounded-2xl p-4 space-y-1.5">
-              <p className="text-[10px] font-black uppercase tracking-widest px-1 mb-2 text-stone-400 flex items-center gap-1.5">
-                <Leaf size={11} className="text-amber-400" /> Filtrar por
-              </p>
-
-              <button
-                onClick={() => { setSelectedCategory(null); updateParams("cat", null); }}
-                className={cn(
-                  "flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl w-full",
-                  selectedCategory === null
-                    ? "text-white shadow-sm"
-                    : "text-stone-600 hover:bg-amber-50 hover:text-amber-700"
-                )}
-                style={selectedCategory === null ? { backgroundColor: style.accent } : {}}
-              >
-                <span className="flex items-center gap-2"><LayoutGrid size={12} /> Todos</span>
-                <span className={cn("text-[10px] font-black px-1.5 py-0.5 rounded-full",
-                  selectedCategory === null ? "bg-white/20 text-white" : "bg-amber-100 text-amber-600")}>
-                  {products.filter(p => p.is_active).length}
-                </span>
-              </button>
-
-              {categories.map(cat => {
-                const count = products.filter(p => p.is_active && p.category_id === cat.id).length;
-                const active = selectedCategory === cat.id;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => { setSelectedCategory(cat.id); updateParams("cat", String(cat.id)); }}
-                    className={cn(
-                      "flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl w-full",
-                      active
-                        ? "text-white shadow-sm"
-                        : "text-stone-600 hover:bg-amber-50 hover:text-amber-700"
-                    )}
-                    style={active ? { backgroundColor: style.accent } : {}}
-                  >
-                    <span className="flex items-center gap-2 truncate"><Leaf size={12} className="shrink-0" /> <span className="truncate">{cat.name}</span></span>
-                    <span className={cn("text-[10px] font-black px-1.5 py-0.5 rounded-full shrink-0",
-                      active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-600")}>{count}</span>
-                  </button>
-                );
-              })}
-
-              {products.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-amber-100">
-                  <p className="text-[10px] font-black uppercase tracking-widest px-1 mb-2 text-stone-400">Faixa de preço</p>
-                  <div className="px-1 space-y-1">
-                    {([
-                      ["Até R$ 50", 0, 50],
-                      ["R$ 50–200", 50, 200],
-                      ["R$ 200–500", 200, 500],
-                      ["Acima de R$ 500", 500, Infinity],
-                    ] as [string, number, number][]).map(([label, min, max]) => {
-                      const count = products.filter(p => p.is_active && Number(p.price) >= min && Number(p.price) < max).length;
-                      if (count === 0) return null;
-                      const active = priceRange !== null && priceRange[0] === min && priceRange[1] === max;
-                      return (
-                        <button
-                          key={label}
-                          onClick={() => { setPriceRange(active ? null : [min, max]); setCurrentPage(1); }}
-                          className={cn("flex items-center justify-between w-full text-[10px] transition-colors py-1 rounded px-1",
-                            active ? "text-amber-700 font-black" : "text-stone-500 hover:text-amber-700")}
-                        >
-                          <span className="font-medium">{label}</span>
-                          <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-bold",
-                            active ? "bg-amber-600 text-white" : "bg-amber-100 text-amber-600")}>{count}</span>
-                        </button>
-                      );
-                    })}
-                    {priceRange !== null && (
-                      <button onClick={() => setPriceRange(null)} className="text-[9px] font-bold text-amber-600 hover:text-amber-800 px-1 mt-1">
-                        Limpar faixa ×
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
+        <div className="dfl-cat-layout">
+          <aside className={`dfl-side${filters ? " is-open" : ""}`} aria-label="Filtros">
+            <div className="dfl-side-head">
+              <h2>Filtros</h2>
+              <button type="button" className="dfl-icon-btn dfl-side-close" aria-label="Fechar filtros" onClick={() => setFilters(false)}><X size={20} /></button>
             </div>
+            <div className="dfl-side-block">
+              <h3>Categorias</h3>
+              <ul>
+                <li><button type="button" className={!selected ? "is-on" : ""} aria-pressed={!selected} onClick={() => setCat(null)}>Todas <span>{active.length}</span></button></li>
+                {categories.filter((c) => counts.get(c.id)).map((c) => (
+                  <li key={c.id}><button type="button" className={selected === c.id ? "is-on" : ""} aria-pressed={selected === c.id} onClick={() => setCat(c.id)}>{c.name} <span>{counts.get(c.id)}</span></button></li>
+                ))}
+              </ul>
+            </div>
+            {!hidePrices && (
+              <div className="dfl-side-block">
+                <h3>Faixa de preço</h3>
+                <div className="dfl-range">
+                  <label><span>De (R$)</span><input inputMode="decimal" type="number" min="0" value={min} onChange={(e) => setMin(e.target.value)} placeholder="0" /></label>
+                  <label><span>Até (R$)</span><input inputMode="decimal" type="number" min="0" value={max} onChange={(e) => setMax(e.target.value)} placeholder="Sem limite" /></label>
+                </div>
+              </div>
+            )}
+            <button type="button" className="dfl-btn dfl-btn-line" onClick={clearAll} disabled={!hasFilter}>Limpar filtros</button>
+            <button type="button" className="dfl-btn dfl-side-apply" onClick={() => setFilters(false)}>Ver {list.length} {list.length === 1 ? "produto" : "produtos"}</button>
           </aside>
+          {filters && <button type="button" className="dfl-side-scrim" aria-label="Fechar filtros" onClick={() => setFilters(false)} />}
 
-          {/* ── MAIN ─────────────────────────────────────────────── */}
-          <div className="flex-1 min-w-0 space-y-5">
-
-            {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-
-              {/* Search */}
-              <div className="flex-1 relative group w-full">
-                <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors text-stone-400 group-focus-within:text-amber-600" />
-                <input
-                  type="text"
-                  placeholder="Buscar produtos..."
-                  value={searchTerm}
-                  onChange={e => { setSearchTerm(e.target.value); updateParams("q", e.target.value || null); }}
-                  className="w-full pl-10 pr-9 h-10 text-[13px] font-medium outline-none transition-all bg-white border border-[#f0e6d3] rounded-xl placeholder:text-stone-300 focus:border-amber-400 focus:ring-2 focus:ring-amber-100 text-stone-700"
-                />
-                {searchTerm && (
-                  <button onClick={() => { setSearchTerm(""); updateParams("q", null); }}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-700">
-                    <X size={13} />
-                  </button>
-                )}
+          <section className="dfl-results">
+            <header className="dfl-results-head">
+              <div>
+                <h1>{currentCat ? currentCat.name : title}</h1>
+                <p>{q ? <>Resultados para <b>“{q}”</b> · </> : null}{list.length} {list.length === 1 ? "produto" : "produtos"}</p>
               </div>
-
-              {/* Mobile filter button */}
-              <button
-                onClick={() => setSidebarOpen(v => !v)}
-                className="lg:hidden flex items-center gap-2 h-10 px-3 text-[11px] font-bold border border-[#f0e6d3] bg-white rounded-xl text-stone-600 hover:border-amber-300"
-              >
-                <SlidersHorizontal size={13} className="text-amber-600" /> Filtros
-                {selectedCategory !== null && (
-                  <span style={{ backgroundColor: style.accent }} className="w-4 h-4 rounded-full text-white text-[8px] font-black flex items-center justify-center">1</span>
-                )}
-              </button>
-
-              <div className="flex items-center gap-2 shrink-0">
-                {/* Sort */}
-                <div ref={sortRef} className="relative">
-                  <button
-                    onClick={() => setShowSortMenu(v => !v)}
-                    className="flex items-center gap-2 h-10 px-3 text-[11px] font-bold transition-all border border-[#f0e6d3] bg-white rounded-xl text-stone-600 hover:border-amber-300"
-                  >
-                    <ArrowUpDown size={12} className="text-amber-500" />
-                    <span className="hidden sm:inline">{sortLabels[sortBy]}</span>
-                    <ChevronDown size={11} className={cn("transition-transform", showSortMenu && "rotate-180")} />
-                  </button>
-                  <AnimatePresence>
-                    {showSortMenu && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -6 }}
-                        className="absolute right-0 top-full mt-2 rounded-2xl shadow-xl z-50 min-w-[180px] py-1 border bg-white border-[#f0e6d3]"
-                      >
-                        {(Object.entries(sortLabels) as [SortKey, string][]).map(([val, label]) => (
-                          <button
-                            key={val}
-                            onClick={() => { setSortBy(val); setShowSortMenu(false); }}
-                            className="w-full flex items-center justify-between gap-3 px-4 py-2 text-[11px] font-semibold transition-colors text-stone-700 hover:bg-amber-50"
-                          >
-                            {label}
-                            {sortBy === val && <Check size={12} style={{ color: style.accent }} />}
-                          </button>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-
-                {/* View toggle */}
-                <div className="flex h-10 overflow-hidden bg-white border border-[#f0e6d3] rounded-xl">
-                  {(["grid", "list"] as ViewMode[]).map(mode => (
-                    <button
-                      key={mode}
-                      onClick={() => setViewMode(mode)}
-                      className={cn("w-9 flex items-center justify-center transition-all",
-                        viewMode === mode ? "text-white" : "text-stone-400 hover:text-amber-600")}
-                      style={viewMode === mode ? { backgroundColor: style.accent } : {}}
-                    >
-                      {mode === "grid" ? <LayoutGrid size={13} /> : <List size={13} />}
-                    </button>
-                  ))}
-                </div>
+              <div className="dfl-toolbar">
+                <button type="button" className="dfl-btn dfl-btn-line dfl-filter-btn" onClick={() => setFilters(true)}><SlidersHorizontal size={16} /> Filtros</button>
+                <label className="dfl-sort"><span>Ordenar por</span>
+                  <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                    {SORTS.filter((s) => !(hidePrices && (s.id === "low" || s.id === "high"))).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                </label>
               </div>
-            </div>
-
-            {/* Mobile sidebar drawer */}
-            <AnimatePresence>
-              {sidebarOpen && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="lg:hidden overflow-hidden"
-                >
-                  <div className="bg-[#fffbf5] border border-[#f0e6d3] rounded-2xl p-4 space-y-1.5">
-                    <button
-                      onClick={() => { setSelectedCategory(null); updateParams("cat", null); setSidebarOpen(false); }}
-                      className={cn("flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl w-full",
-                        selectedCategory === null ? "text-white" : "text-stone-600 hover:bg-amber-50")}
-                      style={selectedCategory === null ? { backgroundColor: style.accent } : {}}
-                    >
-                      <span className="flex items-center gap-2"><LayoutGrid size={12} /> Todos</span>
-                      <span className={cn("text-[10px] font-black px-1.5 py-0.5 rounded-full",
-                        selectedCategory === null ? "bg-white/20 text-white" : "bg-amber-100 text-amber-600")}>
-                        {products.filter(p => p.is_active).length}
-                      </span>
-                    </button>
-                    {categories.map(cat => {
-                      const count = products.filter(p => p.is_active && p.category_id === cat.id).length;
-                      const active = selectedCategory === cat.id;
-                      return (
-                        <button
-                          key={cat.id}
-                          onClick={() => { setSelectedCategory(cat.id); updateParams("cat", String(cat.id)); setSidebarOpen(false); }}
-                          className={cn("flex items-center justify-between px-3 py-2 text-[11px] font-bold transition-all rounded-xl w-full",
-                            active ? "text-white" : "text-stone-600 hover:bg-amber-50")}
-                          style={active ? { backgroundColor: style.accent } : {}}
-                        >
-                          <span className="flex items-center gap-2 truncate"><Leaf size={12} className="shrink-0" /><span className="truncate">{cat.name}</span></span>
-                          <span className={cn("text-[10px] font-black px-1.5 py-0.5 rounded-full shrink-0",
-                            active ? "bg-white/20 text-white" : "bg-amber-100 text-amber-600")}>{count}</span>
-                        </button>
-                      );
-                    })}
+            </header>
+            {(q || selected || min || max) && (
+              <div className="dfl-chips">
+                {q && <button type="button" onClick={() => { const n = new URLSearchParams(params); n.delete("q"); setParams(n); }}>Busca: {q} <X size={13} /></button>}
+                {currentCat && <button type="button" onClick={() => setCat(null)}>{currentCat.name} <X size={13} /></button>}
+                {(min || max) && <button type="button" onClick={() => { setMin(""); setMax(""); }}>{min ? money(Number(min)) : "R$ 0"} – {max ? money(Number(max)) : "sem limite"} <X size={13} /></button>}
+              </div>
+            )}
+            {list.length === 0 ? (
+              <Empty title="Nenhum produto encontrado" text="Tente outro termo ou remova alguns filtros." />
+            ) : (
+              <>
+                <div className="dfl-grid dfl-grid-cat">{list.slice(0, shown).map((p) => <Card key={p.id} product={p} />)}</div>
+                {shown < list.length && (
+                  <div className="dfl-more">
+                    <p>Mostrando {Math.min(shown, list.length)} de {list.length}</p>
+                    <button type="button" className="dfl-btn dfl-btn-inline" onClick={() => setShown((n) => n + PAGE)}>Ver mais produtos</button>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Mobile categories pills */}
-            <div className="flex lg:hidden gap-2 overflow-x-auto pb-1 no-scrollbar">
-              {[{ id: null as number | null, name: "Todos" }, ...categories].map((cat, i) => (
-                <button
-                  key={i}
-                  onClick={() => { setSelectedCategory(cat.id); updateParams("cat", cat.id ? String(cat.id) : null); }}
-                  style={selectedCategory === cat.id ? { backgroundColor: style.accent } : {}}
-                  className={cn("px-3 h-8 whitespace-nowrap font-bold text-[10px] uppercase tracking-wider rounded-full border shrink-0 transition-all",
-                    selectedCategory === cat.id ? "text-white border-transparent" : "bg-white text-stone-500 border-[#f0e6d3] hover:border-amber-300")}
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
-
-            {/* Active filters */}
-            {(selectedCategory !== null || searchTerm || priceRange !== null) && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-wider text-stone-400">Filtros:</span>
-                {catName && (
-                  <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-amber-50 border border-amber-200 text-amber-700">
-                    {catName}
-                    <button onClick={() => { setSelectedCategory(null); updateParams("cat", null); }}><X size={10} /></button>
-                  </span>
                 )}
-                {searchTerm && (
-                  <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-stone-100 border border-stone-200 text-stone-600">
-                    "{searchTerm}"
-                    <button onClick={() => { setSearchTerm(""); updateParams("q", null); }}><X size={10} /></button>
-                  </span>
-                )}
-                {priceRange !== null && (
-                  <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-amber-50 border border-amber-200 text-amber-700">
-                    {priceRange[1] === Infinity ? `Acima de R$ ${priceRange[0]}` : `R$ ${priceRange[0]}–${priceRange[1]}`}
-                    <button onClick={() => setPriceRange(null)}><X size={10} /></button>
-                  </span>
-                )}
-                <button
-                  onClick={() => { setSelectedCategory(null); setSearchTerm(""); setPriceRange(null); setSearchParams({}); }}
-                  className="text-[10px] font-bold text-amber-600 hover:text-amber-800 uppercase tracking-wider"
-                >
-                  Limpar tudo
-                </button>
-              </div>
+              </>
             )}
-
-            {/* Result count */}
-            <p className="text-[10px] font-bold uppercase tracking-widest text-stone-400">
-              {filtered.length} produto{filtered.length !== 1 ? "s" : ""} encontrado{filtered.length !== 1 ? "s" : ""}
-            </p>
-
-            {/* Empty */}
-            {filtered.length === 0 && (
-              <div className="py-24 flex flex-col items-center gap-4 text-stone-400">
-                <Package size={40} strokeWidth={1} className="opacity-30 text-amber-300" />
-                <div className="text-center">
-                  <p className="text-[13px] font-black uppercase tracking-tight text-stone-700">Nenhum produto encontrado</p>
-                  <p className="text-[11px] text-stone-400 mt-1">Tente outros filtros ou termos</p>
-                </div>
-                <button
-                  onClick={() => { setSearchTerm(""); setSelectedCategory(null); setPriceRange(null); setSearchParams({}); }}
-                  style={{ backgroundColor: style.accent }}
-                  className="text-white px-5 h-10 rounded-xl text-[11px] font-black uppercase tracking-wider shadow-[0_4px_16px_rgba(217,119,6,0.3)] hover:shadow-[0_6px_22px_rgba(217,119,6,0.45)] transition-all"
-                >
-                  Limpar filtros
-                </button>
-              </div>
-            )}
-
-            {/* GRID */}
-            {viewMode === "grid" && filtered.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
-                {paginated.map((product, i) => (
-                  <ProductCard key={product.id} product={product} index={i} slug={slug} style={style} wishlist={wishlist} onWishlist={toggleWishlist} onAddToCart={addToCart} />
-                ))}
-              </div>
-            )}
-
-            {/* LIST */}
-            {viewMode === "list" && filtered.length > 0 && (
-              <div className="flex flex-col gap-3">
-                {paginated.map((product, i) => (
-                  <ProductRow key={product.id} product={product} index={i} slug={slug} style={style} wishlist={wishlist} onWishlist={toggleWishlist} onAddToCart={addToCart} />
-                ))}
-              </div>
-            )}
-
-            {/* PAGINATION */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-1 pt-4">
-                <button
-                  onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  disabled={currentPage === 1}
-                  className="w-9 h-9 rounded-xl border border-[#f0e6d3] bg-white text-stone-500 text-sm font-bold disabled:opacity-30 hover:border-amber-300 hover:text-amber-700 transition-all"
-                >
-                  ‹
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-                  .reduce<(number | "…")[]>((acc, p, idx, arr) => {
-                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push("…");
-                    acc.push(p);
-                    return acc;
-                  }, [])
-                  .map((p, i) =>
-                    p === "…"
-                      ? <span key={`e${i}`} className="w-9 h-9 flex items-center justify-center text-stone-400 text-sm">…</span>
-                      : <button
-                          key={p}
-                          onClick={() => { setCurrentPage(p as number); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                          className={cn("w-9 h-9 rounded-xl border text-sm font-bold transition-all",
-                            currentPage === p
-                              ? "text-white border-transparent shadow-sm"
-                              : "border-[#f0e6d3] bg-white text-stone-500 hover:border-amber-300 hover:text-amber-700")}
-                          style={currentPage === p ? { backgroundColor: style.accent } : {}}
-                        >
-                          {p}
-                        </button>
-                  )}
-                <button
-                  onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  disabled={currentPage === totalPages}
-                  className="w-9 h-9 rounded-xl border border-[#f0e6d3] bg-white text-stone-500 text-sm font-bold disabled:opacity-30 hover:border-amber-300 hover:text-amber-700 transition-all"
-                >
-                  ›
-                </button>
-              </div>
-            )}
-          </div>
+          </section>
         </div>
       </div>
     </div>
-  );
-}
-
-// ── Product Card (Grid) ────────────────────────────────────────────────────
-
-interface CardProps {
-  key?: React.Key;
-  product: Product;
-  index: number;
-  slug: string;
-  style: { accent: string; card: string; radius: string; font?: string };
-  wishlist: number[];
-  onWishlist: (id: number) => void;
-  onAddToCart: (p: Product) => void;
-}
-
-function ProductCard({ product, index, slug, style, wishlist, onWishlist, onAddToCart }: CardProps) {
-  const navigate = useNavigate();
-  const discountPct = product.discount_price
-    ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100)
-    : 0;
-  const inWishlist = wishlist.includes(product.id);
-  const allImages = Array.isArray(product.images) && product.images.length > 0
-    ? product.images as string[]
-    : product.image_url ? [product.image_url] : [];
-  const primaryImage = allImages[0] ?? null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.04, 0.4) }}
-      whileHover={{ y: -4 }}
-      className="group relative flex flex-col overflow-hidden border transition-all duration-300 rounded-2xl bg-[#fffbf5] border-[#f0e6d3] hover:shadow-[0_8px_32px_rgba(217,119,6,0.15)] hover:border-amber-200"
-    >
-      <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="relative overflow-hidden block aspect-square bg-amber-50/60">
-        {primaryImage
-          ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-          : <div className="w-full h-full flex items-center justify-center text-amber-200"><Package size={48} strokeWidth={1} /></div>}
-        {allImages.length > 1 && (
-          <div className="absolute bottom-2 left-2 bg-stone-800/60 text-white text-[8px] font-black px-2 py-0.5 rounded-full backdrop-blur-sm flex items-center gap-1">
-            <span>+{allImages.length - 1}</span> fotos
-          </div>
-        )}
-        <div className="absolute top-2 left-2 flex flex-col gap-1">
-          {discountPct > 0 && (
-            <span className="text-white text-[9px] font-black px-2 py-0.5 rounded-full" style={{ backgroundColor: "#c2713a" }}>
-              -{discountPct}%
-            </span>
-          )}
-          {product.is_featured && (
-            <span className="text-white text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-0.5"
-              style={{ backgroundColor: style.accent }}>
-              <Flame size={8} /> Top
-            </span>
-          )}
-        </div>
-        <div className="absolute top-2 right-2 flex flex-col gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={e => { e.preventDefault(); onWishlist(product.id); }}
-            className={cn("w-8 h-8 rounded-full flex items-center justify-center shadow border transition-all",
-              inWishlist ? "bg-red-500 border-red-500 text-white" : "bg-white border-amber-200 text-stone-400 hover:text-red-500")}
-          >
-            <Heart size={12} fill={inWishlist ? "currentColor" : "none"} />
-          </button>
-          <button
-            onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(buildStorePath(slug, `/produto/${productRouteSegment(product)}`)); }}
-            className="w-8 h-8 rounded-full bg-white border border-amber-200 flex items-center justify-center shadow text-stone-400 hover:text-amber-600 transition-all"
-          >
-            <Eye size={12} />
-          </button>
-        </div>
-        <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-200">
-          <button
-            onClick={e => { e.preventDefault(); onAddToCart(product); }}
-            style={{ backgroundColor: style.accent }}
-            className="w-full py-2.5 text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
-          >
-            <Plus size={12} strokeWidth={3} /> Adicionar
-          </button>
-        </div>
-      </Link>
-      <div className="flex flex-col flex-1 p-3 gap-1">
-        <p className="text-[9px] font-black uppercase tracking-widest text-amber-600/60">{product.category_name || "Geral"}</p>
-        <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-[11px] font-semibold text-stone-700 line-clamp-2 leading-snug hover:text-amber-700 transition-colors">
-          {product.name}
-        </Link>
-        {Array.isArray(product.variations) && product.variations.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {product.variations[0]?.options.slice(0, 4).map((opt, i) => (
-              <span key={i} className="text-[9px] border border-amber-100 rounded px-1.5 py-0.5 text-stone-500 bg-amber-50/50">{opt.value}</span>
-            ))}
-          </div>
-        )}
-        <div className="flex items-center justify-between mt-auto pt-2">
-          <div>
-            {product.discount_price ? (
-              <div className="flex flex-col">
-                <span className="text-[9px] text-stone-400 line-through font-mono">R$ {Number(product.price).toFixed(2)}</span>
-                <span className="text-[13px] font-black font-mono" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</span>
-              </div>
-            ) : (
-              <span className="text-[13px] font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
-            )}
-          </div>
-          <button
-            onClick={() => onAddToCart(product)}
-            style={{ backgroundColor: style.accent }}
-            className="text-white transition-all active:scale-90 w-8 h-8 flex items-center justify-center rounded-xl shadow-sm hover:shadow-[0_4px_12px_rgba(217,119,6,0.35)]"
-          >
-            <Plus size={13} strokeWidth={3} />
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
-// ── Product Row (List) ─────────────────────────────────────────────────────
-
-function ProductRow({ product, index, slug, style, wishlist, onWishlist, onAddToCart }: CardProps) {
-  const discountPct = product.discount_price
-    ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100)
-    : 0;
-  const inWishlist = wishlist.includes(product.id);
-  const allImages = Array.isArray(product.images) && product.images.length > 0
-    ? product.images as string[]
-    : product.image_url ? [product.image_url] : [];
-  const primaryImage = allImages[0] ?? null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: Math.min(index * 0.03, 0.3) }}
-      className="flex gap-4 border transition-all group p-3 rounded-2xl bg-[#fffbf5] border-[#f0e6d3] hover:shadow-[0_4px_20px_rgba(217,119,6,0.1)] hover:border-amber-200"
-    >
-      <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-amber-50/60 relative">
-        {primaryImage
-          ? <img src={primaryImage} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-          : <div className="w-full h-full flex items-center justify-center text-amber-200"><Package size={28} strokeWidth={1} /></div>}
-        {discountPct > 0 && (
-          <span className="absolute top-1 left-1 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full"
-            style={{ backgroundColor: "#c2713a" }}>-{discountPct}%</span>
-        )}
-        {allImages.length > 1 && (
-          <span className="absolute bottom-1 right-1 bg-stone-800/60 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full">+{allImages.length - 1}</span>
-        )}
-      </Link>
-
-      <div className="flex-1 min-w-0 flex flex-col justify-between">
-        <div>
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-[9px] font-black text-amber-600/60 uppercase tracking-widest">{product.category_name || "Geral"}</p>
-              <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)} className="text-[12px] font-semibold text-stone-700 hover:text-amber-700 transition-colors leading-snug line-clamp-2 mt-0.5 block">
-                {product.name}
-              </Link>
-            </div>
-            <button
-              onClick={() => onWishlist(product.id)}
-              className={cn("shrink-0 p-1.5 rounded-lg transition-all", inWishlist ? "text-red-500" : "text-stone-300 hover:text-red-400")}
-            >
-              <Heart size={14} fill={inWishlist ? "currentColor" : "none"} />
-            </button>
-          </div>
-          {product.description && <p className="text-[11px] mt-1 line-clamp-2 leading-relaxed text-stone-500">{product.description}</p>}
-          {Array.isArray(product.variations) && product.variations.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {product.variations.map((v, vi) => (
-                <span key={vi} className="text-[9px] font-bold px-2 py-0.5 bg-amber-50 text-amber-600 rounded-full border border-amber-100">
-                  {v.name}: {v.options.map(o => o.value).join(", ")}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center justify-between mt-2">
-          <div>
-            {product.discount_price ? (
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] line-through font-mono text-stone-400">R$ {Number(product.price).toFixed(2)}</span>
-                <span className="text-sm font-black font-mono" style={{ color: "#c2713a" }}>R$ {Number(product.discount_price).toFixed(2)}</span>
-              </div>
-            ) : (
-              <span className="text-sm font-black font-mono" style={{ color: style.accent }}>R$ {Number(product.price).toFixed(2)}</span>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Link to={buildStorePath(slug, `/produto/${productRouteSegment(product)}`)}
-              className="h-8 px-3 rounded-xl border border-[#f0e6d3] text-[10px] font-bold text-stone-500 hover:border-amber-300 hover:text-amber-700 flex items-center gap-1.5 transition-all bg-white">
-              <Eye size={12} /> Ver
-            </Link>
-            <button
-              onClick={() => onAddToCart(product)}
-              style={{ backgroundColor: style.accent }}
-              className="h-8 px-4 rounded-xl text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 active:scale-95 transition-all shadow-sm hover:shadow-[0_4px_14px_rgba(217,119,6,0.35)]"
-            >
-              <Plus size={12} strokeWidth={3} /> Adicionar
-            </button>
-          </div>
-        </div>
-      </div>
-    </motion.div>
   );
 }

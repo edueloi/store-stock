@@ -1,9 +1,165 @@
-import { useMemo,useState } from "react";
-import StockAvailability from "../../../../components/store/StockAvailability";
-import { Link,useParams } from "react-router-dom";
-import { ArrowLeft,Check,Minus,Plus,Puzzle,ShoppingBag } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, Check, Minus, Plus, Puzzle, ShoppingBag } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath,parseProductIdFromRoute,resolveStoreSlug } from "../../store-routing";
-import { toyHide,toyImage,toyMoney } from "./ThemeParts";
-export default function StoreProduct(){const {slug:routeSlug,productId}=useParams();const {tenant,products,categories,addToCart,openCart}=useStore();const slug=resolveStoreSlug(routeSlug);const path=(s="")=>buildStorePath(slug,s);const product=products.find(p=>p.id===parseProductIdFromRoute(productId));const [qty,setQty]=useState(1),[note,setNote]=useState(""),[selected,setSelected]=useState<Record<string,string>>({}),[added,setAdded]=useState(false);const choices=useMemo(()=>Array.isArray(product?.variations)?product.variations as Array<{name:string;options:Array<{value:string}>}>:Array.isArray(product?.attributes)?product.attributes.map((a:any)=>({name:a.name,options:(a.values||[]).map((value:string)=>({value}))})):[],[product]);if(!product)return <main className="grid min-h-[60vh] place-items-center bg-[#f7f3ff]"><div className="text-center"><Puzzle className="mx-auto text-[#7148d5]" size={44}/><h1 className="mt-4 text-xl font-black">Brinquedo não encontrado</h1><Link to={path("/catalogo")} className="mt-5 inline-block rounded-full bg-[#7148d5] px-5 py-3 text-xs font-black text-white">Voltar ao catálogo</Link></div></main>;const image=toyImage(product),complete=choices.every(c=>selected[c.name]);const add=()=>{if(!complete)return;const options={...selected,...(note.trim()?{"Observação":note.trim()}:{})};for(let i=0;i<qty;i+=1)addToCart(product,Object.keys(options).length?options:undefined);setAdded(true)};return <main className="min-h-screen bg-[#f7f3ff] pb-16 text-[#43306f]"><StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description||product.name} image={image} url={typeof window!=="undefined"?window.location.href:""} siteName={tenant.name}/><div className="mx-auto max-w-6xl px-5 py-8"><Link to={path("/catalogo")} className="inline-flex items-center gap-2 text-[10px] font-black uppercase text-[#7148d5]"><ArrowLeft size={15}/> Voltar aos brinquedos</Link><div className="mt-6 grid overflow-hidden rounded-[2rem] border-[3px] border-white bg-white shadow-[0_14px_0_#d9d0ff,0_20px_35px_rgba(85,59,160,.12)] lg:grid-cols-[minmax(0,1fr)_440px]"><div className="grid min-h-[340px] place-items-center bg-[#eee9ff] p-8 lg:min-h-[540px]">{image?<img src={image} alt={product.name} className="h-full max-h-[490px] w-full object-contain"/>:<Puzzle size={54} className="text-[#7148d5]"/>}</div><section className="p-6 sm:p-8"><p className="text-[10px] font-black uppercase tracking-wider text-[#7148d5]">{categories.find(c=>c.id===product.category_id)?.name||"Brinquedos"}</p><h1 className="mt-3 text-3xl font-black leading-tight tracking-[-.05em]">{product.name}</h1><p className="mt-3 text-xl font-black text-[#5f3dbc]">{toyHide(tenant)?"Produto sob consulta":toyMoney(Number(product.discount_price||product.price))}</p>{product.description&&<p className="mt-5 border-y border-[#e3dcfa] py-5 text-sm leading-relaxed text-[#786c9f]">{product.description}</p>}<div className="mt-6 space-y-5">{choices.map(c=><div key={c.name}><p className="text-sm font-black">{c.name} <span className="text-xs font-normal text-[#7148d5]">obrigatório</span></p><div className="mt-3 flex flex-wrap gap-2">{c.options.map(o=><button key={o.value} onClick={()=>setSelected(cur=>({...cur,[c.name]:o.value}))} className={`rounded-xl border px-4 py-2.5 text-sm font-bold ${selected[c.name]===o.value?"border-[#7148d5] bg-[#7148d5] text-white":"border-[#d3c8f6] text-[#5d517d]"}`}>{selected[c.name]===o.value&&<Check size={13} className="mr-1 inline"/>}{o.value}</button>)}</div></div>)}</div><textarea value={note} onChange={e=>setNote(e.target.value.slice(0,250))} placeholder="Observação do pedido (opcional)" className="mt-6 min-h-24 w-full resize-none rounded-2xl border border-[#d3c8f6] bg-[#fbfaff] p-4 text-sm outline-none focus:border-[#7148d5]"/><StockAvailability product={product} tenant={tenant} selected={selected} className="mt-5" /><div className="mt-6 flex gap-3"><div className="flex h-12 items-center rounded-xl border border-[#d3c8f6]"><button onClick={()=>setQty(v=>Math.max(1,v-1))} className="grid h-full w-10 place-items-center"><Minus size={15}/></button><span className="w-7 text-center font-black">{qty}</span><button onClick={()=>setQty(v=>v+1)} className="grid h-full w-10 place-items-center"><Plus size={15}/></button></div><button onClick={add} disabled={!complete} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#7148d5] text-[10px] font-black uppercase text-white disabled:bg-[#b8a9e5]"><ShoppingBag size={16}/> Adicionar ao pedido</button></div>{added&&<div className="mt-5 rounded-2xl bg-[#eee9ff] p-4"><p className="text-sm font-black"><Check size={16} className="mr-1 inline text-[#7148d5]"/> Adicionado ao pedido</p><button onClick={openCart} className="mt-3 rounded-full bg-[#7148d5] px-4 py-2 text-[10px] font-black uppercase text-white">Ver pedido</button></div>}</section></div></div></main>}
+import StockAvailability from "../../../../components/store/StockAvailability";
+import { parseProductIdFromRoute } from "../../store-routing";
+import { priceInfo, useBuy, useKit, whatsappLink } from "./kit";
+import { ProductCard } from "./parts";
+import type { Product } from "../../../../types";
+import "./styles.css";
+
+export default function StoreProduct() {
+  const { productId } = useParams();
+  const { active, path } = useKit();
+  const product = active.find((p) => p.id === parseProductIdFromRoute(productId));
+  if (!product)
+    return (
+      <div className="toys-page toys-notfound">
+        <Puzzle size={56} aria-hidden="true" />
+        <h1>Brinquedo não encontrado</h1>
+        <p>Ele pode ter saído da prateleira. Que tal ver os outros?</p>
+        <Link className="toys-btn toys-btn-solid toys-btn-lg" to={path("/catalogo")}>
+          Voltar ao catálogo
+        </Link>
+      </div>
+    );
+  return <Details key={product.id} product={product} />;
+}
+
+function Details({ product }: { product: Product }) {
+  const { tenant, active, hidden, path, catName, sf } = useKit();
+  const b = useBuy(product);
+  const price = priceInfo(product, hidden);
+  const related = active.filter((p) => p.id !== product.id && p.category_id === product.category_id).slice(0, 4);
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Tenho uma dúvida sobre: ${product.name}`);
+  const missing = b.groups.filter((g) => !b.selected[g.name]).map((g) => g.name);
+  return (
+    <div className="toys-page toys-product">
+      <StoreSEO
+        title={`${product.name} | ${tenant.name}`}
+        description={product.description || product.name}
+        image={b.gallery[0]}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+      <nav className="toys-crumbs" aria-label="Você está em">
+        <Link to={path("/catalogo")}>
+          <ArrowLeft size={16} /> Brinquedos
+        </Link>
+        {catName(product) && (
+          <>
+            <span aria-hidden="true">/</span>
+            <Link to={path(`/catalogo?categoria=${product.category_id}`)}>{catName(product)}</Link>
+          </>
+        )}
+      </nav>
+
+      <div className="toys-pd">
+        <section className="toys-gallery" aria-label="Fotos do brinquedo">
+          <div className="toys-gallery-main">
+            {b.gallery.length ? <img src={b.gallery[b.photo] || b.gallery[0]} alt={product.name} /> : <Puzzle size={90} aria-label="Sem imagem" />}
+            {price.off && <span className="toys-sticker toys-sticker-sale">Oferta</span>}
+          </div>
+          {b.gallery.length > 1 && (
+            <div className="toys-thumbs">
+              {b.gallery.map((src, i) => (
+                <button key={`${src}-${i}`} type="button" aria-label={`Ver foto ${i + 1}`} aria-pressed={b.photo === i} onClick={() => b.setPhoto(i)}>
+                  <img src={src} alt="" />
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="toys-buy">
+          {catName(product) && <span className="toys-chip">{catName(product)}</span>}
+          <h1>{product.name}</h1>
+          {product.sku && <small className="toys-sku">Código: {product.sku}</small>}
+          <div className="toys-price toys-price-lg">
+            <strong>{hidden ? "Valor sob consulta" : price.now}</strong>
+            {price.old && <s>{price.old}</s>}
+          </div>
+          {product.description && <p className="toys-desc">{product.description}</p>}
+
+          <StockAvailability product={product} tenant={tenant} selected={b.ready ? b.selected : undefined} />
+
+          {b.groups.map((g, gi) => (
+            <fieldset key={g.name} className="toys-fieldset">
+              <legend>
+                {g.name} <small>obrigatório</small>
+              </legend>
+              <div className="toys-opts">
+                {g.values.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className={`toys-opt toys-tint-${(gi + 1) % 4}`}
+                    aria-pressed={b.selected[g.name] === v}
+                    onClick={() => b.setSelected((prev) => ({ ...prev, [g.name]: v }))}
+                  >
+                    {b.selected[g.name] === v && <Check size={15} aria-hidden="true" />} {v}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+
+          <label className="toys-note-field">
+            <span>Observação (opcional)</span>
+            <textarea value={b.note} maxLength={250} onChange={(e) => b.setNote(e.target.value)} placeholder="Ex.: é presente, quero embalagem especial..." rows={3} />
+          </label>
+
+          <div className="toys-buy-row">
+            <div className="toys-qty" role="group" aria-label="Quantidade">
+              <button type="button" aria-label="Diminuir quantidade" disabled={b.qty <= 1} onClick={() => b.setQty((v) => Math.max(1, v - 1))}>
+                <Minus size={18} />
+              </button>
+              <output aria-live="polite">{b.qty}</output>
+              <button type="button" aria-label="Aumentar quantidade" disabled={b.qty >= b.maxQty} onClick={() => b.setQty((v) => Math.min(b.maxQty, v + 1))}>
+                <Plus size={18} />
+              </button>
+            </div>
+            <button type="button" className="toys-btn toys-btn-solid toys-btn-lg toys-add" disabled={!b.canAdd} onClick={b.add}>
+              <ShoppingBag size={20} /> {b.soldOut ? "Indisponível" : sf.checkout_mode === "order_request" ? "Incluir no pedido" : "Adicionar à sacola"}
+            </button>
+          </div>
+          {!b.ready && (
+            <p className="toys-hint" role="status">
+              Escolha {missing.join(" e ")} para continuar.
+            </p>
+          )}
+          {b.added && (
+            <div className="toys-added" role="status">
+              <span>
+                <Check size={18} aria-hidden="true" /> Adicionado à sacola!
+              </span>
+              <button type="button" className="toys-btn toys-btn-yellow" onClick={b.openCart}>
+                Ver sacola
+              </button>
+            </div>
+          )}
+          {wa && (
+            <a className="toys-link" href={wa} target="_blank" rel="noreferrer">
+              Tirar dúvida pelo WhatsApp
+            </a>
+          )}
+          {tenant.show_address && tenant.address && <p className="toys-small">Retirada: {tenant.address}</p>}
+        </section>
+      </div>
+
+      {related.length > 0 && (
+        <section className="toys-section">
+          <header className="toys-head">
+            <span className="toys-pill toys-pill-mint">Para brincar junto</span>
+            <h2>Veja também</h2>
+          </header>
+          <div className="toys-grid">
+            {related.map((p, i) => (
+              <ProductCard key={p.id} product={p} index={i} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,238 @@
+@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600;700&family=Zilla+Slab:wght@600;700&display=swap");
+
+.agro-header, .agro-footer, .agro-page {
+  --agro-ink: #173b2a;
+  --agro-ink-2: #0f2a1d;
+  --agro-bg: #f3f1e5;
+  --agro-paper: #fffdf4;
+  --agro-gold: var(--theme-accent, #d9ac42);
+  --agro-muted: #4d6558;
+  font-family: "Barlow", system-ui, sans-serif;
+  color: var(--agro-ink);
+}
+.agro-page { background: var(--agro-bg); min-height: 60vh; overflow-x: clip; }
+.agro-page *, .agro-header *, .agro-footer * { box-sizing: border-box; }
+.agro-slab { font-family: "Zilla Slab", Georgia, serif; font-weight: 700; letter-spacing: -.01em; }
+.agro-wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+.agro-header :focus-visible, .agro-footer :focus-visible, .agro-page :focus-visible { outline: 3px solid var(--agro-gold); outline-offset: 2px; box-shadow: 0 0 0 5px var(--agro-ink); }
+.agro-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ===== Cabeçalho ===== */
+.agro-header { position: sticky; top: 0; z-index: 60; background: var(--agro-ink); color: #f7f2dc; }
+.agro-strip { background: var(--agro-gold); color: var(--agro-ink-2); font-size: 12px; }
+.agro-strip .agro-wrap { display: flex; justify-content: space-between; gap: 12px; align-items: center; min-height: 32px; }
+.agro-strip a { color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; min-height: 32px; display: inline-flex; align-items: center; }
+.agro-bar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 18px; padding-top: 12px; padding-bottom: 12px; }
+.agro-brand { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; min-height: 44px; min-width: 0; }
+.agro-brand img { width: 46px; height: 46px; object-fit: cover; border: 3px solid var(--agro-gold); background: #fff; }
+.agro-brand-mark { width: 46px; height: 46px; display: grid; place-items: center; background: var(--agro-gold); color: var(--agro-ink-2); border: 3px solid #fff; flex: none; }
+.agro-brand span.agro-slab { font-size: clamp(19px, 3vw, 26px); line-height: 1; overflow-wrap: anywhere; }
+.agro-search { max-width: 560px; width: 100%; justify-self: center; }
+.agro-search input { font-size: 16px !important; border-radius: 0 !important; border: 3px solid var(--agro-gold) !important; background: #fffdf4 !important; color: var(--agro-ink) !important; font-weight: 600 !important; height: 46px !important; }
+.agro-actions { display: flex; gap: 8px; align-items: center; }
+.agro-btn-cart, .agro-burger { min-height: 46px; min-width: 46px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 3px solid var(--agro-gold); background: transparent; color: #fff; cursor: pointer; padding: 0 14px; font: 700 15px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; }
+.agro-btn-cart b { background: var(--agro-gold); color: var(--agro-ink-2); min-width: 24px; height: 24px; display: inline-grid; place-items: center; font-size: 13px; padding: 0 5px; }
+.agro-btn-cart:hover, .agro-burger:hover { background: rgba(255,255,255,.1); }
+.agro-burger { display: none; padding: 0; }
+.agro-depts { background: var(--agro-ink-2); border-top: 1px solid rgba(255,255,255,.15); }
+.agro-depts .agro-wrap { display: flex; overflow-x: auto; scrollbar-width: thin; }
+.agro-depts a { flex: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 18px; color: #f7f2dc; text-decoration: none; font: 700 15px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .1em; border-right: 1px solid rgba(255,255,255,.12); }
+.agro-depts a:first-child { border-left: 1px solid rgba(255,255,255,.12); }
+.agro-depts a:hover, .agro-depts a[aria-current="page"] { background: var(--agro-gold); color: var(--agro-ink-2); }
+.agro-drawer { display: none; }
+@media (max-width: 860px) {
+  .agro-bar { grid-template-columns: 1fr auto; row-gap: 10px; }
+  .agro-search { grid-column: 1 / -1; grid-row: 2; max-width: none; }
+  .agro-burger { display: inline-flex; }
+  .agro-btn-cart .agro-lbl { display: none; }
+  .agro-strip .agro-wrap > a { display: none; }
+  .agro-drawer { display: block; background: var(--agro-ink-2); border-top: 3px solid var(--agro-gold); max-height: 70vh; overflow-y: auto; }
+  .agro-drawer a { display: flex; align-items: center; min-height: 52px; padding: 0 20px; color: #fff; text-decoration: none; font: 700 18px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .agro-drawer a:hover, .agro-drawer a[aria-current="page"] { background: var(--agro-gold); color: var(--agro-ink-2); }
+}
+
+/* ===== Rodapé ===== */
+.agro-footer { background: var(--agro-ink-2); color: #e9e4cc; }
+.agro-footer-stripe { height: 14px; background: repeating-linear-gradient(-45deg, var(--agro-gold) 0 14px, var(--agro-ink-2) 14px 28px); }
+.agro-footer-grid { display: grid; gap: 36px; grid-template-columns: 1.4fr 1fr 1fr 1.1fr; padding: 48px 20px 36px; }
+.agro-footer h2 { font: 700 30px/1.05 "Zilla Slab", serif; color: #fff; margin: 0 0 12px; }
+.agro-footer h3 { font: 700 15px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .14em; color: var(--agro-gold); margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid rgba(255,255,255,.15); }
+.agro-footer p, .agro-footer li { font-size: 15px; line-height: 1.6; margin: 0 0 8px; }
+.agro-footer ul { list-style: none; padding: 0; margin: 0; }
+.agro-footer a { color: #e9e4cc; text-decoration: none; display: inline-flex; align-items: center; min-height: 32px; }
+.agro-footer a:hover { color: var(--agro-gold); text-decoration: underline; }
+.agro-footer-hours li { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed rgba(255,255,255,.18); padding: 3px 0; font-size: 14px; margin: 0; }
+.agro-footer-credit { border-top: 1px solid rgba(255,255,255,.15); padding: 16px 20px; font-size: 12px; text-align: center; letter-spacing: .08em; text-transform: uppercase; color: #bdb99f; }
+.agro-footer-credit a { min-height: 0; color: #fff; font-weight: 700; text-decoration: underline; }
+@media (max-width: 900px) { .agro-footer-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .agro-footer-grid { grid-template-columns: 1fr; padding-top: 36px; } }
+
+/* ===== Botões, selos, etiquetas ===== */
+.agro-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 24px; background: var(--agro-gold); color: var(--agro-ink-2); border: 3px solid var(--agro-ink); box-shadow: 4px 4px 0 var(--agro-ink); font: 700 17px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .1em; text-decoration: none; cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.agro-btn:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--agro-ink); }
+.agro-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: 4px 4px 0 var(--agro-ink); }
+.agro-btn.is-dark { background: var(--agro-ink); color: #fff; box-shadow: 4px 4px 0 var(--agro-gold); }
+.agro-btn.is-ghost { background: transparent; color: var(--agro-ink); }
+.agro-tag { display: inline-block; background: var(--agro-ink); color: #fff; padding: 3px 10px; font: 700 13px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .12em; }
+.agro-tag.is-gold { background: var(--agro-gold); color: var(--agro-ink-2); }
+.agro-seal { width: 104px; height: 104px; flex: none; }
+.agro-seal text { font-family: "Barlow Condensed", sans-serif; font-weight: 700; letter-spacing: .12em; }
+.agro-section-title { display: flex; align-items: end; gap: 16px; flex-wrap: wrap; justify-content: space-between; border-bottom: 4px solid var(--agro-ink); padding-bottom: 12px; margin-bottom: 26px; }
+.agro-section-title h2 { margin: 0; font: 700 clamp(28px, 4.4vw, 46px)/1 "Zilla Slab", serif; }
+.agro-section-title a { font: 700 16px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .1em; color: var(--agro-ink); display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+
+/* ===== Cartão de produto ===== */
+.agro-grid { display: grid; gap: 22px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.agro-card { position: relative; background: var(--agro-paper); border: 3px solid var(--agro-ink); box-shadow: 6px 6px 0 var(--agro-ink); display: flex; flex-direction: column; transition: transform .15s, box-shadow .15s; color: var(--agro-ink); }
+.agro-card:hover { transform: translate(-2px, -2px); box-shadow: 9px 9px 0 var(--agro-ink); }
+.agro-card-img { position: relative; aspect-ratio: 1 / 1; background: repeating-linear-gradient(135deg, #ece8d2 0 10px, #f4f1df 10px 20px); border-bottom: 3px solid var(--agro-ink); display: grid; place-items: center; overflow: hidden; }
+.agro-card-img img { width: 100%; height: 100%; object-fit: contain; padding: 12px; }
+.agro-ribbon { position: absolute; left: -3px; top: 14px; background: var(--agro-gold); color: var(--agro-ink-2); border: 3px solid var(--agro-ink); border-left: 0; padding: 4px 12px 4px 10px; font: 700 14px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .1em; z-index: 2; }
+.agro-heart { position: absolute; right: 8px; top: 8px; z-index: 3; width: 44px; height: 44px; display: grid; place-items: center; background: var(--agro-paper); border: 3px solid var(--agro-ink); cursor: pointer; color: var(--agro-ink); }
+.agro-heart[aria-pressed="true"] { background: var(--agro-ink); color: var(--agro-gold); }
+.agro-card-body { padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.agro-card-body h3 { margin: 0; font: 700 20px/1.15 "Zilla Slab", serif; overflow-wrap: anywhere; }
+.agro-card-link { color: inherit; text-decoration: none; }
+.agro-card-link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.agro-price { margin-top: auto; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; padding-top: 8px; border-top: 2px dashed var(--agro-ink); }
+.agro-price strong { font: 700 26px "Zilla Slab", serif; }
+.agro-price s { color: var(--agro-muted); font-size: 14px; }
+.agro-price em { font: 700 15px "Barlow Condensed", sans-serif; letter-spacing: .08em; text-transform: uppercase; font-style: normal; }
+.agro-card-cta { display: flex; align-items: center; justify-content: space-between; background: var(--agro-ink); color: #fff; padding: 0 14px; min-height: 44px; font: 700 15px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .12em; }
+.agro-empty { border: 3px dashed var(--agro-ink); padding: 40px 20px; text-align: center; background: var(--agro-paper); }
+.agro-empty h3 { font: 700 26px "Zilla Slab", serif; margin: 10px 0 6px; }
+.agro-more { display: flex; justify-content: center; margin-top: 34px; }
+
+/* ===== Home ===== */
+.agro-hero { background: var(--agro-ink); color: #f7f2dc; position: relative; border-bottom: 6px solid var(--agro-gold); overflow: hidden; }
+.agro-hero::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgba(255,255,255,.04) 0 2px, transparent 2px 46px); }
+.agro-hero-grid { position: relative; display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; padding-top: 56px; padding-bottom: 56px; align-items: center; }
+.agro-hero h1 { margin: 16px 0 16px; font: 700 clamp(38px, 6.4vw, 78px)/.98 "Zilla Slab", serif; color: #fff; text-wrap: balance; overflow-wrap: anywhere; }
+.agro-hero p.agro-lead { font-size: clamp(16px, 2vw, 19px); line-height: 1.55; max-width: 540px; color: #e5e0c4; margin: 0 0 26px; }
+.agro-hero .agro-btn { box-shadow: 4px 4px 0 #fff; }
+.agro-hero-pic { position: relative; border: 4px solid var(--agro-gold); background: var(--agro-ink-2); aspect-ratio: 5 / 4; box-shadow: 10px 10px 0 rgba(0,0,0,.35); }
+.agro-hero-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.agro-hero-pic .agro-seal { position: absolute; right: -10px; bottom: -28px; transform: rotate(8deg); }
+.agro-hero-fallback { height: 100%; display: grid; place-items: center; color: var(--agro-gold); background: repeating-linear-gradient(45deg, #1c4733 0 16px, #173b2a 16px 32px); }
+.agro-numbers { background: var(--agro-gold); color: var(--agro-ink-2); border-bottom: 4px solid var(--agro-ink); }
+.agro-numbers .agro-wrap { display: grid; grid-template-columns: repeat(3, 1fr); }
+.agro-numbers div { padding: 16px 12px; text-align: center; border-right: 3px solid var(--agro-ink); }
+.agro-numbers div:last-child { border-right: 0; }
+.agro-numbers strong { display: block; font: 700 clamp(22px, 4vw, 38px) "Zilla Slab", serif; line-height: 1; }
+.agro-numbers span { font: 700 13px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .12em; }
+.agro-block { padding: 56px 0; }
+.agro-dept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); border: 4px solid var(--agro-ink); background: var(--agro-paper); overflow: hidden; }
+.agro-dept { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 22px; min-height: 160px; padding: 18px; color: var(--agro-ink); text-decoration: none; border: 2px solid var(--agro-ink); margin: -2px 0 0 -2px; transition: background .15s, color .15s; }
+.agro-dept:hover { background: var(--agro-ink); color: #fff; }
+.agro-dept small { font: 700 14px "Barlow Condensed", sans-serif; letter-spacing: .16em; text-transform: uppercase; color: var(--agro-muted); }
+.agro-dept:hover small { color: var(--agro-gold); }
+.agro-dept b { font: 700 26px/1.05 "Zilla Slab", serif; overflow-wrap: anywhere; }
+.agro-dept i { position: absolute; right: 16px; top: 12px; font: 700 52px "Zilla Slab", serif; opacity: .12; font-style: normal; line-height: 1; }
+.agro-feature-band { background: var(--agro-ink); padding: 56px 0; color: #fff; border-block: 6px solid var(--agro-gold); }
+.agro-feature-band .agro-section-title { border-color: var(--agro-gold); }
+.agro-feature-band .agro-section-title a { color: var(--agro-gold); }
+.agro-feature-band .agro-card { box-shadow: 6px 6px 0 var(--agro-gold); border-color: var(--agro-gold); }
+.agro-cta { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: center; border: 4px solid var(--agro-ink); background: var(--agro-gold); padding: 28px; box-shadow: 8px 8px 0 var(--agro-ink); }
+.agro-cta h2 { margin: 0 0 6px; font: 700 clamp(26px, 4vw, 40px)/1.05 "Zilla Slab", serif; color: var(--agro-ink-2); }
+.agro-cta p { margin: 0; color: var(--agro-ink-2); }
+@media (max-width: 860px) {
+  .agro-hero-grid { grid-template-columns: 1fr; padding-top: 36px; padding-bottom: 48px; gap: 30px; }
+  .agro-cta { grid-template-columns: 1fr; }
+  .agro-block, .agro-feature-band { padding: 40px 0; }
+}
+
+/* ===== Catálogo ===== */
+.agro-cat-head { background: var(--agro-ink); color: #fff; border-bottom: 6px solid var(--agro-gold); padding: 34px 0 30px; }
+.agro-cat-head h1 { margin: 8px 0 8px; font: 700 clamp(32px, 5vw, 56px)/1 "Zilla Slab", serif; }
+.agro-cat-head p { margin: 0; max-width: 640px; color: #e5e0c4; line-height: 1.55; }
+.agro-cat-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 32px; padding: 32px 20px 64px; align-items: start; }
+.agro-side { position: sticky; top: 150px; border: 4px solid var(--agro-ink); background: var(--agro-paper); }
+.agro-side h2 { margin: 0; background: var(--agro-ink); color: var(--agro-gold); padding: 12px 16px; font: 700 16px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .14em; }
+.agro-side button { width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 48px; padding: 0 16px; background: transparent; border: 0; border-bottom: 2px solid rgba(23,59,42,.18); font: 600 16px "Barlow", sans-serif; color: var(--agro-ink); cursor: pointer; }
+.agro-side button:last-child { border-bottom: 0; }
+.agro-side button:hover { background: #ece8d2; }
+.agro-side button[aria-pressed="true"] { background: var(--agro-gold); font-weight: 700; box-shadow: inset 6px 0 0 var(--agro-ink); padding-left: 22px; color: var(--agro-ink-2); }
+.agro-side small { font-size: 12px; font-weight: 700; background: var(--agro-ink); color: #fff; padding: 1px 7px; }
+.agro-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+.agro-toolbar .agro-field { display: flex; flex: 1; min-width: 220px; border: 3px solid var(--agro-ink); background: var(--agro-paper); }
+.agro-toolbar input, .agro-toolbar select { font-size: 16px; font-family: inherit; min-height: 46px; border: 0; background: transparent; color: var(--agro-ink); padding: 0 14px; }
+.agro-toolbar input { flex: 1; min-width: 0; }
+.agro-toolbar select { border: 3px solid var(--agro-ink); background: var(--agro-paper); font-weight: 600; }
+.agro-toolbar .agro-field button { width: 46px; border: 0; border-left: 3px solid var(--agro-ink); background: var(--agro-gold); color: var(--agro-ink-2); cursor: pointer; display: grid; place-items: center; }
+.agro-count { font: 700 15px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .12em; color: var(--agro-muted); margin: 0 0 14px; }
+.agro-chips { display: none; }
+@media (max-width: 900px) {
+  .agro-cat-layout { grid-template-columns: 1fr; padding-top: 22px; gap: 18px; }
+  .agro-side { display: none; }
+  .agro-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
+  .agro-chips button { flex: none; min-height: 44px; padding: 0 16px; border: 3px solid var(--agro-ink); background: var(--agro-paper); font: 700 15px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--agro-ink); cursor: pointer; }
+  .agro-chips button[aria-pressed="true"] { background: var(--agro-gold); color: var(--agro-ink-2); }
+}
+@media (max-width: 480px) { .agro-grid { grid-template-columns: 1fr 1fr; gap: 14px; } .agro-card-body h3 { font-size: 16px; } .agro-price strong { font-size: 20px; } .agro-card { box-shadow: 4px 4px 0 var(--agro-ink); } }
+
+/* ===== Produto ===== */
+.agro-crumbs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 18px 0; font: 700 14px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .1em; }
+.agro-crumbs a { color: var(--agro-ink); display: inline-flex; min-height: 32px; align-items: center; }
+.agro-prod { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 36px; align-items: start; padding-bottom: 56px; }
+.agro-gallery { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 14px; }
+.agro-thumbs { display: flex; flex-direction: column; gap: 10px; max-height: 560px; overflow-y: auto; }
+.agro-thumbs button { width: 84px; height: 84px; padding: 4px; border: 3px solid var(--agro-ink); background: var(--agro-paper); cursor: pointer; flex: none; }
+.agro-thumbs button[aria-current="true"] { background: var(--agro-gold); }
+.agro-thumbs img { width: 100%; height: 100%; object-fit: contain; }
+.agro-stage { position: relative; aspect-ratio: 1 / 1; border: 4px solid var(--agro-ink); box-shadow: 8px 8px 0 var(--agro-ink); background: repeating-linear-gradient(135deg, #ece8d2 0 12px, #f4f1df 12px 24px); display: grid; place-items: center; }
+.agro-stage img { width: 100%; height: 100%; object-fit: contain; padding: 18px; }
+.agro-panel { border: 4px solid var(--agro-ink); background: var(--agro-paper); box-shadow: 8px 8px 0 var(--agro-gold); }
+.agro-panel-head { background: var(--agro-ink); color: #fff; padding: 18px 22px; }
+.agro-panel-head h1 { margin: 8px 0 0; font: 700 clamp(26px, 3.6vw, 40px)/1.05 "Zilla Slab", serif; overflow-wrap: anywhere; }
+.agro-panel-body { padding: 22px; display: grid; gap: 20px; }
+.agro-bigprice strong { font: 700 clamp(34px, 5vw, 46px) "Zilla Slab", serif; line-height: 1; }
+.agro-bigprice s { margin-left: 10px; color: var(--agro-muted); }
+.agro-opt { border: 0; padding: 0; margin: 0; min-width: 0; }
+.agro-opt legend { font: 700 16px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 8px; padding: 0; }
+.agro-opt div { display: flex; flex-wrap: wrap; gap: 8px; }
+.agro-opt button { min-height: 44px; min-width: 52px; padding: 0 16px; border: 3px solid var(--agro-ink); background: #fff; font: 700 16px "Barlow", sans-serif; color: var(--agro-ink); cursor: pointer; }
+.agro-opt button:hover { background: #ece8d2; }
+.agro-opt button[aria-pressed="true"] { background: var(--agro-ink); color: var(--agro-gold); }
+.agro-note textarea { width: 100%; min-height: 84px; border: 3px solid var(--agro-ink); background: #fff; padding: 10px 12px; font: 16px "Barlow", sans-serif; color: var(--agro-ink); resize: vertical; }
+.agro-note label { font: 700 16px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .12em; display: block; margin-bottom: 6px; }
+.agro-buyrow { display: flex; gap: 12px; flex-wrap: wrap; }
+.agro-buyrow .agro-btn { flex: 1; min-width: 200px; }
+.agro-qty { display: inline-flex; border: 3px solid var(--agro-ink); background: #fff; }
+.agro-qty button { width: 46px; min-height: 48px; border: 0; background: transparent; cursor: pointer; display: grid; place-items: center; color: var(--agro-ink); }
+.agro-qty button:hover:not(:disabled) { background: var(--agro-gold); }
+.agro-qty button:disabled { opacity: .35; cursor: not-allowed; }
+.agro-qty output { min-width: 44px; display: grid; place-items: center; font: 700 20px "Zilla Slab", serif; border-inline: 3px solid var(--agro-ink); }
+.agro-hint { font-size: 14px; font-weight: 600; background: #f7e9bd; border: 2px solid var(--agro-ink); padding: 8px 12px; margin: 0; color: var(--agro-ink-2); }
+.agro-added { background: var(--agro-ink); color: #fff; padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.agro-added .agro-btn { min-height: 44px; box-shadow: none; flex: none; min-width: 0; }
+.agro-spec { border: 4px solid var(--agro-ink); background: var(--agro-paper); margin-bottom: 60px; }
+.agro-spec h2 { margin: 0; background: var(--agro-ink); color: var(--agro-gold); padding: 12px 20px; font: 700 18px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .14em; }
+.agro-spec-body { padding: 20px; white-space: pre-line; line-height: 1.7; max-width: 78ch; }
+.agro-spec dl { margin: 0; display: grid; grid-template-columns: 160px 1fr; }
+.agro-spec dt, .agro-spec dd { margin: 0; padding: 10px 20px; border-top: 2px solid rgba(23,59,42,.2); }
+.agro-spec dt { font: 700 15px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .1em; background: #ece8d2; }
+@media (max-width: 900px) {
+  .agro-prod { grid-template-columns: 1fr; gap: 28px; }
+  .agro-gallery { grid-template-columns: 1fr; }
+  .agro-thumbs { flex-direction: row; order: 2; max-height: none; overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; }
+}
+
+/* ===== Sobre ===== */
+.agro-about-hero { background: var(--agro-gold); border-bottom: 6px solid var(--agro-ink); }
+.agro-about-hero .agro-wrap { display: grid; grid-template-columns: 1.2fr .8fr; gap: 32px; padding-top: 56px; padding-bottom: 56px; align-items: center; }
+.agro-about-hero h1 { margin: 12px 0 0; font: 700 clamp(38px, 6vw, 76px)/.98 "Zilla Slab", serif; color: var(--agro-ink-2); text-wrap: balance; overflow-wrap: anywhere; }
+.agro-about-hero .agro-hero-pic { box-shadow: 8px 8px 0 var(--agro-ink); border-color: var(--agro-ink); }
+.agro-about-cols { display: grid; grid-template-columns: 1.3fr 1fr; gap: 36px; padding: 52px 20px; align-items: start; }
+.agro-about-text { font-size: 18px; line-height: 1.75; white-space: pre-line; max-width: 66ch; }
+.agro-about-text::first-letter { font: 700 68px/.8 "Zilla Slab", serif; float: left; padding: 6px 10px 0 0; }
+.agro-box { border: 4px solid var(--agro-ink); background: var(--agro-paper); margin-bottom: 24px; }
+.agro-box h2 { margin: 0; background: var(--agro-ink); color: var(--agro-gold); padding: 12px 18px; font: 700 16px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .14em; }
+.agro-box ul { list-style: none; margin: 0; padding: 6px 18px 14px; }
+.agro-box li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 2px dashed rgba(23,59,42,.25); }
+.agro-box li:last-child { border-bottom: 0; }
+.agro-box p { padding: 14px 18px; margin: 0; }
+.agro-box a { color: var(--agro-ink); font-weight: 700; }
+@media (max-width: 860px) {
+  .agro-about-hero .agro-wrap, .agro-about-cols { grid-template-columns: 1fr; padding-top: 36px; }
+}
+@media (prefers-reduced-motion: reduce) { .agro-card, .agro-btn { transition: none; } }

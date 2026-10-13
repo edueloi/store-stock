@@ -1,0 +1,63 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap");
+
+.beauty-header, .beauty-footer { --beauty-rose:#a54868; --beauty-deep:#482b3c; --beauty-blush:#f8edf1; --beauty-green:#557c68; --beauty-line:#eadde2; font-family:"DM Sans",sans-serif; color:#393532; }
+.beauty-header *, .beauty-footer * { box-sizing:border-box; }
+.beauty-header a, .beauty-footer a { color:inherit; text-decoration:none; }
+.beauty-header :focus-visible, .beauty-footer :focus-visible { outline:3px solid var(--beauty-green); outline-offset:3px; }
+.beauty-wrap { width:100%; max-width:1240px; margin:0 auto; padding:0 20px; }
+.beauty-note { background:var(--beauty-deep); color:#fff; font-size:12px; }
+.beauty-note .beauty-wrap { display:flex; justify-content:space-between; align-items:center; gap:12px; min-height:34px; }
+.beauty-note a { display:inline-flex; align-items:center; gap:6px; min-height:34px; }
+.beauty-mainbar { display:grid; grid-template-columns:minmax(180px,260px) minmax(220px,1fr) auto; align-items:center; gap:24px; padding-top:14px; padding-bottom:14px; }
+.beauty-brand { display:flex; align-items:center; gap:10px; min-width:0; font:600 20px/1.1 "Playfair Display",Georgia,serif; }
+.beauty-brand > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.beauty-brand img, .beauty-brand-mark { width:44px; height:44px; flex:none; object-fit:contain; }
+.beauty-brand-mark { display:grid; place-items:center; border-radius:50%; background:var(--beauty-blush); color:var(--beauty-rose); }
+.beauty-search { display:flex; align-items:center; gap:8px; min-width:0; padding:4px; border:1px solid var(--beauty-line); border-radius:999px; background:#fff; }
+.beauty-search > div { flex:1; min-width:0; }
+.beauty-search input { min-height:40px; border:0; background:#fff; font-size:16px; }
+.beauty-search button, .beauty-cart, .beauty-menu { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:0 14px; border:1px solid var(--beauty-line); border-radius:999px; background:#fff; color:var(--beauty-deep); cursor:pointer; }
+.beauty-search button { width:44px; padding:0; color:var(--beauty-rose); }
+.beauty-cart { font-size:13px; font-weight:700; }
+.beauty-cart b { display:grid; place-items:center; min-width:22px; height:22px; padding:0 5px; border-radius:50%; background:var(--beauty-rose); color:#fff; font-size:11px; }
+.beauty-nav { border-block:1px solid var(--beauty-line); background:var(--beauty-blush); }
+.beauty-nav-inner { display:flex; align-items:center; gap:6px; overflow-x:auto; scrollbar-width:thin; }
+.beauty-nav a { display:inline-flex; align-items:center; min-height:44px; padding:0 13px; color:#684b59; font-size:13px; white-space:nowrap; }
+.beauty-nav a:hover, .beauty-nav a[aria-current="page"] { color:var(--beauty-rose); }
+.beauty-menu { display:none; }
+.beauty-footer { background:var(--beauty-deep); color:#f3e9ed; }
+.beauty-footer-grid { display:grid; grid-template-columns:1.5fr .8fr .9fr 1fr; gap:32px; padding-top:42px; padding-bottom:36px; }
+.beauty-footer-label { color:#eab9c9; font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+.beauty-footer h2 { margin:8px 0 10px; color:#fff; font:600 28px/1.1 "Playfair Display",Georgia,serif; }
+.beauty-footer h3 { margin:0 0 12px; color:#eab9c9; font-size:12px; font-weight:700; text-transform:uppercase; }
+.beauty-footer p, .beauty-footer a { font-size:13px; line-height:1.65; }
+.beauty-footer p { margin:0 0 10px; }
+.beauty-footer-grid > div:not(:first-child) { display:flex; flex-direction:column; align-items:flex-start; }
+.beauty-footer-grid > div:not(:first-child) a { min-height:30px; }
+.beauty-footer a:hover { color:#fff; }
+.beauty-footer-bottom { padding:15px 20px; border-top:1px solid rgba(255,255,255,.16); text-align:center; color:#cebfc6; font-size:12px; }
+.beauty-footer-bottom a { color:#fff; font-weight:700; text-decoration:underline; }
+main[class*="bg-white"] { font-family:"DM Sans",sans-serif; }
+main[class*="bg-white"] h1, main[class*="bg-white"] h2, main[class*="bg-white"] h3 { font-family:"Playfair Display",Georgia,serif; letter-spacing:0 !important; }
+main[class*="bg-white"] article.group { border-color:#eadde2; border-radius:4px; }
+main[class*="bg-white"] article.group:hover { box-shadow:0 12px 28px rgba(72,43,60,.1); }
+main[class*="bg-white"] input, main[class*="bg-white"] textarea, main[class*="bg-white"] select { font-family:"DM Sans",sans-serif; }
+@media (max-width:860px) {
+  .beauty-mainbar { grid-template-columns:auto minmax(0,1fr) auto; gap:10px; }
+  .beauty-menu { display:inline-flex; width:44px; min-width:44px; padding:0; }
+  .beauty-brand { grid-column:2; grid-row:1; }
+  .beauty-cart { grid-column:3; grid-row:1; padding:0 10px; }
+  .beauty-search { grid-column:1/-1; grid-row:2; }
+  .beauty-nav { display:none; }
+  .beauty-nav.is-open { display:block; }
+  .beauty-nav-inner { flex-direction:column; align-items:stretch; gap:0; padding-top:6px; padding-bottom:6px; }
+  .beauty-nav a { min-height:46px; border-bottom:1px solid var(--beauty-line); }
+  .beauty-footer-grid { grid-template-columns:1fr 1fr; }
+}
+@media (max-width:560px) {
+  .beauty-note .beauty-wrap { min-height:30px; }
+  .beauty-note a, .beauty-cart span { display:none; }
+  .beauty-mainbar { padding-top:10px; padding-bottom:10px; }
+  .beauty-brand { font-size:17px; }
+  .beauty-footer-grid { grid-template-columns:1fr; gap:24px; padding-top:32px; }
+}
