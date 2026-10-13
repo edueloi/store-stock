@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import StockAvailability from "../../../../components/store/StockAvailability";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -623,6 +624,7 @@ function ProductDetails({ product }: { product: ProductType }) {
           {product.description && (
             <p className="seg-description">{product.description}</p>
           )}
+          <StockAvailability product={product} tenant={tenant} selected={ready ? selected : undefined} />
           {choices.map((a) => (
             <fieldset key={a.name}>
               <legend>

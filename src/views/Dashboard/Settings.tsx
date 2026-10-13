@@ -3855,6 +3855,20 @@ export default function Settings({
                               })
                             } wrapperClassName="w-32" />
                         </Field>
+                        <div className="mt-4 max-w-xl">
+                          <Field
+                            label="E-mails que recebem cada reserva"
+                            hint="Separe vários e-mails por vírgula. Cada reserva chega com itens, quantidade, SKU, código, PDF e link para abrir no sistema. A BoxSys faz o envio, sem SMTP da loja."
+                          >
+                            <TextInput
+                              value={storefront.order_notification_emails || ""}
+                              onChange={(value) =>
+                                setStorefront({ order_notification_emails: value.toLowerCase() })
+                              }
+                              placeholder="producao@sualoja.com.br, pedidos@sualoja.com.br"
+                            />
+                          </Field>
+                        </div>
                       </div>
                     )}
                     {storefront.checkout_mode === "order_request" && (

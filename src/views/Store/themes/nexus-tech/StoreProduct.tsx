@@ -1,4 +1,5 @@
 import { useState } from "react";
+import StockAvailability from "../../../../components/store/StockAvailability";
 import { useParams, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -505,7 +506,8 @@ export default function StoreProduct() {
                 )}
               </AnimatePresence>
 
-              {/* Quantity + Add to cart */}
+              <StockAvailability product={product} tenant={tenant} selected={selectedOptions} className="mb-3" />
+            {/* Quantity + Add to cart */}
               <div className="flex flex-wrap items-center gap-3">
                 {/* Qty control */}
                 <div className="flex items-center h-12 overflow-hidden border border-[#dbe6ff] bg-[#f4f8ff] rounded-full shadow-[0_2px_10px_rgba(37,99,235,0.07)]">

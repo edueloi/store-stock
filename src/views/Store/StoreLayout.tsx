@@ -32,6 +32,7 @@ import WhatsAppWidget from "../../components/store/WhatsAppWidget";
 import SearchBar from "../../components/layout/SearchBar";
 import { buildStorePath, resolveStoreSlug } from "./store-routing";
 import { getVariationImages } from "../../utils/variationImages";
+import { availableUnits, storeTracksStock } from "../../utils/storeStock";
 import { isSegment, segmentThemes } from "./themes/segments/registry";
 import { SegmentHeader, SegmentFooter } from "./themes/segments/Chrome";
 import "./themes/segments/styles.css";
@@ -491,6 +492,14 @@ function StoreLayoutInner() {
     });
   }, [storeSlug]);
 
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
+  const [stockNotice, setStockNotice] = useState<string | null>(null);
+  const showStockNotice = (message: string) => {
+    setStockNotice(message);
+    window.setTimeout(() => setStockNotice(null), 3500);
+  };
+
   const addToCart = (product: Product, options?: Record<string, string>) => {
     const variationLabel = options
       ? Object.entries(options)
@@ -500,38 +509,42 @@ function StoreLayoutInner() {
     const cartItemId = options
       ? `${product.id}-${variationLabel}`
       : `${product.id}`;
+    if (storeData && storeTracksStock(storeData.tenant)) {
+      const units = availableUnits(product, options);
+      const inCart = cartRef.current.find((i) => i.cartItemId === cartItemId)?.quantity || 0;
+      if (units !== null && inCart + 1 > units) {
+        showStockNotice(units === 0 ? "Produto esgotado no momento." : `Só há ${units} ${units === 1 ? "unidade disponível" : "unidades disponíveis"} deste item.`);
+        return;
+      }
+    }
     const variationImages = getVariationImages(product, options || {});
     const pricedProduct = isSegment(templateId || '') ? { ...product, price: Number(product.discount_price ?? product.price) } : product;
     const productForCart = variationImages.length
       ? { ...pricedProduct, image_url: variationImages[0], images: variationImages }
       : pricedProduct;
-    setCart((prev) => {
-      const existing = prev.find((i) => i.cartItemId === cartItemId);
-      if (existing)
-        return prev.map((i) =>
-          i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i,
-        );
-      return [
-        ...prev,
-        {
-          ...productForCart,
-          quantity: 1,
-          cartItemId,
-          selectedOptions: options,
-          variationLabel,
-        },
-      ];
-    });
+    // O ref evita estourar o saldo quando a vitrine chama addToCart várias vezes no mesmo clique.
+    const prev = cartRef.current;
+    const existing = prev.find((i) => i.cartItemId === cartItemId);
+    const nextCart = existing
+      ? prev.map((i) => (i.cartItemId === cartItemId ? { ...i, quantity: i.quantity + 1 } : i))
+      : [...prev, { ...productForCart, quantity: 1, cartItemId, selectedOptions: options, variationLabel }];
+    cartRef.current = nextCart;
+    setCart(nextCart);
     setIsCartOpen(true);
   };
 
   const updateQuantity = (cartItemId: string, delta: number) => {
     setCart((prev) =>
-      prev.map((i) =>
-        i.cartItemId === cartItemId
-          ? { ...i, quantity: Math.max(1, i.quantity + delta) }
-          : i,
-      ),
+      prev.map((i) => {
+        if (i.cartItemId !== cartItemId) return i;
+        let next = Math.max(1, i.quantity + delta);
+        const units = storeData && storeTracksStock(storeData.tenant) ? availableUnits(i, i.selectedOptions) : null;
+        if (units !== null && next > units && delta > 0) {
+          showStockNotice(`Só há ${units} ${units === 1 ? "unidade disponível" : "unidades disponíveis"} deste item.`);
+          next = Math.max(1, Math.min(i.quantity, units));
+        }
+        return { ...i, quantity: next };
+      }),
     );
   };
 
@@ -1757,6 +1770,10 @@ function StoreLayoutInner() {
             </p>
           </div>
         </footer>}
+
+        {stockNotice && (
+          <div role="alert" className="fixed bottom-24 left-1/2 z-[120] -translate-x-1/2 rounded-full bg-slate-900 px-5 py-3 text-xs font-bold text-white shadow-xl">{stockNotice}</div>
+        )}
 
         {/* WhatsApp Widget */}
         {storefront.show_whatsapp_widget !== false && (

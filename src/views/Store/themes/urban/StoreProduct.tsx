@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import StockAvailability from "../../../../components/store/StockAvailability";
 import { Link, useParams } from "react-router-dom";
 import {
   Check,
@@ -321,6 +322,7 @@ export default function StoreProduct() {
                 Selecione as opções para adicionar ao carrinho.
               </p>
             )}
+            <StockAvailability product={product} tenant={tenant} selected={selected} className="mb-3" />
             <div className="mt-7 flex gap-3">
               <div className="flex h-12 items-center border border-slate-200 bg-white">
                 <button

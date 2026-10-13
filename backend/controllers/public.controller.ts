@@ -7,6 +7,7 @@ import { getTenantAccessState } from "../utils/tenant-access";
 import { createStoreOrderPdf } from "../services/store-order-pdf.service";
 import { baseTemplate, sendPlatformEmail } from "../services/mailer.service";
 import { escapeHtml } from "../utils/html-escape";
+import { env } from "../config/env";
 import {
   buildTenantAccessUrl,
   resolveTenantLookupFromRequest,
@@ -98,6 +99,7 @@ function publicTenant(tenant: any) {
     featured_limit: tenant.featured_limit,
     bestseller_limit: tenant.bestseller_limit,
     business_hours: tenant.business_hours,
+    sell_without_stock_control: Boolean(tenant.sell_without_stock_control),
     policies: tenant.policies,
     public_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
   };
@@ -112,6 +114,7 @@ export async function releaseExpiredStoreReservations() {
     if (snapshot?.source !== "storefront_reservation" || !snapshot.expires_at || new Date(String(snapshot.expires_at)).getTime() > now) continue;
     const claim = await prisma.heldSale.updateMany({ where: { id: sale.id, status: "held" }, data: { status: "cancelled", cancelled_by: "Reserva expirada", cancel_reason: "Prazo da reserva online expirou", cancelled_at: new Date() } });
     if (!claim.count) continue;
+    if (snapshot.stock_tracked === false) continue;
     for (const item of sale.items) {
       await returnProductStock(item.product_id, item.quantity, item.selected_options as Record<string, string> | null);
       await prisma.stockMovement.create({ data: { tenant_id: sale.tenant_id, product_id: item.product_id, quantity: item.quantity, type: "held_sale_return", reason: "Reserva online expirada" } });
@@ -289,6 +292,44 @@ export async function lookupPublicCustomerRecognition(req: Request, res: Respons
   }
 }
 
+/** Avisa a equipe por e-mail (remetente BoxSys) sobre uma reserva feita na vitrine. Nunca derruba a reserva. */
+async function notifyReservationByEmail(
+  tenant: { name: string },
+  settings: StorefrontSettings,
+  number: number,
+  expiresAt: Date,
+  items: Array<{ name: string; sku: string | null; code: string | number; quantity: number; unitPrice: number }>,
+  customer?: { name?: string; phone?: string },
+) {
+  const recipients = String(settings.order_notification_emails || "").split(/[,;\n]/).map((email) => email.trim().toLowerCase()).filter((email) => /^\S+@\S+\.\S+$/.test(email));
+  if (!recipients.length) return;
+  try {
+    const code = `#${String(number).padStart(6, "0")}`;
+    const total = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+    const pdf = await createStoreOrderPdf({
+      storeName: tenant.name,
+      orderNumber: number,
+      customerName: customer?.name || "Cliente da loja online",
+      customerPhone: customer?.phone || "Não informado",
+      createdAt: new Date(),
+      total,
+      items,
+      title: "RESERVA DE ESTOQUE",
+      footer: `Reserva válida até ${expiresAt.toLocaleString("pt-BR")}. Depois disso a equipe pode cancelar e devolver os itens ao estoque.`,
+    });
+    const link = `${env.appBaseUrl.replace(/\/+$/, "")}/admin/pdv`;
+    const rows = items.map((item) => `<tr><td style="padding:7px 0;color:#334155">${escapeHtml(item.name)} × ${item.quantity}<br/><span style="font-size:11px;color:#64748b">${item.sku ? `SKU: ${escapeHtml(item.sku)} · ` : ""}Código: ${escapeHtml(String(item.code))}</span></td><td align="right" style="padding:7px 0;font-weight:700;color:#0f172a">R$ ${(item.unitPrice * item.quantity).toFixed(2).replace(".", ",")}</td></tr>`).join("");
+    await sendPlatformEmail({
+      to: recipients,
+      subject: `Nova reserva ${code} · ${tenant.name}`,
+      html: baseTemplate(`<p style="margin:0 0 8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#2563eb">Nova reserva de estoque</p><h1 style="margin:0 0 14px;font-size:24px;color:#0f172a">Reserva ${code}</h1><p style="color:#475569;line-height:1.6">Itens separados até <strong>${expiresAt.toLocaleString("pt-BR")}</strong>.</p><table width="100%" cellspacing="0" cellpadding="0" style="margin:18px 0;border-top:1px solid #e2e8f0">${rows}</table><p style="margin:16px 0;text-align:right;font-size:18px;font-weight:900;color:#0f172a">Total: R$ ${total.toFixed(2).replace(".", ",")}</p><p style="margin:20px 0"><a href="${link}" style="display:inline-block;padding:12px 22px;background:#2563eb;color:#fff;border-radius:8px;font-weight:700;text-decoration:none">Abrir no sistema (PDV → Vendas em espera)</a></p><p style="color:#64748b;font-size:12px">O PDF com SKU e código dos itens está anexado.</p>`),
+      attachments: [{ filename: `reserva-${String(number).padStart(6, "0")}.pdf`, content: pdf, contentType: "application/pdf" }],
+    });
+  } catch (error) {
+    console.error(`Falha ao notificar reserva #${number} por e-mail`, error);
+  }
+}
+
 export async function reserveStoreCart(req: Request, res: Response) {
   try {
     await releaseExpiredStoreReservations();
@@ -299,19 +340,30 @@ export async function reserveStoreCart(req: Request, res: Response) {
     const settings = checkoutSettings(tenant);
     if (settings.checkout_mode !== "reservation") return res.status(400).json({ error: "Esta loja não está configurada para reservas." });
     const rows: { product_id: number; name: string; quantity: number; unit_price: number; selected_options: Record<string, string> | null }[] = [];
+    const mailItems: Array<{ name: string; sku: string | null; code: string | number; quantity: number; unitPrice: number }> = [];
+    // Lojas que não controlam estoque no sistema reservam sem validar nem baixar saldo.
+    const trackStock = !tenant.sell_without_stock_control;
     for (const item of items) {
+      const quantity = Number(item.quantity);
       const product = await prisma.product.findFirst({ where: { id: Number(item.product_id), tenant_id: tenant.id, is_active: true } });
-      if (!product || item.quantity < 1 || product.stock_quantity < item.quantity) return res.status(409).json({ error: `Estoque indisponível para um dos itens do carrinho.` });
-      rows.push({ product_id: product.id, name: product.name, quantity: item.quantity, unit_price: Number(product.discount_price ?? product.price), selected_options: item.selected_options ?? null });
+      if (!product || !Number.isInteger(quantity) || quantity < 1) return res.status(409).json({ error: `Um dos itens não está mais disponível.` });
+      if (trackStock && product.stock_quantity < quantity) return res.status(409).json({ error: `Estoque insuficiente para ${product.name}: restam ${Math.max(0, product.stock_quantity)} un.` });
+      const unitPrice = Number(product.discount_price ?? product.price);
+      rows.push({ product_id: product.id, name: product.name, quantity, unit_price: unitPrice, selected_options: item.selected_options ?? null });
+      const options = item.selected_options ? Object.entries(item.selected_options).map(([k, v]) => `${k}: ${v}`).join(" · ") : "";
+      mailItems.push({ name: options ? `${product.name} (${options})` : product.name, sku: product.sku, code: product.barcode || product.id, quantity, unitPrice });
     }
     const latest = await prisma.heldSale.findFirst({ where: { tenant_id: tenant.id }, orderBy: { number: "desc" }, select: { number: true } });
     const minutes = Math.max(5, Math.min(120, Number(settings.reservation_minutes) || 20));
     const expiresAt = new Date(Date.now() + minutes * 60_000);
-    const heldSale = await prisma.heldSale.create({ data: { tenant_id: tenant.id, number: (latest?.number || 0) + 1, customer_name: customer?.name || null, customer_phone: customer?.phone || null, notes: "Reserva criada pela loja online", snapshot: { source: "storefront_reservation", expires_at: expiresAt.toISOString() }, items: { create: rows } } });
-    for (const row of rows) {
-      await decrementProductStock(row.product_id, row.quantity, row.selected_options);
-      await prisma.stockMovement.create({ data: { tenant_id: tenant.id, product_id: row.product_id, quantity: -row.quantity, type: "held_sale_out", reason: `Reserva online #${heldSale.number}` } });
+    const heldSale = await prisma.heldSale.create({ data: { tenant_id: tenant.id, number: (latest?.number || 0) + 1, customer_name: customer?.name || null, customer_phone: customer?.phone || null, notes: "Reserva criada pela loja online", snapshot: { source: "storefront_reservation", expires_at: expiresAt.toISOString(), stock_tracked: trackStock }, items: { create: rows } } });
+    if (trackStock) {
+      for (const row of rows) {
+        await decrementProductStock(row.product_id, row.quantity, row.selected_options);
+        await prisma.stockMovement.create({ data: { tenant_id: tenant.id, product_id: row.product_id, quantity: -row.quantity, type: "held_sale_out", reason: `Reserva online #${heldSale.number}` } });
+      }
     }
+    await notifyReservationByEmail(tenant, settings, heldSale.number, expiresAt, mailItems, customer);
     res.status(201).json({ reservation_id: heldSale.id, number: heldSale.number, expires_at: expiresAt.toISOString() });
   } catch (error) {
     console.error(error);
@@ -441,7 +493,7 @@ export async function requestStoreOrder(req: Request, res: Response) {
           customerEmail: cleanEmail || undefined,
           createdAt: order.created_at,
           total: orderTotal,
-          items: orderItems.map((item) => ({ name: item.name, sku: item.sku, quantity: item.quantity, unitPrice: item.unit_price })),
+          items: orderItems.map((item) => ({ name: item.name, sku: item.sku, code: item.product_id, quantity: item.quantity, unitPrice: item.unit_price })),
         });
         const itemLines = orderItems.map((item) => `<tr><td style="padding:7px 0;color:#334155">${escapeHtml(item.name)} × ${item.quantity}</td><td align="right" style="padding:7px 0;font-weight:700;color:#0f172a">R$ ${(item.unit_price * item.quantity).toFixed(2).replace(".", ",")}</td></tr>`).join("");
         await sendPlatformEmail({

@@ -7,8 +7,12 @@ type StoreOrderPdfInput = {
   customerPhone: string;
   customerEmail?: string;
   createdAt: Date;
-  items: Array<{ name: string; sku?: string | null; quantity: number; unitPrice: number }>;
+  items: Array<{ name: string; sku?: string | null; code?: string | number | null; quantity: number; unitPrice: number }>;
   total: number;
+  /** Cabeçalho do documento; por padrão "SOLICITAÇÃO DE ENCOMENDA". */
+  title?: string;
+  /** Rodapé explicativo; por padrão o aviso de encomenda. */
+  footer?: string;
 };
 
 const money = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -25,7 +29,7 @@ export function createStoreOrderPdf(input: StoreOrderPdfInput): Promise<Buffer> 
     const width = 511;
     const line = () => doc.moveTo(42, doc.y).lineTo(553, doc.y).strokeColor("#d7dde8").lineWidth(1).stroke();
     doc.fillColor("#172033").font("Helvetica-Bold").fontSize(18).text(input.storeName);
-    doc.fillColor("#64748b").font("Helvetica-Bold").fontSize(9).text("SOLICITAÇÃO DE ENCOMENDA", { align: "right", continued: false });
+    doc.fillColor("#64748b").font("Helvetica-Bold").fontSize(9).text(input.title || "SOLICITAÇÃO DE ENCOMENDA", { align: "right", continued: false });
     doc.fillColor("#172033").font("Helvetica-Bold").fontSize(15).text(`#${String(input.orderNumber).padStart(6, "0")}`, { align: "right" });
     doc.moveDown(1); line(); doc.moveDown(0.9);
 
@@ -49,18 +53,19 @@ export function createStoreOrderPdf(input: StoreOrderPdfInput): Promise<Buffer> 
       if (doc.y > 710) { doc.addPage(); }
       y = doc.y;
       doc.fillColor("#172033").font("Helvetica-Bold").fontSize(9).text(item.name, 42, y, { width: 280 });
-      if (item.sku) doc.fillColor("#64748b").font("Helvetica").fontSize(7).text(`Código: ${item.sku}`, 42, doc.y + 1, { width: 280 });
+      const ids = [item.sku ? `SKU: ${item.sku}` : "", item.code ? `Código: ${item.code}` : ""].filter(Boolean).join("   ·   ");
+      if (ids) doc.fillColor("#64748b").font("Helvetica").fontSize(7).text(ids, 42, doc.y + 1, { width: 280 });
       doc.fillColor("#334155").font("Helvetica").fontSize(9).text(String(item.quantity), 340, y, { width: 45, align: "right" });
       doc.text(money(item.unitPrice), 390, y, { width: 78, align: "right" });
       doc.fillColor("#172033").font("Helvetica-Bold").text(money(item.unitPrice * item.quantity), 470, y, { width: 83, align: "right" });
-      doc.moveDown(item.sku ? 1.15 : 0.75);
+      doc.moveDown(item.sku || item.code ? 1.15 : 0.75);
       line(); doc.moveDown(0.4);
     }
 
     doc.moveDown(0.5);
     doc.fillColor("#172033").font("Helvetica-Bold").fontSize(13).text(`Total estimado: ${money(input.total)}`, { align: "right", width });
     doc.moveDown(1.4);
-    doc.fillColor("#64748b").font("Helvetica").fontSize(8).text("Este pedido é uma solicitação de encomenda. A produção, prazo, disponibilidade, frete e pagamento devem ser confirmados com o cliente.", { width, align: "center" });
+    doc.fillColor("#64748b").font("Helvetica").fontSize(8).text(input.footer || "Este pedido é uma solicitação de encomenda. A produção, prazo, disponibilidade, frete e pagamento devem ser confirmados com o cliente.", { width, align: "center" });
     doc.end();
   });
 }

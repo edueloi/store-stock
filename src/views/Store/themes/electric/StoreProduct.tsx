@@ -1,4 +1,5 @@
 import { useState } from "react";
+import StockAvailability from "../../../../components/store/StockAvailability";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { ShoppingCart, Heart, Share2, ChevronLeft, ChevronRight, Package, Plus, Minus, Check, Zap, Tag, AlertCircle } from "lucide-react";
@@ -401,7 +402,8 @@ export default function StoreProduct() {
             </div>
           )}
 
-          {/* Quantity + Add to cart */}
+          <StockAvailability product={product} tenant={tenant} selected={selectedOptions} className="mb-3" />
+            {/* Quantity + Add to cart */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <div className="flex items-center h-12 overflow-hidden border-2 w-full sm:w-auto justify-between sm:justify-normal bg-white rounded-xl border-slate-200">
               <button
