@@ -4,8 +4,9 @@ import { Badge, Button, EmptyState, FilterLine, FilterLineSection, FilterLineSeg
 import {
   ChevronLeft, ChevronRight, Loader2, Download, FileSpreadsheet, FileText,
   ChevronDown, TrendingUp, TrendingDown, Wallet, Calendar, LayoutGrid, Printer,
-  Package, Wrench, Layers, HelpCircle,
+  Package, Wrench, Layers, HelpCircle, Coins,
 } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
 import { cn } from "../../lib/utils";
 import { Tenant } from "../../types";
 import RelatorioFinanceiroPageTour, { RELATORIO_FINANCEIRO_PAGE_TOUR_EVENTS, type RelatorioFinanceiroPageTourHandle } from "../../components/onboarding/RelatorioFinanceiroPageTour";
@@ -22,6 +23,8 @@ interface MonthReport {
   entradasByDay: Record<number, EntradasBucket>;
   entradasByOrigem: Record<OrigemKey, EntradasBucket>;
   entradasByDayByOrigem: Record<number, Record<OrigemKey, EntradasBucket>>;
+  cmvByOrigem: Record<OrigemKey, number>;
+  cmvByDayByOrigem: Record<number, Record<OrigemKey, number>>;
   custoFixo: { total: number; items: CostItem[] };
   custoVariavel: { total: number; items: CostItem[] };
 }
@@ -42,6 +45,14 @@ function pickBucket(entradas: EntradasBucket, byOrigem: Record<OrigemKey, Entrad
   if (filtro === "todas") return entradas;
   if (filtro === "produtos") return sumBuckets([byOrigem.produtos, byOrigem.mista]);
   return sumBuckets([byOrigem.servicos, byOrigem.mista]);
+}
+
+// CMV (custo das mercadorias vendidas) seguindo a mesma regra do filtro de origem.
+function pickCmv(c: Record<OrigemKey, number> | undefined, filtro: OrigemFiltro): number {
+  if (!c) return 0;
+  if (filtro === "todas") return c.produtos + c.servicos + c.mista;
+  if (filtro === "produtos") return c.produtos + c.mista;
+  return c.servicos + c.mista;
 }
 
 function emptyEntradasByOrigemLocal(): Record<OrigemKey, EntradasBucket> {
@@ -354,7 +365,7 @@ function EntradasTable({ data, onPrint }: { data: EntradasBucket; onPrint?: () =
       <div className="overflow-x-auto">
         <table className="w-full min-w-[560px] border-collapse text-left">
           <thead>
-            <tr className="border-b border-slate-100 bg-zinc-50">
+            <tr className="border-b border-emerald-100 bg-emerald-50/70">
               <th className={thClass}>Operador</th>
               {PM_KEYS.map(k => <th key={k} className={cn(thClass, "text-right")}>{PM_LABELS[k]}</th>)}
               <th className={cn(thClass, "text-right")}>Total</th>
@@ -364,7 +375,7 @@ function EntradasTable({ data, onPrint }: { data: EntradasBucket; onPrint?: () =
             {Object.entries(data.byOperator).map(([op, pm]) => {
               const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
               return (
-                <tr key={op} className="border-b border-slate-50">
+                <tr key={op} className="border-b border-slate-50 transition-colors even:bg-slate-50/60 hover:bg-emerald-50">
                   <td className="whitespace-nowrap px-3 py-2 text-xs font-medium text-slate-700">{op}</td>
                   {PM_KEYS.map(k => <td key={k} className="whitespace-nowrap px-3 py-2 text-right text-xs tabular-nums text-slate-600">R$ {fmt(pm[k])}</td>)}
                   <td className="whitespace-nowrap px-3 py-2 text-right text-xs font-semibold tabular-nums text-slate-800">R$ {fmt(total)}</td>
@@ -401,7 +412,7 @@ function CustoCards({ custoVariavel, custoFixo }: { custoVariavel: { total: numb
             {data.items.length === 0 ? (
               <div className="p-3"><EmptyState title="Nenhum lançamento" /></div>
             ) : data.items.map((it, i) => (
-              <div key={i} className="flex items-center justify-between gap-3 px-3 py-2">
+              <div key={i} className={cn("flex items-center justify-between gap-3 px-3 py-2 transition-colors", tone === "warning" ? "hover:bg-amber-50" : "hover:bg-violet-50")}>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-medium text-slate-700">{it.description}</p>
                   <p className="mt-0.5 text-[11px] text-slate-500">{fmtDateBR(it.date)} · {it.source === "contas_pagar" ? "Contas a Pagar" : "Financeiro"}</p>
@@ -416,13 +427,83 @@ function CustoCards({ custoVariavel, custoFixo }: { custoVariavel: { total: numb
   );
 }
 
-function ResumoCards({ entradasLabel, custosLabel, resultadoLabel, entradas, custos, resultado }: { entradasLabel: string; custosLabel: string; resultadoLabel: string; entradas: number; custos: number; resultado: number }) {
+function ResumoCards({ entradasLabel, custosLabel, resultadoLabel, entradas, custos, resultado, cmv }: { entradasLabel: string; custosLabel: string; resultadoLabel: string; entradas: number; custos: number; resultado: number; cmv: number }) {
+  const lucroLiquido = resultado - cmv;
   return (
-    <StatGrid cols={3}>
-      <StatCard title={entradasLabel} value={`R$ ${fmt(entradas)}`} icon={TrendingUp} color="success" />
-      <StatCard title={custosLabel} value={`R$ ${fmt(custos)}`} icon={TrendingDown} color="danger" />
-      <StatCard className="col-span-2 sm:col-span-1" title={resultadoLabel} value={`R$ ${fmt(resultado)}`} icon={Wallet} color={resultado >= 0 ? "info" : "danger"} />
+    <StatGrid cols={4}>
+      <StatCard className="border-emerald-200 bg-emerald-50/60" title={entradasLabel} value={`R$ ${fmt(entradas)}`} icon={TrendingUp} color="success" />
+      <StatCard className="border-rose-200 bg-rose-50/60" title={custosLabel} value={`R$ ${fmt(custos)}`} icon={TrendingDown} color="danger" />
+      <StatCard className={resultado >= 0 ? "border-blue-200 bg-blue-50/60" : "border-rose-300 bg-rose-50"} title={resultadoLabel} value={`R$ ${fmt(resultado)}`} icon={Wallet} color={resultado >= 0 ? "info" : "danger"} />
+      <StatCard className={lucroLiquido >= 0 ? "border-teal-200 bg-teal-50/60" : "border-rose-300 bg-rose-50"}
+        title="Lucro Líquido (− mercadorias)" value={`R$ ${fmt(lucroLiquido)}`} icon={Coins} color={lucroLiquido >= 0 ? "success" : "danger"}
+        description={cmv > 0 ? `Custo das mercadorias: R$ ${fmt(cmv)}` : "Sem custo de catálogo no período"} />
     </StatGrid>
+  );
+}
+
+const PM_COLORS: Record<PmKey, string> = { money: "#10b981", pix: "#06b6d4", debit: "#3b82f6", credit: "#8b5cf6" };
+const brl = (v: unknown) => `R$ ${fmt(Number(v) || 0)}`;
+
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return <PanelCard title={title}><div className="h-56 w-full">{children}</div></PanelCard>;
+}
+
+function PeriodoCharts({ entradas, fixo, variavel, cmv }: { entradas: EntradasBucket; fixo: number; variavel: number; cmv: number }) {
+  const pmData = PM_KEYS.map(k => ({ name: PM_LABELS[k], value: entradas.totalByMethod[k], key: k })).filter(d => d.value > 0);
+  const opData = Object.entries(entradas.byOperator).map(([op, pm]) => ({ name: op, total: PM_KEYS.reduce((s, k) => s + pm[k], 0) }));
+  const custoData = [
+    { name: "Custo Fixo", value: fixo, color: "#8b5cf6" },
+    { name: "Custo Variável", value: variavel, color: "#f59e0b" },
+    { name: "Mercadorias", value: cmv, color: "#f43f5e" },
+  ].filter(d => d.value > 0);
+  const empty = <div className="flex h-full items-center justify-center text-xs text-slate-400">Sem dados no período</div>;
+  return (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+      <ChartCard title="Entradas por forma de pagamento">
+        {pmData.length === 0 ? empty : (
+          <ResponsiveContainer><PieChart>
+            <Pie data={pmData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80} paddingAngle={2}>
+              {pmData.map(d => <Cell key={d.key} fill={PM_COLORS[d.key]} />)}
+            </Pie>
+            <RTooltip formatter={brl} /><Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+          </PieChart></ResponsiveContainer>
+        )}
+      </ChartCard>
+      <ChartCard title="Entradas por operador">
+        {opData.length === 0 ? empty : (
+          <ResponsiveContainer><BarChart data={opData} margin={{ left: -10 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} />
+            <RTooltip formatter={brl} /><Bar dataKey="total" name="Total" fill="#10b981" radius={[4, 4, 0, 0]} />
+          </BarChart></ResponsiveContainer>
+        )}
+      </ChartCard>
+      <ChartCard title="Composição dos custos">
+        {custoData.length === 0 ? empty : (
+          <ResponsiveContainer><PieChart>
+            <Pie data={custoData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80} paddingAngle={2}>
+              {custoData.map(d => <Cell key={d.name} fill={d.color} />)}
+            </Pie>
+            <RTooltip formatter={brl} /><Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+          </PieChart></ResponsiveContainer>
+        )}
+      </ChartCard>
+    </div>
+  );
+}
+
+function AnoChart({ data }: { data: { name: string; entradas: number; custos: number; lucro: number }[] }) {
+  return (
+    <ChartCard title="Entradas × Custos × Lucro líquido por mês">
+      <ResponsiveContainer><ComposedChart data={data} margin={{ left: -10 }}>
+        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+        <XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 10 }} />
+        <RTooltip formatter={brl} /><Legend iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+        <Bar dataKey="entradas" name="Entradas" fill="#10b981" radius={[3, 3, 0, 0]} />
+        <Bar dataKey="custos" name="Custos" fill="#f43f5e" radius={[3, 3, 0, 0]} />
+        <Line dataKey="lucro" name="Lucro líquido" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 2 }} />
+      </ComposedChart></ResponsiveContainer>
+    </ChartCard>
   );
 }
 
@@ -467,9 +548,11 @@ export default function RelatorioFinanceiro() {
     const entradas = report.months.reduce((s, mo) => s + monthEntradasTotal(mo), 0);
     const fixo = report.months.reduce((s, mo) => s + mo.custoFixo.total, 0);
     const variavel = report.months.reduce((s, mo) => s + mo.custoVariavel.total, 0);
-    return { entradas, fixo, variavel };
+    const cmv = report.months.reduce((s, mo) => s + pickCmv(mo.cmvByOrigem, origemFiltro), 0);
+    return { entradas, fixo, variavel, cmv };
   }, [report, origemFiltro]);
 
+  const mCmv = m ? pickCmv(m.cmvByOrigem, origemFiltro) : 0;
   const resultado = m && mEntradas ? mEntradas.total - m.custoFixo.total - m.custoVariavel.total : 0;
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -480,6 +563,7 @@ export default function RelatorioFinanceiro() {
   const dCustoVariavel = m ? m.custoVariavel.items.filter(it => it.date === dayKey) : [];
   const dCustoFixoTotal = dCustoFixo.reduce((s, it) => s + it.amount, 0);
   const dCustoVariavelTotal = dCustoVariavel.reduce((s, it) => s + it.amount, 0);
+  const dCmv = m ? pickCmv(m.cmvByDayByOrigem?.[day], origemFiltro) : 0;
   const dResultado = dEntradas.total - dCustoFixoTotal - dCustoVariavelTotal;
 
   // A exportação (Excel/PDF) precisa refletir exatamente a view ativa — nunca
@@ -662,8 +746,10 @@ export default function RelatorioFinanceiro() {
 
                 <div data-tour="relatorio-summary-cards">
                   <ResumoCards entradasLabel="Entradas" custosLabel="Custos (Fixo + Variável)" resultadoLabel="Resultado do Mês"
-                    entradas={mEntradas!.total} custos={m!.custoFixo.total + m!.custoVariavel.total} resultado={resultado} />
+                    entradas={mEntradas!.total} custos={m!.custoFixo.total + m!.custoVariavel.total} resultado={resultado} cmv={mCmv} />
                 </div>
+
+                <PeriodoCharts entradas={mEntradas!} fixo={m!.custoFixo.total} variavel={m!.custoVariavel.total} cmv={mCmv} />
 
                 <div data-tour="relatorio-entradas-table">
                   <EntradasTable data={mEntradas!} />
@@ -689,7 +775,9 @@ export default function RelatorioFinanceiro() {
                 </div>
 
                 <ResumoCards entradasLabel="Entradas" custosLabel="Custos (Fixo + Variável)" resultadoLabel="Resultado do Dia"
-                  entradas={dEntradas.total} custos={dCustoFixoTotal + dCustoVariavelTotal} resultado={dResultado} />
+                  entradas={dEntradas.total} custos={dCustoFixoTotal + dCustoVariavelTotal} resultado={dResultado} cmv={dCmv} />
+
+                <PeriodoCharts entradas={dEntradas} fixo={dCustoFixoTotal} variavel={dCustoVariavelTotal} cmv={dCmv} />
 
                 <EntradasTable data={dEntradas} onPrint={printDayReport} />
                 <CustoCards custoVariavel={{ total: dCustoVariavelTotal, items: dCustoVariavel }} custoFixo={{ total: dCustoFixoTotal, items: dCustoFixo }} />
@@ -699,8 +787,14 @@ export default function RelatorioFinanceiro() {
               <div className="space-y-3">
                 {yearTotals && (
                   <ResumoCards entradasLabel="Entradas do Ano" custosLabel="Custos do Ano (Fixo + Variável)" resultadoLabel="Resultado do Ano"
-                    entradas={yearTotals.entradas} custos={yearTotals.fixo + yearTotals.variavel} resultado={yearTotals.entradas - yearTotals.fixo - yearTotals.variavel} />
+                    entradas={yearTotals.entradas} custos={yearTotals.fixo + yearTotals.variavel} resultado={yearTotals.entradas - yearTotals.fixo - yearTotals.variavel} cmv={yearTotals.cmv} />
                 )}
+
+                <AnoChart data={report.months.map((mo, i) => {
+                  const ent = monthEntradasTotal(mo);
+                  const custos = mo.custoFixo.total + mo.custoVariavel.total;
+                  return { name: MONTHS_SHORT[i], entradas: ent, custos, lucro: ent - custos - pickCmv(mo.cmvByOrigem, origemFiltro) };
+                })} />
 
                 {/* Mobile: cards por mês (a tabela de 14 colunas não cabe em telas pequenas) */}
                 <div className="grid grid-cols-1 gap-2 sm:hidden">
@@ -773,7 +867,7 @@ export default function RelatorioFinanceiro() {
                             const values = report.months.map(getter);
                             const total = values.reduce((a, b) => a + b, 0);
                             return (
-                              <tr key={label} className={cn("border-b border-slate-50", rowClass)}>
+                              <tr key={label} className={cn("border-b border-slate-50 transition-colors hover:bg-slate-100", rowClass)}>
                                 <td className="sticky left-0 whitespace-nowrap bg-white px-3 py-2 text-xs font-medium">{label}</td>
                                 {values.map((v, i) => (
                                   <td key={i} className={cn("whitespace-nowrap px-3 py-2 text-right text-xs tabular-nums", label === "Resultado" && (v >= 0 ? "text-emerald-700" : "text-rose-700"))}>

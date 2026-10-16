@@ -42,6 +42,9 @@ interface MonthReport {
   // estrutura de `entradas`/`entradasByDay`, para o filtro Tudo/Catálogo/Serviço.
   entradasByOrigem: Record<OrigemKey, EntradasBucket>;
   entradasByDayByOrigem: Record<number, Record<OrigemKey, EntradasBucket>>;
+  // Custo das mercadorias vendidas (qtd × cost_price do catálogo), por origem e por dia.
+  cmvByOrigem: Record<OrigemKey, number>;
+  cmvByDayByOrigem: Record<number, Record<OrigemKey, number>>;
   custoFixo: { total: number; items: CostItem[] };
   custoVariavel: { total: number; items: CostItem[] };
 }
@@ -66,6 +69,8 @@ function emptyMonth(year: number, month: number): MonthReport {
     entradasByDay: {},
     entradasByOrigem: emptyEntradasByOrigem(),
     entradasByDayByOrigem: {},
+    cmvByOrigem: { produtos: 0, servicos: 0, mista: 0 },
+    cmvByDayByOrigem: {},
     custoFixo: { total: 0, items: [] },
     custoVariavel: { total: 0, items: [] },
   };
@@ -142,6 +147,28 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
         addEntry(months[m].entradasByOrigem[origem], operator, key, amt);
         addEntry(months[m].entradasByDayByOrigem[day][origem], operator, key, amt);
       }
+    }
+
+    // CMV: itens de vendas concluídas com produto do catálogo que tenha custo registrado.
+    const soldItems = await prisma.orderItem.findMany({
+      where: {
+        product_id: { not: null },
+        order: { tenant_id: tenantId, status: "completed", created_at: { gte: from, lt: to } },
+      },
+      select: { quantity: true, returned_quantity: true, product: { select: { cost_price: true } }, order: { select: { created_at: true, order_type: true } } },
+    });
+    for (const it of soldItems) {
+      const cost = Number(it.product?.cost_price ?? 0);
+      const qty = it.quantity - (it.returned_quantity ?? 0);
+      if (!(cost > 0) || qty <= 0) continue;
+      const d = new Date(it.order.created_at);
+      const m = d.getUTCMonth();
+      const day = d.getUTCDate();
+      const origem = origemKey(it.order.order_type);
+      const val = cost * qty;
+      months[m].cmvByOrigem[origem] += val;
+      if (!months[m].cmvByDayByOrigem[day]) months[m].cmvByDayByOrigem[day] = { produtos: 0, servicos: 0, mista: 0 };
+      months[m].cmvByDayByOrigem[day][origem] += val;
     }
 
     for (const e of expenseEntries) {
