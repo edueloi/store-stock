@@ -1302,7 +1302,7 @@ export default function Settings({
   const [emailSmtpSecure, setEmailSmtpSecure] = useState(true);
   const [emailConnectionConfigured, setEmailConnectionConfigured] =
     useState(false);
-  const [emailSenderMode, setEmailSenderMode] = useState<"own" | "system">("own");
+  const [emailSenderMode, setEmailSenderMode] = useState<"own" | "system">("system");
   const [savingEmailSenderMode, setSavingEmailSenderMode] = useState(false);
   const [savingEmailConnection, setSavingEmailConnection] = useState(false);
   const [testingEmailConnection, setTestingEmailConnection] = useState(false);
@@ -1439,7 +1439,7 @@ export default function Settings({
           setReportRecipientEmails(d.report_recipient_emails);
           setSavedReportRecipientEmails(d.report_recipient_emails);
         }
-        setEmailSenderMode(d?.email_sender_mode === "system" ? "system" : "own");
+        setEmailSenderMode(d?.email_sender_mode === "own" ? "own" : "system");
         if (d?.email_connection) {
           const connection = d.email_connection;
           const provider = EMAIL_PROVIDERS.some(

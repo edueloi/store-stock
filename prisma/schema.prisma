@@ -80,7 +80,8 @@ model Tenant {
   email_config            Json?
   // Quem envia os e-mails de documentos aos clientes: "own" = conta própria da loja
   // (email_config) | "system" = SMTP do sistema (contato@boxsys.com.br). Exclusivos.
-  email_sender_mode       String  @default("own")
+  // Padrão "system": toda loja já nasce podendo enviar documentos sem configurar nada.
+  email_sender_mode       String  @default("system")
 
   // --- Módulos habilitados por tenant (liberado manualmente pelo Super Admin) ---
   fluxo_producao_enabled Boolean @default(false)

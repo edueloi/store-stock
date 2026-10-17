@@ -125,7 +125,7 @@ export async function getTenant(req: Request, res: Response) {
         secure: Boolean((email_config as Record<string, unknown>).secure),
         from_name: (email_config as Record<string, unknown>).from_name || "",
       } : null,
-      email_sender_mode: tenant.email_sender_mode === "system" ? "system" : "own",
+      email_sender_mode: tenant.email_sender_mode === "own" ? "own" : "system",
       public_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
     });
   } catch {

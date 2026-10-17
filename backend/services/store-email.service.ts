@@ -56,7 +56,7 @@ export async function verifyStoreEmailConfig(value: unknown) {
 export type EmailSenderMode = "own" | "system";
 
 export function normalizeEmailSenderMode(value: unknown): EmailSenderMode {
-  return value === "system" ? "system" : "own";
+  return value === "own" ? "own" : "system";
 }
 
 export type TenantEmailMessage = {
