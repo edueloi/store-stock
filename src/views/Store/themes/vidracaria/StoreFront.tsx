@@ -47,9 +47,8 @@ export default function StoreFront() {
     if (!root.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const ctx = gsap.context(() => {
       gsap.from(".vitra-hero-copy > *", { opacity: 0, y: 26, duration: 0.7, stagger: 0.1, ease: "power3.out" });
-      gsap.from(".vitra-arch", { opacity: 0, y: 40, duration: 1, ease: "power3.out" });
-      gsap.from(".vitra-hero-float", { opacity: 0, scale: 0.85, duration: 0.7, delay: 0.5, stagger: 0.15, ease: "back.out(1.6)" });
-      gsap.to(".vitra-arch img", { scale: 1.08, duration: 9, ease: "none", yoyo: true, repeat: -1 });
+            gsap.from(".vitra-hero-float", { opacity: 0, scale: 0.85, duration: 0.7, delay: 0.5, stagger: 0.15, ease: "back.out(1.6)" });
+      gsap.to(".vitra-hero-bg", { scale: 1.1, duration: 9, ease: "none", yoyo: true, repeat: -1 });
     }, root);
     return () => ctx.revert();
   }, []);
@@ -74,6 +73,7 @@ export default function StoreFront() {
           className="vitra-slider"
           fallback={
             <section className="vitra-hero">
+              <img className="vitra-hero-bg" src={heroImage} alt="" />
               <div className="vitra-hero-copy">
                 <div className="vitra-eyebrow">Elegância em transparência</div>
                 <h1>
@@ -87,11 +87,8 @@ export default function StoreFront() {
                   <Link to={path("/sobre")} className="vitra-btn-secondary">Nossa história</Link>
                 </div>
               </div>
-              <div className="vitra-hero-visual">
-                <div className="vitra-arch"><img src={heroImage} alt="" /></div>
-                <div className="vitra-hero-float vitra-float-a"><strong>15+</strong><span>anos transformando ambientes</span></div>
-                <div className="vitra-hero-float vitra-float-b"><Check size={16} /> Vidro temperado certificado</div>
-              </div>
+              <div className="vitra-hero-float vitra-float-a"><strong>15+</strong><span>anos transformando ambientes</span></div>
+              <div className="vitra-hero-float vitra-float-b"><Check size={16} /> Vidro temperado certificado</div>
             </section>
           }
         />
