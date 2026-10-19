@@ -15,7 +15,7 @@ import type { Product } from "../../../../types";
  * A estrutura é a mesma, mas cada tema tem CSS, marcação de cabeçalho/hero/categorias
  * e catálogo próprios; o prefixo (`t`) escolhe o visual.
  */
-export type Prefix = "sd" | "sw" | "ur";
+export type Prefix = "sd" | "sw" | "ur" | "sr";
 
 /** Estado comum dos cabeçalhos: menu mobile, busca e fechamento ao navegar. */
 export function useHeaderState() {

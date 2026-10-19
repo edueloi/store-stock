@@ -1,4 +1,21 @@
 export const segmentThemes = {
+  stride: {
+    name: "Stride Sports",
+    group: "Moda",
+    tag: "Camisetas, Tênis & Sportswear",
+    desc: "Campanha de impacto com hero amplo, coleções e vitrine premium para camisetas, tênis e roupas.",
+    accent: "#c8ff31",
+    bg: "#ffffff",
+    ink: "#161616",
+    surface: "#f4f4f2",
+    layout: "editorial",
+    hero: "SEU ESTILO. SEM LIMITES.",
+    sub: "Da rua ao próximo desafio. Encontre as peças que acompanham o seu ritmo.",
+    catalog: "Encontre seu próximo movimento",
+    categories: "Vista o seu ritmo",
+    featured: "No radar",
+    cart: "Sua sacola",
+  },
   agro: {
     name: "Fazenda Forte",
     group: "Agro & Pet",
@@ -259,6 +276,7 @@ export type SegmentId = keyof typeof segmentThemes;
 export const isSegment = (id: string): id is SegmentId =>
   Object.prototype.hasOwnProperty.call(segmentThemes, id);
 export const addedSegmentIds: SegmentId[] = [
+  "stride",
   "agro",
   "feed",
   "garden",
