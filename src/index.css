@@ -653,19 +653,6 @@ body {
 .sport-paper .border-black\/15, .sport-paper .border-black\/20 { border-color: #a99fff !important; }
 .sport-paper input { border: 2px solid #6d5dfc; border-radius: 1rem; }
 
-/* Marketplace Pro: home de grande catÃ¡logo, com ritmo comercial e produtos em primeiro plano. */
-.store-theme-marketplace main { background: #f3f3f3; }
-.store-theme-marketplace main > section:first-of-type { background: linear-gradient(108deg, #ffe600 0 60%, #fff2a5 60% 100%) !important; }
-.store-theme-marketplace main > section:first-of-type > div > div:last-child { border-radius: 1.25rem !important; box-shadow: 14px 14px 0 rgba(35,50,66,.18); }
-.store-theme-marketplace main > section:nth-of-type(2) > div { gap: .75rem; }
-.store-theme-marketplace main > section:nth-of-type(2) > div > div { border: 1px solid #e5e7eb; border-radius: .85rem; box-shadow: 0 3px 10px rgba(15,23,42,.06); }
-.store-theme-marketplace main > section:nth-of-type(3) a { border: 1px solid #e6e6e6; border-radius: .85rem; transition: transform .18s ease, box-shadow .18s ease; }
-.store-theme-marketplace main > section:nth-of-type(3) a:hover { transform: translateY(-3px); box-shadow: 0 12px 22px rgba(15,23,42,.10); }
-.store-theme-marketplace article { border-radius: .85rem !important; box-shadow: 0 3px 10px rgba(15,23,42,.08); }
-.store-theme-marketplace article:hover { transform: translateY(-4px); box-shadow: 0 14px 28px rgba(15,23,42,.14) !important; }
-.store-theme-marketplace article > a:first-child { background: linear-gradient(145deg, #fff 45%, #f8fafc) !important; }
-.store-theme-marketplace article button { transition: transform .18s ease; }
-.store-theme-marketplace article button:hover { transform: scale(1.03); }
 
 @media (max-width: 639px) {
   .sport-home > section:first-of-type { min-height: 440px; background: #dce5da !important; }

@@ -7,6 +7,30 @@ export const marketMoney = (value: number) => value.toLocaleString("pt-BR", { st
 export const marketHide = (tenant: any) => tenant.policies?.storefront?.checkout_mode === "order_request" || tenant.policies?.storefront?.hide_prices === true;
 
 export function MarketCard({ product, path, category, saved, onFavorite, onAdd, hidePrices }: any) {
-  const image = marketImage(product); const price = Number(product.discount_price || product.price);
-  return <article className="group relative min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:shadow-[0_7px_20px_rgba(15,23,42,.14)]"><Link to={path(`/produto/${productRouteSegment(product)}`)} className="relative grid aspect-square place-items-center border-b border-slate-100 bg-white p-4">{image ? <img src={image} alt={product.name} className="h-full w-full object-contain transition group-hover:scale-[1.03]"/> : <Package size={38} className="text-slate-300"/>}{product.is_featured && <span className="absolute left-3 top-3 rounded bg-[#00a650] px-2 py-1 text-[8px] font-bold text-white">OFERTA</span>}</Link><button onClick={onFavorite} aria-label="Favoritar" className={`absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full bg-white shadow-sm ${saved ? "text-blue-600" : "text-slate-400"}`}><Heart size={16} fill={saved ? "currentColor" : "none"}/></button><div className="p-4"><p className="text-[10px] text-slate-400">{category || "Produtos"}</p><Link to={path(`/produto/${productRouteSegment(product)}`)} className="mt-1 block min-h-10 line-clamp-2 text-sm leading-snug text-slate-800">{product.name}</Link><p className="mt-3 text-xl font-semibold text-slate-900">{hidePrices ? "Sob consulta" : marketMoney(price)}</p>{!hidePrices && <p className="mt-1 text-xs font-semibold text-[#00a650]">Frete e condições com a loja</p>}<button onClick={onAdd} className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-blue-50 py-2.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 hover:bg-blue-100"><ShoppingCart size={14}/> Adicionar</button></div></article>;
+  const image = marketImage(product);
+  const price = Number(product.discount_price || product.price);
+  const original = Number(product.price);
+  const discount = product.discount_price && original > price ? Math.round((1 - price / original) * 100) : 0;
+  const href = path(`/produto/${productRouteSegment(product)}`);
+  return (
+    <article className="mk-card">
+      <Link to={href} className="mk-card-img">
+        {image ? <img src={image} alt={product.name} loading="lazy" /> : <Package size={38} />}
+        {discount > 0 ? <span className="mk-badge">-{discount}%</span> : product.is_featured && <span className="mk-badge">Oferta</span>}
+      </Link>
+      <button type="button" onClick={onFavorite} aria-label="Favoritar" className={`mk-fav ${saved ? "is-on" : ""}`}>
+        <Heart size={16} fill={saved ? "currentColor" : "none"} />
+      </button>
+      <div className="mk-card-body">
+        <span className="mk-card-cat">{category || "Produtos"}</span>
+        <Link to={href} className="mk-card-name">{product.name}</Link>
+        <div className="mk-card-price">
+          {!hidePrices && discount > 0 && <s>{marketMoney(original)}</s>}
+          <strong>{hidePrices ? "Sob consulta" : marketMoney(price)}</strong>
+        </div>
+        {!hidePrices && <small className="mk-card-note">Frete e condições com a loja</small>}
+        <button type="button" onClick={onAdd} className="mk-add"><ShoppingCart size={15} /> Adicionar</button>
+      </div>
+    </article>
+  );
 }

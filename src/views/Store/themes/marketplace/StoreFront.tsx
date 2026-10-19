@@ -1,7 +1,122 @@
+import { useRef } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowRight, BadgeCheck, Headphones, MapPin, PackageCheck, ShieldCheck } from "lucide-react";
+import { ArrowRight, BadgeCheck, ChevronRight, Headphones, MapPin, PackageCheck, ShieldCheck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
+import { useStoreFx } from "../../../../components/store/fx";
 import { useStore } from "../../StoreLayout";
 import { buildStorePath, resolveStoreSlug } from "../../store-routing";
 import { MarketCard, marketHide, marketImage } from "./ThemeParts";
-export default function StoreFront(){const {slug:routeSlug}=useParams();const {tenant,products,categories,addToCart,wishlist,toggleWishlist}=useStore();const slug=resolveStoreSlug(routeSlug);const path=(s="")=>buildStorePath(slug,s);const active=products.filter(p=>p.is_active),featured=(active.filter(p=>p.is_featured).length?active.filter(p=>p.is_featured):active).slice(0,8),shown=categories.filter(c=>active.some(p=>p.category_id===c.id)).slice(0,8),hero=tenant.banner_url||marketImage(featured[0]);return <main className="min-h-screen bg-[#f3f3f3] text-slate-900"><StoreSEO title={`${tenant.name} | Loja online`} description={tenant.about_text||`Compre online na ${tenant.name}.`} image={hero} url={typeof window!=="undefined"?window.location.href:""} siteName={tenant.name}/><section className="border-b border-[#e6c800] bg-[#ffe600]"><div className="mx-auto grid max-w-7xl gap-5 px-5 py-8 sm:px-8 md:grid-cols-[1.1fr_.9fr]"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-slate-700">Loja online segura</p><h1 className="mt-3 text-4xl font-semibold tracking-[-.05em] sm:text-5xl">{tenant.hero_tagline||"Encontre o que precisa em um só lugar."}</h1><p className="mt-4 max-w-lg text-sm leading-relaxed text-slate-700">{tenant.about_text||"Produtos selecionados, catálogo sempre atualizado e atendimento direto da loja."}</p><Link to={path("/catalogo")} className="mt-6 inline-flex h-11 items-center gap-2 rounded-md bg-blue-600 px-5 text-[10px] font-bold uppercase tracking-wider text-white">Ver ofertas <ArrowRight size={14}/></Link></div><div className="relative grid min-h-52 place-items-center overflow-hidden rounded-xl bg-white/55 p-5">{hero?<img src={hero} alt="Destaque" className="h-full max-h-64 w-full object-contain"/>:<PackageCheck size={54} className="text-blue-600"/>}</div></div></section><section className="mx-auto max-w-7xl px-5 py-9 sm:px-8"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[[PackageCheck,"Pedido online","Compre direto pela loja"],[ShieldCheck,"Compra acompanhada","Confirmação e atendimento"],[BadgeCheck,"Catálogo atualizado","Produtos disponíveis"],[Headphones,"Suporte da loja","WhatsApp quando precisar"]].map(([I,t,d]:any)=><div key={t} className="flex gap-3 rounded-lg bg-white p-4 shadow-sm"><I size={22} className="shrink-0 text-blue-600"/><div><p className="text-sm font-semibold">{t}</p><p className="mt-1 text-xs text-slate-500">{d}</p></div></div>)}</div></section><section className="mx-auto max-w-7xl px-5 pb-10 sm:px-8"><h2 className="text-xl font-semibold">Compre por categoria</h2><div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">{shown.map(c=>{const sample=active.find(p=>p.category_id===c.id),image=sample&&marketImage(sample);return <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className="group rounded-lg bg-white p-3 text-center shadow-sm hover:shadow"><div className="grid aspect-square place-items-center rounded-md bg-slate-50 p-2">{image?<img src={image} alt="" className="h-full w-full object-contain"/>:<PackageCheck size={24} className="text-blue-500"/>}</div><p className="mt-3 line-clamp-2 text-xs text-slate-700">{c.name}</p></Link>})}</div></section><section className="border-y border-slate-200 bg-white"><div className="mx-auto max-w-7xl px-5 py-10 sm:px-8"><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Produtos em destaque</h2><Link to={path("/catalogo")} className="text-sm text-blue-600">Ver catálogo</Link></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{featured.slice(0,4).map(p=><MarketCard key={p.id} product={p} path={path} category={categories.find(c=>c.id===p.category_id)?.name} saved={wishlist.includes(p.id)} onFavorite={()=>toggleWishlist(p.id)} onAdd={()=>addToCart(p)} hidePrices={marketHide(tenant)}/>)}</div></div></section><section className="mx-auto max-w-7xl px-5 py-10 sm:px-8"><div className="flex items-center gap-3 text-sm text-slate-600"><MapPin size={19} className="text-blue-600"/>{tenant.address||"Atendimento online para sua região."}</div></section></main>}
+
+const BENEFITS = [
+  { Icon: PackageCheck, title: "Pedido online", text: "Compre direto pela loja" },
+  { Icon: ShieldCheck, title: "Compra acompanhada", text: "Confirmação e atendimento" },
+  { Icon: BadgeCheck, title: "Catálogo atualizado", text: "Produtos disponíveis" },
+  { Icon: Headphones, title: "Suporte da loja", text: "WhatsApp quando precisar" },
+];
+
+export default function StoreFront() {
+  const { slug: routeSlug } = useParams();
+  const { tenant, products, categories, addToCart, wishlist, toggleWishlist } = useStore();
+  const slug = resolveStoreSlug(routeSlug);
+  const path = (suffix = "") => buildStorePath(slug, suffix);
+  const active = products.filter((p) => p.is_active);
+  const featuredList = active.filter((p) => p.is_featured);
+  const featured = (featuredList.length ? featuredList : active).slice(0, 10);
+  const shownCategories = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 12);
+  const hero = tenant.banner_url || marketImage(featured[0]);
+  const hidePrices = marketHide(tenant);
+  const pageRef = useRef<HTMLElement>(null);
+  useStoreFx(pageRef, { intro: [".mk-hero-text > *", ".mk-hero-media img"], reveal: [".mk-benefit", ".mk-cat", ".mk-card", ".mk-section-head"] });
+
+  return (
+    <main ref={pageRef} className="mk-page">
+      <StoreSEO
+        title={`${tenant.name} | Loja online`}
+        description={tenant.about_text || `Compre online na ${tenant.name}.`}
+        image={hero}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+
+      <section className="mk-wrap mk-hero-wrap">
+        <div className="mk-hero">
+          <div className="mk-hero-text">
+            <span className="mk-pill">Loja online segura</span>
+            <h1>{tenant.hero_tagline || "Encontre o que precisa em um só lugar."}</h1>
+            <p>{tenant.about_text || "Produtos selecionados, catálogo sempre atualizado e atendimento direto da loja."}</p>
+            <Link to={path("/catalogo")} className="mk-cta">
+              Ver ofertas <ArrowRight size={16} />
+            </Link>
+          </div>
+          <div className="mk-hero-media">
+            <div className="mk-hero-blob" aria-hidden="true" />
+            {hero ? <img src={hero} alt="Destaque da loja" /> : <PackageCheck size={72} />}
+          </div>
+        </div>
+      </section>
+
+      <section className="mk-wrap mk-benefits">
+        {BENEFITS.map(({ Icon, title, text }) => (
+          <div key={title} className="mk-benefit">
+            <span className="mk-benefit-icon"><Icon size={20} /></span>
+            <div>
+              <strong>{title}</strong>
+              <small>{text}</small>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {shownCategories.length > 0 && (
+        <section className="mk-wrap mk-section">
+          <div className="mk-section-head">
+            <h2>Compre por categoria</h2>
+            <Link to={path("/catalogo")}>Ver tudo <ChevronRight size={16} /></Link>
+          </div>
+          <div className="mk-cats">
+            {shownCategories.map((c) => {
+              const sample = active.find((p) => p.category_id === c.id);
+              const image = sample && marketImage(sample);
+              return (
+                <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className="mk-cat">
+                  <span className="mk-cat-img">
+                    {image ? <img src={image} alt="" loading="lazy" /> : <PackageCheck size={26} />}
+                  </span>
+                  <span className="mk-cat-name">{c.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="mk-wrap mk-section">
+        <div className="mk-section-head">
+          <h2>Produtos em destaque</h2>
+          <Link to={path("/catalogo")}>Ver catálogo <ChevronRight size={16} /></Link>
+        </div>
+        <div className="mk-grid">
+          {featured.map((p) => (
+            <MarketCard
+              key={p.id}
+              product={p}
+              path={path}
+              category={categories.find((c) => c.id === p.category_id)?.name}
+              saved={wishlist.includes(p.id)}
+              onFavorite={() => toggleWishlist(p.id)}
+              onAdd={() => addToCart(p)}
+              hidePrices={hidePrices}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section className="mk-wrap mk-section">
+        <div className="mk-address">
+          <MapPin size={20} />
+          <span>{tenant.address || "Atendimento online para sua região."}</span>
+        </div>
+      </section>
+    </main>
+  );
+}

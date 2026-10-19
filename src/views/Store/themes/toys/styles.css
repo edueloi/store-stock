@@ -389,3 +389,80 @@
 .toys-footer .toys-hours { color: #e5dcff; }
 .toys-credit { margin: 0; padding: 18px 16px 24px; border-top: 2px dashed rgba(255, 255, 255, 0.3); text-align: center; font-size: 14px; font-weight: 700; color: #cfc3f5; }
 .toys-credit a { color: var(--toys-yellow) !important; font-weight: 800; text-decoration: underline !important; }
+
+/* =====================================================================
+   Visual "brinquedo de criança": cores de doce, cantos bem redondos,
+   sombras macias e bordas brancas de adesivo (sem contornos escuros).
+   ===================================================================== */
+.toys-header, .toys-footer, .toys-page {
+  --toys-line: 4px solid #fff;
+  --toys-shadow: 0 12px 26px rgba(113, 72, 213, 0.2);
+  --toys-bg: #fff7e8;
+}
+.toys-page {
+  background-color: #fff7e8;
+  background-image:
+    radial-gradient(circle at 12% 18%, #ffd9e6 0 70px, transparent 71px),
+    radial-gradient(circle at 90% 8%, #cdeeff 0 90px, transparent 91px),
+    radial-gradient(circle at 80% 60%, #d9f7ea 0 110px, transparent 111px),
+    radial-gradient(circle at 6% 85%, #ffe9a8 0 100px, transparent 101px);
+  background-attachment: fixed;
+}
+.toys-header { background: linear-gradient(135deg, #7148d5, #a45cf0 60%, #ff6fa5); border-bottom: 0; box-shadow: 0 8px 22px rgba(113, 72, 213, 0.3); border-radius: 0 0 28px 28px; }
+.toys-ribbon { border-bottom: 0; background: linear-gradient(90deg, #ffe27a, #ffc2d6, #aaf0d9, #b9e5ff); }
+.toys-ribbon-dot { border-color: #fff; }
+.toys-brand span:not(.toys-brick) { text-shadow: 0 3px 0 rgba(43, 23, 99, 0.35); }
+.toys-brand img { border-radius: 50%; border: 3px solid #fff; }
+.toys-nav a[aria-current="page"] { border-color: #fff; background: #fff; box-shadow: 0 4px 0 rgba(43, 23, 99, 0.2); }
+.toys-search input { border: 3px solid #fff !important; }
+.toys-cart, .toys-burger { border: 3px solid #fff; border-radius: 50%; box-shadow: 0 5px 0 rgba(43, 23, 99, 0.3); }
+.toys-cart-count { border-color: #fff; }
+.toys-rail-chip { border: 3px solid #fff; border-radius: 999px; box-shadow: 0 4px 0 rgba(43, 23, 99, 0.2); }
+.toys-drawer { border-top: 0; border-radius: 0 0 28px 28px; }
+
+.toys-btn { border: 3px solid #fff; box-shadow: 0 6px 0 rgba(43, 23, 99, 0.28); }
+.toys-btn:hover:not(:disabled) { transform: translateY(-3px) scale(1.03); box-shadow: 0 9px 0 rgba(43, 23, 99, 0.28); }
+.toys-btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 rgba(43, 23, 99, 0.28); }
+.toys-btn-line { border-color: #e4d9ff; }
+.toys-pill { border: 3px solid #fff; box-shadow: 0 4px 0 rgba(43, 23, 99, 0.18); }
+.toys-chip { border: 0; }
+.toys-sticker { border: 3px solid #fff; border-radius: 999px; box-shadow: 0 3px 8px rgba(43, 23, 99, 0.25); }
+
+/* Hero */
+.toys-hero-copy h1 { color: #4a2bb0; text-shadow: 0 4px 0 #fff, 0 8px 0 rgba(113, 72, 213, 0.15); }
+.toys-hero-copy h1::after { border: 0; height: 14px; width: 160px; }
+.toys-polaroid { border: 8px solid #fff; border-radius: 48% 52% 46% 54% / 54% 46% 54% 46%; box-shadow: 0 18px 0 rgba(113, 72, 213, 0.22), 0 28px 40px rgba(113, 72, 213, 0.25); padding: 0; transform: rotate(-2deg); overflow: hidden; background: #fff; }
+.toys-polaroid-img { border-radius: 0; }
+.toys-polaroid-cap { background: #fff; padding: 12px 18px 16px; }
+.toys-burst { border: 4px solid #fff; box-shadow: 0 6px 0 rgba(43, 23, 99, 0.25); animation: toys-wobble 3.2s ease-in-out infinite; }
+
+/* Categorias */
+.toys-tile { border: 4px solid #fff; border-radius: 40px; box-shadow: var(--toys-shadow); }
+.toys-tile-img { border: 4px solid #fff; box-shadow: 0 6px 14px rgba(43, 23, 99, 0.15); }
+.toys-tile-go { border: 0; box-shadow: 0 3px 0 rgba(43, 23, 99, 0.2); }
+.toys-tile:hover { transform: rotate(0) translateY(-6px) scale(1.03); }
+
+/* Cards */
+.toys-card { border: 4px solid #fff; border-radius: 36px; box-shadow: var(--toys-shadow); }
+.toys-card:hover { transform: translateY(-6px) rotate(-1deg); box-shadow: 0 18px 34px rgba(113, 72, 213, 0.3); }
+.toys-card-media { margin: 8px 8px 0; border: 0; border-radius: 28px; }
+.toys-heart { border: 3px solid #fff; box-shadow: 0 3px 8px rgba(43, 23, 99, 0.2); }
+.toys-price strong { font-size: 22px; }
+
+/* Passos, CTA, sobre, produto */
+.toys-step, .toys-stat, .toys-info-card { border: 4px solid #fff; border-radius: 40px; box-shadow: var(--toys-shadow); }
+.toys-step-n { border: 3px solid #fff; background: var(--toys-pink); color: #fff; box-shadow: 0 3px 0 rgba(43, 23, 99, 0.25); }
+.toys-cta { border: 0; border-radius: 56px; background: linear-gradient(135deg, #7148d5, #a45cf0 55%, #ff6fa5); box-shadow: 0 14px 0 rgba(113, 72, 213, 0.25), 0 24px 40px rgba(113, 72, 213, 0.25); }
+.toys-gallery-main { border: 6px solid #fff; border-radius: 48px; box-shadow: var(--toys-shadow); }
+.toys-thumbs button { border: 3px solid #fff; border-radius: 50%; box-shadow: 0 3px 8px rgba(43, 23, 99, 0.2); }
+.toys-buy { border: 4px solid #fff; border-radius: 44px; box-shadow: var(--toys-shadow); }
+.toys-opt { border: 3px solid #e4d9ff; border-radius: 999px; }
+.toys-qty { border: 3px solid #e4d9ff; }
+.toys-select select, .toys-filter { border: 3px solid #e4d9ff; }
+.toys-added { border: 3px solid #fff; border-radius: 28px; }
+.toys-empty, .toys-note { border-radius: 40px; }
+.toys-foot-card { border: 3px solid rgba(255, 255, 255, 0.4); border-radius: 36px; }
+.toys-footer { border-radius: 40px 40px 0 0; }
+
+@keyframes toys-wobble { 0%, 100% { transform: rotate(10deg) scale(1); } 50% { transform: rotate(20deg) scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .toys-burst { animation: none; } }

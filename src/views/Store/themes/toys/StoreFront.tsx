@@ -1,6 +1,8 @@
+import { useRef } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, Gift, MessageCircle, Puzzle, ShoppingBag, Sparkles, Star } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
+import { useStoreFx } from "../../../../components/store/fx";
 import { productRouteSegment } from "../../store-routing";
 import { productImage, useKit, whatsappLink } from "./kit";
 import { ProductCard, Shapes } from "./parts";
@@ -14,6 +16,8 @@ export default function StoreFront() {
   const cats = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 8);
   const title = tenant.hero_tagline || "Brincar é a coisa mais séria do mundo!";
   const about = tenant.about_text || "Brinquedos escolhidos com carinho para imaginar, montar, descobrir e se divertir.";
+  const pageRef = useRef<HTMLDivElement>(null);
+  useStoreFx(pageRef, { style: "pop", intro: [".toys-hero-copy > *", ".toys-polaroid"], reveal: [".toys-tile", ".toys-card", ".toys-step", ".toys-head"] });
   const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
   const steps = [
     { icon: Puzzle, title: "Escolha", text: "Passeie pelas categorias e encontre o brinquedo ideal." },
@@ -22,7 +26,7 @@ export default function StoreFront() {
   ];
 
   return (
-    <div className="toys-page toys-home">
+    <div ref={pageRef} className="toys-page toys-home">
       <StoreSEO
         title={`${tenant.name} | Brinquedos`}
         description={about}
