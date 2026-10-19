@@ -466,3 +466,23 @@
 
 @keyframes toys-wobble { 0%, 100% { transform: rotate(10deg) scale(1); } 50% { transform: rotate(20deg) scale(1.08); } }
 @media (prefers-reduced-motion: reduce) { .toys-burst { animation: none; } }
+
+/* ---- ajustes de alinhamento e tamanho ---- */
+.toys-hero > .toys-shapes, .toys-cta > .toys-shapes { position: absolute; inset: 0; z-index: 0; }
+.toys-hero { align-items: center; }
+.toys-hero-art { justify-self: center; width: 100%; max-width: 460px; }
+.toys-polaroid { width: 100%; max-width: 420px; }
+.toys-rail { display: none !important; }
+.toys-btn { min-height: 40px; padding: 0 18px; font-size: 14px; gap: 6px; box-shadow: 0 4px 0 rgba(43, 23, 99, 0.25); border-width: 2px; }
+.toys-btn-lg { min-height: 46px; padding: 0 22px; font-size: 15px; }
+.toys-btn:hover:not(:disabled) { box-shadow: 0 6px 0 rgba(43, 23, 99, 0.25); }
+.toys-cart, .toys-burger { width: 42px; height: 42px; }
+.toys-nav a { min-height: 38px; font-size: 15px; padding: 0 14px; }
+.toys-search input { height: 42px !important; }
+.toys-pill { font-size: 13px; padding: 4px 12px; }
+.toys-hero-copy h1 { font-size: clamp(34px, 6vw, 62px); }
+.toys-hero-copy p { font-size: 16px; }
+.toys-hero-copy .toys-actions { gap: 10px; }
+.toys-tile strong { font-size: 15px; }
+.toys-tile { padding: 14px 8px 12px; }
+.toys-tile-img { max-width: 110px; }

@@ -32,12 +32,6 @@ export function Header() {
 
   return (
     <header className="market-header">
-      <div className="market-topline">
-        <div className="market-wrap market-topline-inner">
-          <span>{tenant.hero_tagline || "Tudo o que você procura, em um só lugar."}</span>
-          {tenant.whatsapp && <a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={14} /> Atendimento da loja</a>}
-        </div>
-      </div>
       <div className="market-wrap market-mainbar">
         <button type="button" className="market-menu" aria-label={menuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
           {menuOpen ? <X size={21} /> : <Menu size={21} />}

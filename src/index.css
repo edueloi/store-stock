@@ -493,14 +493,6 @@ body {
 /* Marketplace Pro: navegação comercial para catálogos amplos, sem replicar
    marcas de terceiros. */
 .store-theme-marketplace { background: #f3f3f3; }
-.store-theme-marketplace > header { background: #ffe600 !important; border-color: #e6c800 !important; box-shadow: none !important; }
-.store-theme-marketplace > header .store-marketplace-search input { height: 42px; border: 0; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.12); font-size: 14px; }
-.store-theme-marketplace > header nav a { color: #263242 !important; border-radius: 4px !important; }
-.store-theme-marketplace > header nav a:hover { background: rgba(255,255,255,.35) !important; }
-.store-theme-marketplace > footer { background: #fff !important; border-color: #ddd !important; color: #4b5563 !important; }
-.store-theme-marketplace > footer h4 { color: #1f2937 !important; }
-.store-theme-marketplace > footer p, .store-theme-marketplace > footer a { color: #64748b !important; }
-.store-theme-marketplace .store-search-input input { border-radius: 4px; }
 
 /* Beauty Studio: skincare editorial com grafite, branco e cobre suave. */
 .store-theme-beauty { background: #fff; color: #393532; }
@@ -659,5 +651,4 @@ body {
   .sport-home .grid.gap-x-5 > article:first-child { grid-column: span 1 / span 1; }
   .sport-home .grid.gap-x-5 > article:first-child > a { aspect-ratio: 1 / 1.08; }
   .sport-paper .grid.gap-x-5 > article:nth-child(2n), .sport-paper .grid.gap-x-5 > article:nth-child(3n) { transform: none; }
-  .store-theme-marketplace main > section:first-of-type > div > div:last-child { box-shadow: 7px 7px 0 rgba(35,50,66,.14); }
 }

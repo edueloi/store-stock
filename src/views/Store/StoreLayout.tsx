@@ -41,6 +41,7 @@ import { ownPages, ownChrome } from "./themes/own";
 
 // ── Store pages (lazy-loaded per theme)
 import { lazy, Suspense } from "react";
+import { useStoreFx } from "../../components/store/fx";
 
 function themePages(templateId: string | undefined) {
   const base = legacyThemePages(templateId);
@@ -551,6 +552,9 @@ function StoreLayoutInner() {
 
   const cartRef = useRef(cart);
   cartRef.current = cart;
+  const pageFxRef = useRef<HTMLElement>(null);
+  useStoreFx(pageFxRef, templateId || "", location.pathname);
+
   const [stockNotice, setStockNotice] = useState<string | null>(null);
   const showStockNotice = (message: string) => {
     setStockNotice(message);
@@ -1536,7 +1540,7 @@ function StoreLayoutInner() {
         </header>}
 
         {/* ── PAGES ──────────────────────────────────────────────── */}
-        <main>
+        <main ref={pageFxRef}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route index element={<StoreFront />} />

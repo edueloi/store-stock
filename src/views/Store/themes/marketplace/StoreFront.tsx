@@ -1,8 +1,6 @@
-import { useRef } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowRight, BadgeCheck, ChevronRight, Headphones, MapPin, PackageCheck, ShieldCheck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStoreFx } from "../../../../components/store/fx";
 import { useStore } from "../../StoreLayout";
 import { buildStorePath, resolveStoreSlug } from "../../store-routing";
 import { MarketCard, marketHide, marketImage } from "./ThemeParts";
@@ -25,11 +23,9 @@ export default function StoreFront() {
   const shownCategories = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 12);
   const hero = tenant.banner_url || marketImage(featured[0]);
   const hidePrices = marketHide(tenant);
-  const pageRef = useRef<HTMLElement>(null);
-  useStoreFx(pageRef, { intro: [".mk-hero-text > *", ".mk-hero-media img"], reveal: [".mk-benefit", ".mk-cat", ".mk-card", ".mk-section-head"] });
 
   return (
-    <main ref={pageRef} className="mk-page">
+    <main className="mk-page">
       <StoreSEO
         title={`${tenant.name} | Loja online`}
         description={tenant.about_text || `Compre online na ${tenant.name}.`}
