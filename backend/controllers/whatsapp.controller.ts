@@ -11,6 +11,7 @@ import {
   getWhatsappConnectionStatus,
   getWhatsappConversationMessages,
   getWhatsappOverview,
+  logoutBaileysSession,
   pingWhatsappEvolution,
   processWhatsappWebhook,
   sendWhatsappDocument,
@@ -125,6 +126,25 @@ export async function getWhatsappConnectionStatusHandler(req: Request, res: Resp
   try {
     const status = await getWhatsappConnectionStatus(tenantId);
     res.json(status);
+  } catch (error) {
+    res.status(400).json({ error: getErrorMessage(error) });
+  }
+}
+
+// Desconecta o WhatsApp da loja: encerra a sessão no aparelho e apaga as credenciais locais.
+// A próxima consulta de status (/connection-status) abre uma sessão nova e devolve um QR Code
+// para reconectar. Enquanto isso o bot e os envios por WhatsApp (notas, extratos) ficam parados.
+export async function disconnectWhatsappHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+
+  if (!tenantId) {
+    res.sendStatus(403);
+    return;
+  }
+
+  try {
+    await logoutBaileysSession(tenantId);
+    res.json({ ok: true });
   } catch (error) {
     res.status(400).json({ error: getErrorMessage(error) });
   }

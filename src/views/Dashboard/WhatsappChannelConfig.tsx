@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bot, CircleDot, MessageCirclePlus, Plus, RefreshCw, Save, Send, Sparkles, UsersRound } from "lucide-react";
+import { Bot, CircleDot, LogOut, MessageCirclePlus, Plus, RefreshCw, Save, Send, Sparkles, UsersRound } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { useToast } from "../../components/ui/Toast";
 import { cn } from "../../lib/utils";
@@ -46,6 +46,7 @@ export default function WhatsappChannelConfig() {
   const [connection, setConnection] = useState<Connection | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [logsOpen, setLogsOpen] = useState(false);
   const [logs, setLogs] = useState<Log[]>([]);
   const [drawer, setDrawer] = useState<"sector" | "agent" | "start" | null>(() => new URLSearchParams(location.search).get("acao") === "iniciar" ? "start" : null);
@@ -73,6 +74,22 @@ export default function WhatsappChannelConfig() {
       setConnection(next);
     } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao consultar a conexão."); }
   }, [toast]);
+
+  // Desconecta o aparelho. Em seguida a consulta de status abre uma sessão nova e mostra o
+  // QR Code para reconectar (com o mesmo ou outro número).
+  async function disconnectWhatsapp() {
+    if (!window.confirm("Desconectar o WhatsApp desta loja?\n\nO bot de atendimento e os envios por WhatsApp (notas fiscais, extratos, comprovantes) ficam parados até você ler um novo QR Code.")) return;
+    setDisconnecting(true);
+    try {
+      const response = await fetch("/api/whatsapp/disconnect", { method: "POST", headers: headers() });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Não foi possível desconectar.");
+      toast.success("WhatsApp desconectado. Leia o novo QR Code para reconectar.");
+      setConnection(null);
+      await refreshConnection();
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao desconectar."); }
+    finally { setDisconnecting(false); }
+  }
 
   useEffect(() => { void load(); void refreshConnection(); }, []);
   useEffect(() => {
@@ -164,7 +181,7 @@ export default function WhatsappChannelConfig() {
             <div><h2 className="font-semibold text-slate-950">Status do canal</h2><p className="mt-1 text-sm text-slate-500">O bot só responde quando o canal estiver ativo.</p></div>
             <Switch checked={workspace.is_enabled} onChange={(value) => setWorkspace({ is_enabled: value })} label="Ativar canal" />
           </div>
-          <div className="mt-6 rounded-lg bg-slate-50 p-4"><div className="flex items-center gap-3"><span className={cn("h-3 w-3 rounded-full", online ? "bg-emerald-500" : "bg-amber-400")} /><div><p className="font-semibold text-slate-800">{online ? "WhatsApp conectado" : "Aguardando conexão"}</p><p className="text-sm text-slate-500">{connection?.phoneNumber || connection?.state || "Atualize para verificar ou conectar o aparelho."}</p></div><IconButton variant="outline" size="sm" aria-label="Atualizar conexão" onClick={() => void refreshConnection()} className="ml-auto"><RefreshCw size={14} /></IconButton></div></div>
+          <div className="mt-6 rounded-lg bg-slate-50 p-4"><div className="flex items-center gap-3"><span className={cn("h-3 w-3 rounded-full", online ? "bg-emerald-500" : "bg-amber-400")} /><div><p className="font-semibold text-slate-800">{online ? "WhatsApp conectado" : "Aguardando conexão"}</p><p className="text-sm text-slate-500">{connection?.phoneNumber || connection?.state || "Atualize para verificar ou conectar o aparelho."}</p></div><IconButton variant="outline" size="sm" aria-label="Atualizar conexão" onClick={() => void refreshConnection()} className="ml-auto"><RefreshCw size={14} /></IconButton>{online && <Button size="sm" variant="outline" onClick={() => void disconnectWhatsapp()} loading={disconnecting} iconLeft={<LogOut size={14} />}>Desconectar</Button>}</div></div>
           {connection?.qrCode && <img src={connection.qrCode} alt="QR Code do WhatsApp" className="mx-auto mt-5 h-48 w-48 rounded-lg border border-slate-200 p-2" />}
         </section>
         <section className="rounded-lg border border-slate-200 bg-white p-6"><h2 className="font-semibold text-slate-950">Como funciona</h2><ol className="mt-5 space-y-4 text-sm text-slate-600"><li><b className="mr-2 text-blue-600">01</b>Ative o canal e conecte o WhatsApp.</li><li><b className="mr-2 text-blue-600">02</b>O assistente acolhe, entende e mostra as opções.</li><li><b className="mr-2 text-blue-600">03</b>Quando necessário, transfere para o setor e atendente certo.</li></ol></section>

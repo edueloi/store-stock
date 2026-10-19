@@ -8,6 +8,7 @@ import {
   createWhatsappSectorHandler,
   deleteWhatsappAgentHandler,
   deleteWhatsappSectorHandler,
+  disconnectWhatsappHandler,
   getWhatsappConnectionStatusHandler,
   getWhatsappConversationMessagesHandler,
   getWhatsappModuleOverview,
@@ -38,6 +39,7 @@ router.post("/ping", pingWhatsappProvider);
 router.post("/test-ai", testWhatsappAiHandler);
 router.get("/connection-status", getWhatsappConnectionStatusHandler);
 router.post("/connect", connectWhatsappHandler);
+router.post("/disconnect", disconnectWhatsappHandler);
 router.post("/test-menu", sendWhatsappMenuTest);
 router.post("/send-document", sendWhatsappDocumentHandler);
 router.post("/send-finance-alerts", sendFinanceAlertsHandler);
