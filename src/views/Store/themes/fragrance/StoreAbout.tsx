@@ -1,52 +1,20 @@
 import { Link } from "react-router-dom";
-import { Clock, Droplets, MapPin, MessageCircle, Truck } from "lucide-react";
+import { ArrowRight, MapPin, MessageCircle } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { StoreButton } from "../../../../components/store/StoreButton";
-import { hoursLines, productImage, useKit, whatsappLink } from "./kit";
+import { useKit, whatsappLink } from "./kit";
 import "./styles.css";
 
 export default function StoreAbout() {
-  const { tenant, active, categories, path, sf } = useKit();
-  const hours = hoursLines(tenant.business_hours);
+  const { tenant, path, sf } = useKit();
+  const about = tenant.about_text || "Uma seleção de perfumes para acompanhar a sua história. Acreditamos na memória de um aroma, na escolha pessoal e nos pequenos gestos que marcam os seus momentos.";
   const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
-  const about = tenant.about_text || `${tenant.name} reúne fragrâncias selecionadas para marcar presença em cada momento.`;
-  const photo = tenant.banner_url || productImage(active.find((p) => p.is_featured) || active[0]);
-  const policies = tenant.policies;
-  return (
-    <div className="frg-page">
-      <StoreSEO title={`${sf.about_title || "Nossa loja"} | ${tenant.name}`} description={about} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
-      <header className="frg-wrap frg-about-hero">
-        <div className="frg-hero-copy">
-          <span className="frg-eyebrow">Nossa essência</span>
-          <h1>{sf.about_title || "Perfumaria com alma"}</h1>
-          <p className="frg-pre">{about}</p>
-          <StoreButton asChild size="lg" className="frg-btn frg-btn-lg"><Link to={path("/catalogo")}>Explorar fragrâncias</Link></StoreButton>
-        </div>
-        <div className="frg-hero-art">
-          <div className="frg-hero-stage">
-            <span className="frg-stage-disc" aria-hidden="true" />
-            {photo ? <img src={photo} alt={tenant.name} /> : <Droplets size={64} aria-label="Sem imagem" />}
-            <span className="frg-stage-shadow" aria-hidden="true" />
-          </div>
-        </div>
-      </header>
-      <section className="frg-wrap frg-stats">
-        <div><strong>{active.length}</strong><span>fragrâncias na vitrine</span></div>
-        <div><strong>{categories.length}</strong><span>famílias para explorar</span></div>
-      </section>
-      <section className="frg-wrap frg-info">
-        {((tenant.show_address && tenant.address) || hours.length > 0 || wa) && (
-          <article className="frg-info-card">
-            <h2>Venha nos visitar</h2>
-            {tenant.show_address && tenant.address && <p><MapPin size={17} aria-hidden="true" /> {tenant.address}</p>}
-            {wa && <p><MessageCircle size={17} aria-hidden="true" /> <a href={wa} target="_blank" rel="noreferrer">{tenant.whatsapp}</a></p>}
-            {hours.map((h) => <p key={h.day}><Clock size={15} aria-hidden="true" /> <b>{h.day}</b> {h.text}</p>)}
-          </article>
-        )}
-        {policies?.shipping && <article className="frg-info-card"><h2><Truck size={20} aria-hidden="true" /> Entrega</h2><p className="frg-pre">{policies.shipping}</p></article>}
-        {policies?.returns && <article className="frg-info-card"><h2>Trocas e devoluções</h2><p className="frg-pre">{policies.returns}</p></article>}
-        {policies?.exchange && <article className="frg-info-card"><h2>Trocas</h2><p className="frg-pre">{policies.exchange}</p></article>}
-      </section>
+  const image = tenant.banner_url || "/store-assets/fragrance-editorial-hero-v1.jpg";
+  return <div className="frg-page frg-about">
+    <StoreSEO title={`${sf.about_title || "Nossa essência"} | ${tenant.name}`} description={about} image={image} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+    <div className="frg-about-grid">
+      <div className="frg-about-image"><img className={tenant.banner_url ? "" : "frg-hero-default"} src={image} alt={`A essência da ${tenant.name}`} /></div>
+      <article className="frg-about-copy"><span className="frg-kicker">NOSSA ESSÊNCIA</span><h1>{sf.about_title || "Fragrâncias que contam histórias."}</h1><p>{about}</p><div className="frg-about-actions"><Link className="frg-btn frg-btn-solid frg-btn-lg" to={path("/catalogo")}>Explorar fragrâncias <ArrowRight size={17} /></Link>{wa && <a className="frg-btn frg-btn-line frg-btn-lg" href={wa} target="_blank" rel="noreferrer"><MessageCircle size={17} /> Fale com a loja</a>}</div>{tenant.show_address && tenant.address && <p className="frg-about-addr"><MapPin size={17} />{tenant.address}</p>}</article>
     </div>
-  );
+    <section className="frg-policies">{[["Entrega", tenant.policies?.shipping], ["Trocas e devoluções", tenant.policies?.returns], ["Trocas", tenant.policies?.exchange]].filter(([, text]) => text).map(([title, text]) => <article key={title}><h2>{title}</h2><p>{text}</p></article>)}</section>
+  </div>;
 }

@@ -1,18 +1,9 @@
-# BoxSys Store — Fragrance Atelier V2
+# Essência — perfumaria editorial
 
-Tema de perfumaria/beleza. Substitua os oito arquivos na pasta correspondente ao tema atual (mesmo nível relativo de `kit.ts`, `StoreFront.tsx` etc). **Não altere os arquivos dos outros temas.**
+Identidade em areia, âmbar e grafite, hero amplo, catálogo com busca e filtros discretos, rodapé com contato e horários e páginas internas no mesmo estilo. Sem parallax, faixa animada ou categorias flutuantes.
 
-## Preservado
-- Dados e textos de `tenant` e `tenant.policies.storefront` (`sf`)
-- Metadados via `StoreSEO`, imagens e URLs
-- `previewTheme` nas rotas via `useKit().path`
-- Preços ocultos e modo pedido; produtos e categorias dinâmicos
-- Favoritos, carrinho, variações, imagens e disponibilidade
+O hero prioriza os slides cadastrados pela loja. Sem slides, usa `tenant.banner_url`; sem banner, usa `public/store-assets/fragrance-editorial-hero-v1.jpg`, uma versão JPEG otimizada da campanha já existente `fragrance-amber-hero-v1.png`. Fotos do catálogo continuam sendo as dos produtos cadastrados.
 
-## Importante antes de publicar
-- Testar `npm run build` e fluxo de pedido com API real. Não há repositório completo neste pacote.
-- Verificar importação do Tailwind já usado no projeto (o tema também utiliza algumas classes utilitárias de origem).
-- O campo de observação não é exibido na nova página de produto porque o contrato de `addToCart` apresentado não possui suporte nativo comprovado para observações separadas de variações. Integrar ao modelo de pedido antes de adicioná-lo.
-- Verificar regras de variações dependentes e estoque por combinação no backend.
-- Testar checkout_mode=order_request, hide_prices, estoque desativado, sem fotos, celular 360px e previewTheme.
-- A renderização é exclusivamente client-side; SEO de compartilhamento/crawlers pode exigir SSR/prerender além de StoreSEO.
+Preserva textos personalizados, URLs com `previewTheme`, favoritos, galeria, opções de volume, estoque por combinação, preços ocultos e modo de solicitação. As políticas cadastradas de entrega, troca e devolução aparecem na página sobre.
+
+O script `scripts/verify-cosmetics-themes.cjs` verifica as quatro páginas em celular, tablet e desktop e os fluxos de catálogo e compra com API simulada, sem criar pedidos reais. Requer Vite em execução, Node 20+ e `PLAYWRIGHT_MODULE` apontando para Playwright.

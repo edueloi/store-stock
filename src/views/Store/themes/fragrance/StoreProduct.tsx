@@ -33,7 +33,7 @@ function Details({ product }: { product: Product }) {
   const wa = whatsappLink(tenant.whatsapp, `Olá! Tenho uma dúvida sobre: ${product.name}`);
   const missing = b.groups.filter((g) => !b.selected[g.name]).map((g) => g.name);
   return (
-    <div className="frg-page">
+    <div className="frg-page frg-product">
       <StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description || product.name} image={b.gallery[0]} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
       <nav className="frg-wrap frg-crumbs" aria-label="Você está em">
         <Link to={path("/catalogo")}><ArrowLeft size={15} /> Fragrâncias</Link>

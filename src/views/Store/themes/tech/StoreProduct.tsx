@@ -45,7 +45,7 @@ export default function StoreProduct() {
           {cat && <><span>/</span><Link to={path("/catalogo", { categoria: String(cat.id) })}>{cat.name}</Link></>}
         </nav>
 
-        <div className="tp-pgrid">
+        <div className={`tp-pgrid${gallery.length > 1 ? "" : " tp-pgrid-single"}`}>
           {gallery.length > 1 && (
             <div className="tp-rail" role="group" aria-label="Miniaturas">
               {gallery.map((src, i) => (
@@ -53,7 +53,7 @@ export default function StoreProduct() {
               ))}
             </div>
           )}
-          <div className="tp-stage" style={gallery.length > 1 ? undefined : { gridColumn: "1 / -1" }}>
+          <div className="tp-stage">
             {gallery.length ? <img src={gallery[photo] || gallery[0]} alt={product.name} /> : <Package className="ph" size={72} aria-label="Produto sem imagem" />}
             {gallery.length > 1 && <span className="tp-zoom">{photo + 1}/{gallery.length}</span>}
           </div>

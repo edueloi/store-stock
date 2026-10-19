@@ -1,59 +1,68 @@
+import { Search } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { StoreButton } from "../../../../components/store/StoreButton";
 import { useCatalog } from "./kit";
-import { Empty, ProductCard, SearchField } from "./ThemeParts";
+import { Empty, ProductCard } from "./ThemeParts";
+import { SortSelect } from "../street/shared";
 import "./styles.css";
 
 export default function StoreCatalog() {
   const c = useCatalog(12);
   const { tenant, sf, categories, active, hidden } = c;
-  const title = sf.catalog_title || "Cuidado em cada escolha";
-  const desc = sf.catalog_description || "Encontre produtos para transformar a sua rotina em um ritual de bem-estar.";
+  const title = sf.catalog_title || "Cuidados";
+  const desc = sf.catalog_description || "Skincare e autocuidado para fazer parte da sua rotina.";
   const current = categories.find((x) => x.id === c.cat);
+  const used = categories.filter((x) => active.some((p) => p.category_id === x.id));
   return (
-    <div className="bty-page">
-      <StoreSEO title={`${current ? `${current.name} | ` : ""}${title} | ${tenant.name}`} description={desc} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
-      <header className="bty-wrap bty-cat-hero">
-        <span className="bty-eyebrow">Catálogo</span>
-        <h1>{current ? current.name : title}</h1>
-        <p>{desc}</p>
-      </header>
-      <div className="bty-wrap">
-        <div className="bty-filterbar">
-          <SearchField value={c.q} onChange={(v) => c.setParam("q", v)} placeholder="Buscar por nome ou código" label="Buscar produtos" />
-          <label className="bty-select">
-            <span className="bty-sr">Ordenar por</span>
-            <select value={c.sort} onChange={(e) => c.setParam("sort", e.target.value === "destaques" ? null : e.target.value)}>
-              <option value="destaques">Destaques primeiro</option>
-              <option value="nome">Nome (A a Z)</option>
-              {!hidden && <option value="menor">Menor preço</option>}
-              {!hidden && <option value="maior">Maior preço</option>}
-            </select>
+    <div className="bty-page bty-catalog">
+      <StoreSEO
+        title={`${current ? `${current.name} | ` : ""}${title} | ${tenant.name}`}
+        description={desc}
+        image={tenant.banner_url || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+      <header className="bty-cat-head">
+        <div>
+          <span className="bty-mono">{String(c.list.length).padStart(2, "0")} itens</span>
+          <h1>{current ? current.name : title}</h1>
+          <p>{desc}</p>
+        </div>
+        <div className="bty-tools">
+          <label className="bty-find">
+            <Search size={18} aria-hidden="true" />
+            <input type="search" value={c.q} onChange={(e) => c.setParam("q", e.target.value)} placeholder="Buscar no catálogo" aria-label="Buscar no catálogo" />
           </label>
-          <div className="bty-chips" role="group" aria-label="Categorias">
-            <button type="button" aria-pressed={!c.cat} onClick={() => c.setParam("categoria", null)}>Todos</button>
-            {categories.map((cat) => (
-              <button key={cat.id} type="button" aria-pressed={c.cat === cat.id} onClick={() => c.setParam("categoria", String(cat.id))}>{cat.name}</button>
+          <SortSelect t="bty" sort={c.sort} hidden={hidden} onChange={(v) => c.setParam("sort", v)} />
+        </div>
+      </header>
+
+      <div className="bty-catalog-filters">
+        <label className="bty-category-filter"><span>Categoria</span><select aria-label="Filtrar por categoria" value={c.cat || ""} onChange={e => c.setParam("categoria", e.target.value || null)}><option value="">Todos os produtos</option>{used.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></label>
+        <span>{c.list.length} {c.list.length === 1 ? "produto" : "produtos"}</span>
+        {(c.q || c.cat || c.sort !== "destaques") && <button type="button" onClick={c.clear}>Limpar filtros</button>}
+      </div>
+
+      {c.list.length ? (
+        <>
+          <div className="bty-grid" role="status" aria-live="polite">
+            {c.shown.map((p) => (
+              <ProductCard key={p.id} product={p} />
             ))}
           </div>
-        </div>
-        <p className="bty-count" role="status">
-          {c.list.length} {c.list.length === 1 ? "produto encontrado" : "produtos encontrados"}
-        </p>
-        {c.list.length ? (
-          <>
-            <div className="bty-grid">{c.shown.map((p) => <ProductCard key={p.id} product={p} />)}</div>
-            {c.hasMore && (
-              <div className="bty-more">
-                <StoreButton variant="outline" size="lg" className="bty-btn bty-btn-line" onClick={c.more}>Ver mais produtos</StoreButton>
-                <span>Mostrando {c.shown.length} de {c.list.length}</span>
-              </div>
-            )}
-          </>
-        ) : (
-          <Empty title={active.length ? "Nada encontrado" : "Em breve por aqui"} text={active.length ? "Tente outro nome ou outra categoria." : "Estamos preparando a seleção."} onClear={active.length ? c.clear : undefined} />
-        )}
-      </div>
+          {c.hasMore && (
+            <div className="bty-more">
+              <button type="button" className="bty-btn bty-btn-solid bty-btn-lg" onClick={c.more}>
+                Carregar mais
+              </button>
+              <span>
+                {c.shown.length} de {c.list.length}
+              </span>
+            </div>
+          )}
+        </>
+      ) : (
+        <Empty title={active.length ? "Nada encontrado" : "Em breve"} text={active.length ? "Tente outro termo ou outra categoria." : "Estamos montando o catálogo."} onClear={active.length ? c.clear : undefined} />
+      )}
     </div>
   );
 }

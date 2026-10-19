@@ -4,7 +4,7 @@ import { hoursLines, useKit, whatsappLink } from "./kit";
 import type { Prefix } from "./shared";
 
 /** Rodapé compartilhado: colunas com título, categorias limitadas e contato. Cada tema o veste com seu CSS. */
-export default function SiteFooter({ t, tagline }: { t: Prefix; tagline: string }) {
+export default function SiteFooter({ t, tagline, showCategories = true, catalogLabel = "Todas as peças", aboutLabel = "Sobre a marca" }: { t: Prefix; tagline: string; showCategories?: boolean; catalogLabel?: string; aboutLabel?: string }) {
   const { tenant, categories, active, path } = useKit();
   const hours = hoursLines(tenant.business_hours);
   const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
@@ -41,10 +41,10 @@ export default function SiteFooter({ t, tagline }: { t: Prefix; tagline: string 
         </section>
         <section className={`${t}-foot-col`}>
           <h2>Loja</h2>
-          <Link to={path("/catalogo")}>Todas as peças</Link>
-          <Link to={path("/sobre")}>Sobre a marca</Link>
+          <Link to={path("/catalogo")}>{catalogLabel}</Link>
+          <Link to={path("/sobre")}>{aboutLabel}</Link>
         </section>
-        {cats.length > 0 && (
+        {showCategories && cats.length > 0 && (
           <section className={`${t}-foot-col`}>
             <h2>Categorias</h2>
             {cats.map((c) => (

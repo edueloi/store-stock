@@ -1,14 +1,14 @@
 import { Search } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useCatalog } from "./kit";
-import { Empty, ProductCard, SortSelect } from "./shared";
+import { useCatalog } from "../street/kit";
+import { Empty, ProductCard, SortSelect } from "../street/shared";
 import "./styles.css";
 
 export default function StoreCatalog() {
   const c = useCatalog(12);
   const { tenant, sf, categories, active, hidden } = c;
-  const title = sf.catalog_title || "Todos os drops";
-  const desc = sf.catalog_description || "Peças novas, edições limitadas e os básicos que não saem de moda.";
+  const title = sf.catalog_title || "A coleção";
+  const desc = sf.catalog_description || "Camisetas, sneakers e peças para acompanhar a cidade.";
   const current = categories.find((x) => x.id === c.cat);
   const used = categories.filter((x) => active.some((p) => p.category_id === x.id));
   return (
@@ -20,45 +20,30 @@ export default function StoreCatalog() {
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
       />
-      <header className="sd-cat-hero">
+      <header className="sd-cat-head">
         <div>
-          <span className="sd-tag">Catálogo</span>
+          <span className="sd-mono">{String(c.list.length).padStart(2, "0")} itens</span>
           <h1>{current ? current.name : title}</h1>
           <p>{desc}</p>
         </div>
-        <span className="sd-count-big" aria-hidden="true">
-          {c.list.length}
-          <small>peças</small>
-        </span>
-      </header>
-
-      <div className="sd-toolbar">
-        <div className="sd-tabs" role="group" aria-label="Categorias">
-          <button type="button" aria-pressed={!c.cat} onClick={() => c.setParam("categoria", null)}>
-            Todas <small>{active.length}</small>
-          </button>
-          {used.map((cat) => (
-            <button key={cat.id} type="button" aria-pressed={c.cat === cat.id} onClick={() => c.setParam("categoria", String(cat.id))}>
-              {cat.name} <small>{active.filter((p) => p.category_id === cat.id).length}</small>
-            </button>
-          ))}
-        </div>
         <div className="sd-tools">
           <label className="sd-find">
-            <Search size={17} aria-hidden="true" />
+            <Search size={18} aria-hidden="true" />
             <input type="search" value={c.q} onChange={(e) => c.setParam("q", e.target.value)} placeholder="Buscar no catálogo" aria-label="Buscar no catálogo" />
           </label>
           <SortSelect t="sd" sort={c.sort} hidden={hidden} onChange={(v) => c.setParam("sort", v)} />
         </div>
-      </div>
+      </header>
 
-      <p className="sd-results" role="status">
-        {c.list.length} {c.list.length === 1 ? "peça encontrada" : "peças encontradas"}
-      </p>
+      <div className="sd-catalog-filters">
+        <label className="sd-category-filter"><span>Categoria</span><select aria-label="Filtrar por categoria" value={c.cat || ""} onChange={e => c.setParam("categoria", e.target.value || null)}><option value="">Todas as peças</option>{used.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></label>
+        <span>{c.list.length} {c.list.length === 1 ? "peça" : "peças"}</span>
+        {(c.q || c.cat || c.sort !== "destaques") && <button type="button" onClick={c.clear}>Limpar filtros</button>}
+      </div>
 
       {c.list.length ? (
         <>
-          <div className="sd-grid">
+          <div className="sd-grid" role="status" aria-live="polite">
             {c.shown.map((p) => (
               <ProductCard key={p.id} product={p} t="sd" />
             ))}
@@ -66,16 +51,16 @@ export default function StoreCatalog() {
           {c.hasMore && (
             <div className="sd-more">
               <button type="button" className="sd-btn sd-btn-solid sd-btn-lg" onClick={c.more}>
-                Carregar mais peças
+                Carregar mais
               </button>
               <span>
-                Mostrando {c.shown.length} de {c.list.length}
+                {c.shown.length} de {c.list.length}
               </span>
             </div>
           )}
         </>
       ) : (
-        <Empty t="sd" title={active.length ? "Nada por aqui" : "O próximo drop já vem"} text={active.length ? "Tente outro termo ou outra categoria." : "Estamos preparando as peças."} onClear={active.length ? c.clear : undefined} />
+        <Empty t="sd" title={active.length ? "Nada encontrado" : "Em breve"} text={active.length ? "Tente outro termo ou outra categoria." : "Estamos montando o catálogo."} onClear={active.length ? c.clear : undefined} />
       )}
     </div>
   );

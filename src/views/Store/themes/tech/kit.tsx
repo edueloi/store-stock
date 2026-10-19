@@ -11,9 +11,9 @@ export const money = (value: number) =>
 export const imageOf = (p?: Product) => p?.images?.[0] || p?.image_url || "";
 export const norm = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-export const priceOf = (p: Product) => Number(p.discount_price ?? p.price);
+export const priceOf = (p: Product) => Number(p.discount_price) > 0 ? Number(p.discount_price) : Number(p.price);
 export const hasDiscount = (p: Product) =>
-  p.discount_price != null && Number(p.discount_price) >= 0 && Number(p.discount_price) < Number(p.price);
+  p.discount_price != null && Number(p.discount_price) > 0 && Number(p.discount_price) < Number(p.price);
 export const groupsOf = (p: Product): { name: string; values: string[]; colors?: Record<string, string> }[] =>
   Array.isArray(p.attributes) && p.attributes.length
     ? p.attributes.map((a) => ({ name: a.name, values: a.values, colors: a.colors }))
@@ -77,6 +77,27 @@ export function filterProducts(active: Product[], q: string, cat: string, sort: 
             ? priceOf(b) - priceOf(a)
             : Number(b.is_featured) - Number(a.is_featured),
     );
+}
+
+/** Catálogo editorial sobre as mesmas regras de busca, preço e publicação. */
+export function useEditorialCatalog(pageSize = 12) {
+  const shop = useShop();
+  const { q, cat, sort, set } = useCatalogParams();
+  const [, setParams] = useSearchParams();
+  const [visible, setVisible] = useState(pageSize);
+  useEffect(() => setVisible(pageSize), [q, cat, sort, pageSize]);
+  const list = useMemo(() => filterProducts(shop.active, q, cat, sort, shop.hidden), [shop.active, q, cat, sort, shop.hidden]);
+  const clear = () => setParams(current => {
+    const next = new URLSearchParams(current);
+    ["q", "categoria", "cat", "sort"].forEach(key => next.delete(key));
+    return next;
+  }, { replace: true });
+  return {
+    ...shop, sf: shop.config, q, cat: cat ? Number(cat) : null, sort, list,
+    shown: list.slice(0, visible), hasMore: list.length > visible,
+    more: () => setVisible(value => value + pageSize), clear,
+    setParam: (key: string, value: string | null) => set(key, value || ""),
+  };
 }
 
 const DAYS: [string, string][] = [

@@ -16,6 +16,8 @@ type Props = {
   className?: string;
   /** "banner": imagem de fundo com texto sobre ela. "split": texto ao lado da imagem. */
   layout?: "banner" | "split";
+  /** Desliga a entrada animada para temas de apresentação estática. */
+  animate?: boolean;
 };
 
 const isExternal = (url: string) => /^https?:\/\//i.test(url);
@@ -25,7 +27,7 @@ const isExternal = (url: string) => /^https?:\/\//i.test(url);
  * Sem slides cadastrados, renderiza o `fallback`. Visual neutro e redondo, ajustável
  * pelos temas via variáveis CSS (--hs-radius, --hs-accent, --hs-height, --hs-ink).
  */
-export default function HeroSlider({ slides, fallback, resolveUrl, autoplaySeconds = 6, className = "", layout = "banner" }: Props) {
+export default function HeroSlider({ slides, fallback, resolveUrl, autoplaySeconds = 6, className = "", layout = "banner", animate = true }: Props) {
   const list = (slides || []).filter((s) => s.image);
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -44,12 +46,12 @@ export default function HeroSlider({ slides, fallback, resolveUrl, autoplaySecon
 
   useEffect(() => {
     const el = root.current?.querySelector<HTMLElement>(`[data-slide="${index}"] .hs-copy`);
-    if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!animate || !el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const tween = gsap.fromTo(el.children, { opacity: 0, y: 22 }, { opacity: 1, y: 0, duration: 0.6, stagger: 0.09, ease: "power3.out" });
     return () => {
       tween.kill();
     };
-  }, [index]);
+  }, [index, animate]);
 
   if (!count) return <>{fallback}</>;
 

@@ -15,7 +15,7 @@ import type { Product } from "../../../../types";
  * A estrutura é a mesma, mas cada tema tem CSS, marcação de cabeçalho/hero/categorias
  * e catálogo próprios; o prefixo (`t`) escolhe o visual.
  */
-export type Prefix = "sd" | "sw" | "ur" | "sr";
+export type Prefix = "sd" | "sw" | "ur" | "sr" | "frg" | "bty" | "tp" | "bk";
 
 /** Estado comum dos cabeçalhos: menu mobile, busca e fechamento ao navegar. */
 export function useHeaderState() {
@@ -72,7 +72,7 @@ export function ProductCard({ product, t, fab = false }: { product: Product; t: 
             <span className={`${t}-badge ${t}-badge-off`}>Esgotado</span>
           ) : (
             <>
-              {product.is_featured && <span className={`${t}-badge ${t}-badge-hot`}>Drop</span>}
+              {product.is_featured && <span className={`${t}-badge ${t}-badge-hot`}>{t === "ur" ? "Seleção" : "Drop"}</span>}
               {off > 0 && !hidden && <span className={`${t}-badge ${t}-badge-sale`}>-{off}%</span>}
               {left !== null && left > 0 && left <= 3 && <span className={`${t}-badge ${t}-badge-last`}>Últimas {left}</span>}
             </>

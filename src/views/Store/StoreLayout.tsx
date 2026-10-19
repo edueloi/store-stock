@@ -278,12 +278,12 @@ const templates: Record<string, StoreStyle> = {
     radius: "rounded-lg",
   },
   tech: {
-    bg: "bg-[#f4f6fb]",
+    bg: "bg-[#f7f8f8]",
     card: "bg-white border-slate-200",
-    accent: "#0ea5e9",
-    text: "text-slate-900",
+    accent: "#27343a",
+    text: "text-[#27343a]",
     font: "font-sans",
-    radius: "rounded-2xl",
+    radius: "rounded-none",
   },
   nexus_tech: {
     bg: "tech-shell bg-[#f4f8ff]",
@@ -302,44 +302,44 @@ const templates: Record<string, StoreStyle> = {
     radius: "rounded-[2rem]",
   },
   urban: {
-    bg: "bg-[#f6f7f9]",
+    bg: "bg-[#faf9f6]",
     card: "bg-white border-slate-200",
-    accent: "#2563eb",
-    text: "text-slate-900",
+    accent: "#262622",
+    text: "text-[#262622]",
     font: "font-urban",
-    radius: "rounded-xl",
+    radius: "rounded-sm",
   },
   fragrance: {
-    bg: "bg-[#f5f7fb]",
-    card: "bg-white border-[#dbe5f3]",
-    accent: "#2563eb",
-    text: "text-[#0f172a]",
+    bg: "bg-[#f8f5ef]",
+    card: "bg-white border-[#deddd5]",
+    accent: "#3b3028",
+    text: "text-[#3b3028]",
     font: "font-sans",
-    radius: "rounded-full",
+    radius: "rounded-none",
   },
   beauty: {
-    bg: "bg-white",
-    card: "bg-white border-[#e7ded8]",
-    accent: "#a96845",
-    text: "text-[#393532]",
+    bg: "bg-[#f8f8f3]",
+    card: "bg-white border-[#deddd5]",
+    accent: "#354339",
+    text: "text-[#354339]",
     font: "font-sans",
     radius: "rounded-none",
   },
   street: {
-    bg: "bg-[#0a0a0a]",
-    card: "bg-[#111111] border-[#282828]",
-    accent: "#bcff00",
-    text: "text-white",
+    bg: "bg-[#f7f7f5]",
+    card: "bg-white border-[#deddd5]",
+    accent: "#1d1f1c",
+    text: "text-[#1d1f1c]",
     font: "font-sans",
     radius: "rounded-none",
   },
   streetwear: {
-    bg: "bg-[#09090b]",
-    card: "bg-[#18181b] border-[#27272a]",
-    accent: "#facc15",
-    text: "text-zinc-100",
+    bg: "bg-[#f5f2ec]",
+    card: "bg-white border-[#deddd5]",
+    accent: "#282723",
+    text: "text-[#282723]",
     font: "font-sans",
-    radius: "rounded-xl",
+    radius: "rounded-none",
   },
   aura: {
     bg: "bg-[#FAF9F6]",
@@ -579,7 +579,12 @@ function StoreLayoutInner() {
       }
     }
     const variationImages = getVariationImages(product, options || {});
-    const pricedProduct = isSegment(templateId || '') ? { ...product, price: Number(product.discount_price ?? product.price) } : product;
+    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books'].includes(templateId || '');
+    const usesDiscountPrice = isSegment(templateId || '') || editorialTheme;
+    const storefrontPrice = editorialTheme && Number(product.discount_price) <= 0
+      ? product.price
+      : (product.discount_price ?? product.price);
+    const pricedProduct = usesDiscountPrice ? { ...product, price: Number(storefrontPrice) } : product;
     const productForCart = variationImages.length
       ? { ...pricedProduct, image_url: variationImages[0], images: variationImages }
       : pricedProduct;

@@ -1,13 +1,13 @@
-import { Search, Shirt } from "lucide-react";
+import { Search } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { useCatalog } from "../street/kit";
-import { Empty, ProductCard, SortSelect, categoryImage } from "../street/shared";
+import { Empty, ProductCard, SortSelect } from "../street/shared";
 import "./styles.css";
 
 export default function StoreCatalog() {
   const c = useCatalog(12);
   const { tenant, sf, categories, active, hidden } = c;
-  const title = sf.catalog_title || "Catálogo";
+  const title = sf.catalog_title || "A coleção";
   const desc = sf.catalog_description || "Todas as peças, em um só lugar.";
   const current = categories.find((x) => x.id === c.cat);
   const used = categories.filter((x) => active.some((p) => p.category_id === x.id));
@@ -35,19 +35,10 @@ export default function StoreCatalog() {
         </div>
       </header>
 
-      <div className="ur-stories" role="group" aria-label="Categorias">
-        <button type="button" aria-pressed={!c.cat} onClick={() => c.setParam("categoria", null)}>
-          <span className="ur-ring ur-ring-all">
-            <Shirt size={24} />
-          </span>
-          <b>Tudo</b>
-        </button>
-        {used.map((cat) => (
-          <button key={cat.id} type="button" aria-pressed={c.cat === cat.id} onClick={() => c.setParam("categoria", String(cat.id))}>
-            <span className="ur-ring">{categoryImage(cat, active) ? <img src={categoryImage(cat, active)} alt="" loading="lazy" /> : <Shirt size={24} />}</span>
-            <b>{cat.name}</b>
-          </button>
-        ))}
+      <div className="ur-catalog-filters">
+        <label className="ur-category-filter"><span>Categoria</span><select aria-label="Filtrar por categoria" value={c.cat || ""} onChange={e => c.setParam("categoria", e.target.value || null)}><option value="">Todas as peças</option>{used.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></label>
+        <span>{c.list.length} {c.list.length === 1 ? "peça" : "peças"}</span>
+        {(c.q || c.cat || c.sort !== "destaques") && <button type="button" onClick={c.clear}>Limpar filtros</button>}
       </div>
 
       {c.list.length ? (
