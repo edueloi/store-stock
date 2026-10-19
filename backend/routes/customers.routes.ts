@@ -25,6 +25,7 @@ import {
   importCustomers,
 } from "../controllers/customers.controller";
 import { sendCrediarioEmail } from "../controllers/document-email.controller";
+import { downloadCustomerStatementPdf, sendCustomerStatementWhatsapp } from "../controllers/customer-statement.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -75,6 +76,10 @@ router.put("/:id",                  updateCustomer);
 router.delete("/:id",               deleteCustomer);
 
 router.get("/:id/credits",          getCustomerCredits);
+
+// Extrato do cliente (PDF) e envio dele pelo WhatsApp da loja
+router.get("/:id/statement/pdf",              downloadCustomerStatementPdf);
+router.post("/:id/statement/send-whatsapp",   sendCustomerStatementWhatsapp);
 
 // Debts (fiado)
 router.get("/:id/debts",            listDebts);

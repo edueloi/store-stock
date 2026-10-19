@@ -4,7 +4,7 @@ import {
   Phone, Mail, MapPin, AlertTriangle, X, Plus, ChevronRight, Trash2,
   DollarSign, Clock, CheckCircle2, FileText, ShoppingBag, StickyNote,
   Edit2, Save, XCircle, Shield, Star, Gift, Award, Loader2, Users,
-  AlertCircle, ChevronLeft, CreditCard, Search, Calendar, Printer,
+  AlertCircle, ChevronLeft, CreditCard, Search, Calendar, Printer, MessageCircle,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Badge, Alert, EmptyState, ContentCard, PanelCard, DetailField, StatGrid, StatCard, Tabs } from "../../components/ui";
@@ -262,6 +262,17 @@ export default function CustomerDetail() {
 
   // Juros de crediário (configurado em Settings, aplicado manualmente por parcela)
   const [sendingDebtEmailKey, setSendingDebtEmailKey] = useState<string | null>(null);
+  // Extrato do cliente (PDF + resumo do que pagou e do que falta) pelo WhatsApp da loja
+  const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const [sendingStatementWhatsapp, setSendingStatementWhatsapp] = useState(false);
+  const [openingStatementPdf, setOpeningStatementPdf] = useState(false);
+  useEffect(() => {
+    // O botão só liga com o bot realmente conectado — sem isso o envio falharia no backend.
+    fetch("/api/whatsapp/connection-status", { headers: authH() })
+      .then((r) => r.json())
+      .then((d) => setWhatsappConnected(Boolean(d?.connected)))
+      .catch(() => {});
+  }, []);
   const [crediarioInterestRate, setCrediarioInterestRate] = useState(0);
   const [crediarioGraceDays, setCrediarioGraceDays] = useState(0);
   const [applyingInterestId, setApplyingInterestId] = useState<number | null>(null);
@@ -699,6 +710,59 @@ export default function CustomerDetail() {
     }
   }
 
+  // Envia o extrato do cliente (PDF com compras, pagamentos e parcelas em aberto) pelo WhatsApp
+  // da loja, com uma mensagem do que já foi pago e do que falta. Pede confirmação antes, porque
+  // é uma mensagem real para o cliente.
+  async function sendStatementWhatsapp() {
+    if (!detail) return;
+    let number: string | undefined;
+    if (!detail.phone?.trim()) {
+      const typed = window.prompt("Este cliente não tem telefone cadastrado. Informe o WhatsApp com DDD para enviar:");
+      if (!typed) return;
+      number = typed.trim();
+    }
+    const target = number || detail.phone;
+    const pending = Number(detail.total_debt) > 0 ? `Falta pagar ${fmt(Number(detail.total_debt))}.` : "Sem valores pendentes.";
+    if (!window.confirm(`Enviar o extrato em PDF e o resumo da conta para ${detail.name} (${target}) no WhatsApp?\n\n${pending}`)) return;
+
+    setSendingStatementWhatsapp(true);
+    try {
+      const res = await fetch(`/api/customers/${detail.id}/statement/send-whatsapp`, {
+        method: "POST",
+        headers: authH(),
+        body: JSON.stringify({ number }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data?.error || "Não foi possível enviar pelo WhatsApp."); return; }
+      toast.success(`Extrato enviado para ${detail.name} pelo WhatsApp.`);
+    } catch {
+      toast.error("Erro de conexão ao enviar pelo WhatsApp.");
+    } finally {
+      setSendingStatementWhatsapp(false);
+    }
+  }
+
+  // Abre o mesmo PDF do extrato numa nova aba, para conferir antes de enviar ou imprimir.
+  async function openStatementPdf() {
+    if (!detail) return;
+    setOpeningStatementPdf(true);
+    try {
+      const res = await fetch(`/api/customers/${detail.id}/statement/pdf`, { headers: authH() });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || "Não foi possível gerar o extrato.");
+        return;
+      }
+      const url = URL.createObjectURL(await res.blob());
+      window.open(url, "_blank", "noopener");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch {
+      toast.error("Erro de conexão ao gerar o extrato.");
+    } finally {
+      setOpeningStatementPdf(false);
+    }
+  }
+
   // Reimpressão do cupom de venda — mesmo cupom do PDV (Reimprimir Venda).
   async function printOrderReceipt(order: Order) {
     if (!detail) return;
@@ -981,6 +1045,28 @@ export default function CustomerDetail() {
               <dl className="grid grid-cols-1 gap-x-6">
                 <DetailField label="Total em aberto" value={fmt(Number(detail.total_debt))} />
               </dl>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  iconLeft={<MessageCircle size={14} />}
+                  loading={sendingStatementWhatsapp}
+                  disabled={!whatsappConnected || sendingStatementWhatsapp}
+                  title={whatsappConnected ? "Envia o extrato em PDF e o resumo do que já foi pago e do que falta" : "Conecte o WhatsApp da loja para enviar"}
+                  onClick={sendStatementWhatsapp}
+                >
+                  Enviar no WhatsApp
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  iconLeft={<FileText size={14} />}
+                  loading={openingStatementPdf}
+                  title="Abre o extrato do cliente em PDF"
+                  onClick={openStatementPdf}
+                >
+                  Ver extrato (PDF)
+                </Button>
+              </div>
             </PanelCard>
             {!showDebtForm ? (
               <Button variant="outline" fullWidth iconLeft={<Plus size={14} />} onClick={() => setShowDebtForm(true)}>
