@@ -1,18 +1,159 @@
-import { Link, useParams } from "react-router-dom";
-import { ArrowUpRight, MessageCircle, ShoppingBag, Zap } from "lucide-react";
+import { useRef } from "react";
+import { Link } from "react-router-dom";
+import { ArrowRight, MessageCircle, Shirt, Sparkles } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
-import { StreetProductCard, streetHidePrices, streetImage } from "./ThemeParts";
+import HeroSlider from "../../../../components/store/HeroSlider";
+import { StoreButton } from "../../../../components/store/StoreButton";
+import { productRouteSegment } from "../../store-routing";
+import { productImage, useKit, whatsappLink } from "./kit";
+import { ProductCard, TrustRow, categoryImage, useHeroMotion } from "./shared";
+import "./styles.css";
 
 export default function StoreFront() {
-  const { slug: routeSlug } = useParams(); const { tenant, products, categories, addToCart, wishlist, toggleWishlist } = useStore(); const slug = resolveStoreSlug(routeSlug); const path = (suffix = "") => buildStorePath(slug, suffix);
-  const active = products.filter((item) => item.is_active); const featured = (active.filter((item) => item.is_featured).length ? active.filter((item) => item.is_featured) : active).slice(0, 4); const shownCategories = categories.filter((item) => active.some((product) => product.category_id === item.id)).slice(0, 6); const heroImage = tenant.banner_url || streetImage(featured[0]); const hidePrices = streetHidePrices(tenant);
-  return <main className="min-h-screen overflow-hidden bg-[#0a0a0a] text-white"><StoreSEO title={`${tenant.name} | Streetwear`} description={tenant.about_text || `Drops, moda urbana e acessórios na ${tenant.name}.`} image={heroImage} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} keywords={`${tenant.name}, streetwear, moda urbana, sneakers, roupas`} />
-    <section className="border-b border-[#282828] bg-[#bcff00] px-4 py-2 text-center text-[9px] font-black uppercase tracking-[.26em] text-black">Drop ativo · pedido online · envio para todo Brasil</section>
-    <section className="relative isolate min-h-[600px] overflow-hidden border-b border-[#282828] px-5 py-14 sm:px-8 md:min-h-[680px] md:py-20"><div className="absolute inset-0 opacity-70" style={heroImage ? { backgroundImage: `linear-gradient(90deg,rgba(0,0,0,.92) 0%,rgba(0,0,0,.46) 55%,rgba(0,0,0,.12)),url(${heroImage})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: "radial-gradient(circle at 78% 32%,#535353 0,transparent 20%),linear-gradient(135deg,#191919 0%,#000 60%)" }}/><div className="absolute -right-20 -top-20 h-96 w-96 rotate-12 border-[30px] border-[#bcff00]/15"/><div className="relative mx-auto flex min-h-[470px] max-w-7xl flex-col justify-end"><p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.3em] text-[#bcff00]"><Zap size={15} fill="currentColor"/> {tenant.name}</p><h1 className="mt-6 max-w-4xl text-6xl font-black uppercase leading-[.78] tracking-[-.09em] sm:text-7xl md:text-[8.5rem]">{tenant.hero_tagline || <>Vista o<br/><span className="text-[#bcff00]">seu corre.</span></>}</h1><p className="mt-8 max-w-md text-sm leading-relaxed text-[#cfcfcf]">{tenant.about_text || "Peças, acessórios e lançamentos para quem transforma a rua em identidade."}</p><div className="mt-8 flex flex-wrap gap-3"><Link to={path("/catalogo")} className="inline-flex h-12 items-center gap-2 bg-[#bcff00] px-5 text-[10px] font-black uppercase tracking-[.16em] text-black">Ver drop <ArrowUpRight size={15}/></Link>{tenant.whatsapp && <a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex h-12 items-center gap-2 border border-white/35 px-5 text-[10px] font-black uppercase tracking-[.16em]"><MessageCircle size={15}/> Chamar no WhatsApp</a>}</div></div></section>
-    <section className="border-b border-[#282828] bg-[#111] px-5 py-5"><div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto"><span className="shrink-0 bg-[#bcff00] px-4 py-3 text-[10px] font-black uppercase tracking-[.16em] text-black">Shop por categoria</span>{shownCategories.map((category) => <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)} className="shrink-0 border border-[#353535] px-4 py-3 text-[10px] font-bold uppercase tracking-[.13em] text-[#ddd] hover:border-[#bcff00] hover:text-[#bcff00]">{category.name}</Link>)}</div></section>
-    <section className="mx-auto max-w-7xl px-5 py-16"><div className="flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.25em] text-[#bcff00]">Em destaque</p><h2 className="mt-3 text-4xl font-black uppercase tracking-[-.07em] sm:text-5xl">No radar agora.</h2></div><Link to={path("/catalogo")} className="text-[10px] font-black uppercase tracking-[.14em] text-[#bcff00]">Ver tudo</Link></div><div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{featured.map((product) => <StreetProductCard key={product.id} product={product} category={categories.find((category) => category.id === product.category_id)?.name} path={path} saved={wishlist.includes(product.id)} onFavorite={() => toggleWishlist(product.id)} onAdd={() => addToCart(product)} hidePrices={hidePrices}/>)}</div></section>
-    <section className="border-y border-[#282828] bg-[#bcff00] px-5 py-12 text-black"><div className="mx-auto grid max-w-7xl gap-7 sm:grid-cols-3"><div><ShoppingBag size={22}/><p className="mt-4 text-lg font-black uppercase">Pedido sem enrolação</p><p className="mt-1 text-sm">Escolha, adicione e envie seu pedido online.</p></div><div><Zap size={22}/><p className="mt-4 text-lg font-black uppercase">Drops atualizados</p><p className="mt-1 text-sm">O catálogo acompanha o estoque da loja.</p></div><div><MessageCircle size={22}/><p className="mt-4 text-lg font-black uppercase">Atendimento real</p><p className="mt-1 text-sm">Dúvidas? A equipe responde no WhatsApp.</p></div></div></section>
-  </main>;
+  const { tenant, categories, active, path, sf } = useKit();
+  const heroRef = useRef<HTMLElement>(null);
+  useHeroMotion(heroRef);
+  const featured = [...active.filter((p) => p.is_featured), ...active.filter((p) => !p.is_featured)].slice(0, tenant.featured_limit || 8);
+  const hero = active.find((p) => p.is_featured) || active[0];
+  const heroImage = productImage(hero) || tenant.banner_url || "";
+  const cats = categories.filter((c) => active.some((p) => p.category_id === c.id));
+  const title = tenant.hero_tagline || "Feito para sair do padrão";
+  const about = tenant.about_text || "Moda de rua para quem vive a cidade. Peças novas toda semana.";
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
+  const ticker = [...cats.map((c) => c.name), "Novo drop", "Peças limitadas"];
+
+  const fallback = (
+    <section className="sd-hero" ref={heroRef}>
+      <div className="sd-hero-copy">
+        <span className="sd-tag" data-hero-in>
+          <Sparkles size={14} /> Drop da semana · {active.length} peças
+        </span>
+        <h1 data-hero-in>{title}</h1>
+        <p data-hero-in>{about}</p>
+        <div className="sd-actions" data-hero-in>
+          <StoreButton asChild className="sd-btn-hero">
+            <Link to={path("/catalogo")}>
+              {sf.hero_button_label || "Ver o drop"} <ArrowRight size={18} />
+            </Link>
+          </StoreButton>
+          {wa && (
+            <a className="sd-btn sd-btn-line" href={wa} target="_blank" rel="noreferrer">
+              <MessageCircle size={17} /> Chamar
+            </a>
+          )}
+        </div>
+      </div>
+      <div className="sd-hero-art">
+        <div className="sd-hero-blob" aria-hidden="true" />
+        <div className="sd-hero-img" data-hero-img>
+          {heroImage ? <img src={heroImage} alt={hero?.name || tenant.name} /> : <Shirt size={90} aria-label="Sem imagem" />}
+        </div>
+        {hero && (
+          <Link className="sd-hero-chip" to={path(`/produto/${productRouteSegment(hero)}`)} data-hero-in>
+            <small>Em destaque</small>
+            <strong>{hero.name}</strong>
+          </Link>
+        )}
+        <span className="sd-sticker" aria-hidden="true">
+          NOVO
+          <br />
+          DROP
+        </span>
+      </div>
+    </section>
+  );
+
+  return (
+    <div className="sd-page sd-home">
+      <StoreSEO title={`${tenant.name} | Streetwear`} description={about} image={heroImage || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+
+      <HeroSlider
+        slides={sf.hero_slides}
+        autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+        resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+        layout="banner"
+        className="sd-slider"
+        fallback={fallback}
+      />
+
+      {ticker.length > 0 && (
+        <div className="sd-marquee" data-no-fx aria-hidden="true">
+          <div className="sd-marquee-track">
+            {[0, 1].map((k) => (
+              <div key={k} className="sd-marquee-set">
+                {ticker.map((w, i) => (
+                  <span key={`${k}-${i}`}>
+                    {w} <i>✦</i>
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <TrustRow t="sd" />
+
+      {cats.length > 0 && (
+        <section className="sd-section">
+          <header className="sd-head">
+            <div>
+              <span className="sd-kicker">Categorias</span>
+              <h2 className="sd-h2">{sf.home_categories_title || "Escolha seu estilo"}</h2>
+            </div>
+          </header>
+          <div className="sd-cats" role="list">
+            {cats.map((c, i) => {
+              const img = categoryImage(c, active);
+              const n = active.filter((p) => p.category_id === c.id).length;
+              return (
+                <Link key={c.id} role="listitem" className={`sd-cat sd-tint-${i % 4}`} to={path(`/catalogo?categoria=${c.id}`)}>
+                  <span className="sd-cat-img">{img ? <img src={img} alt="" loading="lazy" /> : <Shirt size={36} aria-hidden="true" />}</span>
+                  <span className="sd-cat-count">{n} peças</span>
+                  <strong>{c.name}</strong>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="sd-section">
+        <header className="sd-head">
+          <div>
+            <span className="sd-kicker">Drop atual</span>
+            <h2 className="sd-h2">{sf.home_featured_title || "Acabou de chegar"}</h2>
+          </div>
+          <Link className="sd-btn sd-btn-line" to={path("/catalogo")}>
+            Ver tudo <ArrowRight size={16} />
+          </Link>
+        </header>
+        {featured.length ? (
+          <div className="sd-grid">
+            {featured.map((p) => (
+              <ProductCard key={p.id} product={p} t="sd" />
+            ))}
+          </div>
+        ) : (
+          <p className="sd-note">As peças estão sendo preparadas. Volte em breve.</p>
+        )}
+      </section>
+
+      <section className="sd-cta">
+        <div>
+          <h2>Não perca o próximo drop</h2>
+          <p>Peças limitadas saem rápido. Fale com a loja e garanta a sua.</p>
+        </div>
+        {wa ? (
+          <a className="sd-btn sd-btn-ink sd-btn-lg" href={wa} target="_blank" rel="noreferrer">
+            <MessageCircle size={18} /> Chamar no WhatsApp
+          </a>
+        ) : (
+          <Link className="sd-btn sd-btn-ink sd-btn-lg" to={path("/catalogo")}>
+            Ver o catálogo <ArrowRight size={18} />
+          </Link>
+        )}
+      </section>
+    </div>
+  );
 }

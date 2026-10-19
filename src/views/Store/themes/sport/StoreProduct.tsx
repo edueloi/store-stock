@@ -17,11 +17,11 @@ export default function StoreProduct() {
 
   if (!product || !product.is_active)
     return (
-      <main className="sport-root">
-        <div className="sport-wrap">
-          <div className="sport-empty" style={{ margin: "56px 0" }}>
-            <h3 className="sport-h">Produto não encontrado</h3>
-            <Link to={path("/catalogo")} className="sport-btn" style={{ marginTop: 16 }}>Voltar ao catálogo</Link>
+      <main className="sp-root">
+        <div className="sp-wrap">
+          <div className="sp-empty" style={{ margin: "56px 0" }}>
+            <h3 className="sp-h">Produto não encontrado</h3>
+            <Link to={path("/catalogo")} className="sp-btn" style={{ marginTop: 16 }}>Voltar ao catálogo</Link>
           </div>
         </div>
       </main>
@@ -35,7 +35,7 @@ export default function StoreProduct() {
   const img = f.images[f.active] || f.images[0];
 
   return (
-    <main className="sport-root">
+    <main className="sp-root">
       <StoreSEO
         title={`${product.name} | ${tenant.name}`}
         description={product.description || product.name}
@@ -45,25 +45,25 @@ export default function StoreProduct() {
         price={hidden ? undefined : String(price)}
         siteName={tenant.name}
       />
-      <div className="sport-wrap">
-        <nav className="sport-crumbs" aria-label="Você está em">
+      <div className="sp-wrap">
+        <nav className="sp-crumbs" aria-label="Você está em">
           <Link to={path()}>Início</Link> /<Link to={path("/catalogo")}>Catálogo</Link>
           {category && <> /<Link to={path(`/catalogo?cat=${product.category_id}`)}>{category}</Link></>}
         </nav>
-        <div className="sport-pdp">
-          <div className="sport-gallery">
-            <div className="sport-stage">
-              {img ? <img src={img} alt={product.name} /> : <span className="sport-h" style={{ fontSize: 120, opacity: 0.12 }}>{product.name.slice(0, 2)}</span>}
-              {off && !hidden && <span className="sport-badge">Oferta</span>}
+        <div className="sp-pdp">
+          <div className="sp-gallery">
+            <div className="sp-stage">
+              {img ? <img src={img} alt={product.name} /> : <span className="sp-h" style={{ fontSize: 120, opacity: 0.12 }}>{product.name.slice(0, 2)}</span>}
+              {off && !hidden && <span className="sp-badge">Oferta</span>}
               {f.images.length > 1 && (
                 <>
-                  <button className="sport-stage-nav" style={{ left: 0 }} aria-label="Foto anterior" onClick={() => f.setActive((f.active - 1 + f.images.length) % f.images.length)}><ChevronLeft size={22} /></button>
-                  <button className="sport-stage-nav" style={{ right: 0 }} aria-label="Próxima foto" onClick={() => f.setActive((f.active + 1) % f.images.length)}><ChevronRight size={22} /></button>
+                  <button className="sp-stage-nav" style={{ left: 0 }} aria-label="Foto anterior" onClick={() => f.setActive((f.active - 1 + f.images.length) % f.images.length)}><ChevronLeft size={22} /></button>
+                  <button className="sp-stage-nav" style={{ right: 0 }} aria-label="Próxima foto" onClick={() => f.setActive((f.active + 1) % f.images.length)}><ChevronRight size={22} /></button>
                 </>
               )}
             </div>
             {f.images.length > 1 && (
-              <div className="sport-thumbs">
+              <div className="sp-thumbs">
                 {f.images.map((src, i) => (
                   <button key={src + i} aria-pressed={i === f.active} aria-label={`Ver foto ${i + 1}`} onClick={() => f.setActive(i)}>
                     <img src={src} alt="" />
@@ -73,34 +73,34 @@ export default function StoreProduct() {
             )}
           </div>
 
-          <div className="sport-info">
-            {category && <span className="sport-kicker">{category}</span>}
-            <h1 className="sport-h">{product.name}</h1>
-            {product.sku && <p className="sport-ref">Ref. {product.sku}</p>}
-            <div className="sport-bigprice">
+          <div className="sp-info">
+            {category && <span className="sp-kicker">{category}</span>}
+            <h1 className="sp-h">{product.name}</h1>
+            {product.sku && <p className="sp-ref">Ref. {product.sku}</p>}
+            <div className="sp-bigprice">
               {hidden ? (
                 <strong style={{ fontSize: 40 }}>Sob consulta</strong>
               ) : (
                 <>
                   <strong>{money(price)}</strong>
                   {off && <s>{money(full)}</s>}
-                  {off && <span className="sport-save">Economize {money(full - price)}</span>}
+                  {off && <span className="sp-save">Economize {money(full - price)}</span>}
                 </>
               )}
             </div>
-            {product.description && <p className="sport-desc">{product.description}</p>}
+            {product.description && <p className="sp-desc">{product.description}</p>}
 
             {f.choices.map((g) => (
-              <div className="sport-opt" key={g.name} role="group" aria-label={g.name}>
-                <div className="sport-opt-label"><span>{g.name}</span><span>{f.selected[g.name] || "Escolha uma opção"}</span></div>
-                <div className="sport-opt-values">
+              <div className="sp-opt" key={g.name} role="group" aria-label={g.name}>
+                <div className="sp-opt-label"><span>{g.name}</span><span>{f.selected[g.name] || "Escolha uma opção"}</span></div>
+                <div className="sp-opt-values">
                   {g.values.map((v) => {
                     const hex = g.colors?.[v] || colors[v.toLowerCase()];
                     const isColor = /cor|color/i.test(g.name);
                     return (
-                      <button key={v} className="sport-chip" aria-pressed={f.selected[g.name] === v} onClick={() => f.pick(g.name, v)}>
+                      <button key={v} className="sp-chip" aria-pressed={f.selected[g.name] === v} onClick={() => f.pick(g.name, v)}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                          {isColor && hex && <i className="sport-dot" style={{ background: hex }} />}
+                          {isColor && hex && <i className="sp-dot" style={{ background: hex }} />}
                           {v}
                         </span>
                       </button>
@@ -109,45 +109,45 @@ export default function StoreProduct() {
                 </div>
               </div>
             ))}
-            {missing.length > 0 && <p className="sport-hint" role="status">Escolha {missing.map((m) => m.name.toLowerCase()).join(" e ")} para continuar.</p>}
+            {missing.length > 0 && <p className="sp-hint" role="status">Escolha {missing.map((m) => m.name.toLowerCase()).join(" e ")} para continuar.</p>}
 
             <StockAvailability product={product} tenant={tenant} selected={f.choices.length ? f.selected : undefined} className="mb-3" />
 
-            <div className="sport-opt" style={{ marginTop: 14 }}>
-              <label className="sport-opt-label" htmlFor="sport-note"><span>Observação</span><span>opcional</span></label>
-              <textarea id="sport-note" className="sport-note" value={f.note} onChange={(e) => f.setNote(e.target.value)} placeholder="Ex.: nome para personalização, preferência de cor..." maxLength={240} />
+            <div className="sp-opt" style={{ marginTop: 14 }}>
+              <label className="sp-opt-label" htmlFor="sp-note"><span>Observação</span><span>opcional</span></label>
+              <textarea id="sp-note" className="sp-note" value={f.note} onChange={(e) => f.setNote(e.target.value)} placeholder="Ex.: nome para personalização, preferência de cor..." maxLength={240} />
             </div>
 
-            <div className="sport-buy">
-              <div className="sport-qty" role="group" aria-label="Quantidade">
+            <div className="sp-buy">
+              <div className="sp-qty" role="group" aria-label="Quantidade">
                 <button aria-label="Diminuir quantidade" disabled={f.qty <= 1} onClick={() => f.setQty(f.qty - 1)}><Minus size={18} /></button>
                 <span aria-live="polite">{f.qty}</span>
                 <button aria-label="Aumentar quantidade" disabled={f.qty >= f.max} onClick={() => f.setQty(f.qty + 1)}><Plus size={18} /></button>
               </div>
-              <button className="sport-btn" disabled={!f.canAdd} onClick={f.add}>
+              <button className="sp-btn" disabled={!f.canAdd} onClick={f.add}>
                 <ShoppingBag size={20} />
                 {noStock ? "Indisponível" : hidden ? "Solicitar" : "Adicionar ao carrinho"}
               </button>
             </div>
-            {f.inCart > 0 && <p className="sport-hint" style={{ color: "#111", marginTop: 10 }}><Check size={14} style={{ display: "inline" }} /> {f.inCart} no carrinho</p>}
+            {f.inCart > 0 && <p className="sp-hint" style={{ color: "#111", marginTop: 10 }}><Check size={14} style={{ display: "inline" }} /> {f.inCart} no carrinho</p>}
 
-            <div className="sport-perks">
-              <div className="sport-perk"><Zap size={22} />Pedido rápido</div>
-              <div className="sport-perk"><ShieldCheck size={22} />Compra segura</div>
-              <div className="sport-perk"><Truck size={22} />Entrega ou retirada</div>
+            <div className="sp-perks">
+              <div className="sp-perk"><Zap size={22} />Pedido rápido</div>
+              <div className="sp-perk"><ShieldCheck size={22} />Compra segura</div>
+              <div className="sp-perk"><Truck size={22} />Entrega ou retirada</div>
             </div>
           </div>
         </div>
 
         {related.length > 0 && (
           <section style={{ paddingBottom: 72 }}>
-            <div className="sport-section-head">
+            <div className="sp-section-head">
               <div>
-                <span className="sport-kicker">Complete o kit</span>
-                <h2 className="sport-h">Você também vai querer</h2>
+                <span className="sp-kicker">Complete o kit</span>
+                <h2 className="sp-h">Você também vai querer</h2>
               </div>
             </div>
-            <div className="sport-grid">{related.map((p) => <Card key={p.id} product={p} />)}</div>
+            <div className="sp-grid">{related.map((p) => <Card key={p.id} product={p} />)}</div>
           </section>
         )}
       </div>

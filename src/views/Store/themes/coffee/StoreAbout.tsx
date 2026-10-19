@@ -1,2 +1,112 @@
-import {Link} from 'react-router-dom';import {ArrowRight,Clock,Coffee,MapPin,MessageCircle} from 'lucide-react';import StoreSEO from '../../../../components/store/StoreSEO';import {useKit,hoursLines,whatsappLink} from './kit';import './styles.css';
-export default function StoreAbout(){const {tenant,active,categories,path,sf}=useKit();const hours=hoursLines(tenant.business_hours),wa=whatsappLink(tenant.whatsapp);const text=tenant.about_text||`${tenant.name} nasceu para transformar cada escolha em uma experiência especial. Conheça nossa seleção e descubra novos sabores.`;return <main className="cf-root"><StoreSEO title={`${sf.about_title||'Nossa história'} — ${tenant.name}`} description={text.slice(0,160)} image={tenant.banner_url||tenant.logo_url} url={typeof window!=='undefined'?window.location.href:''} siteName={tenant.name}/><section className="cf-about-hero"><div className="cf-container cf-about-hero-inner"><div><span className="cf-eyebrow">CONHEÇA NOSSA ESSÊNCIA</span><h1>{sf.about_title||'Uma história feita de encontros.'}</h1><p>{text}</p><Link className="cf-btn" to={path('/catalogo')}>Descubra o cardápio <ArrowRight size={18}/></Link></div><div className="cf-about-photo">{tenant.banner_url?<img src={tenant.banner_url} alt=""/>:<Coffee size={140}/>}</div></div></section><section className="cf-container cf-about-lower"><div className="cf-about-stats"><div><strong>{active.length}</strong><span>Produtos na seleção</span></div><div><strong>{categories.filter(c=>active.some(p=>p.category_id===c.id)).length}</strong><span>Categorias</span></div><div><strong>{wa?'Online':'Catálogo'}</strong><span>{wa?'Atendimento direto':'Explore a loja'}</span></div></div><div className="cf-about-contact"><div><span className="cf-eyebrow">FALE COM A GENTE</span><h2>Esperamos por você.</h2><p>Dúvidas sobre os produtos ou seu pedido? Confira nossos canais de atendimento.</p>{wa&&<a href={wa} className="cf-btn" target="_blank" rel="noreferrer"><MessageCircle size={18}/> Chamar no WhatsApp</a>}</div><div className="cf-contact-box">{tenant.show_address&&tenant.address&&<p><MapPin size={18}/>{tenant.address}</p>}{hours.length>0&&<div><h3><Clock size={18}/> Horários</h3>{hours.map(h=><p key={h.day} className="cf-hour"><span>{h.day}</span><span>{h.text}</span></p>)}</div>}{!wa&&!hours.length&&!(tenant.show_address&&tenant.address)&&<p><Coffee size={18}/> Nosso catálogo está disponível para explorar.</p>}</div></div></section></main>}
+import { Link } from "react-router-dom";
+import { ArrowRight, Clock, Coffee, MapPin, MessageCircle, Truck } from "lucide-react";
+import StoreSEO from "../../../../components/store/StoreSEO";
+import { hoursLines, productImage, useKit, whatsappLink } from "./kit";
+import "./styles.css";
+
+export default function StoreAbout() {
+  const { tenant, active, categories, path, sf } = useKit();
+  const hours = hoursLines(tenant.business_hours);
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
+  const about = tenant.about_text || `${tenant.name} nasceu para transformar cada pausa em um momento especial.`;
+  const photo = tenant.banner_url || productImage(active.find((p) => p.is_featured) || active[0]);
+  const policies = tenant.policies;
+  return (
+    <div className="cf-page cf-about">
+      <StoreSEO
+        title={`${sf.about_title || "Nossa casa"} | ${tenant.name}`}
+        description={about}
+        image={tenant.banner_url || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+      <header className="cf-about-hero">
+        <div className="cf-about-copy">
+          <span className="cf-hand">nossa casa</span>
+          <h1>{sf.about_title || `Prazer, somos a ${tenant.name}`}</h1>
+          <p className="cf-pre">{about}</p>
+          <div className="cf-actions">
+            <Link className="cf-btn cf-btn-lg" to={path("/catalogo")}>
+              Ver o cardápio <ArrowRight size={18} />
+            </Link>
+            {wa && (
+              <a className="cf-btn cf-btn-line cf-btn-lg" href={wa} target="_blank" rel="noreferrer">
+                <MessageCircle size={18} /> Falar com a gente
+              </a>
+            )}
+          </div>
+        </div>
+        <div className="cf-about-photo">{photo ? <img src={photo} alt={tenant.name} /> : <Coffee size={90} aria-label="Sem imagem" />}</div>
+      </header>
+
+      <section className="cf-section cf-about-stats">
+        <div>
+          <strong>{active.length}</strong>
+          <span>itens no cardápio</span>
+        </div>
+        <div>
+          <strong>{categories.length}</strong>
+          <span>seções</span>
+        </div>
+        <div>
+          <Coffee size={30} aria-hidden="true" />
+          <span>feito na hora</span>
+        </div>
+      </section>
+
+      <section className="cf-section cf-info">
+        {((tenant.show_address && tenant.address) || hours.length > 0 || wa) && (
+          <article className="cf-info-card">
+            <h2>Venha nos visitar</h2>
+            {tenant.show_address && tenant.address && (
+              <p>
+                <MapPin size={18} aria-hidden="true" /> {tenant.address}
+              </p>
+            )}
+            {wa && (
+              <p>
+                <MessageCircle size={18} aria-hidden="true" />
+                <a href={wa} target="_blank" rel="noreferrer">
+                  {tenant.whatsapp}
+                </a>
+              </p>
+            )}
+            {hours.length > 0 && (
+              <dl className="cf-hours">
+                <dt className="cf-hours-title">
+                  <Clock size={16} aria-hidden="true" /> Horários
+                </dt>
+                {hours.map((h) => (
+                  <div key={h.day}>
+                    <dt>{h.day}</dt>
+                    <dd>{h.text}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </article>
+        )}
+        {policies?.shipping && (
+          <article className="cf-info-card">
+            <h2>
+              <Truck size={20} aria-hidden="true" /> Entrega
+            </h2>
+            <p className="cf-pre">{policies.shipping}</p>
+          </article>
+        )}
+        {policies?.returns && (
+          <article className="cf-info-card">
+            <h2>Trocas e devoluções</h2>
+            <p className="cf-pre">{policies.returns}</p>
+          </article>
+        )}
+        {policies?.exchange && (
+          <article className="cf-info-card">
+            <h2>Trocas</h2>
+            <p className="cf-pre">{policies.exchange}</p>
+          </article>
+        )}
+      </section>
+    </div>
+  );
+}

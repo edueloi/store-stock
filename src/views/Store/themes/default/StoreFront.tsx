@@ -1,5 +1,9 @@
+import { useEffect, useRef } from "react";
+import { gsap } from "gsap";
 import { Link } from "react-router-dom";
 import { ArrowRight, Headphones, ShieldCheck, Store, Truck } from "lucide-react";
+import HeroSlider from "../../../../components/store/HeroSlider";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { Card } from "./parts";
 import { whatsappLink, useKit } from "./kit";
@@ -25,21 +29,48 @@ export default function StoreFront() {
     { icon: ShieldCheck, title: "Compra segura", text: "Pedido acompanhado do carrinho ao atendimento." },
   ];
   const about = tenant.about_text || "";
+  const heroImage = tenant.banner_url || "";
+  const first = best[0];
+  const heroImg = heroImage || (first ? first.images?.[0] || first.image_url : "");
+
+  const heroRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const ctx = gsap.context(() => {
+      gsap.from(".dfl-hero-copy > *", { opacity: 0, y: 24, duration: 0.7, stagger: 0.09, ease: "power3.out" });
+      gsap.from(".dfl-hero-art img", { scale: 1.12, duration: 1.4, ease: "power2.out" });
+    }, el);
+    return () => ctx.revert();
+  }, []);
 
   return (
-    <div className="dfl-page">
+    <div className="dfl-page" ref={heroRef}>
       <StoreSEO title={`${tenant.name} — Loja online`} description={tenant.hero_tagline || about || `Conheça os produtos da ${tenant.name}.`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
 
-      <section className="dfl-hero" style={tenant.banner_url ? { backgroundImage: `url(${tenant.banner_url})` } : undefined}>
-        <div className="dfl-hero-shade" />
-        <div className="dfl-wrap dfl-hero-in">
-          <div className="dfl-hero-card">
-            <span className="dfl-hero-kicker">{sf.segment_label || "Bem-vindo à loja"}</span>
-            <h1>{tenant.hero_tagline || tenant.name}</h1>
-            <p>{about ? about.slice(0, 140) + (about.length > 140 ? "…" : "") : "Confira nossos produtos e monte seu pedido com praticidade."}</p>
-            <Link to={path("/catalogo")} className="dfl-btn dfl-btn-inline">{sf.hero_button_label || "Ver produtos"} <ArrowRight size={16} /></Link>
-          </div>
-        </div>
+      <section className="dfl-wrap dfl-hero-wrap">
+        <HeroSlider
+          slides={sf.hero_slides}
+          autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+          resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+          layout="banner"
+          className="dfl-slider"
+          fallback={
+            <div className="dfl-hero">
+              <div className="dfl-hero-copy">
+                <span className="dfl-hero-kicker">{sf.segment_label || "Bem-vindo à loja"}</span>
+                <h1>{tenant.hero_tagline || tenant.name}</h1>
+                <p>{about ? about.slice(0, 140) + (about.length > 140 ? "…" : "") : "Confira nossos produtos e monte seu pedido com praticidade."}</p>
+                <StoreButton asChild size="lg">
+                  <Link to={path("/catalogo")}>{sf.hero_button_label || "Ver produtos"} <ArrowRight size={18} /></Link>
+                </StoreButton>
+              </div>
+              <div className={`dfl-hero-art${heroImage ? "" : " is-product"}`}>
+                {heroImg ? <img src={heroImg} alt="" /> : <Store size={64} strokeWidth={1.2} />}
+              </div>
+            </div>
+          }
+        />
       </section>
 
       <div className="dfl-wrap">

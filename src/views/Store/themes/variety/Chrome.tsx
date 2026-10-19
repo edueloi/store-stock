@@ -1,61 +1,169 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Instagram, Menu, MessageCircle, Search, ShoppingBag, Store, X } from "lucide-react";
-import SearchBar from "../../../../components/layout/SearchBar";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { ChevronDown, Grid2x2, Instagram, Menu, MessageCircle, Search, ShoppingBag, Store, X } from "lucide-react";
+import { useVariety } from "./ThemeParts";
 import "./styles.css";
 
 export function Header() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, categories, cart, openCart } = useStore();
+  const { tenant, usedCategories, cartCount, openCart, path } = useVariety();
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
-  const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const links = [{ label: "Início", to: path() }, { label: "Catálogo", to: path("/catalogo") }, { label: "Nossa loja", to: path("/sobre") }];
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
+  const [drawer, setDrawer] = useState(false);
+  const [mega, setMega] = useState(false);
+
+  useEffect(() => {
+    setDrawer(false);
+    setMega(false);
+  }, [pathname, search]);
+
+  useEffect(() => {
+    if (!mega) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMega(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mega]);
+
+  const links = [
+    { label: "Início", to: path(), on: !/catalogo|sobre|produto/.test(pathname) },
+    { label: "Catálogo", to: path("/catalogo"), on: /catalogo|produto/.test(pathname) },
+    { label: "Nossa loja", to: path("/sobre"), on: /sobre/.test(pathname) },
+  ];
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
     const term = query.trim();
+    setDrawer(false);
     navigate(path(term ? `/catalogo?q=${encodeURIComponent(term)}` : "/catalogo"));
-    setMenuOpen(false);
   };
-  useEffect(() => setMenuOpen(false), [pathname, search]);
 
   return (
     <header className="variety-header">
-      <div className="variety-strip"><div className="variety-wrap variety-strip-inner"><span>{tenant.hero_tagline || "Boas escolhas para todos os dias."}</span>{tenant.whatsapp && <a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={14} /> Atendimento da loja</a>}</div></div>
       <div className="variety-wrap variety-mainbar">
-        <button type="button" className="variety-menu" aria-label={menuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button>
-        <Link to={path()} className="variety-brand" aria-label={`${tenant.name} - início`}>{tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="variety-brand-mark"><Store size={21} /></span>}<span>{tenant.name}</span></Link>
-        <form className="variety-search" role="search" onSubmit={submit}><SearchBar value={query} onChange={setQuery} placeholder="O que você está procurando?" /><button type="submit" aria-label="Buscar"><Search size={18} /><span>Buscar</span></button></form>
-        <button type="button" className="variety-cart" onClick={openCart} aria-label={`Abrir pedido, ${count} ${count === 1 ? "item" : "itens"}`}><ShoppingBag size={20} /><span className="variety-cart-label">Meu pedido</span><b>{count}</b></button>
+        <button type="button" className="variety-icon-btn variety-burger" aria-label={drawer ? "Fechar menu" : "Abrir menu"} aria-expanded={drawer} onClick={() => setDrawer((v) => !v)}>
+          {drawer ? <X size={22} /> : <Menu size={22} />}
+        </button>
+        <Link to={path()} className="variety-brand" aria-label={`${tenant.name} - início`}>
+          {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="variety-brand-mark"><Store size={21} /></span>}
+          <span>{tenant.name}</span>
+        </Link>
+        <form className="variety-search" role="search" onSubmit={submit}>
+          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="O que você está procurando?" aria-label="Buscar produtos" />
+          <button type="submit" aria-label="Buscar"><Search size={18} /></button>
+        </form>
+        <button type="button" className="variety-cart" onClick={openCart} aria-label={`Abrir pedido, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`}>
+          <ShoppingBag size={20} />
+          <span className="variety-cart-label">Meu pedido</span>
+          <b>{cartCount}</b>
+        </button>
       </div>
-      <nav className={`variety-nav ${menuOpen ? "is-open" : ""}`} aria-label="Departamentos e páginas"><div className="variety-wrap variety-nav-inner">
-        {links.map((link) => <Link key={link.label} to={link.to} aria-current={pathname === link.to.split("?")[0] ? "page" : undefined}>{link.label}</Link>)}
-        <span className="variety-nav-divider" aria-hidden="true" />
-        {categories.slice(0, 8).map((category) => <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)}>{category.name}</Link>)}
-      </div></nav>
+
+      <div className="variety-wrap variety-navwrap">
+        <nav className="variety-nav" aria-label="Principal">
+          {usedCategories.length > 0 && (
+            <button type="button" className="variety-mega-btn" aria-expanded={mega} aria-controls="variety-mega" onClick={() => setMega((v) => !v)}>
+              <Grid2x2 size={17} /> Departamentos <ChevronDown size={15} className={mega ? "is-flip" : ""} />
+            </button>
+          )}
+          {links.map((l) => (
+            <Link key={l.label} to={l.to} aria-current={l.on ? "page" : undefined}>
+              {l.label}
+            </Link>
+          ))}
+        </nav>
+        {mega && (
+          <div id="variety-mega" className="variety-mega">
+            <p className="variety-mega-title">Compre por departamento</p>
+            <div className="variety-mega-grid">
+              {usedCategories.slice(0, 15).map((c, i) => (
+                <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className={`variety-mega-item variety-c${i % 6}`}>
+                  {c.name}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {drawer && (
+        <div className="variety-drawer">
+          <form className="variety-search" role="search" onSubmit={submit}>
+            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produtos" aria-label="Buscar produtos" />
+            <button type="submit" aria-label="Buscar"><Search size={18} /></button>
+          </form>
+          <nav aria-label="Menu">
+            {links.map((l) => (
+              <Link key={l.label} to={l.to} aria-current={l.on ? "page" : undefined}>
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+          {usedCategories.length > 0 && (
+            <>
+              <p className="variety-mega-title">Departamentos</p>
+              <div className="variety-mega-grid">
+                {usedCategories.slice(0, 12).map((c, i) => (
+                  <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className={`variety-mega-item variety-c${i % 6}`}>
+                    {c.name}
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </header>
   );
 }
 
 export function Footer() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, categories } = useStore();
-  const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
-  const whatsapp = tenant.whatsapp?.replace(/\D/g, "");
+  const { tenant, usedCategories, path, whatsapp } = useVariety();
   return (
-    <footer className="variety-footer"><div className="variety-wrap variety-footer-grid">
-      <div><span className="variety-footer-kicker">Um mundo de escolhas</span><h2>{tenant.name}</h2><p>{tenant.footer_text || tenant.about_text || "Utilidades, presentes e produtos para deixar o dia a dia mais fácil."}</p><div className="variety-socials">
-        {tenant.instagram_url && <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={18} /></a>}
-        {whatsapp && <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={18} /></a>}
-      </div></div>
-      <div><h3>Explore</h3><Link to={path()}>Início</Link><Link to={path("/catalogo")}>Todos os produtos</Link><Link to={path("/sobre")}>Nossa loja</Link></div>
-      <div><h3>Departamentos</h3>{categories.slice(0, 7).map((category) => <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)}>{category.name}</Link>)}</div>
-      <div><h3>Fale com a loja</h3>{tenant.show_address && tenant.address && <p>{tenant.address}</p>}{whatsapp && <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer">Atendimento pelo WhatsApp</a>}</div>
-    </div><div className="variety-footer-bottom">© {new Date().getFullYear()} {tenant.name} · Powered by <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a></div></footer>
+    <footer className="variety-footer">
+      <div className="variety-wrap">
+        <div className="variety-footer-grid">
+          <section className="variety-foot-card variety-foot-about">
+            <Link to={path()} className="variety-brand">
+              {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="variety-brand-mark"><Store size={21} /></span>}
+              <span>{tenant.name}</span>
+            </Link>
+            <p>{tenant.footer_text || tenant.about_text || "Utilidades, presentes e produtos para deixar o dia a dia mais fácil."}</p>
+            <div className="variety-socials">
+              {tenant.instagram_url && (
+                <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={18} /></a>
+              )}
+              {whatsapp && (
+                <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={18} /></a>
+              )}
+            </div>
+          </section>
+          <section className="variety-foot-card">
+            <h3>Explore</h3>
+            <Link to={path()}>Início</Link>
+            <Link to={path("/catalogo")}>Todos os produtos</Link>
+            <Link to={path("/sobre")}>Nossa loja</Link>
+          </section>
+          {usedCategories.length > 0 && (
+            <section className="variety-foot-card">
+              <h3>Departamentos</h3>
+              {usedCategories.slice(0, 6).map((c) => (
+                <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link>
+              ))}
+            </section>
+          )}
+          <section className="variety-foot-card">
+            <h3>Fale com a loja</h3>
+            {tenant.show_address && tenant.address && <p>{tenant.address}</p>}
+            {whatsapp && (
+              <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer">Atendimento pelo WhatsApp</a>
+            )}
+          </section>
+        </div>
+        <p className="variety-credit">
+          © {new Date().getFullYear()} {tenant.name} · Powered by{" "}
+          <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a>
+        </p>
+      </div>
+    </footer>
   );
 }

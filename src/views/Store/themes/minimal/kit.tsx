@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { Product, Tenant } from "../../../../types";
 import { useStore } from "../../StoreLayout";
@@ -113,4 +113,63 @@ export function useCatalogQuery() {
     setParams(next, { replace: true });
   };
   return { category: Number.isFinite(category) ? category : null, q, update };
+}
+
+/** Categorias que realmente têm produtos ativos (com contagem), na ordem original. */
+export function useUsedCategories() {
+  const { categories, active } = useKit();
+  return useMemo(
+    () =>
+      categories
+        .map((c) => ({ ...c, count: active.filter((p) => p.category_id === c.id).length }))
+        .filter((c) => c.count > 0),
+    [categories, active],
+  );
+}
+
+/** Primeira imagem disponível para ilustrar uma categoria (capa ou foto de um produto dela). */
+export function categoryImage(cat: { id: number; cover_url?: string | null }, products: Product[]) {
+  if (cat.cover_url) return cat.cover_url;
+  const sample = products.find((p) => p.category_id === cat.id && productImage(p));
+  return sample ? productImage(sample) : "";
+}
+
+/** Banners do carrossel configurados pelo lojista e função que resolve os links internos. */
+export function useHero() {
+  const { sf, path } = useKit();
+  return {
+    slides: sf.hero_slides,
+    autoplay: sf.hero_autoplay_seconds ?? 6,
+    resolveUrl: (u: string) => (u.startsWith("/") ? path(u) : u),
+  };
+}
+
+export type SortKey = "destaques" | "menor" | "maior" | "nome";
+
+/** Lista do catálogo: busca (?q=), categoria (?categoria=), ordenação (?sort=) e "mostrar mais". */
+export function useCatalogList(pageSize = 12) {
+  const kit = useKit();
+  const query = useCatalogQuery();
+  const [params, setParams] = useSearchParams();
+  const sort = (params.get("sort") as SortKey) || "destaques";
+  const [visible, setVisible] = useState(pageSize);
+  useEffect(() => setVisible(pageSize), [query.q, query.category, sort, pageSize]);
+  const setSort = (value: SortKey) => {
+    const next = new URLSearchParams(params);
+    if (value === "destaques") next.delete("sort");
+    else next.set("sort", value);
+    setParams(next, { replace: true });
+  };
+  const list = useMemo(() => {
+    const term = query.q.trim().toLowerCase();
+    const out = kit.active.filter(
+      (p) => (!query.category || p.category_id === query.category) && (!term || `${p.name} ${p.sku || ""} ${p.description || ""}`.toLowerCase().includes(term)),
+    );
+    if (!kit.hidden && sort === "menor") out.sort((a, b) => priceOf(a) - priceOf(b));
+    else if (!kit.hidden && sort === "maior") out.sort((a, b) => priceOf(b) - priceOf(a));
+    else if (sort === "nome") out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    else out.sort((a, b) => Number(b.is_featured) - Number(a.is_featured));
+    return out;
+  }, [kit.active, kit.hidden, query.q, query.category, sort]);
+  return { ...kit, ...query, sort, setSort, list, shown: list.slice(0, visible), more: () => setVisible((v) => v + pageSize), hasMore: list.length > visible };
 }

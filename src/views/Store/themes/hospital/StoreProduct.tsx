@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { Heart, MessageCircle, Minus, Package, Plus, ShieldCheck, ShoppingBag } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import StockAvailability from "../../../../components/store/StockAvailability";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { getVariationImages } from "../../../../utils/variationImages";
 import { parseProductIdFromRoute } from "../../store-routing";
 import { money, priceOf, productImage, useBuy, useShop, waLink } from "./lib";
@@ -14,7 +15,6 @@ export default function StoreProduct() {
   const product = products.find((p) => p.id === parseProductIdFromRoute(productId));
   const buy = useBuy(product);
   const [photo, setPhoto] = useState(0);
-  const [tab, setTab] = useState<"desc" | "info">("desc");
   const [added, setAdded] = useState(false);
   useEffect(() => setPhoto(0), [product?.id, buy.selected]);
 
@@ -26,7 +26,7 @@ export default function StoreProduct() {
             <Package size={40} color="var(--ms-accent)" />
             <h1 className="ms-serif" style={{ fontSize: 26, margin: "12px 0 6px" }}>Material não encontrado</h1>
             <p>Ele pode ter saído do catálogo.</p>
-            <Link className="ms-btn" to={path("/catalogo")}>Voltar ao catálogo</Link>
+            <StoreButton asChild shape="soft" size="md" className="ms-fbtn"><Link to={path("/catalogo")}>Voltar ao catálogo</Link></StoreButton>
           </div>
         </div>
       </main>
@@ -64,7 +64,7 @@ export default function StoreProduct() {
           <section className="ms-buy" aria-label="Comprar">
             <span className="ms-eyebrow">{category?.name || "Materiais hospitalares"}</span>
             <h1 className="ms-serif">{product.name}</h1>
-            {product.sku && <span className="ms-code">Código {product.sku}</span>}
+            {product.sku && <span className="ms-code ms-code-lg">SKU {product.sku}</span>}
             <div className="ms-bigprice">
               {hidden ? <b style={{ fontSize: 26 }}>Valor a confirmar</b> : (<><b>{money(current)}</b>{discounted && <s>{money(full)}</s>}</>)}
             </div>
@@ -87,9 +87,9 @@ export default function StoreProduct() {
                 <output aria-label="Quantidade">{buy.qty}</output>
                 <button aria-label="Aumentar quantidade" disabled={buy.qty >= buy.max} onClick={() => buy.setQty(buy.qty + 1)}><Plus size={17} /></button>
               </div>
-              <button className="ms-btn" disabled={!buy.canAdd} onClick={() => buy.add() && setAdded(true)}>
-                <ShoppingBag size={19} />{buy.soldOut ? "Indisponível" : "Adicionar ao pedido"}
-              </button>
+              <StoreButton shape="soft" size="lg" className="ms-fbtn ms-buybtn" disabled={!buy.canAdd} onClick={() => buy.add() && setAdded(true)}>
+                <ShoppingBag size={19} />{buy.soldOut ? "Indisponível" : hidden ? "Solicitar orçamento" : "Adicionar ao pedido"}
+              </StoreButton>
               <button className="ms-qty" style={{ width: 50, justifyContent: "center", color: fav ? "#c0392b" : "var(--ms-ink)", cursor: "pointer" }} aria-label={fav ? "Remover dos favoritos" : "Favoritar"} aria-pressed={fav} onClick={() => toggleWishlist(product.id)}>
                 <Heart size={20} fill={fav ? "currentColor" : "none"} />
               </button>
@@ -102,24 +102,21 @@ export default function StoreProduct() {
             </div>
           </section>
         </div>
-        <section className="ms-tabs" aria-label="Detalhes do produto">
-          <div className="ms-tablist" role="tablist">
-            <button role="tab" id="ms-tab-desc" aria-selected={tab === "desc"} aria-controls="ms-panel" onClick={() => setTab("desc")}>Descrição</button>
-            <button role="tab" id="ms-tab-info" aria-selected={tab === "info"} aria-controls="ms-panel" onClick={() => setTab("info")}>Informações</button>
+        <section className="ms-detail" aria-label="Detalhes do produto">
+          <div className="ms-detail-card">
+            <h2 className="ms-serif">Descrição</h2>
+            <p className="desc">{product.description || "Este material ainda não possui descrição detalhada. Fale com a equipe para mais informações."}</p>
           </div>
-          <div className="ms-tabpanel" role="tabpanel" id="ms-panel" aria-labelledby={tab === "desc" ? "ms-tab-desc" : "ms-tab-info"}>
-            {tab === "desc" ? (
-              <p className="desc">{product.description || "Este material ainda não possui descrição detalhada. Fale com a equipe para mais informações."}</p>
-            ) : (
-              <dl className="ms-info">
-                <dt>Código</dt><dd>{product.sku || `#${product.id}`}</dd>
-                {product.barcode && <><dt>Código de barras</dt><dd>{product.barcode}</dd></>}
-                <dt>Especialidade</dt><dd>{category?.name || "Materiais hospitalares"}</dd>
-                <dt>Disponibilidade</dt><dd>{stockText(tenant, product)}</dd>
-                {buy.choices.map((c) => <Fragment key={c.name}><dt>{c.name}</dt><dd>{c.values.join(", ")}</dd></Fragment>)}
-                <dt>Atendimento</dt><dd>Profissional, com apoio da equipe</dd>
-              </dl>
-            )}
+          <div className="ms-detail-card">
+            <h2 className="ms-serif">Ficha técnica</h2>
+            <dl className="ms-info">
+              <dt>Código (SKU)</dt><dd>{product.sku || `#${product.id}`}</dd>
+              {product.barcode && <><dt>Código de barras</dt><dd>{product.barcode}</dd></>}
+              <dt>Especialidade</dt><dd>{category?.name || "Materiais hospitalares"}</dd>
+              <dt>Disponibilidade</dt><dd>{stockText(tenant, product)}</dd>
+              {buy.choices.map((c) => <Fragment key={c.name}><dt>{c.name}</dt><dd>{c.values.join(", ")}</dd></Fragment>)}
+              <dt>Atendimento</dt><dd>Profissional, com apoio da equipe</dd>
+            </dl>
           </div>
         </section>
         {related.length > 0 ? (

@@ -17,7 +17,7 @@ export default function StoreAbout() {
     ["03", "Pedido simples e acompanhado"],
   ];
   return (
-    <main className="sport-root">
+    <main className="sp-root">
       <StoreSEO
         title={`${sf.about_title || "Nossa loja"} | ${tenant.name}`}
         description={tenant.about_text || `Conheça a ${tenant.name}.`}
@@ -25,37 +25,37 @@ export default function StoreAbout() {
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
       />
-      <section className="sport-about-hero">
+      <section className="sp-about-hero">
         {tenant.banner_url && <img src={tenant.banner_url} alt="" />}
-        <div className="sport-wrap" style={{ position: "relative" }}>
-          <span className="sport-kicker">{sf.segment_label || "Quem somos"}</span>
-          <h1 className="sport-h">{sf.about_title || "Nossa loja"}</h1>
+        <div className="sp-wrap" style={{ position: "relative" }}>
+          <span className="sp-kicker">{sf.segment_label || "Quem somos"}</span>
+          <h1 className="sp-h">{sf.about_title || "Nossa loja"}</h1>
         </div>
       </section>
 
-      <div className="sport-wrap">
-        <div className="sport-about-grid">
+      <div className="sp-wrap">
+        <div className="sp-about-grid">
           <div>
-            <p className="sport-about-text">{tenant.about_text || `${tenant.name} reúne equipamentos e acessórios para quem leva o esporte a sério, do treino de todo dia ao grande jogo.`}</p>
+            <p className="sp-about-text">{tenant.about_text || `${tenant.name} reúne equipamentos e acessórios para quem leva o esporte a sério, do treino de todo dia ao grande jogo.`}</p>
             <div style={{ marginTop: 28, display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <Link to={path("/catalogo")} className="sport-btn">Ver catálogo <ArrowUpRight size={20} /></Link>
-              {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="sport-btn sport-btn--dark"><MessageCircle size={20} /> WhatsApp</a>}
+              <Link to={path("/catalogo")} className="sp-btn">Ver catálogo <ArrowUpRight size={20} /></Link>
+              {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="sp-btn sp-btn--dark"><MessageCircle size={20} /> WhatsApp</a>}
             </div>
-            <div className="sport-values" style={{ marginTop: 40 }}>
+            <div className="sp-values" style={{ marginTop: 40 }}>
               {values.map(([n, t]) => (
-                <div className="sport-value" key={n}><b>{n}</b><span>{t}</span></div>
+                <div className="sp-value" key={n}><b>{n}</b><span>{t}</span></div>
               ))}
             </div>
           </div>
           <aside>
-            <div className="sport-band" style={{ marginBottom: 16 }}>
-              <div className="sport-band-inner" style={{ gridTemplateColumns: "1fr 1fr", padding: 28, gap: 16 }}>
-                <div className="sport-stat"><b>{active.length}</b><span>produtos</span></div>
-                <div className="sport-stat"><b>{usedCats}</b><span>categorias</span></div>
+            <div className="sp-band" style={{ marginBottom: 16 }}>
+              <div className="sp-band-inner" style={{ gridTemplateColumns: "1fr 1fr", padding: 28, gap: 16 }}>
+                <div className="sp-stat"><b>{active.length}</b><span>produtos</span></div>
+                <div className="sp-stat"><b>{usedCats}</b><span>categorias</span></div>
               </div>
             </div>
-            <div className="sport-contact">
-              <h3 className="sport-h">Fale com a gente</h3>
+            <div className="sp-contact">
+              <h3 className="sp-h">Fale com a gente</h3>
               {tenant.show_address && tenant.address && <p><MapPin size={18} />{tenant.address}</p>}
               {wa && <p><MessageCircle size={18} />+{wa}</p>}
               {hours.length > 0 && (

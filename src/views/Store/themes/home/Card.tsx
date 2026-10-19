@@ -1,45 +1,47 @@
 import { Link } from "react-router-dom";
-import { Heart, Package, ShoppingCart, Store, Truck } from "lucide-react";
+import { Heart, Package } from "lucide-react";
 import type { Product } from "../../../../types";
+import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
 import { hasDiscount, isSoldOut, money, optionGroups, priceOf, productImage, useKit } from "./kit";
 
 export default function Card({ product }: { product: Product }) {
-  const { tenant, hidden, sf, productPath, addToCart, openCart, wishlist, toggleWishlist } = useKit();
+  const { tenant, hidden, productPath, addToCart, openCart, wishlist, toggleWishlist } = useKit();
   const img = productImage(product);
   const opts = optionGroups(product).length > 0;
   const out = isSoldOut(product, tenant);
+  const units = storeTracksStock(tenant) ? availableUnits(product) : null;
+  const low = units !== null && units > 0 && units <= 3;
   const liked = wishlist.includes(product.id);
-  const delivery = sf.shipping_status === "enabled" ? "Entrega" : "Entrega sob consulta";
+  const sale = hasDiscount(product) && !hidden;
+  const pct = sale ? Math.round((1 - priceOf(product) / Number(product.price)) * 100) : 0;
   return (
     <article className="hm-card">
-      <Link to={productPath(product)} className="hm-card-img" aria-label={product.name}>
-        {img ? <img src={img} alt={product.name} loading="lazy" /> : <Package size={42} aria-hidden="true" />}
-        {hasDiscount(product) && !hidden && <span className="hm-tag-sale">Oferta</span>}
-      </Link>
-      <button className="hm-heart" aria-pressed={liked} aria-label={liked ? "Remover dos favoritos" : "Adicionar aos favoritos"} onClick={() => toggleWishlist(product.id)}>
-        <Heart size={18} fill={liked ? "currentColor" : "none"} />
-      </button>
+      <div className="hm-card-media">
+        <Link to={productPath(product)} className="hm-card-img" aria-label={product.name}>
+          {img ? <img src={img} alt={product.name} loading="lazy" /> : <Package size={40} aria-hidden="true" />}
+        </Link>
+        {out ? <span className="hm-tag hm-tag-off">Esgotado</span> : sale ? <span className="hm-tag">-{pct}%</span> : low ? <span className="hm-tag hm-tag-low">Últimas unidades</span> : null}
+        <button type="button" className="hm-heart" aria-pressed={liked} aria-label={liked ? "Remover dos favoritos" : "Adicionar aos favoritos"} onClick={() => toggleWishlist(product.id)}>
+          <Heart size={18} fill={liked ? "currentColor" : "none"} />
+        </button>
+      </div>
       <div className="hm-card-body">
-        <p className="hm-card-badges">
-          <span><Store size={12} aria-hidden="true" /> Retirada</span>
-          <span><Truck size={12} aria-hidden="true" /> {delivery}</span>
-        </p>
         <Link to={productPath(product)} className="hm-card-name">{product.name}</Link>
         {hidden ? (
-          <p className="hm-price-ask">Sob consulta</p>
+          <p className="hm-price hm-muted">Sob consulta</p>
         ) : (
           <p className="hm-price">
-            {hasDiscount(product) && <s>{money(Number(product.price))}</s>}
             <strong>{money(priceOf(product))}</strong>
+            {sale && <s>{money(Number(product.price))}</s>}
           </p>
         )}
         {out ? (
-          <button className="hm-btn hm-btn-line" disabled>Esgotado</button>
+          <span className="hm-add hm-add-off">Esgotado</span>
         ) : opts ? (
-          <Link className="hm-btn hm-btn-line" to={productPath(product)}>Escolher opções</Link>
+          <Link className="hm-add" to={productPath(product)}>Ver opções</Link>
         ) : (
-          <button className="hm-btn hm-btn-accent" onClick={() => { addToCart(product); openCart(); }}>
-            <ShoppingCart size={16} aria-hidden="true" /> {hidden ? "Incluir no pedido" : "Adicionar"}
+          <button type="button" className="hm-add" onClick={() => { addToCart(product); openCart(); }}>
+            {hidden ? "Incluir no pedido" : "Adicionar"}
           </button>
         )}
       </div>

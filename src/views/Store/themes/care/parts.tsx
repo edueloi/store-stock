@@ -1,6 +1,9 @@
 import { useRef, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Heart, Package, Plus } from "lucide-react";
+import {
+  Baby, ChevronLeft, ChevronRight, Droplets, Flower2, Heart, Leaf, Package, Pill, Plus, Smile, Sparkles, Stethoscope, Sun,
+  type LucideIcon,
+} from "lucide-react";
 import { productRouteSegment } from "../../store-routing";
 import { availableUnits } from "../../../../utils/storeStock";
 import type { Product } from "../../../../types";
@@ -9,7 +12,7 @@ import "./styles.css";
 
 export const T = {
   name: "Farma Essencial",
-  tag: "Farmácia & Dermocosméticos",
+  tag: "Cuidados & Bem-estar",
   hero: "Seu momento de cuidado.",
   sub: "Uma seleção para sua rotina de higiene, beleza e bem-estar.",
   catalog: "Sua rotina essencial",
@@ -17,6 +20,10 @@ export const T = {
   featured: "Para o seu dia a dia",
   cart: "Sua rotina selecionada",
 };
+
+const CATEGORY_ICONS: LucideIcon[] = [Heart, Leaf, Sparkles, Smile, Sun, Baby, Pill, Droplets, Flower2, Stethoscope];
+/** Ícone estável por posição da categoria. */
+export const categoryIcon = (index: number) => CATEGORY_ICONS[index % CATEGORY_ICONS.length];
 
 /** Folha/gota decorativa usada como marca quando a loja não tem logo. */
 export function Drop({ size = 22 }: { size?: number }) {
@@ -56,6 +63,7 @@ export function ProductCard({ product }: { product: Product }) {
           <Heart size={18} fill={liked ? "currentColor" : "none"} />
         </button>
         {price.old && <span className="ca-tag">Oferta</span>}
+        {out && <span className="ca-tag ca-tag-out">Indisponível</span>}
       </div>
       <div className="ca-card-body">
         {category && <small>{category}</small>}
@@ -66,7 +74,7 @@ export function ProductCard({ product }: { product: Product }) {
             {price.old && <s>{price.old}</s>}
           </div>
           {needsOptions || out ? (
-            <Link to={to} className="ca-round" aria-label={out ? `${product.name}: indisponível` : `Escolher opções de ${product.name}`}>
+            <Link to={to} className="ca-round" aria-label={out ? `${product.name}: ver detalhes` : `Escolher opções de ${product.name}`}>
               <ChevronRight size={20} />
             </Link>
           ) : (

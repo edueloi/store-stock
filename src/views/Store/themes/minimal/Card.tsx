@@ -15,26 +15,42 @@ export default function Card({ product }: { product: Product }) {
         <Link to={productPath(product)} aria-label={product.name} className="mn-card-img">
           {img ? <img src={img} alt={product.name} loading="lazy" /> : <span aria-hidden="true">Sem foto</span>}
         </Link>
-        <button className="mn-heart" aria-pressed={liked} aria-label={liked ? "Remover dos favoritos" : "Adicionar aos favoritos"} onClick={() => toggleWishlist(product.id)}>
-          <Heart size={18} fill={liked ? "currentColor" : "none"} />
+        {out ? <span className="mn-badge">Esgotado</span> : hasDiscount(product) && !hidden ? <span className="mn-badge">Oferta</span> : null}
+        <button type="button" className="mn-heart" aria-pressed={liked} aria-label={liked ? "Remover dos favoritos" : "Adicionar aos favoritos"} onClick={() => toggleWishlist(product.id)}>
+          <Heart size={17} strokeWidth={1.6} fill={liked ? "currentColor" : "none"} />
         </button>
+      </div>
+      <div className="mn-card-body">
+        <Link to={productPath(product)} className="mn-card-name">
+          {product.name}
+        </Link>
+        {hidden ? (
+          <p className="mn-price mn-muted">Sob consulta</p>
+        ) : (
+          <p className="mn-price">
+            {money(priceOf(product))}
+            {hasDiscount(product) && <s>{money(Number(product.price))}</s>}
+          </p>
+        )}
         {out ? (
           <span className="mn-quick mn-quick-off">Esgotado</span>
         ) : opts ? (
-          <Link className="mn-quick" to={productPath(product)}>Ver opções</Link>
+          <Link className="mn-quick" to={productPath(product)}>
+            Ver opções
+          </Link>
         ) : (
-          <button className="mn-quick" onClick={() => { addToCart(product); openCart(); }}>{hidden ? "Incluir no pedido" : "Adicionar"}</button>
+          <button
+            type="button"
+            className="mn-quick"
+            onClick={() => {
+              addToCart(product);
+              openCart();
+            }}
+          >
+            {hidden ? "Incluir no pedido" : "Adicionar"}
+          </button>
         )}
       </div>
-      <Link to={productPath(product)} className="mn-card-name">{product.name}</Link>
-      {hidden ? (
-        <p className="mn-price mn-muted">Sob consulta</p>
-      ) : (
-        <p className="mn-price">
-          {money(priceOf(product))}
-          {hasDiscount(product) && <s>{money(Number(product.price))}</s>}
-        </p>
-      )}
     </article>
   );
 }

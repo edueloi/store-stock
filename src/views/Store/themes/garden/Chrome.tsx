@@ -1,114 +1,148 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, Search, ShoppingBasket, Sprout, X } from "lucide-react";
-import SearchBar from "../../../../components/layout/SearchBar";
+import { ChevronDown, Clock, Facebook, Instagram, Leaf, MapPin, Menu, MessageCircle, Search, ShoppingBasket, Sprout, X } from "lucide-react";
 import { hoursLines, useKit } from "./kit";
-import { Leaf } from "./parts";
+import { useShelves, whatsappLink } from "./extras";
 import "./styles.css";
 
+function Brand({ foot = false }: { foot?: boolean }) {
+  const { tenant, path } = useKit();
+  return (
+    <Link className={`garden-brand ${foot ? "is-foot" : ""}`} to={path()} aria-label={`${tenant.name} - página inicial`}>
+      {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="garden-brand-mark"><Sprout size={21} aria-hidden="true" /></span>}
+      <span>{tenant.name}</span>
+    </Link>
+  );
+}
+
 export function Header() {
-  const { tenant, categories, cart, openCart, path } = useKit();
+  const { path, cart, openCart } = useKit();
+  const shelves = useShelves();
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
-  const [panel, setPanel] = useState<"" | "search" | "menu">("");
+  const [drawer, setDrawer] = useState(false);
+  const [pop, setPop] = useState(false);
   const [q, setQ] = useState("");
+  const holder = useRef<HTMLDivElement>(null);
   const count = cart.reduce((s, i) => s + i.quantity, 0);
-  useEffect(() => setPanel(""), [pathname, search]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setPanel("");
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    setDrawer(false);
+    setPop(false);
+  }, [pathname, search]);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => e.key === "Escape" && (setPop(false), setDrawer(false));
+    const click = (e: MouseEvent) => holder.current && !holder.current.contains(e.target as Node) && setPop(false);
+    window.addEventListener("keydown", key);
+    document.addEventListener("mousedown", click);
+    return () => {
+      window.removeEventListener("keydown", key);
+      document.removeEventListener("mousedown", click);
+    };
   }, []);
-  const links = [
-    { name: "Início", to: path(), match: path().split("?")[0] },
-    { name: "Catálogo", to: path("/catalogo"), match: path("/catalogo").split("?")[0] },
-    { name: "Nossa loja", to: path("/sobre"), match: path("/sobre").split("?")[0] },
-  ];
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     navigate(path("/catalogo", q.trim() ? { q: q.trim() } : undefined));
   };
+  const links = [
+    { name: "Início", to: path(), on: !/catalogo|sobre|produto/.test(pathname) },
+    { name: "Catálogo", to: path("/catalogo"), on: /catalogo|produto/.test(pathname) },
+    { name: "Nossa história", to: path("/sobre"), on: /sobre/.test(pathname) },
+  ];
   return (
     <header className="garden-header">
-      <div className="garden-pill">
-        <Link className="garden-brand" to={path()} aria-label={`${tenant.name} - página inicial`}>
-          {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="garden-brand-mark"><Sprout size={24} aria-hidden /></span>}
-          <strong>{tenant.name}</strong>
-        </Link>
+      <div className="garden-island" ref={holder}>
+        <Brand />
         <nav className="garden-nav" aria-label="Principal">
-          {links.map((l) => <Link key={l.to} to={l.to} aria-current={pathname === l.match ? "page" : undefined}>{l.name}</Link>)}
+          {links.slice(0, 2).map((l) => (
+            <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>
+          ))}
+          <button type="button" aria-expanded={pop} aria-controls="garden-pop" onClick={() => setPop((v) => !v)}>
+            Plantas e jardim <ChevronDown size={16} aria-hidden="true" />
+          </button>
+          <Link to={links[2].to} aria-current={links[2].on ? "page" : undefined}>{links[2].name}</Link>
         </nav>
-        <div className="garden-tools">
-          <button className="garden-icon" aria-label="Buscar produtos" aria-expanded={panel === "search"} onClick={() => setPanel(panel === "search" ? "" : "search")}>
-            {panel === "search" ? <X size={21} /> : <Search size={21} />}
-          </button>
-          <button className="garden-bag" onClick={openCart} aria-label={`Abrir seleção, ${count} ${count === 1 ? "item" : "itens"}`}>
-            <ShoppingBasket size={19} aria-hidden /> <span className="garden-lbl">Seleção</span> <b>{count}</b>
-          </button>
-          <button className="garden-icon garden-burger" aria-label={panel === "menu" ? "Fechar menu" : "Abrir menu"} aria-expanded={panel === "menu"} onClick={() => setPanel(panel === "menu" ? "" : "menu")}>
-            {panel === "menu" ? <X size={22} /> : <Menu size={22} />}
-          </button>
-        </div>
-      </div>
-      {panel === "search" && (
-        <div className="garden-panel">
-          <form role="search" onSubmit={submit}>
-            <SearchBar value={q} onChange={setQ} placeholder="Buscar sementes, ferramentas, vasos..." />
-          </form>
-        </div>
-      )}
-      {panel === "menu" && (
-        <nav className="garden-panel" aria-label="Menu">
-          <div className="garden-mobile-links">
-            {links.map((l) => <Link key={l.to} to={l.to} aria-current={pathname === l.match ? "page" : undefined}>{l.name}</Link>)}
-            {categories.map((c) => <Link key={c.id} to={path("/catalogo", { cat: String(c.id) })}><Leaf size={18} className="" /> {c.name}</Link>)}
+        <form className="garden-search" role="search" onSubmit={submit}>
+          <Search size={17} aria-hidden="true" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar" aria-label="Buscar produtos" />
+        </form>
+        <button type="button" className="garden-cart" onClick={openCart} aria-label={`Abrir sacola, ${count} ${count === 1 ? "item" : "itens"}`}>
+          <ShoppingBasket size={21} aria-hidden="true" />
+          <span>{count}</span>
+        </button>
+        <button type="button" className="garden-burger" aria-label={drawer ? "Fechar menu" : "Abrir menu"} aria-expanded={drawer} onClick={() => setDrawer((v) => !v)}>
+          {drawer ? <X size={22} /> : <Menu size={22} />}
+        </button>
+        {pop && (
+          <div className="garden-pop" id="garden-pop">
+            {shelves.slice(0, 12).map((c) => (
+              <Link key={c.id} to={path("/catalogo", { cat: String(c.id) })}><Leaf size={15} aria-hidden="true" /> {c.name} <small>{c.count}</small></Link>
+            ))}
+            {!shelves.length && <p>As categorias aparecem aqui quando houver produtos.</p>}
           </div>
-        </nav>
+        )}
+      </div>
+      {drawer && (
+        <div className="garden-drawer">
+          <form className="garden-search" role="search" onSubmit={submit}>
+            <Search size={17} aria-hidden="true" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar plantas e produtos" aria-label="Buscar produtos" />
+          </form>
+          <nav aria-label="Menu">
+            {links.map((l) => <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>)}
+          </nav>
+          {shelves.length > 0 && (
+            <>
+              <p className="garden-drawer-title">Plantas e jardim</p>
+              <div className="garden-drawer-grid">
+                {shelves.slice(0, 12).map((c) => <Link key={c.id} to={path("/catalogo", { cat: String(c.id) })}>{c.name}</Link>)}
+              </div>
+            </>
+          )}
+        </div>
       )}
     </header>
   );
 }
 
 export function Footer() {
-  const { tenant, categories, path } = useKit();
+  const { tenant, path } = useKit();
+  const shelves = useShelves();
   const hours = hoursLines(tenant.business_hours);
-  const wa = tenant.whatsapp?.replace(/\D/g, "");
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
   return (
     <footer className="garden-footer">
-      <svg className="garden-footer-wave" viewBox="0 0 1440 60" preserveAspectRatio="none" aria-hidden>
-        <path d="M0 60V30C120 6 240 6 360 26s240 30 360 14S960 0 1080 10s240 24 360 8V60z" fill="#183d2a" />
+      <svg className="garden-wave" viewBox="0 0 1440 60" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0 60V30C120 6 240 6 360 26s240 30 360 10 240-34 360-14 240 26 360 8v30z" fill="currentColor" />
       </svg>
-      <div className="garden-foot-big" aria-hidden>{tenant.name}</div>
       <div className="garden-wrap garden-foot-grid">
-        <div>
-          <h2>{tenant.name}</h2>
-          <p>{tenant.footer_text || tenant.hero_tagline || "Um pouco mais de verde. Todos os dias."}</p>
-          {tenant.show_address && tenant.address && <p>{tenant.address}</p>}
-        </div>
-        <div>
-          <h3>Coleções</h3>
+        <section className="garden-foot-card garden-foot-about">
+          <Brand foot />
+          <p>{tenant.footer_text || tenant.about_text || "Plantas, vasos e ferramentas para cultivar um cantinho verde em casa."}</p>
+          <div className="garden-social">
+            {tenant.instagram_url && <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={19} /></a>}
+            {tenant.facebook_url && <a href={tenant.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={19} /></a>}
+            {wa && <a href={wa} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={19} /></a>}
+          </div>
+        </section>
+        <section className="garden-foot-card">
+          <h2>Explore</h2>
           <ul>
-            {categories.slice(0, 6).map((c) => <li key={c.id}><Link to={path("/catalogo", { cat: String(c.id) })}>{c.name}</Link></li>)}
+            {shelves.slice(0, 6).map((c) => <li key={c.id}><Link to={path("/catalogo", { cat: String(c.id) })}>{c.name}</Link></li>)}
             <li><Link to={path("/catalogo")}>Ver tudo</Link></li>
           </ul>
-        </div>
-        <div>
-          <h3>Conversa</h3>
+        </section>
+        <section className="garden-foot-card">
+          <h2>Fale com a gente</h2>
           <ul>
-            <li><Link to={path("/sobre")}>Nossa loja</Link></li>
-            {wa && <li><a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">WhatsApp</a></li>}
-            {tenant.instagram_url && <li><a href={tenant.instagram_url} target="_blank" rel="noreferrer">Instagram</a></li>}
-            {tenant.facebook_url && <li><a href={tenant.facebook_url} target="_blank" rel="noreferrer">Facebook</a></li>}
+            {wa && <li><a href={wa} target="_blank" rel="noreferrer"><MessageCircle size={16} aria-hidden="true" /> {tenant.whatsapp}</a></li>}
+            {tenant.show_address && tenant.address && <li><span><MapPin size={16} aria-hidden="true" /> {tenant.address}</span></li>}
+            {hours.slice(0, 7).map((h) => <li key={h.label}><span><Clock size={14} aria-hidden="true" /> {h.label}: {h.text}</span></li>)}
+            <li><Link to={path("/sobre")}>Nossa história</Link></li>
           </ul>
-        </div>
-        <div>
-          <h3>Horários</h3>
-          {hours.length ? <ul className="garden-hours">{hours.map((h) => <li key={h.label}><span>{h.label}</span><span>{h.text}</span></li>)}</ul> : <p>Fale com a loja para combinar o melhor horário.</p>}
-        </div>
+        </section>
       </div>
       <p className="garden-credit">
-        © {new Date().getFullYear()} {tenant.name} · Powered by{" "}
-        <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a>
+        © {new Date().getFullYear()} {tenant.name} · Desenvolvido por <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a>
       </p>
     </footer>
   );

@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { ArrowRight, BadgeCheck, ChevronRight, Headphones, MapPin, PackageCheck, ShieldCheck } from "lucide-react";
+import HeroSlider from "../../../../components/store/HeroSlider";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { useStore } from "../../StoreLayout";
 import { buildStorePath, resolveStoreSlug } from "../../store-routing";
@@ -23,6 +24,7 @@ export default function StoreFront() {
   const shownCategories = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 12);
   const hero = tenant.banner_url || marketImage(featured[0]);
   const hidePrices = marketHide(tenant);
+  const sf = tenant.policies?.storefront || {};
 
   return (
     <main className="mk-page">
@@ -35,20 +37,29 @@ export default function StoreFront() {
       />
 
       <section className="mk-wrap mk-hero-wrap">
-        <div className="mk-hero">
-          <div className="mk-hero-text">
-            <span className="mk-pill">Loja online segura</span>
-            <h1>{tenant.hero_tagline || "Encontre o que precisa em um só lugar."}</h1>
-            <p>{tenant.about_text || "Produtos selecionados, catálogo sempre atualizado e atendimento direto da loja."}</p>
-            <Link to={path("/catalogo")} className="mk-cta">
-              Ver ofertas <ArrowRight size={16} />
-            </Link>
+        <HeroSlider
+          slides={sf.hero_slides}
+          autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+          resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+          layout="banner"
+          className="mk-slider"
+          fallback={
+          <div className="mk-hero">
+            <div className="mk-hero-text">
+              <span className="mk-pill">Loja online segura</span>
+              <h1>{tenant.hero_tagline || "Encontre o que precisa em um só lugar."}</h1>
+              <p>{tenant.about_text || "Produtos selecionados, catálogo sempre atualizado e atendimento direto da loja."}</p>
+              <Link to={path("/catalogo")} className="mk-cta">
+                Ver ofertas <ArrowRight size={16} />
+              </Link>
+            </div>
+            <div className="mk-hero-media">
+              <div className="mk-hero-blob" aria-hidden="true" />
+              {hero ? <img src={hero} alt="Destaque da loja" /> : <PackageCheck size={72} />}
+            </div>
           </div>
-          <div className="mk-hero-media">
-            <div className="mk-hero-blob" aria-hidden="true" />
-            {hero ? <img src={hero} alt="Destaque da loja" /> : <PackageCheck size={72} />}
-          </div>
-        </div>
+          }
+        />
       </section>
 
       <section className="mk-wrap mk-benefits">

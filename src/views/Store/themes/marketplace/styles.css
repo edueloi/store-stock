@@ -182,3 +182,7 @@ main[class*="bg-[#f3f3f3]"] input, main[class*="bg-[#f3f3f3]"] textarea, main[cl
 .store-theme-marketplace .fragrance-cart-total button { border-radius: 999px !important; height: 52px; font-family: "Barlow Condensed", sans-serif; font-size: 15px; box-shadow: 0 10px 22px rgba(37,211,102,.35); }
 .store-theme-marketplace .fragrance-cart-drawer img { border-radius: 14px; object-fit: contain; background: #fff; }
 .store-theme-marketplace .fragrance-cart-drawer [class*="rounded-lg"], .store-theme-marketplace .fragrance-cart-drawer [class*="rounded-xl"] { border-radius: 20px !important; }
+
+/* Carrossel de banners (HeroSlider) */
+.mk-slider { --hs-radius: 32px; --hs-height: 380px; --hs-accent: #ffe600; --hs-ink: #1c2430; box-shadow: 0 18px 40px rgba(180,150,0,.18); border-radius: 32px; overflow: hidden; }
+@media (max-width: 640px) { .mk-slider { --hs-radius: 24px; border-radius: 24px; } }

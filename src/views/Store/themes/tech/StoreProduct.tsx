@@ -37,7 +37,7 @@ export default function StoreProduct() {
   const more = products.filter((p) => p.is_active && p.type !== "internal" && p.id !== product.id && p.category_id === product.category_id).slice(0, 4);
 
   return (
-    <div className="tp-scope tp-page">
+    <div className="tp-scope tp-page tp-product-page">
       <StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description || product.name} image={gallery[0]} type="product" price={hidden ? undefined : String(priceOf(product))} siteName={tenant.name} url={typeof window !== "undefined" ? window.location.href : ""} />
       <div className="tp-wrap">
         <nav className="tp-crumbs" aria-label="Você está em">
@@ -131,6 +131,11 @@ export default function StoreProduct() {
               </div>
             ) : <p style={{ margin: 0, color: "var(--tp-dim)" }}>Ainda não há produtos similares na mesma categoria.</p>}
           </section>
+        </div>
+
+        <div className="tp-buybar">
+          <strong>{hidden ? "Sob consulta" : money(priceOf(product))}</strong>
+          <button type="button" className="tp-btn" disabled={!buy.canAdd} onClick={buy.add}><ShoppingCart size={17} /> {buy.soldOut ? "Indisponível" : !ready ? "Escolha as opções" : "Adicionar"}</button>
         </div>
 
         {more.length > 0 && (

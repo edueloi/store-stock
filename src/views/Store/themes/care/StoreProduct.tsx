@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ChevronDown, ChevronLeft, ChevronRight, Heart, MessageCircle, Minus, Package, Plus, Share2, ShoppingBag } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import StockAvailability from "../../../../components/store/StockAvailability";
 import { parseProductIdFromRoute } from "../../store-routing";
 import { pageUrl, priceOf, useBuy, useShop, whatsappLink } from "./core";
@@ -34,7 +35,7 @@ export default function StoreProduct() {
         <div className="ca-emptybox">
           <Package size={40} aria-hidden="true" />
           <h1>Produto não encontrado</h1>
-          <Link className="ca-btn" to={path("/catalogo")}>Voltar ao catálogo</Link>
+          <StoreButton asChild className="ca-b ca-b-solid"><Link to={path("/catalogo")}>Voltar ao catálogo</Link></StoreButton>
         </div>
       </div>
     );
@@ -109,9 +110,9 @@ export default function StoreProduct() {
               <output aria-label="Quantidade">{buy.qty}</output>
               <button type="button" aria-label="Aumentar quantidade" disabled={buy.qty >= buy.maximum} onClick={() => buy.setQty((n) => Math.min(buy.maximum, n + 1))}><Plus size={16} /></button>
             </div>
-            <button type="button" className="ca-btn ca-btn-grow" disabled={!buy.canAdd} onClick={buy.add}>
+            <StoreButton type="button" size="lg" className="ca-b ca-b-solid ca-btn-grow" disabled={!buy.canAdd} onClick={buy.add}>
               <ShoppingBag size={19} aria-hidden="true" /> {buy.soldOut ? "Indisponível" : hidden ? "Adicionar ao pedido" : "Adicionar à rotina"}
-            </button>
+            </StoreButton>
           </div>
           <div className="ca-quick">
             <button type="button" aria-pressed={liked} onClick={() => toggleWishlist(product.id)}><Heart size={17} fill={liked ? "currentColor" : "none"} /> Favoritar</button>

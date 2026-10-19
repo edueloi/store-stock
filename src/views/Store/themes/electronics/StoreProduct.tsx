@@ -65,7 +65,7 @@ export default function StoreProduct() {
   const share = async () => { const r = await shareLink(product.name); if (r) setNote(r); };
 
   return (
-    <div className="elx-page">
+    <div className="elx-page elx-has-sticky">
       <StoreSEO
         title={`${product.name} — ${tenant.name}`}
         description={product.description || `Compre ${product.name} na ${tenant.name}.`}
@@ -192,6 +192,13 @@ export default function StoreProduct() {
             <div className="elx-grid">{related.map((p) => <Card key={p.id} product={p} />)}</div>
           </section>
         )}
+      </div>
+      <div className="elx-stickybuy" role="region" aria-label="Compra rápida">
+        <div>
+          <b>{hidePrices ? "Sob consulta" : money(info.price)}</b>
+          <span>{product.name}</span>
+        </div>
+        <button type="button" className="elx-btn elx-btn-inline" disabled={soldOut} onClick={add}><ShoppingCart size={17} /> {soldOut ? "Indisponível" : hidePrices ? "Incluir" : "Comprar"}</button>
       </div>
     </div>
   );

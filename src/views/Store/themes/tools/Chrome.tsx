@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ClipboardList, Facebook, Grid3x3, Hammer, Instagram, Menu, MessageCircle, X } from "lucide-react";
+import { ChevronDown, ClipboardList, Facebook, Grid3x3, Hammer, Instagram, Menu, MessageCircle, X } from "lucide-react";
 import SearchBar from "../../../../components/layout/SearchBar";
 import { hoursList, useShop, waLink } from "./lib";
 import "./styles.css";
@@ -30,12 +30,6 @@ export function Header() {
   const cartLabel = sf.cart_title || "Lista de materiais";
   return (
     <header className="op-scope op-header" style={vars}>
-      <div className="op-topbar">
-        <div className="op-wrap">
-          <span>{sf.segment_label || "Ferramentas & Construção"} · orçamento de materiais online</span>
-          {wa && <a href={wa} target="_blank" rel="noreferrer">Atendimento no WhatsApp</a>}
-        </div>
-      </div>
       <div className="op-wrap op-main">
         <Link className="op-brand" to={path()} aria-label={`${tenant.name} - início`}>
           {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="op-brand-mark"><Hammer size={24} /></span>}
@@ -57,13 +51,14 @@ export function Header() {
       <div className="op-subnav">
         <div className="op-wrap">
           <button className="op-deptbtn" aria-expanded={mega} aria-haspopup="true" onClick={() => setMega((v) => !v)}>
-            <Grid3x3 size={17} /> Departamentos
+            <Grid3x3 size={17} /> Departamentos <ChevronDown size={15} className="op-chev" />
           </button>
           <nav aria-label="Navegação principal">
             {links.map((l) => (
               <Link key={l.name} to={l.to} aria-current={pathname === l.to.split("?")[0] ? "page" : undefined}>{l.name}</Link>
             ))}
           </nav>
+          {wa && <a className="op-subwa" href={wa} target="_blank" rel="noreferrer"><MessageCircle size={16} />Orçamento no WhatsApp</a>}
           {mega && (
             <div className="op-mega" role="menu">
               {depts.length === 0 && <span style={{ padding: 14, fontSize: 14 }}>Sem departamentos cadastrados.</span>}
@@ -84,7 +79,6 @@ export function Header() {
           {depts.map((c) => <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} onClick={() => setOpen(false)}>{c.name}</Link>)}
         </nav>
       )}
-      <div className="op-stripe" aria-hidden="true" />
     </header>
   );
 }
@@ -95,7 +89,6 @@ export function Footer() {
   const wa = waLink(tenant);
   return (
     <footer className="op-scope op-footer" style={vars}>
-      <div className="op-stripe" aria-hidden="true" />
       <div className="op-wrap">
         <div className="op-foot-grid">
           <div>
@@ -113,7 +106,7 @@ export function Footer() {
           </div>
           <div>
             <h3>Departamentos</h3>
-            <ul>{categories.slice(0, 6).map((c) => <li key={c.id}><Link to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link></li>)}</ul>
+            <ul>{categories.filter((c) => c.name).slice(0, 6).map((c) => <li key={c.id}><Link to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link></li>)}</ul>
           </div>
           <div>
             <h3>Atendimento</h3>

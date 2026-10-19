@@ -1,60 +1,168 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Menu, MessageCircle, Search, ShoppingBag, Sparkles, X } from "lucide-react";
-import SearchBar from "../../../../components/layout/SearchBar";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { ChevronDown, Clock, Instagram, Facebook, MapPin, Menu, MessageCircle, ShoppingBag, Sparkles, X } from "lucide-react";
+import { hoursLines, productImage, useKit, whatsappLink } from "./kit";
+import { SearchField } from "./ThemeParts";
 import "./styles.css";
 
 export function Header() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, categories, cart, openCart } = useStore();
-  const { pathname, search } = useLocation();
+  const { tenant, categories, active, openCart, cartCount, path } = useKit();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
-  const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const links = [{ label: "Início", to: path() }, { label: "Produtos", to: path("/catalogo") }, { label: "Nossa loja", to: path("/sobre") }];
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const term = query.trim();
-    navigate(path(term ? `/catalogo?q=${encodeURIComponent(term)}` : "/catalogo"));
-    setMenuOpen(false);
+  const [menu, setMenu] = useState(false);
+  const [mega, setMega] = useState(false);
+  const [term, setTerm] = useState("");
+  const used = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 8);
+  const links = [
+    { name: "Início", to: path(), on: !/catalogo|sobre|produto/.test(pathname) },
+    { name: "Produtos", to: path("/catalogo"), on: /catalogo|produto/.test(pathname) },
+    { name: "Nossa loja", to: path("/sobre"), on: /sobre/.test(pathname) },
+  ];
+
+  useEffect(() => {
+    setMenu(false);
+    setMega(false);
+  }, [pathname]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMenu(false);
+        setMega(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setMenu(false);
+    navigate(path(`/catalogo${term.trim() ? `?q=${encodeURIComponent(term.trim())}` : ""}`));
   };
-  useEffect(() => setMenuOpen(false), [pathname, search]);
 
   return (
-    <header className="beauty-header">
-      <div className="beauty-note"><div className="beauty-wrap"><span>{tenant.hero_tagline || "Sua rotina de cuidado, do seu jeito."}</span>{tenant.whatsapp && <a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={14} /> Fale com uma consultora</a>}</div></div>
-      <div className="beauty-wrap beauty-mainbar">
-        <button type="button" className="beauty-menu" aria-label={menuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button>
-        <Link to={path()} className="beauty-brand" aria-label={`${tenant.name} - início`}>
-          {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="beauty-brand-mark"><Sparkles size={20} /></span>}
+    <header className="bty-header">
+      <div className="bty-bar">
+        <nav className="bty-nav" aria-label="Principal">
+          {links.map((l) => (
+            <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>
+          ))}
+          {used.length > 0 && (
+            <button type="button" className="bty-nav-btn" aria-expanded={mega} aria-controls="bty-mega" onClick={() => setMega((v) => !v)}>
+              Rituais <ChevronDown size={15} aria-hidden="true" />
+            </button>
+          )}
+        </nav>
+        <button type="button" className="bty-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
+          {menu ? <X size={22} /> : <Menu size={22} />}
+        </button>
+        <Link className="bty-brand" to={path()} aria-label={`${tenant.name} - página inicial`}>
+          {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="bty-brand-mark"><Sparkles size={18} /></span>}
           <span>{tenant.name}</span>
         </Link>
-        <form className="beauty-search" role="search" onSubmit={submit}><SearchBar value={query} onChange={setQuery} placeholder="Buscar cuidados, marcas e produtos" /><button type="submit" aria-label="Buscar"><Search size={18} /></button></form>
-        <button type="button" className="beauty-cart" onClick={openCart} aria-label={`Abrir sacola, ${count} ${count === 1 ? "item" : "itens"}`}><ShoppingBag size={19} /><span>Sacola</span><b>{count}</b></button>
+        <div className="bty-tools">
+          <form className="bty-search" role="search" onSubmit={submit}>
+            <SearchField value={term} onChange={setTerm} placeholder="Buscar cuidados" />
+          </form>
+          <button type="button" className="bty-cart" aria-label={`Abrir sacola, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`} onClick={openCart}>
+            <ShoppingBag size={20} />
+            <b>{cartCount}</b>
+          </button>
+        </div>
       </div>
-      <nav className={`beauty-nav ${menuOpen ? "is-open" : ""}`} aria-label="Navegação da loja"><div className="beauty-wrap beauty-nav-inner">
-        {links.map((link) => <Link key={link.label} to={link.to} aria-current={pathname === link.to.split("?")[0] ? "page" : undefined}>{link.label}</Link>)}
-        {categories.slice(0, 8).map((category) => <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)}>{category.name}</Link>)}
-      </div></nav>
+
+      {mega && (
+        <>
+          <button type="button" className="bty-scrim" aria-label="Fechar categorias" onClick={() => setMega(false)} />
+          <div id="bty-mega" className="bty-mega">
+            <p className="bty-mega-title">Escolha o seu ritual</p>
+            <div className="bty-mega-grid">
+              {used.map((c) => {
+                const img = c.cover_url || productImage(active.find((p) => p.category_id === c.id));
+                return (
+                  <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>
+                    <span className="bty-mega-arch">{img ? <img src={img} alt="" loading="lazy" /> : <Sparkles size={22} />}</span>
+                    <span>{c.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {menu && (
+        <div className="bty-drawer">
+          <form role="search" onSubmit={submit}>
+            <SearchField value={term} onChange={setTerm} placeholder="Buscar cuidados" />
+          </form>
+          <nav aria-label="Menu">
+            {links.map((l) => (
+              <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>
+            ))}
+          </nav>
+          {used.length > 0 && (
+            <>
+              <p className="bty-drawer-title">Rituais</p>
+              <div className="bty-drawer-chips">
+                {used.map((c) => (
+                  <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>{c.name}</Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </header>
   );
 }
 
 export function Footer() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, categories } = useStore();
-  const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
-  const whatsapp = tenant.whatsapp?.replace(/\D/g, "");
+  const { tenant, categories, active, path } = useKit();
+  const hours = hoursLines(tenant.business_hours);
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
+  const cats = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 6);
   return (
-    <footer className="beauty-footer"><div className="beauty-wrap beauty-footer-grid">
-      <div><span className="beauty-footer-label">Cuidado com intenção</span><h2>{tenant.name}</h2><p>{tenant.footer_text || tenant.about_text || "Uma curadoria para acompanhar a sua rotina, com atenção em cada escolha."}</p></div>
-      <div><h3>Descubra</h3><Link to={path()}>Início</Link><Link to={path("/catalogo")}>Todos os produtos</Link><Link to={path("/sobre")}>Sobre a loja</Link></div>
-      <div><h3>Categorias</h3>{categories.slice(0, 7).map((category) => <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)}>{category.name}</Link>)}</div>
-      <div><h3>Atendimento</h3>{tenant.show_address && tenant.address && <p>{tenant.address}</p>}{whatsapp && <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer">Fale com a loja</a>}</div>
-    </div><div className="beauty-footer-bottom">© {new Date().getFullYear()} {tenant.name} · Powered by <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a></div></footer>
+    <footer className="bty-footer">
+      <div className="bty-footer-inner">
+        <section className="bty-foot-card bty-foot-about">
+          <Link className="bty-brand" to={path()}>
+            {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="bty-brand-mark"><Sparkles size={18} /></span>}
+            <span>{tenant.name}</span>
+          </Link>
+          <p>{tenant.footer_text || tenant.about_text || "Uma curadoria de beleza para acompanhar a sua rotina de autocuidado."}</p>
+          <div className="bty-social">
+            {tenant.instagram_url && <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={19} /></a>}
+            {tenant.facebook_url && <a href={tenant.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={19} /></a>}
+            {wa && <a href={wa} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={19} /></a>}
+          </div>
+        </section>
+        <section className="bty-foot-card">
+          <h2>Descubra</h2>
+          <Link to={path()}>Início</Link>
+          <Link to={path("/catalogo")}>Todos os produtos</Link>
+          <Link to={path("/sobre")}>Nossa loja</Link>
+        </section>
+        {cats.length > 0 && (
+          <section className="bty-foot-card">
+            <h2>Rituais</h2>
+            {cats.map((c) => (
+              <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>{c.name}</Link>
+            ))}
+          </section>
+        )}
+        <section className="bty-foot-card">
+          <h2>Atendimento</h2>
+          {wa && <a href={wa} target="_blank" rel="noreferrer"><MessageCircle size={15} /> {tenant.whatsapp}</a>}
+          {tenant.show_address && tenant.address && <p><MapPin size={15} /> {tenant.address}</p>}
+          {hours.slice(0, 7).map((h) => (
+            <p key={h.day} className="bty-hour"><Clock size={14} /> <span>{h.day}</span> {h.text}</p>
+          ))}
+        </section>
+      </div>
+      <p className="bty-credit">
+        © {new Date().getFullYear()} {tenant.name} · Desenvolvido por <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a>
+      </p>
+    </footer>
   );
 }

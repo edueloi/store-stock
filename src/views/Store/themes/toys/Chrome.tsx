@@ -7,7 +7,7 @@ import { Brick } from "./parts";
 import "./styles.css";
 
 export function Header() {
-  const { tenant, categories, active, openCart, cartCount, path, sf } = useKit();
+  const { tenant, categories, active, openCart, cartCount, path } = useKit();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [menu, setMenu] = useState(false);
@@ -25,11 +25,6 @@ export function Header() {
   };
   return (
     <header className="toys-header">
-      <div className="toys-ribbon">
-        <span>{sf.segment_label || "Hora de brincar"}</span>
-        <span className="toys-ribbon-dot" aria-hidden="true" />
-        <span>{tenant.hero_tagline || "Diversão que cabe na sacola"}</span>
-      </div>
       <div className="toys-bar">
         <Link className="toys-brand" to={path()} aria-label={`${tenant.name} - página inicial`}>
           {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <Brick />}

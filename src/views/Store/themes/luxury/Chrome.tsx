@@ -1,112 +1,165 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Menu, ShoppingBag, X } from "lucide-react";
-import SearchBar from "../../../../components/layout/SearchBar";
-import { hoursLines, useShop, whatsappHref } from "./kit";
+import { ChevronDown, Clock, Facebook, Gem, Instagram, MapPin, Menu, MessageCircle, Search, ShoppingBag, X } from "lucide-react";
+import { hoursLines, useKit, whatsappLink } from "./kit";
+import { SearchField } from "./parts";
 import "./styles.css";
 
-function HeaderSearch({ className }: { className: string }) {
-  const { path } = useShop();
+export function Header() {
+  const { tenant, categories, active, openCart, cartCount, path } = useKit();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [value, setValue] = useState("");
-  const submit = (e: FormEvent) => {
+  const [menu, setMenu] = useState(false);
+  const [mega, setMega] = useState(false);
+  const [find, setFind] = useState(false);
+  const [term, setTerm] = useState("");
+  const used = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 9);
+  const links = [
+    { name: "Início", to: path(), on: !/catalogo|sobre|produto/.test(pathname) },
+    { name: "Coleção", to: path("/catalogo"), on: /catalogo|produto/.test(pathname) },
+    { name: "Maison", to: path("/sobre"), on: /sobre/.test(pathname) },
+  ];
+  useEffect(() => {
+    setMenu(false);
+    setMega(false);
+    setFind(false);
+  }, [pathname]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMenu(false);
+        setMega(false);
+        setFind(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    navigate(path("/catalogo", { q: value.trim() }));
+    setMenu(false);
+    setFind(false);
+    navigate(path(`/catalogo${term.trim() ? `?q=${encodeURIComponent(term.trim())}` : ""}`));
   };
   return (
-    <form className={className} role="search" onSubmit={submit}>
-      <SearchBar value={value} onChange={setValue} placeholder="Buscar uma peça" />
-    </form>
-  );
-}
-
-export function Header() {
-  const { tenant, categories, openCart, cartCount, path, config } = useShop();
-  const { pathname } = useLocation();
-  const [menu, setMenu] = useState(false);
-  const links = [
-    { name: "Início", to: path() },
-    { name: "A coleção", to: path("/catalogo") },
-    ...categories.slice(0, 4).map((c) => ({ name: c.name, to: path("/catalogo", { categoria: String(c.id) }) })),
-    { name: "Nossa casa", to: path("/sobre") },
-  ];
-  const here = (to: string) => !to.includes("?") && pathname === to;
-  return (
-    <header className="lx-scope">
-      <div className="lx-notice">{config.segment_label || "Joias & Seleções Especiais"}</div>
-      <div className="lx-head">
-        <div className="lx-wrap lx-head-main">
-          <div className="lx-head-side">
-            <button type="button" className="lx-ibtn lx-menu-btn" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
-              {menu ? <X size={22} strokeWidth={1.3} /> : <Menu size={22} strokeWidth={1.3} />}
-            </button>
-            <HeaderSearch className="lx-head-search" />
-          </div>
-          <Link className="lx-brand" to={path()} aria-label={`${tenant.name} - início`}>
-            {tenant.logo_url ? <img src={tenant.logo_url} alt={tenant.name} /> : <b>{tenant.name}</b>}
-          </Link>
-          <div className="lx-head-side end">
-            <button type="button" className="lx-ibtn" aria-label={`Abrir sacola, ${cartCount} itens`} onClick={openCart}>
-              <ShoppingBag size={22} strokeWidth={1.3} />
-              <sup>{cartCount}</sup>
-            </button>
-          </div>
-        </div>
-        <nav className="lx-wrap lx-nav" aria-label="Principal">
+    <header className="lux-header">
+      <div className="lux-pill">
+        <button type="button" className="lux-icon lux-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
+          {menu ? <X size={21} /> : <Menu size={21} />}
+        </button>
+        <nav className="lux-nav" aria-label="Principal">
           {links.map((l) => (
-            <Link key={l.name + l.to} to={l.to} aria-current={here(l.to) ? "page" : undefined}>{l.name}</Link>
+            <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>
           ))}
+          {used.length > 0 && (
+            <button type="button" className="lux-nav-btn" aria-expanded={mega} aria-controls="lux-mega" onClick={() => { setMega((v) => !v); setFind(false); }}>
+              Coleções <ChevronDown size={14} aria-hidden="true" />
+            </button>
+          )}
         </nav>
-        {menu && (
-          <div className="lx-drawer">
-            <HeaderSearch className="lx-drawer-search" />
-            {links.map((l) => (
-              <Link key={l.name + l.to} to={l.to} onClick={() => setMenu(false)}>{l.name}</Link>
-            ))}
-          </div>
-        )}
+        <Link className="lux-brand" to={path()} aria-label={`${tenant.name} - página inicial`}>
+          {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <Gem size={18} aria-hidden="true" />}
+          <span>{tenant.name}</span>
+        </Link>
+        <div className="lux-tools">
+          <button type="button" className="lux-icon" aria-label="Buscar" aria-expanded={find} onClick={() => { setFind((v) => !v); setMega(false); }}>
+            <Search size={19} />
+          </button>
+          <button type="button" className="lux-icon lux-cart" aria-label={`Abrir sacola, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`} onClick={openCart}>
+            <ShoppingBag size={19} />
+            <b>{cartCount}</b>
+          </button>
+        </div>
       </div>
+
+      {find && (
+        <form className="lux-panel lux-find" role="search" onSubmit={submit}>
+          <SearchField value={term} onChange={setTerm} placeholder="O que você procura?" label="Buscar na coleção" autoFocus />
+          <button type="submit" className="lux-find-go">Buscar</button>
+        </form>
+      )}
+
+      {mega && (
+        <>
+          <button type="button" className="lux-scrim" aria-label="Fechar coleções" onClick={() => setMega(false)} />
+          <div id="lux-mega" className="lux-panel lux-mega">
+            <p className="lux-mega-title">Coleções</p>
+            <ol>
+              {used.map((c, i) => (
+                <li key={c.id}>
+                  <Link to={path(`/catalogo?categoria=${c.id}`)}><span>{String(i + 1).padStart(2, "0")}</span>{c.name}</Link>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </>
+      )}
+
+      {menu && (
+        <div className="lux-panel lux-drawer">
+          <form role="search" onSubmit={submit}>
+            <SearchField value={term} onChange={setTerm} placeholder="O que você procura?" />
+          </form>
+          <nav aria-label="Menu">
+            {links.map((l) => (
+              <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>
+            ))}
+          </nav>
+          {used.length > 0 && (
+            <>
+              <p className="lux-drawer-title">Coleções</p>
+              <div className="lux-drawer-chips">
+                {used.map((c) => <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>{c.name}</Link>)}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </header>
   );
 }
 
 export function Footer() {
-  const { tenant, categories, path } = useShop();
-  const hours = hoursLines(tenant);
+  const { tenant, categories, active, path } = useKit();
+  const hours = hoursLines(tenant.business_hours);
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
+  const cats = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 6);
   return (
-    <footer className="lx-scope lx-foot">
-      <div className="lx-wrap lx-foot-top">
-        <div className="lx-rule"><span /></div>
-        <div className="lx-foot-brand">{tenant.name}</div>
-        <p>{tenant.footer_text || tenant.about_text || "Uma seleção para marcar seus momentos."}</p>
-      </div>
-      <div className="lx-wrap lx-foot-cols">
-        <div>
-          <h3>A casa</h3>
-          <ul>
-            <li><Link to={path("/catalogo")}>A coleção</Link></li>
-            <li><Link to={path("/sobre")}>Nossa história</Link></li>
-            {categories.slice(0, 3).map((c) => <li key={c.id}><Link to={path("/catalogo", { categoria: String(c.id) })}>{c.name}</Link></li>)}
-          </ul>
+    <footer className="lux-footer">
+      <div className="lux-footer-box">
+        <p className="lux-footer-mark">{tenant.name}</p>
+        <div className="lux-footer-grid">
+          <section className="lux-foot-col lux-foot-about">
+            <p>{tenant.footer_text || tenant.about_text || "Peças selecionadas com o cuidado que cada detalhe merece."}</p>
+            <div className="lux-social">
+              {tenant.instagram_url && <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={18} /></a>}
+              {tenant.facebook_url && <a href={tenant.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={18} /></a>}
+              {wa && <a href={wa} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={18} /></a>}
+            </div>
+          </section>
+          <section className="lux-foot-col">
+            <h2>Explore</h2>
+            <Link to={path()}>Início</Link>
+            <Link to={path("/catalogo")}>Toda a coleção</Link>
+            <Link to={path("/sobre")}>Maison</Link>
+          </section>
+          {cats.length > 0 && (
+            <section className="lux-foot-col">
+              <h2>Coleções</h2>
+              {cats.map((c) => <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>{c.name}</Link>)}
+            </section>
+          )}
+          <section className="lux-foot-col">
+            <h2>Atendimento</h2>
+            {wa && <a href={wa} target="_blank" rel="noreferrer"><MessageCircle size={15} /> {tenant.whatsapp}</a>}
+            {tenant.show_address && tenant.address && <p><MapPin size={15} /> {tenant.address}</p>}
+            {hours.slice(0, 7).map((h) => <p key={h.day}><Clock size={14} /> {h.day}: {h.text}</p>)}
+          </section>
         </div>
-        <div>
-          <h3>Atendimento</h3>
-          <ul>
-            {tenant.show_address && tenant.address && <li><p>{tenant.address}</p></li>}
-            {tenant.whatsapp && <li><a href={whatsappHref(tenant)} target="_blank" rel="noreferrer">WhatsApp</a></li>}
-            {tenant.instagram_url && <li><a href={tenant.instagram_url} target="_blank" rel="noreferrer">Instagram</a></li>}
-            {tenant.facebook_url && <li><a href={tenant.facebook_url} target="_blank" rel="noreferrer">Facebook</a></li>}
-          </ul>
-        </div>
-        <div>
-          <h3>Horários</h3>
-          {hours.length ? <ul>{hours.map((h) => <li key={h.day}>{h.day}: {h.text}</li>)}</ul> : <p>Consulte nosso atendimento.</p>}
-        </div>
       </div>
-      <div className="lx-foot-end">
-        <div className="lx-wrap">© {new Date().getFullYear()} {tenant.name} · Powered by{" "}
-          <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a></div>
-      </div>
+      <p className="lux-credit">
+        © {new Date().getFullYear()} {tenant.name} · Desenvolvido por <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a>
+      </p>
     </footer>
   );
 }

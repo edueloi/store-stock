@@ -547,3 +547,82 @@
 @media(min-width:900px){.bb-v2-hero{grid-template-columns:minmax(0,1fr) minmax(0,.92fr);gap:50px;min-height:480px}.bb-v2-category-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.bb-v2-product{gap:3rem}}
 @media(max-width:599px){.bb-v2-hero{padding-top:1.8rem;gap:1.6rem}.bb-v2-hero-art{max-width:320px}.bb-v2-hero-frame{border-radius:20px 65px 20px 65px}.bb-v2-hero-sticker{right:0}.bb-v2-toolbar{margin-inline:12px;padding:14px}.bb-v2-product .bb-buy{padding:20px 15px}.bb-v2-product .bb-buy-row{gap:10px}.bb-v2-product .bb-add{min-width:0;flex-basis:100%;order:3}.bb-v2-product .bb-price-lg strong{font-size:1.65rem}}
 @media(prefers-reduced-motion:reduce){.bb-v2-category{transition:none}}
+
+/* =====================================================================
+   2ª rodada: nuvens e pastéis suaves. Formas generosas, claro por padrão.
+   ===================================================================== */
+.bb-root, .bb-header, .bb-footer {
+  --bb-bg: #fffaf6;
+  --bb-pink: #fde4ea;
+  --bb-mint: #daf3e8;
+  --bb-sky: #d9ecfb;
+  --bb-butter: #fff1c9;
+  --bb-radius: 28px;
+  --bb-shadow: 0 14px 34px -22px rgba(120, 80, 110, 0.4);
+}
+.bb-root { background: radial-gradient(ellipse 60% 40% at 8% 0%, #fde4ea 0, transparent 70%), radial-gradient(ellipse 50% 35% at 95% 12%, #d9ecfb 0, transparent 70%), var(--bb-bg); }
+
+/* Botões moderados e arredondados */
+.bb-btn { border-radius: 999px; min-height: 42px; padding: 0.5rem 1.3rem; font-size: 0.9rem; font-weight: 800; }
+.bb-btn-main { box-shadow: 0 6px 16px -8px var(--bb-accent); }
+
+/* Cabeçalho: sticky, logo central sobre nuvem, sem faixa de topo */
+.bb-header { background: rgba(255, 252, 250, 0.96); border-radius: 0 0 28px 28px; box-shadow: 0 10px 26px -18px rgba(120, 80, 110, 0.5); }
+.bb-nav a { border-radius: 999px; min-height: 40px; display: inline-flex; align-items: center; padding: 0 14px; }
+.bb-nav a[aria-current="page"] { background: var(--bb-pink); color: var(--bb-accent); }
+.bb-header .bb-search input { border-radius: 999px !important; }
+.bb-cart-btn { border-radius: 999px; }
+.bb-drawer { border-radius: 0 0 28px 28px; }
+
+/* Slider (split) */
+.bb-slider {
+  --hs-radius: 36px;
+  --hs-height: clamp(300px, 40vw, 440px);
+  --hs-accent: var(--bb-accent);
+  --hs-split-bg: #fde4ea;
+  width: calc(100% - 32px);
+  margin: 20px auto 0;
+}
+.bb-slider .hs-track { box-shadow: var(--bb-shadow); }
+.bb-slider .hs-copy h2 { font-family: "Playpen Sans", "Nunito", sans-serif; color: #5a3b4b; }
+.bb-slider .hs-copy p { color: #6f5662; }
+.bb-slider .hs-btn { min-height: 44px; }
+.bb-slider .hs-split .hs-img, .bb-slider.hs-split .hs-img { border-radius: 120px 0 0 120px; }
+@media (max-width: 700px) { .bb-slider.hs-split .hs-img { border-radius: var(--hs-radius); } .bb-slider.hs-split .hs-slide::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(60, 30, 45, 0.6), transparent 65%); } }
+
+/* Hero padrão: composição em nuvem */
+.bb-v2-hero { border-radius: 40px; background: linear-gradient(135deg, #fde4ea, #fff1c9 55%, #d9ecfb); max-width: 1180px; margin: 20px auto 0; width: calc(100% - 32px); padding: 2rem 1.5rem; overflow: hidden; }
+.bb-v2-hero-frame { border-radius: 50% 50% 46% 54% / 55% 45% 55% 45%; border: 8px solid #fff; background: #fff; }
+.bb-v2-hero-frame img { object-fit: cover; }
+@media (min-width: 900px) { .bb-v2-hero { padding: 3rem 3.5rem; } }
+
+/* Categorias em cartões-nuvem com a mesma altura */
+.bb-v2-category-grid { align-items: stretch; }
+.bb-v2-category { border: 3px solid #fff; border-radius: 32px; background: var(--tint, var(--bb-pink)); box-shadow: var(--bb-shadow); align-content: start; height: 100%; }
+.bb-v2-category-photo { aspect-ratio: 1; border-radius: 50%; width: 78%; margin: 4px auto 0; background: #fff; border: 4px solid #fff; }
+.bb-v2-category-photo img { object-fit: cover; }
+.bb-v2-category-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Cards de produto: imagem sempre contida num quadrado */
+.bb-card { border-radius: 28px; border: 3px solid #fff; background: #fff; box-shadow: var(--bb-shadow); padding: 0.55rem; overflow: hidden; }
+.bb-card-ribbon { display: none; }
+.bb-card-photo { aspect-ratio: 1 / 1; border-radius: 22px 22px 40px 40px; background: var(--tint, var(--bb-pink)); }
+.bb-card-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; padding: 10px; background: transparent; }
+.bb-card-body .bb-btn { min-height: 40px; }
+.bb-v2-story-content, .bb-v2-toolbar, .bb-v2-product .bb-frame, .bb-v2-product .bb-buy { border-radius: 32px; }
+
+/* Rodapé em cartões alinhados */
+.bb-footer { border-radius: 40px 40px 0 0; background: linear-gradient(180deg, #fde4ea, #fff1c9 120%); }
+.bb-foot-card { border: 3px solid #fff; border-radius: 28px; min-width: 0; }
+.bb-footer-inner { align-items: stretch; }
+
+/* Carrinho */
+.store-theme-baby .fragrance-cart-drawer { background: #fffaf6 !important; color: #513f47 !important; border: 0 !important; border-radius: 32px 0 0 32px !important; font-family: "Nunito", system-ui, sans-serif; }
+.store-theme-baby .fragrance-cart-head { background: linear-gradient(135deg, #fde4ea, #d9ecfb) !important; color: #513f47 !important; border-bottom: 0 !important; border-radius: 32px 0 0 0 !important; }
+.store-theme-baby .fragrance-cart-head * { color: inherit !important; }
+.store-theme-baby .fragrance-cart-total { background: #fff !important; color: #513f47 !important; border-top: 0 !important; border-radius: 28px 0 0 0 !important; box-shadow: 0 -10px 24px -18px rgba(120, 80, 110, 0.5); }
+.store-theme-baby .fragrance-cart-total button { min-height: 46px !important; max-height: 52px; border-radius: 999px !important; }
+@media (max-width: 520px) {
+  .store-theme-baby .fragrance-cart-drawer, .store-theme-baby .fragrance-cart-head { border-radius: 0 !important; }
+  .bb-slider, .bb-v2-hero { width: calc(100% - 24px); }
+}

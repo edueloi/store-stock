@@ -1,58 +1,137 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Menu, MessageCircle, Search, ShoppingBag, X, Zap } from "lucide-react";
-import SearchBar from "../../../../components/layout/SearchBar";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { Link } from "react-router-dom";
+import { ChevronDown, Menu, Search, ShoppingBag, X, Zap } from "lucide-react";
+import SiteFooter from "./SiteFooter";
+import { categoryImage, useHeaderState } from "./shared";
 import "./styles.css";
 
+function Brand({ onClick }: { onClick?: () => void }) {
+  const { tenant, path } = useHeaderState();
+  return (
+    <Link className="sd-brand" to={path()} aria-label={`${tenant.name} - página inicial`} onClick={onClick}>
+      {tenant.logo_url ? (
+        <img src={tenant.logo_url} alt="" />
+      ) : (
+        <span className="sd-brand-mark" aria-hidden="true">
+          <Zap size={20} fill="currentColor" />
+        </span>
+      )}
+      <span className="sd-brand-name">{tenant.name}</span>
+    </Link>
+  );
+}
+
 export function Header() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, categories, cart, openCart } = useStore();
-  const { pathname, search } = useLocation();
-  const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
-  const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const links = [{ label: "Início", to: path() }, { label: "Drops", to: path("/catalogo") }, { label: "Manifesto", to: path("/sobre") }];
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const term = query.trim();
-    navigate(path(term ? `/catalogo?q=${encodeURIComponent(term)}` : "/catalogo"));
-    setMenuOpen(false);
-  };
-  useEffect(() => setMenuOpen(false), [pathname, search]);
+  const h = useHeaderState();
+  const { path, pathname, active, used, openCart, cartCount, menu, setMenu, term, setTerm, submit } = h;
+  const [mega, setMega] = useState(false);
+  useEffect(() => setMega(false), [pathname]);
+  useEffect(() => {
+    if (!mega) return;
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setMega(false);
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [mega]);
+  const nav = [
+    { name: "Início", to: path(), on: !/catalogo|sobre|produto/.test(pathname) },
+    { name: "Drops", to: path("/catalogo"), on: /catalogo|produto/.test(pathname) },
+    { name: "Manifesto", to: path("/sobre"), on: /sobre/.test(pathname) },
+  ];
+  const count = (id: number) => active.filter((p) => p.category_id === id).length;
 
   return (
-    <header className="street-header">
-      <div className="street-strip"><div className="street-wrap"><span>DROP ATUAL · {tenant.hero_tagline || "Feito para sair do padrão."}</span>{tenant.whatsapp && <a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"><MessageCircle size={14} /> Contato</a>}</div></div>
-      <div className="street-wrap street-mainbar">
-        <button type="button" className="street-menu" aria-label={menuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button>
-        <Link to={path()} className="street-brand" aria-label={`${tenant.name} - início`}><span className="street-brand-mark"><Zap size={20} fill="currentColor" /></span><span>{tenant.name}</span></Link>
-        <form className="street-search" role="search" onSubmit={submit}><SearchBar value={query} onChange={setQuery} placeholder="Buscar peças e drops" /><button type="submit" aria-label="Buscar"><Search size={18} /><span>Buscar</span></button></form>
-        <button type="button" className="street-cart" onClick={openCart} aria-label={`Abrir sacola, ${count} ${count === 1 ? "item" : "itens"}`}><ShoppingBag size={19} /><span>Sacola</span><b>{count}</b></button>
+    <header className="sd-header">
+      {mega && <button type="button" className="sd-scrim" aria-label="Fechar categorias" onClick={() => setMega(false)} />}
+      <div className="sd-bar">
+        <button type="button" className="sd-iconbtn sd-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu(!menu)}>
+          {menu ? <X size={22} /> : <Menu size={22} />}
+        </button>
+        <Brand />
+        <nav className="sd-nav" aria-label="Principal">
+          {nav.map((l) => (
+            <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>
+              {l.name}
+            </Link>
+          ))}
+          {used.length > 0 && (
+            <button type="button" className="sd-nav-cats" aria-expanded={mega} aria-controls="sd-mega" onClick={() => setMega((v) => !v)}>
+              Categorias <ChevronDown size={16} />
+            </button>
+          )}
+        </nav>
+        <form className="sd-search" role="search" onSubmit={submit}>
+          <Search size={18} aria-hidden="true" />
+          <input type="search" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Buscar peça, cor, modelo" aria-label="Buscar produtos" />
+        </form>
+        <button type="button" className="sd-cart" aria-label={`Abrir sacola, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`} onClick={openCart}>
+          <ShoppingBag size={21} />
+          <span className="sd-cart-count">{cartCount}</span>
+        </button>
       </div>
-      <nav className={`street-nav ${menuOpen ? "is-open" : ""}`} aria-label="Navegação streetwear"><div className="street-wrap street-nav-inner">
-        {links.map((link) => <Link key={link.label} to={link.to} aria-current={pathname === link.to.split("?")[0] ? "page" : undefined}>{link.label}</Link>)}
-        <span className="street-nav-mark" aria-hidden="true">///</span>
-        {categories.slice(0, 7).map((category) => <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)}>{category.name}</Link>)}
-      </div></nav>
+
+      {mega && (
+        <div className="sd-mega" id="sd-mega">
+          <div className="sd-mega-head">
+            <strong>Escolha por categoria</strong>
+            <Link to={path("/catalogo")}>Ver todas as peças</Link>
+          </div>
+          <div className="sd-mega-grid">
+            {used.slice(0, 8).map((c) => {
+              const img = categoryImage(c, active);
+              return (
+                <Link key={c.id} className="sd-mega-item" to={path(`/catalogo?categoria=${c.id}`)}>
+                  <span className="sd-mega-img">{img && <img src={img} alt="" loading="lazy" />}</span>
+                  <span>
+                    <b>{c.name}</b>
+                    <small>{count(c.id)} peças</small>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {menu && (
+        <div className="sd-drawer" role="dialog" aria-label="Menu">
+          <button type="button" className="sd-drawer-bg" aria-label="Fechar menu" onClick={() => setMenu(false)} />
+          <div className="sd-drawer-panel">
+            <div className="sd-drawer-top">
+              <Brand onClick={() => setMenu(false)} />
+              <button type="button" className="sd-iconbtn" aria-label="Fechar menu" onClick={() => setMenu(false)}>
+                <X size={22} />
+              </button>
+            </div>
+            <form className="sd-search" role="search" onSubmit={submit}>
+              <Search size={18} aria-hidden="true" />
+              <input type="search" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Buscar peça" aria-label="Buscar produtos" />
+            </form>
+            <nav className="sd-drawer-nav" aria-label="Menu">
+              {nav.map((l) => (
+                <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>
+                  {l.name}
+                </Link>
+              ))}
+            </nav>
+            {used.length > 0 && (
+              <div className="sd-drawer-cats">
+                <p>Categorias</p>
+                <div>
+                  {used.slice(0, 12).map((c) => (
+                    <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>
+                      {c.name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }
 
 export function Footer() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, categories } = useStore();
-  const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
-  const whatsapp = tenant.whatsapp?.replace(/\D/g, "");
-  return (
-    <footer className="street-footer"><div className="street-wrap street-footer-grid">
-      <div><span className="street-footer-mark"><Zap size={16} fill="currentColor" /> STREET GOODS</span><h2>{tenant.name}</h2><p>{tenant.footer_text || tenant.about_text || "Drops independentes, atitude diária e peças selecionadas pela loja."}</p></div>
-      <div><h3>Navegue</h3><Link to={path()}>Início</Link><Link to={path("/catalogo")}>Todos os drops</Link><Link to={path("/sobre")}>Manifesto</Link></div>
-      <div><h3>Categorias</h3>{categories.slice(0, 7).map((category) => <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)}>{category.name}</Link>)}</div>
-      <div><h3>Fale com a gente</h3>{tenant.show_address && tenant.address && <p>{tenant.address}</p>}{whatsapp && <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer">WhatsApp da loja</a>}</div>
-    </div><div className="street-footer-bottom">© {new Date().getFullYear()} {tenant.name} · Powered by <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a></div></footer>
-  );
+  return <SiteFooter t="sd" tagline="Moda de rua feita para quem vive a cidade." />;
 }

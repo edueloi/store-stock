@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Gift, MessageCircle, Puzzle, ShoppingBag, Sparkles, Star } from "lucide-react";
+import HeroSlider from "../../../../components/store/HeroSlider";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { productRouteSegment } from "../../store-routing";
 import { productImage, useKit, whatsappLink } from "./kit";
@@ -31,39 +32,48 @@ export default function StoreFront() {
         siteName={tenant.name}
       />
 
-      <section className="toys-hero">
-        <Shapes />
-        <div className="toys-hero-copy">
-          <span className="toys-pill">
-            <Sparkles size={15} /> {sf.segment_label || "Mundo dos brinquedos"}
-          </span>
-          <h1>{title}</h1>
-          <p>{about}</p>
-          <div className="toys-actions">
-            <Link className="toys-btn toys-btn-yellow toys-btn-lg" to={path("/catalogo")}>
-              {sf.hero_button_label || "Ver os brinquedos"} <ArrowRight size={19} />
-            </Link>
-            {wa && (
-              <a className="toys-btn toys-btn-white toys-btn-lg" href={wa} target="_blank" rel="noreferrer">
-                <MessageCircle size={19} /> Falar com a loja
-              </a>
-            )}
-          </div>
-        </div>
-        <div className="toys-hero-art">
-          <div className="toys-polaroid">
-            <div className="toys-polaroid-img">{heroImage ? <img src={heroImage} alt={hero?.name || tenant.name} /> : <Puzzle size={84} aria-label="Sem imagem" />}</div>
-            {hero && (
-              <Link className="toys-polaroid-cap" to={path(`/produto/${productRouteSegment(hero)}`)}>
-                {hero.name}
-              </Link>
-            )}
-          </div>
-          <span className="toys-burst" aria-hidden="true">
-            <Star size={26} fill="currentColor" />
-          </span>
-        </div>
-      </section>
+      <HeroSlider
+        slides={sf.hero_slides}
+        autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+        resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+        layout="banner"
+        className="toys-slider"
+        fallback={
+              <section className="toys-hero">
+            <Shapes />
+            <div className="toys-hero-copy">
+              <span className="toys-pill">
+                <Sparkles size={15} /> {sf.segment_label || "Mundo dos brinquedos"}
+              </span>
+              <h1>{title}</h1>
+              <p>{about}</p>
+              <div className="toys-actions">
+                <Link className="toys-btn toys-btn-yellow toys-btn-lg" to={path("/catalogo")}>
+                  {sf.hero_button_label || "Ver os brinquedos"} <ArrowRight size={19} />
+                </Link>
+                {wa && (
+                  <a className="toys-btn toys-btn-white toys-btn-lg" href={wa} target="_blank" rel="noreferrer">
+                    <MessageCircle size={19} /> Falar com a loja
+                  </a>
+                )}
+              </div>
+            </div>
+            <div className="toys-hero-art">
+              <div className="toys-polaroid">
+                <div className="toys-polaroid-img">{heroImage ? <img src={heroImage} alt={hero?.name || tenant.name} /> : <Puzzle size={84} aria-label="Sem imagem" />}</div>
+                {hero && (
+                  <Link className="toys-polaroid-cap" to={path(`/produto/${productRouteSegment(hero)}`)}>
+                    {hero.name}
+                  </Link>
+                )}
+              </div>
+              <span className="toys-burst" aria-hidden="true">
+                <Star size={26} fill="currentColor" />
+              </span>
+            </div>
+          </section>
+        }
+      />
 
       {cats.length > 0 && (
         <section className="toys-section">

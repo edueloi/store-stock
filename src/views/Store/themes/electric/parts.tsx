@@ -5,6 +5,7 @@ import { useStore } from "../../StoreLayout";
 import { productRouteSegment } from "../../store-routing";
 import type { Product } from "../../../../types";
 import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { groups, imageOf, isTech, money, pricesHidden, unitPrice, useTheme } from "./lib";
 
 export function PriceBlock({ product, big = false }: { product: Product; big?: boolean }) {
@@ -80,10 +81,10 @@ export function ProductRow({ product }: { product: Product }) {
         ) : options ? (
           <Link to={to} className="ep-btn ep-btn-line">Escolher opções</Link>
         ) : (
-          <button type="button" className="ep-btn" onClick={add}>
+          <StoreButton size="sm" className="ep-btn" onClick={add}>
             {done ? <Check size={16} aria-hidden="true" /> : <ShoppingCart size={16} aria-hidden="true" />}
             {done ? "Adicionado" : "Adicionar"}
-          </button>
+          </StoreButton>
         )}
       </div>
     </article>

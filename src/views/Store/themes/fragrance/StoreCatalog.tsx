@@ -1,36 +1,68 @@
-import { Link } from "react-router-dom";
-import { ArrowRight, Search, SlidersHorizontal, X } from "lucide-react";
+import { useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useCatalog, useQuickAdd } from "./kit";
-import { FragranceEmpty, FragranceProductCard } from "./parts";
+import { StoreButton } from "../../../../components/store/StoreButton";
+import { useCatalog } from "./kit";
+import { Empty, ProductCard, SearchField } from "./parts";
 import "./styles.css";
 
 export default function StoreCatalog() {
-  const { tenant, categories, active, sf, path, q, cat, sort, setParam, clear, list, shown, more, hasMore, wishlist, toggleWishlist, hidden, openCart } = useCatalog(12);
-  const quickAdd = useQuickAdd();
-  const cats = categories.filter(c => active.some(p => p.category_id === c.id));
-  const heading = sf.catalog_title || "Descubra nossa coleção";
-  const description = sf.catalog_description || tenant.about_text || "Explore as escolhas da nossa loja e encontre seu próximo favorito.";
-  const onAdd = (product: typeof list[number]) => { const action = quickAdd(product); if (!action.soldOut && !action.hasOptions) { action.add(); openCart(); } };
-  return <main className="fragrance-page fr-modern">
-    <StoreSEO title={`${heading} | ${tenant.name}`} description={description} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
-    <section className="fr-catalog-hero"><div className="fr-container">
-      <p className="fr-overline">Coleção • {tenant.name}</p><h1>{heading}</h1><p>{description}</p>
-    </div></section>
-    <div className="fr-container fr-catalog-layout">
-      <aside className="fr-filters" aria-label="Categorias"><h2><SlidersHorizontal size={17}/> Categorias</h2>
-        <button className={!cat ? "selected" : ""} onClick={() => setParam("categoria", null)}>Todos os produtos <span>{active.length}</span></button>
-        {cats.map(c => <button key={c.id} className={cat === c.id ? "selected" : ""} onClick={() => setParam("categoria", String(c.id))}>{c.name}<span>{active.filter(p => p.category_id === c.id).length}</span></button>)}
-      </aside>
-      <section className="fr-catalog-results">
-        <div className="fr-results-heading"><div><p className="fr-overline">Sua seleção</p><h2>{cats.find(c => c.id === cat)?.name || "Todos os produtos"}</h2><p>{list.length} {list.length === 1 ? "produto encontrado" : "produtos encontrados"}</p></div>
-          <div className="fr-search-filter"><label><Search size={17}/><input type="search" aria-label="Pesquisar produtos" placeholder="Buscar produto..." value={q} onChange={e=>setParam("q", e.target.value || null)}/>{q && <button aria-label="Limpar busca" onClick={() => setParam("q", null)}><X size={17}/></button>}</label>
-          <select aria-label="Ordenar produtos" value={sort} onChange={e=>setParam("sort",e.target.value === "destaques" ? null : e.target.value)}><option value="destaques">Destaques</option>{!hidden && <><option value="menor">Menor preço</option><option value="maior">Maior preço</option></>}<option value="nome">Nome A–Z</option></select></div></div>
-        <div className="fr-mobile-cats" aria-label="Filtrar por categoria"><button className={!cat?"selected":""} onClick={()=>setParam("categoria",null)}>Todos</button>{cats.map(c=><button key={c.id} className={cat===c.id?"selected":""} onClick={()=>setParam("categoria",String(c.id))}>{c.name}</button>)}</div>
-        {shown.length ? <div className="fr-product-grid">{shown.map((product,index)=><FragranceProductCard key={product.id} product={product} index={index} category={cats.find(c=>c.id===product.category_id)?.name} path={path} saved={wishlist.includes(product.id)} onFavorite={()=>toggleWishlist(product.id)} onAdd={()=>onAdd(product)} hidePrices={hidden}/>)}</div> : <FragranceEmpty onClear={clear}/>}
-        {hasMore && <div className="fr-load-more"><button onClick={more}>Carregar mais produtos <ArrowRight size={16}/></button></div>}
-        <Link className="fr-text-link" to={path("/sobre")}>Conheça nossa loja <ArrowRight size={15}/></Link>
-      </section>
+  const c = useCatalog(12);
+  const { tenant, sf, categories, active, hidden } = c;
+  const [open, setOpen] = useState(false);
+  const title = sf.catalog_title || "Todas as fragrâncias";
+  const desc = sf.catalog_description || "Explore por família olfativa e encontre a sua assinatura.";
+  const current = categories.find((x) => x.id === c.cat);
+  const countOf = (id: number) => active.filter((p) => p.category_id === id).length;
+  return (
+    <div className="frg-page">
+      <StoreSEO title={`${current ? `${current.name} | ` : ""}${title} | ${tenant.name}`} description={desc} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+      <header className="frg-wrap frg-cat-hero">
+        <span className="frg-eyebrow">Coleção</span>
+        <h1>{current ? current.name : title}</h1>
+        <p>{desc}</p>
+      </header>
+      <div className="frg-wrap frg-cat-layout">
+        <button type="button" className="frg-filter-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          <SlidersHorizontal size={18} /> Filtros e famílias
+        </button>
+        <aside className={`frg-side ${open ? "is-open" : ""}`} aria-label="Filtros">
+          <SearchField value={c.q} onChange={(v) => c.setParam("q", v)} placeholder="Buscar fragrância" label="Buscar fragrâncias" />
+          <h2>Famílias</h2>
+          <div className="frg-side-list" role="group" aria-label="Categorias">
+            <button type="button" aria-pressed={!c.cat} onClick={() => c.setParam("categoria", null)}>Todas <small>{active.length}</small></button>
+            {categories.map((cat) => (
+              <button key={cat.id} type="button" aria-pressed={c.cat === cat.id} onClick={() => c.setParam("categoria", String(cat.id))}>{cat.name} <small>{countOf(cat.id)}</small></button>
+            ))}
+          </div>
+          <h2>Ordenar</h2>
+          <label className="frg-select">
+            <span className="frg-sr">Ordenar por</span>
+            <select value={c.sort} onChange={(e) => c.setParam("sort", e.target.value === "destaques" ? null : e.target.value)}>
+              <option value="destaques">Destaques primeiro</option>
+              <option value="nome">Nome (A a Z)</option>
+              {!hidden && <option value="menor">Menor preço</option>}
+              {!hidden && <option value="maior">Maior preço</option>}
+            </select>
+          </label>
+        </aside>
+        <div className="frg-results">
+          <p className="frg-count" role="status">{c.list.length} {c.list.length === 1 ? "fragrância encontrada" : "fragrâncias encontradas"}</p>
+          {c.list.length ? (
+            <>
+              <div className="frg-grid frg-grid-cat">{c.shown.map((p) => <ProductCard key={p.id} product={p} />)}</div>
+              {c.hasMore && (
+                <div className="frg-more">
+                  <StoreButton variant="outline" size="lg" className="frg-btn frg-btn-line frg-btn-lg" onClick={c.more}>Ver mais fragrâncias</StoreButton>
+                  <span>Mostrando {c.shown.length} de {c.list.length}</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <Empty title={active.length ? "Nada encontrado" : "Em breve por aqui"} text={active.length ? "Tente outro nome ou outra família." : "Estamos preparando a coleção."} onClear={active.length ? c.clear : undefined} />
+          )}
+        </div>
+      </div>
     </div>
-  </main>;
+  );
 }

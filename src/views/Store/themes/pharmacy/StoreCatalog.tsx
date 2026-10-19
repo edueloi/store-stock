@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Package, Search, X } from "lucide-react";
+import { Package, Search, SlidersHorizontal, X } from "lucide-react";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { normalize, pageUrl, useShop } from "./core";
 import { ProductCard, T } from "./parts";
@@ -14,6 +15,7 @@ export default function StoreCatalog() {
   const cat = params.get("cat") || "";
   const sort = params.get("sort") || "featured";
   const [shown, setShown] = useState(STEP);
+  const [filters, setFilters] = useState(false);
   useEffect(() => setShown(STEP), [q, cat, sort]);
   const update = (key: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -56,15 +58,29 @@ export default function StoreCatalog() {
             {!hidden && <option value="price_down">Maior preço</option>}
           </select>
         </label>
+        <button type="button" className="ph-filter-open" onClick={() => setFilters(true)}>
+          <SlidersHorizontal size={18} aria-hidden="true" /> Departamentos
+        </button>
       </div>
 
-      <div className="ph-wrap">
-        <div className="ph-filter-chips" role="group" aria-label="Filtrar por categoria">
-          <button type="button" aria-pressed={!cat} onClick={() => update("cat", "")}>Todos</button>
-          {categories.map((c) => (
-            <button key={c.id} type="button" aria-pressed={cat === String(c.id)} onClick={() => update("cat", String(c.id))}>{c.name}</button>
-          ))}
-        </div>
+      <div className="ph-wrap ph-shop">
+        <aside className={`ph-side ${filters ? "is-open" : ""}`} aria-label="Departamentos">
+          <button type="button" className="ph-side-scrim" aria-label="Fechar filtros" onClick={() => setFilters(false)} />
+          <div className="ph-side-panel">
+            <div className="ph-side-head">
+              <h2>Departamentos</h2>
+              <button type="button" className="ph-side-close" aria-label="Fechar filtros" onClick={() => setFilters(false)}><X size={20} /></button>
+            </div>
+            <div className="ph-filter-chips" role="group" aria-label="Filtrar por departamento">
+              <button type="button" aria-pressed={!cat} onClick={() => { update("cat", ""); setFilters(false); }}>Todos os produtos</button>
+              {categories.map((c) => (
+                <button key={c.id} type="button" aria-pressed={cat === String(c.id)} onClick={() => { update("cat", String(c.id)); setFilters(false); }}>{c.name}</button>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        <div className="ph-results">
         <p className="ph-count" role="status">{list.length} {list.length === 1 ? "produto encontrado" : "produtos encontrados"}</p>
 
         {list.length ? (
@@ -72,9 +88,9 @@ export default function StoreCatalog() {
             <div className="ph-grid">{list.slice(0, shown).map((p) => <ProductCard key={p.id} product={p} />)}</div>
             {shown < list.length && (
               <div className="ph-loadmore">
-                <button type="button" className="ph-btn ph-btn-soft" onClick={() => setShown((n) => n + STEP)}>
+                <StoreButton variant="outline" size="md" className="ph-more-btn" onClick={() => setShown((n) => n + STEP)}>
                   Ver mais produtos ({list.length - shown})
-                </button>
+                </StoreButton>
               </div>
             )}
           </>
@@ -84,10 +100,11 @@ export default function StoreCatalog() {
             <h2>{active.length ? "Nada encontrado" : "Catálogo em preparação"}</h2>
             <p>{active.length ? "Tente outro termo ou escolha outro departamento." : "Em breve, novos produtos por aqui."}</p>
             {(q || cat) && (
-              <button type="button" className="ph-btn" onClick={() => setParams(new URLSearchParams())}>Limpar filtros</button>
+              <StoreButton size="md" onClick={() => setParams(new URLSearchParams())}>Limpar filtros</StoreButton>
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   );

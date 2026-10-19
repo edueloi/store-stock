@@ -1,7 +1,51 @@
-import { Link, useParams } from "react-router-dom";
-import { Leaf, MapPin, MessageCircle, Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Clock, MapPin, MessageCircle, Sparkles, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { StoreButton } from "../../../../components/store/StoreButton";
+import { hoursLines, productImage, useKit, whatsappLink } from "./kit";
+import "./styles.css";
 
-export default function StoreAbout() { const { slug: routeSlug } = useParams(); const { tenant, products, categories } = useStore(); const slug = resolveStoreSlug(routeSlug); const path = (suffix = "") => buildStorePath(slug, suffix); const about = tenant.about_text || "Uma curadoria de beleza para deixar a sua rotina mais leve, consciente e especial."; return <main className="min-h-screen bg-white pb-16 text-[#393532]"><StoreSEO title={`Sobre | ${tenant.name}`} description={about} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name}/><section className="bg-[#3d3936] px-5 py-20 text-white"><div className="mx-auto max-w-5xl"><p className="text-[10px] font-semibold uppercase tracking-[.24em] text-[#e6c9b6]">Nossa essência</p><h1 className="mt-5 max-w-3xl text-4xl font-light leading-tight tracking-[-.05em] sm:text-6xl">Beleza que acompanha seus próprios rituais.</h1></div></section><div className="mx-auto max-w-5xl px-5 py-14 sm:px-8"><div className="grid gap-10 lg:grid-cols-[1.25fr_.75fr]"><div><p className="whitespace-pre-line text-lg font-light leading-8 text-[#514c48]">{about}</p><Link to={path("/catalogo")} className="mt-8 inline-flex border border-[#a96845] px-5 py-3 text-[10px] font-bold uppercase tracking-[.14em] text-[#8f563a]">Conhecer produtos</Link></div><div className="border-l border-[#d9cec7] pl-6"><p className="text-[10px] uppercase tracking-[.18em] text-[#9a674a]">A experiência</p><div className="mt-6 space-y-6">{[[Sparkles,"Curadoria",`${products.filter((product) => product.is_active).length} produtos online`],[Leaf,"Rotinas",`${categories.length} categorias para descobrir`],[tenant.address ? MapPin : MessageCircle, tenant.address ? "Endereço" : "Atendimento", tenant.address || "Pedidos e suporte online"]].map(([Icon, title, text]: any) => <div key={title}><Icon size={20} className="text-[#a96845]"/><p className="mt-2 font-medium">{title}</p><p className="mt-1 text-sm text-[#716963]">{text}</p></div>)}</div></div></div></div></main>; }
+export default function StoreAbout() {
+  const { tenant, active, categories, path, sf } = useKit();
+  const hours = hoursLines(tenant.business_hours);
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
+  const about = tenant.about_text || "Uma curadoria de beleza para deixar a sua rotina mais leve, consciente e especial.";
+  const photo = tenant.banner_url || productImage(active.find((p) => p.is_featured) || active[0]);
+  const policies = tenant.policies;
+  return (
+    <div className="bty-page">
+      <StoreSEO title={`${sf.about_title || "Nossa loja"} | ${tenant.name}`} description={about} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+      <header className="bty-wrap bty-about-hero">
+        <div className="bty-hero-copy">
+          <span className="bty-eyebrow">Nossa essência</span>
+          <h1>{sf.about_title || `Beleza que acompanha os seus rituais`}</h1>
+          <p className="bty-pre">{about}</p>
+          <StoreButton asChild size="lg" className="bty-btn bty-btn-lg"><Link to={path("/catalogo")}>Conhecer os produtos</Link></StoreButton>
+        </div>
+        <div className="bty-hero-art">
+          <span className="bty-arch-ring" aria-hidden="true" />
+          <div className="bty-arch is-cover">{photo ? <img src={photo} alt={tenant.name} /> : <Sparkles size={56} aria-label="Sem imagem" />}</div>
+        </div>
+      </header>
+      <section className="bty-wrap bty-section">
+        <div className="bty-stats">
+          <div><strong>{active.length}</strong><span>produtos selecionados</span></div>
+          <div><strong>{categories.length}</strong><span>categorias para explorar</span></div>
+        </div>
+      </section>
+      <section className="bty-wrap bty-info">
+        {((tenant.show_address && tenant.address) || hours.length > 0 || wa) && (
+          <article className="bty-info-card">
+            <h2>Venha nos visitar</h2>
+            {tenant.show_address && tenant.address && <p><MapPin size={17} aria-hidden="true" /> {tenant.address}</p>}
+            {wa && <p><MessageCircle size={17} aria-hidden="true" /> <a href={wa} target="_blank" rel="noreferrer">{tenant.whatsapp}</a></p>}
+            {hours.map((h) => <p key={h.day} className="bty-hour"><Clock size={15} aria-hidden="true" /> <span>{h.day}</span> {h.text}</p>)}
+          </article>
+        )}
+        {policies?.shipping && <article className="bty-info-card"><h2><Truck size={20} aria-hidden="true" /> Entrega</h2><p className="bty-pre">{policies.shipping}</p></article>}
+        {policies?.returns && <article className="bty-info-card"><h2>Trocas e devoluções</h2><p className="bty-pre">{policies.returns}</p></article>}
+        {policies?.exchange && <article className="bty-info-card"><h2>Trocas</h2><p className="bty-pre">{policies.exchange}</p></article>}
+      </section>
+    </div>
+  );
+}

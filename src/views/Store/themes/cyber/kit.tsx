@@ -140,3 +140,16 @@ export function usePurchase(product: Product | undefined) {
   };
   return { selected, choose, qty, setQty, photo, setPhoto, choices, ready, gallery, units, maximum, soldOut, canAdd, add };
 }
+
+/** Adição rápida pela vitrine: só para produtos sem opções e com saldo. */
+export function useQuickAdd() {
+  const { tenant, cart, addToCart } = useStore();
+  const tracks = storeTracksStock(tenant);
+  return (p: Product) => {
+    const hasOptions = groupsOf(p).length > 0;
+    const units = tracks ? availableUnits(p) : null;
+    const inCart = cart.filter((i) => i.id === p.id).reduce((s, i) => s + i.quantity, 0);
+    const soldOut = units !== null && units - inCart <= 0;
+    return { hasOptions, soldOut, add: () => !hasOptions && !soldOut && addToCart(p) };
+  };
+}

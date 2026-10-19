@@ -1,9 +1,147 @@
-import { Link, useParams } from "react-router-dom";
-import { ArrowRight, MessageCircle, PackageCheck, ShoppingBag, Sparkles, Store } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, MessageCircle, PackageCheck, Sparkles, Store } from "lucide-react";
+import HeroSlider from "../../../../components/store/HeroSlider";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
-import { VarietyProductCard, varietyHidePrices, varietyImage } from "./ThemeParts";
+import { StoreButton } from "../../../../components/store/StoreButton";
+import { productRouteSegment } from "../../store-routing";
+import { HeroCascade, Marquee, SnapStrip } from "./Motion";
+import { VarietyProductCard, varietyImage, useVariety } from "./ThemeParts";
+import "./styles.css";
 
-export default function StoreFront() { const { slug: routeSlug } = useParams(); const { tenant, products, categories, addToCart, wishlist, toggleWishlist } = useStore(); const slug = resolveStoreSlug(routeSlug); const path = (suffix = "") => buildStorePath(slug, suffix); const active = products.filter((item) => item.is_active); const featured = (active.filter((item) => item.is_featured).length ? active.filter((item) => item.is_featured) : active).slice(0, 8); const shownCategories = categories.filter((item) => active.some((product) => product.category_id === item.id)).slice(0, 6); const heroImage = tenant.banner_url || varietyImage(featured[0]);
-  return <main className="min-h-screen overflow-hidden bg-[#f4f8ff] text-[#142d5a]"><StoreSEO title={`${tenant.name} | Variedades`} description={tenant.about_text || `Tudo o que você procura, em um só lugar: ${tenant.name}.`} image={heroImage} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} keywords={`${tenant.name}, variedades, utilidades, presentes, ofertas`} /><section className="bg-[#ffda24] px-5 py-2 text-center text-[9px] font-black uppercase tracking-[.22em] text-[#142d5a]">Produtos para o dia a dia · compra simples e segura</section><section className="px-4 pt-4 sm:px-6"><div className="relative isolate overflow-hidden rounded-[2rem] bg-[#1761c2] px-6 py-14 md:min-h-[490px] md:px-14"><div className="absolute inset-0 opacity-55" style={heroImage ? { backgroundImage: `linear-gradient(90deg,rgba(18,67,145,.92),rgba(18,67,145,.25)),url(${heroImage})`, backgroundSize: "cover", backgroundPosition: "center" } : { background: "radial-gradient(circle at 82% 28%,#ffda24 0,transparent 20%),radial-gradient(circle at 72% 75%,#e94343 0,transparent 16%)" }}/><div className="relative z-10 max-w-xl text-white"><p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[.25em] text-[#ffdf45]"><Sparkles size={14}/> {tenant.name}</p><h1 className="mt-6 text-5xl font-black leading-[.87] tracking-[-.07em] sm:text-6xl">{tenant.hero_tagline || "Tudo o que você precisa, perto de você."}</h1><p className="mt-6 max-w-md text-sm leading-relaxed text-blue-100">{tenant.about_text || "Utilidades, presentes e achados para facilitar sua rotina."}</p><div className="mt-8 flex flex-wrap gap-3"><Link to={path("/catalogo")} className="inline-flex h-12 items-center gap-2 rounded-full bg-[#ffda24] px-5 text-[10px] font-black uppercase tracking-[.15em] text-[#142d5a]"><ShoppingBag size={15}/> Ver produtos <ArrowRight size={15}/></Link>{tenant.whatsapp && <a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="inline-flex h-12 items-center gap-2 rounded-full border border-white/35 px-5 text-[10px] font-black uppercase tracking-[.15em]"><MessageCircle size={15}/> Atendimento</a>}</div></div></div></section><section className="mx-auto max-w-7xl px-5 py-14"><div className="flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#1761c2]">Compre por seção</p><h2 className="mt-2 text-3xl font-black tracking-[-.05em]">Tudo organizado para você.</h2></div><Link to={path("/catalogo")} className="text-[10px] font-black uppercase tracking-wider text-[#1761c2]">Ver catálogo</Link></div><div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{shownCategories.map((category, index) => { const sample = active.find((product) => product.category_id === category.id); const image = sample && varietyImage(sample); const colors = ["bg-[#dceaff]", "bg-[#fff0b5]", "bg-[#ffe1e1]", "bg-[#dcf7ed]", "bg-[#e9ddff]", "bg-[#ffe6c8]"]; return <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)} className={`group relative min-h-36 overflow-hidden rounded-2xl p-5 ${colors[index % colors.length]}`}>{image && <img src={image} alt="" className="absolute right-3 top-0 h-full w-1/2 object-contain transition group-hover:scale-110"/>}<div className="relative z-10 flex h-full flex-col justify-between"><Store size={20} className="text-[#1761c2]"/><strong className="max-w-[10rem] text-lg leading-tight text-[#142d5a]">{category.name}</strong></div></Link>; })}</div></section><section className="bg-white py-14"><div className="mx-auto max-w-7xl px-5"><div className="flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#e94343]">Destaques</p><h2 className="mt-2 text-3xl font-black tracking-[-.05em]">Achados da loja.</h2></div><Link to={path("/catalogo")} className="text-[10px] font-black uppercase tracking-wider text-[#1761c2]">Ver todos</Link></div><div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{featured.slice(0, 4).map((product) => <VarietyProductCard key={product.id} product={product} path={path} category={categories.find((category) => category.id === product.category_id)?.name} saved={wishlist.includes(product.id)} onFavorite={() => toggleWishlist(product.id)} onAdd={() => addToCart(product)} hidePrices={varietyHidePrices(tenant)}/>)}</div></div></section><section className="mx-auto grid max-w-7xl gap-3 px-5 py-14 sm:grid-cols-3">{[[PackageCheck,"Pedido online","Envie sua compra para a loja confirmar."],[Store,"Catálogo sempre atualizado","Produtos e estoque da sua loja."],[MessageCircle,"Atendimento rápido","Fale direto pelo WhatsApp."]].map(([Icon,title,text]: any) => <div key={title} className="rounded-2xl bg-[#dceaff] p-6"><Icon size={21} className="text-[#1761c2]"/><p className="mt-4 font-black text-[#142d5a]">{title}</p><p className="mt-1 text-sm text-[#506b92]">{text}</p></div>)}</section></main>; }
+const BENEFITS = [
+  { icon: PackageCheck, title: "Pedido online", text: "Monte o pedido e a loja confirma com você." },
+  { icon: Store, title: "Catálogo atualizado", text: "Produtos e estoque sempre em dia." },
+  { icon: MessageCircle, title: "Atendimento rápido", text: "Tire dúvidas direto pelo WhatsApp." },
+];
+
+export default function StoreFront() {
+  const { tenant, active, usedCategories, path, sf, whatsapp } = useVariety();
+  const featuredAll = active.filter((p) => p.is_featured);
+  const featured = (featuredAll.length ? featuredAll : active).slice(0, tenant.featured_limit || 8);
+  const showcase = featured.slice(0, 2);
+  const sections = usedCategories.slice(0, 3).map((c) => ({ c, items: active.filter((p) => p.category_id === c.id) }));
+  const heroImage = tenant.banner_url || varietyImage(featured[0]);
+
+  return (
+    <main className="variety-page">
+      <StoreSEO
+        title={`${tenant.name} | Variedades`}
+        description={tenant.about_text || `Tudo o que você procura, em um só lugar: ${tenant.name}.`}
+        image={heroImage || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+        keywords={`${tenant.name}, variedades, utilidades, presentes, ofertas`}
+      />
+
+      <div className="variety-wrap variety-hero-wrap">
+        <HeroSlider
+          slides={sf.hero_slides}
+          autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+          resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+          layout="banner"
+          className="variety-slider"
+          fallback={
+            <HeroCascade className="variety-hero">
+              <div className="variety-hero-main">
+                <span className="variety-kicker"><Sparkles size={14} /> {sf.segment_label || tenant.name}</span>
+                <h1>{tenant.hero_tagline || "Tudo o que você precisa, perto de você."}</h1>
+                <p>{tenant.about_text || "Utilidades, presentes e achados para facilitar sua rotina."}</p>
+                <div className="variety-hero-actions">
+                  <StoreButton asChild className="variety-btn-yellow">
+                    <Link to={path("/catalogo")}>{sf.hero_button_label || "Ver produtos"} <ArrowRight size={16} /></Link>
+                  </StoreButton>
+                  {whatsapp && (
+                    <StoreButton asChild variant="ghost" className="variety-btn-ghost">
+                      <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer"><MessageCircle size={16} /> Atendimento</a>
+                    </StoreButton>
+                  )}
+                </div>
+              </div>
+              {showcase.map((p, i) => (
+                <Link key={p.id} to={path(`/produto/${productRouteSegment(p)}`)} className={`variety-hero-tile variety-hero-tile-${i}`}>
+                  <span className="variety-hero-tile-img">
+                    {varietyImage(p) ? <img src={varietyImage(p)!} alt="" loading="lazy" /> : <Store size={36} aria-hidden="true" />}
+                  </span>
+                  <strong>{p.name}</strong>
+                </Link>
+              ))}
+            </HeroCascade>
+          }
+        />
+      </div>
+
+      <div className="variety-wrap">
+        <Marquee items={["Compra simples e segura", "Pedido direto com a loja", "Ofertas toda semana", "Atendimento pelo WhatsApp"]} />
+      </div>
+
+      <div className="variety-wrap variety-benefits">
+        {BENEFITS.map(({ icon: Icon, title, text }) => (
+          <div key={title} className="variety-benefit">
+            <span><Icon size={20} aria-hidden="true" /></span>
+            <div>
+              <strong>{title}</strong>
+              <p>{text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {usedCategories.length > 0 && (
+        <section className="variety-wrap variety-block" aria-labelledby="variety-cats">
+          <div className="variety-panel">
+            <header className="variety-head">
+              <div>
+                <span className="variety-eyebrow">Compre por seção</span>
+                <h2 id="variety-cats">{sf.home_categories_title || "Tudo organizado para você"}</h2>
+              </div>
+              <Link to={path("/catalogo")} className="variety-link">Ver catálogo <ArrowRight size={15} /></Link>
+            </header>
+            <SnapStrip label="Seções">
+              {usedCategories.map((c, i) => {
+                const sample = active.find((p) => p.category_id === c.id);
+                const img = c.cover_url || varietyImage(sample);
+                return (
+                  <Link key={c.id} role="listitem" to={path(`/catalogo?cat=${c.id}`)} className={`variety-cat variety-c${i % 6}`}>
+                    <span className="variety-cat-img">{img ? <img src={img} alt="" loading="lazy" /> : <Store size={30} aria-hidden="true" />}</span>
+                    <strong>{c.name}</strong>
+                  </Link>
+                );
+              })}
+            </SnapStrip>
+          </div>
+        </section>
+      )}
+
+      <section className="variety-wrap variety-block" aria-labelledby="variety-feat">
+        <header className="variety-head">
+          <div>
+            <span className="variety-eyebrow variety-eyebrow-red">Destaques</span>
+            <h2 id="variety-feat">{sf.home_featured_title || "Achados da loja"}</h2>
+          </div>
+          <Link to={path("/catalogo")} className="variety-link">Ver todos <ArrowRight size={15} /></Link>
+        </header>
+        {featured.length ? (
+          <div className="variety-grid">
+            {featured.map((p) => <VarietyProductCard key={p.id} product={p} />)}
+          </div>
+        ) : (
+          <p className="variety-note">Os produtos estão sendo cadastrados. Volte em breve!</p>
+        )}
+      </section>
+
+      {sections.map(({ c, items }, i) => (
+        <section key={c.id} className="variety-wrap variety-block">
+          <div className={`variety-panel variety-shelf variety-c${(i + 1) % 6}`}>
+            <header className="variety-head">
+              <h2>{c.name}</h2>
+              <Link to={path(`/catalogo?cat=${c.id}`)} className="variety-link">Ver tudo <ArrowRight size={15} /></Link>
+            </header>
+            <div className="variety-grid variety-grid-4">
+              {items.slice(0, 4).map((p) => <VarietyProductCard key={p.id} product={p} />)}
+            </div>
+          </div>
+        </section>
+      ))}
+    </main>
+  );
+}

@@ -1,37 +1,185 @@
-import { Link, useParams } from "react-router-dom";
-import { ArrowRight, CakeSlice, Heart, ShoppingBag } from "lucide-react";
+import { useRef } from "react";
+import { Link } from "react-router-dom";
+import { ArrowLeft, ArrowRight, BadgeCheck, CakeSlice, Cookie, Gift, Heart, MessageCircle, Sparkles, Truck } from "lucide-react";
+import { scrollByCard, useHeroMotion } from "./motion";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath, productRouteSegment, resolveStoreSlug } from "../../store-routing";
-
-const imageOf = (product: { image_url?: string | null; images?: unknown }) =>
-  (Array.isArray(product.images) && typeof product.images[0] === "string" ? product.images[0] : product.image_url) || null;
-const money = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+import HeroSlider from "../../../../components/store/HeroSlider";
+import { productRouteSegment } from "../../store-routing";
+import { productImage, useKit, whatsappLink } from "./kit";
+import { CategoryImage, ProductCard } from "./parts";
+import "./styles.css";
 
 export default function StoreFront() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, products, categories, addToCart } = useStore();
-  const slug = resolveStoreSlug(routeSlug);
-  const path = (suffix = "") => buildStorePath(slug, suffix);
-  const active = products.filter((product) => product.is_active);
-  const featured = (active.filter((product) => product.is_featured).length ? active.filter((product) => product.is_featured) : active).slice(0, 8);
-  const heroProducts = featured.filter((product) => imageOf(product)).slice(0, 2);
-  const isMadeToOrder = tenant.policies?.storefront?.checkout_mode === "order_request";
-  const hidePrices = isMadeToOrder || tenant.policies?.storefront?.hide_prices === true;
+  const { tenant, categories, active, path, sf } = useKit();
+  const featured = [...active.filter((p) => p.is_featured), ...active.filter((p) => !p.is_featured)].slice(0, tenant.featured_limit || 8);
+  const withPhoto = featured.filter((p) => productImage(p));
+  const hero = withPhoto[0] || featured[0];
+  const heroImage = tenant.banner_url || productImage(hero);
+  const mini = withPhoto.slice(1, 3);
+  const cats = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 14);
+  const title = tenant.hero_tagline || "Doces que abraçam o coração";
+  const about = tenant.about_text || "Confeitaria artesanal feita com ingredientes selecionados, muito açúcar de carinho e capricho em cada detalhe.";
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Quero fazer uma encomenda na ${tenant.name}.`);
+  const steps = [
+    { icon: Cookie, title: "Escolha os doces", text: "Passeie pelo cardápio e separe seus favoritos." },
+    { icon: Gift, title: "Monte o pedido", text: "Adicione à sacola e conte os detalhes da encomenda." },
+    { icon: Sparkles, title: "Combine a entrega", text: "A confeitaria confirma data, retirada e pagamento." },
+  ];
 
-  return <main className="min-h-screen bg-[#f7f6ed] text-[#59451f]">
-    <StoreSEO title={`${tenant.name} | Doces caseiros`} description={tenant.about_text || `${tenant.name}: doces caseiros feitos com carinho.`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} keywords={`${tenant.name}, doces caseiros, encomendas, Tatuí`} />
+  const heroRef = useRef<HTMLElement>(null);
+  useHeroMotion(heroRef);
+  const catsRef = useRef<HTMLDivElement>(null);
+  const trust = [
+    { icon: Heart, text: "Feito à mão, com carinho" },
+    { icon: Truck, text: "Entrega e retirada combinadas" },
+    { icon: BadgeCheck, text: "Ingredientes selecionados" },
+    { icon: Gift, text: "Embalagem para presente" },
+  ];
 
-    <section className="border-b border-[#e5d9c1] bg-[#f7f6ed]">
-      <div className="bg-[#bd3437] text-[#fff7e6]"><div className="mx-auto flex max-w-[1280px] items-center gap-6 px-5 py-4 md:px-8"><p className="text-[11px] font-bold uppercase tracking-[.35em]">Moça Reis Doces Caseiros</p><span className="h-px flex-1 bg-[#f2dfaa]/80" /></div></div>
-      <div className="mx-auto grid max-w-[1280px] items-center gap-10 px-5 py-12 md:px-8 lg:grid-cols-[.9fr_1.1fr]">
-        <div className="max-w-xl"><p className="text-[10px] font-extrabold uppercase tracking-[.22em] text-[#bd3437]">Tradicional de Tatuí</p><h1 className="mt-3 text-4xl font-extrabold leading-[1.04] tracking-[-.05em] text-[#70541c] sm:text-5xl">O melhor do<br />doce caseiro.</h1><p className="mt-5 max-w-md text-[15px] leading-relaxed text-[#765e33]">Produtos artesanais feitos com ingredientes selecionados, produção própria e aquele gostinho que acompanha gerações.</p><div className="mt-7 flex flex-wrap gap-3"><Link to={path("/catalogo")} className="inline-flex h-11 items-center gap-2 rounded-md bg-[#bd3437] px-5 text-[10px] font-extrabold uppercase tracking-[.14em] text-white transition hover:bg-[#9f292d]"><ShoppingBag size={15} /> Ver catálogo <ArrowRight size={14} /></Link><a href="#destaques" className="inline-flex h-11 items-center gap-2 rounded-md border border-[#bd3437] bg-transparent px-5 text-[10px] font-extrabold uppercase tracking-[.14em] text-[#bd3437] transition hover:bg-white">Produtos em destaque</a></div><p className="mt-7 text-[11px] font-semibold text-[#765e33]"><span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#bd3437]" /> Pedidos por encomenda · Atendimento personalizado</p></div>
-        <div className="grid grid-cols-2 gap-4 border border-[#e5d9c1] bg-white p-4 shadow-[0_18px_45px_rgba(94,69,31,.08)]">{heroProducts.length ? heroProducts.map((product) => <div key={product.id} className="grid h-72 place-items-center overflow-hidden bg-[#f7f6ed] p-3 sm:h-80"><img src={imageOf(product)!} alt={product.name} className="block h-full w-full object-contain" /></div>) : <div className="col-span-2 grid h-72 place-items-center bg-[#f7f6ed] text-center text-[#bd3437]"><CakeSlice size={42} /><p className="mt-3 text-sm font-bold">Adicione as fotos dos produtos para completar a vitrine.</p></div>}</div>
+  const fallback = (
+    <section className="dc-hero" ref={heroRef}>
+      <div className="dc-hero-copy">
+        <span className="dc-kicker" data-hero>
+          <Sparkles size={15} aria-hidden="true" /> {sf.segment_label || "Confeitaria artesanal"}
+        </span>
+        <h1 data-hero>{title}</h1>
+        <p data-hero>{about}</p>
+        <div className="dc-actions" data-hero>
+          <Link className="dc-btn dc-btn-lg" to={path("/catalogo")}>
+            {sf.hero_button_label || "Ver o cardápio"} <ArrowRight size={19} />
+          </Link>
+          {wa && (
+            <a className="dc-btn dc-btn-soft dc-btn-lg" href={wa} target="_blank" rel="noreferrer">
+              <MessageCircle size={19} /> Fazer encomenda
+            </a>
+          )}
+        </div>
+      </div>
+      <div className="dc-hero-art">
+        <div className="dc-blob">{heroImage ? <img data-parallax src={heroImage} alt={hero?.name || tenant.name} /> : <CakeSlice size={96} aria-label="Sem imagem" />}</div>
+        {mini.map((p, i) => (
+          <Link key={p.id} className={`dc-mini dc-mini-${i}`} to={path(`/produto/${productRouteSegment(p)}`)} aria-label={p.name}>
+            <img src={productImage(p)} alt="" loading="lazy" />
+          </Link>
+        ))}
+        <span className="dc-sticker" aria-hidden="true">
+          feito
+          <br />à mão
+        </span>
       </div>
     </section>
+  );
 
-    <section className="mx-auto max-w-[1280px] px-5 py-12 md:px-8"><div className="flex items-end justify-between gap-4"><div><p className="text-[10px] font-extrabold uppercase tracking-[.22em] text-[#bd3437]">Catálogo de produtos</p><h2 className="mt-2 text-3xl font-extrabold tracking-[-.04em] text-[#70541c] sm:text-4xl">Encontre o seu doce favorito.</h2></div><Link to={path("/catalogo")} className="hidden items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-[#bd3437] sm:inline-flex">Ver catálogo <ArrowRight size={14} /></Link></div><div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{categories.slice(0, 4).map((category) => { const sample = active.find((product) => product.category_id === category.id); const image = sample ? imageOf(sample) : null; return <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)} className="group border border-[#e5d9c1] bg-white p-3 transition hover:border-[#bd3437]"><div className="grid h-40 place-items-center overflow-hidden bg-[#f7f6ed] p-3">{image ? <img src={image} alt={category.name} className="block h-full w-full object-contain transition group-hover:scale-[1.03]" /> : <CakeSlice size={32} className="text-[#d9bd7d]" />}</div><div className="px-1 pb-1 pt-4"><p className="text-[9px] font-extrabold uppercase tracking-[.18em] text-[#bd3437]">Linha de produtos</p><p className="mt-1 text-[15px] font-extrabold leading-snug text-[#70541c]">{category.name}</p><span className="mt-3 inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-[#bd3437]">Ver opções <ArrowRight size={12} /></span></div></Link>; })}</div></section>
+  return (
+    <div className="dc-page dc-home">
+      <StoreSEO
+        title={`${tenant.name} | Confeitaria`}
+        description={about}
+        image={heroImage || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
 
-    <section id="destaques" className="border-y border-[#e5d9c1] bg-white"><div className="mx-auto max-w-[1280px] px-5 py-12 md:px-8"><div className="flex items-end justify-between gap-4"><div><p className="text-[10px] font-extrabold uppercase tracking-[.22em] text-[#bd3437]">Mais pedidos</p><h2 className="mt-2 text-3xl font-extrabold tracking-[-.04em] text-[#70541c] sm:text-4xl">Produtos em destaque.</h2></div><Link to={path("/catalogo")} className="hidden items-center gap-1 text-[10px] font-extrabold uppercase tracking-wider text-[#bd3437] sm:inline-flex">Ver todos <ArrowRight size={14} /></Link></div><div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{featured.map((product) => <article key={product.id} className="overflow-hidden border border-[#e5d9c1] bg-[#fffef9] p-3"><Link to={path(`/produto/${productRouteSegment(product)}`)} className="grid h-52 place-items-center overflow-hidden bg-[#f7f6ed] p-3">{imageOf(product) ? <img src={imageOf(product)!} alt={product.name} className="block h-full w-full object-contain" /> : <CakeSlice size={36} className="text-[#d9bd7d]" />}</Link><div className="px-1 pb-1 pt-3"><p className="text-[9px] font-extrabold uppercase tracking-[.16em] text-[#bd3437]">{product.category_name || "Doceria"}</p><div className="mt-1 flex items-start justify-between gap-2"><Link to={path(`/produto/${productRouteSegment(product)}`)} className="text-[15px] font-extrabold leading-snug text-[#70541c]">{product.name}</Link><Heart size={16} className="shrink-0 text-[#bd3437]" /></div><div className="mt-3 flex items-center justify-between gap-2"><span className="text-[10px] font-extrabold uppercase tracking-wide text-[#bd3437]">{hidePrices ? "Sob encomenda" : money(Number(product.discount_price || product.price))}</span><button onClick={() => addToCart(product)} className="rounded-md bg-[#bd3437] px-3 py-2 text-[9px] font-extrabold uppercase tracking-wider text-white transition hover:bg-[#9f292d]">Adicionar</button></div></div></article>)}</div></div></section>
-  </main>;
+      <HeroSlider
+        slides={sf.hero_slides}
+        autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+        resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+        layout="banner"
+        className="dc-slider"
+        fallback={fallback}
+      />
+
+      <ul className="dc-trust" aria-label="Diferenciais">
+        {trust.map(({ icon: Icon, text }) => (
+          <li key={text}>
+            <Icon size={18} aria-hidden="true" /> {text}
+          </li>
+        ))}
+      </ul>
+
+      {cats.length > 0 && (
+        <section className="dc-section">
+          <header className="dc-head">
+            <span className="dc-kicker">Sabores</span>
+            <h2>{sf.home_categories_title || "Qual é o doce de hoje?"}</h2>
+          </header>
+          {cats.length > 5 && (
+            <div className="dc-arrows">
+              <button type="button" aria-label="Categorias anteriores" onClick={() => scrollByCard(catsRef.current, -1)}>
+                <ArrowLeft size={18} />
+              </button>
+              <button type="button" aria-label="Próximas categorias" onClick={() => scrollByCard(catsRef.current, 1)}>
+                <ArrowRight size={18} />
+              </button>
+            </div>
+          )}
+          <div className="dc-cats" data-no-fx ref={catsRef}>
+            {cats.map((c) => {
+              const sample = active.find((p) => p.category_id === c.id);
+              return (
+                <Link key={c.id} className="dc-cat" to={path(`/catalogo?categoria=${c.id}`)}>
+                  <CategoryImage src={c.cover_url || productImage(sample)} />
+                  <strong>{c.name}</strong>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="dc-section">
+        <header className="dc-head dc-head-row">
+          <div>
+            <span className="dc-kicker">Vitrine</span>
+            <h2>{sf.home_featured_title || "Fresquinhos da vitrine"}</h2>
+          </div>
+          <Link className="dc-btn dc-btn-soft" to={path("/catalogo")}>
+            Ver tudo <ArrowRight size={17} />
+          </Link>
+        </header>
+        {featured.length ? (
+          <div className="dc-grid">
+            {featured.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        ) : (
+          <p className="dc-note">Os doces estão no forno. Volte em breve!</p>
+        )}
+      </section>
+
+      <section className="dc-section">
+        <div className="dc-order">
+          <header className="dc-head">
+            <span className="dc-kicker">Encomendas</span>
+            <h2>Do pedido à mesa, sem complicação</h2>
+          </header>
+          <ol className="dc-steps">
+            {steps.map(({ icon: Icon, title: t, text }, i) => (
+              <li key={t}>
+                <span className="dc-step-icon">
+                  <Icon size={26} aria-hidden="true" />
+                </span>
+                <h3>
+                  {i + 1}. {t}
+                </h3>
+                <p>{text}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="dc-actions dc-actions-center">
+            {wa ? (
+              <a className="dc-btn dc-btn-lg" href={wa} target="_blank" rel="noreferrer">
+                <MessageCircle size={19} /> Chamar no WhatsApp
+              </a>
+            ) : (
+              <Link className="dc-btn dc-btn-lg" to={path("/catalogo")}>
+                Ver o cardápio <ArrowRight size={19} />
+              </Link>
+            )}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }

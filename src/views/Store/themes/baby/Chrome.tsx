@@ -3,12 +3,11 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Facebook, Instagram, Menu, MessageCircle, ShoppingBag, X } from "lucide-react";
 import SearchBar from "../../../../components/layout/SearchBar";
 import { hoursLines, useKit, whatsappLink } from "./kit";
-import { Balloon, Cloud, Star, Wave } from "./parts";
+import { Balloon, Cloud, Wave } from "./parts";
 import "./styles.css";
-import "./reference.css";
 
 export function Header() {
-  const { tenant, categories, openCart, cartCount, path, sf, active } = useKit();
+  const { tenant, categories, openCart, cartCount, path, active } = useKit();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [menu, setMenu] = useState(false);
@@ -26,11 +25,6 @@ export function Header() {
   };
   return (
     <header className="bb-header">
-      <div className="bb-topstrip">
-        <Star className="bb-strip-star" />
-        <span>{sf.segment_label || "Bebês & Enxoval"}</span>
-        <Star className="bb-strip-star" />
-      </div>
       <div className="bb-header-main">
         <button className="bb-icon-btn bb-menu-btn" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
           {menu ? <X size={22} /> : <Menu size={22} />}

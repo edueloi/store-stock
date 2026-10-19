@@ -1,50 +1,56 @@
 import { Link } from "react-router-dom";
-import { Cpu, Heart } from "lucide-react";
+import { Heart, Package, ShoppingCart } from "lucide-react";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { productRouteSegment } from "../../store-routing";
 import type { Product } from "../../../../types";
-import { hasDiscount, imageOf, money, pad, priceOf, useShop } from "./kit";
+import { hasDiscount, imageOf, money, priceOf, useQuickAdd, useShop } from "./kit";
 import "./styles.css";
 
 export function PriceTag({ product, big = false }: { product: Product; big?: boolean }) {
   const { hidden } = useShop();
+  const cls = big ? "cy-big-price" : "cy-price";
   if (hidden)
-    return big ? (
-      <div className="cy-big-price"><strong>Sob consulta</strong></div>
-    ) : (
-      <div className="cy-price"><em>Sob consulta</em></div>
+    return (
+      <div className={cls}>
+        {big ? <strong>Sob consulta</strong> : <em>Sob consulta</em>}
+      </div>
     );
-  const old = hasDiscount(product) ? <s>{money(Number(product.price))}</s> : null;
-  return big ? (
-    <div className="cy-big-price"><strong>{money(priceOf(product))}</strong>{old}</div>
-  ) : (
-    <div className="cy-price"><strong>{money(priceOf(product))}</strong>{old}</div>
+  return (
+    <div className={cls}>
+      <strong>{money(priceOf(product))}</strong>
+      {hasDiscount(product) && <s>{money(Number(product.price))}</s>}
+    </div>
   );
 }
 
 export function Empty({ title, text }: { title: string; text: string }) {
   return (
     <div className="cy-empty" role="status">
-      <strong>{`> ${title}`}</strong>
+      <strong>{title}</strong>
       <span>{text}</span>
     </div>
   );
 }
 
-/** Cartão de circuito: pinos no topo, imagem, nome e preço. */
-export function CircuitCard({ product, index }: { product: Product; index: number }) {
-  const { path, categories, wishlist, toggleWishlist } = useShop();
+/** Cartão escuro e arredondado: imagem em quadrado fixo, brilho neon no hover. */
+export function NeonCard({ product }: { product: Product }) {
+  const { path, categories, wishlist, toggleWishlist, hidden } = useShop();
+  const quick = useQuickAdd()(product);
   const faved = wishlist.includes(product.id);
-  const cat = categories.find((c) => c.id === product.category_id)?.name || "Módulo geral";
+  const cat = categories.find((c) => c.id === product.category_id)?.name;
   const img = imageOf(product);
+  const href = path(`/produto/${productRouteSegment(product)}`);
   return (
     <article className="cy-card">
-      <div className="cy-card-pins" aria-hidden="true">
-        <span>ID·{pad(index + 1)}</span>
-        <b>{product.sku ? `REF ${product.sku}` : "●●●"}</b>
-      </div>
       <div className="cy-card-media">
-        {img ? <img src={img} alt={product.name} loading="lazy" /> : <Cpu className="ph" size={54} aria-label="Produto sem imagem" />}
-        {hasDiscount(product) ? <span className="cy-flag">Oferta</span> : product.is_featured ? <span className="cy-flag">Destaque</span> : null}
+        {img ? <img src={img} alt={product.name} loading="lazy" /> : <Package className="ph" size={46} aria-label="Produto sem imagem" />}
+        {quick.soldOut ? (
+          <span className="cy-flag off">Esgotado</span>
+        ) : hasDiscount(product) ? (
+          <span className="cy-flag hot">Oferta</span>
+        ) : product.is_featured ? (
+          <span className="cy-flag">Destaque</span>
+        ) : null}
       </div>
       <button
         type="button"
@@ -56,11 +62,18 @@ export function CircuitCard({ product, index }: { product: Product; index: numbe
         <Heart size={18} fill={faved ? "currentColor" : "none"} />
       </button>
       <div className="cy-card-body">
-        <span className="cy-card-cat">{cat}</span>
-        <Link className="cy-card-name" to={path(`/produto/${productRouteSegment(product)}`)}>
-          {product.name}
-        </Link>
+        {cat && <span className="cy-card-cat">{cat}</span>}
+        <Link className="cy-card-name" to={href}>{product.name}</Link>
         <PriceTag product={product} />
+        {quick.hasOptions || quick.soldOut ? (
+          <StoreButton asChild variant="outline" size="sm" className="cy-card-btn">
+            <Link to={href}>{quick.soldOut ? "Ver produto" : "Escolher opções"}</Link>
+          </StoreButton>
+        ) : (
+          <StoreButton size="sm" className="cy-card-btn is-main" onClick={quick.add}>
+            <ShoppingCart size={16} /> {hidden ? "Incluir no pedido" : "Adicionar"}
+          </StoreButton>
+        )}
       </div>
     </article>
   );

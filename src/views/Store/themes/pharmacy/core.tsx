@@ -49,6 +49,7 @@ export function priceOf(product: Product, hidden: boolean) {
     now: hidden ? "Sob consulta" : money(Number(product.discount_price ?? product.price)),
     old: !hidden && hasDiscount ? money(Number(product.price)) : "",
     saving: !hidden && hasDiscount ? money(Number(product.price) - Number(product.discount_price)) : "",
+    pct: !hidden && hasDiscount && Number(product.price) > 0 ? Math.round((1 - Number(product.discount_price) / Number(product.price)) * 100) : 0,
   };
 }
 

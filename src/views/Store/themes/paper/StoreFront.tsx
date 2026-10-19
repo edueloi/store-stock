@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, MessageCircle, Scissors, Star } from "lucide-react";
+import HeroSlider from "../../../../components/store/HeroSlider";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import Card from "./Card";
 import { useKit } from "./kit";
@@ -17,24 +18,33 @@ export default function StoreFront() {
     <main className="pp-page">
       <StoreSEO title={`${tenant.name} — Papelaria criativa`} description={tenant.hero_tagline || tenant.about_text || `Catálogo de ${tenant.name}`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
 
-      <section className="pp-hero">
-        <div className="pp-hero-copy">
-          <span className="pp-label pp-rot-l"><Star size={14} aria-hidden="true" /> página 1</span>
-          <h1>{title}</h1>
-          <p>{tenant.about_text ? tenant.about_text.slice(0, 150) : "Cadernos, canetas, papéis e impressos para organizar a rotina e dar vida às suas ideias."}</p>
-          <div className="pp-actions">
-            <Link className="pp-btn" to={path("/catalogo")}>{sf.hero_button_label || "Abrir o catálogo"} <ArrowRight size={16} aria-hidden="true" /></Link>
-            {tenant.whatsapp && <a className="pp-btn pp-btn-ghost" href={waLink("Olá! Quero fazer um pedido personalizado.")} target="_blank" rel="noreferrer"><MessageCircle size={16} aria-hidden="true" /> Pedido personalizado</a>}
+      <HeroSlider
+        slides={sf.hero_slides}
+        autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+        resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+        layout="banner"
+        className="pp-slider"
+        fallback={
+        <section className="pp-hero">
+          <div className="pp-hero-copy">
+            <span className="pp-label pp-rot-l"><Star size={14} aria-hidden="true" /> página 1</span>
+            <h1>{title}</h1>
+            <p>{tenant.about_text ? tenant.about_text.slice(0, 150) : "Cadernos, canetas, papéis e impressos para organizar a rotina e dar vida às suas ideias."}</p>
+            <div className="pp-actions">
+              <Link className="pp-btn" to={path("/catalogo")}>{sf.hero_button_label || "Abrir o catálogo"} <ArrowRight size={16} aria-hidden="true" /></Link>
+              {tenant.whatsapp && <a className="pp-btn pp-btn-ghost" href={waLink("Olá! Quero fazer um pedido personalizado.")} target="_blank" rel="noreferrer"><MessageCircle size={16} aria-hidden="true" /> Pedido personalizado</a>}
+            </div>
           </div>
-        </div>
-        <div className="pp-hero-art">
-          <div className="pp-polaroid">
-            {tenant.banner_url ? <img src={tenant.banner_url} alt={tenant.name} /> : <div className="pp-doodle" aria-hidden="true"><span className="pp-d-pencil" /><span className="pp-d-circle" /><span className="pp-d-star">★</span></div>}
-            <p>{tenant.name}</p>
+          <div className="pp-hero-art">
+            <div className="pp-polaroid">
+              {tenant.banner_url ? <img src={tenant.banner_url} alt={tenant.name} /> : <div className="pp-doodle" aria-hidden="true"><span className="pp-d-pencil" /><span className="pp-d-circle" /><span className="pp-d-star">★</span></div>}
+              <p>{tenant.name}</p>
+            </div>
+            <span className="pp-sticker pp-sticker-big pp-rot-r">feito com carinho</span>
           </div>
-          <span className="pp-sticker pp-sticker-big pp-rot-r">feito com carinho</span>
-        </div>
-      </section>
+        </section>
+        }
+      />
 
       {categories.length > 0 && (
         <section className="pp-section">

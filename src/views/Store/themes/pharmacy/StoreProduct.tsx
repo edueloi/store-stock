@@ -1,5 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { ChevronRight, Heart, MessageCircle, Minus, Package, Plus, Share2, ShoppingBag } from "lucide-react";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import StockAvailability from "../../../../components/store/StockAvailability";
 import { parseProductIdFromRoute } from "../../store-routing";
@@ -18,7 +19,7 @@ export default function StoreProduct() {
         <div className="ph-wrap ph-emptybox">
           <Package size={42} aria-hidden="true" />
           <h1>Produto não encontrado</h1>
-          <Link className="ph-btn" to={path("/catalogo")}>Voltar ao catálogo</Link>
+          <StoreButton asChild size="md"><Link to={path("/catalogo")}>Voltar ao catálogo</Link></StoreButton>
         </div>
       </div>
     );
@@ -57,7 +58,7 @@ export default function StoreProduct() {
             )}
             <div className="ph-stage">
               {buy.gallery.length ? <img src={buy.gallery[buy.photo] || buy.gallery[0]} alt={product.name} /> : <Package size={64} aria-hidden="true" />}
-              {price.old && <span className="ph-flag">Oferta</span>}
+              {price.old && <span className="ph-flag">{price.pct ? `-${price.pct}%` : "Oferta"}</span>}
             </div>
           </div>
 
@@ -91,9 +92,9 @@ export default function StoreProduct() {
                 <output aria-label="Quantidade">{buy.qty}</output>
                 <button type="button" aria-label="Aumentar quantidade" disabled={buy.qty >= buy.maximum} onClick={() => buy.setQty((n) => Math.min(buy.maximum, n + 1))}><Plus size={16} /></button>
               </div>
-              <button type="button" className="ph-btn ph-btn-lg" disabled={!buy.canAdd} onClick={buy.add}>
+              <StoreButton size="lg" className="ph-buy" disabled={!buy.canAdd} onClick={buy.add}>
                 <ShoppingBag size={20} aria-hidden="true" /> {buy.soldOut ? "Indisponível" : hidden ? "Adicionar ao pedido" : "Adicionar ao carrinho"}
-              </button>
+              </StoreButton>
             </div>
             <div className="ph-tools">
               <button type="button" aria-pressed={liked} onClick={() => toggleWishlist(product.id)}><Heart size={17} fill={liked ? "currentColor" : "none"} /> Favoritar</button>

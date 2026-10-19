@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ClipboardCheck, Facebook, HeartPulse, Instagram, MapPin, MessageCircle, ShieldCheck, Stethoscope } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { hoursList, useShop, waLink } from "./lib";
 
 export default function StoreAbout() {
@@ -19,8 +20,8 @@ export default function StoreAbout() {
             <h1 className="ms-serif">{title}</h1>
             <p>{text}</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 24 }}>
-              <Link className="ms-btn" to={path("/catalogo")}>Ver catálogo</Link>
-              {wa && <a className="ms-btn ghost" href={wa} target="_blank" rel="noreferrer"><MessageCircle size={17} />Falar com a equipe</a>}
+              <StoreButton asChild shape="soft" size="md" className="ms-fbtn"><Link to={path("/catalogo")}>Ver catálogo</Link></StoreButton>
+              {wa && <StoreButton asChild variant="outline" shape="soft" size="md" className="ms-obtn"><a href={wa} target="_blank" rel="noreferrer"><MessageCircle size={17} />Falar com a equipe</a></StoreButton>}
             </div>
           </div>
           <div className="ms-cert">

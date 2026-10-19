@@ -1,97 +1,128 @@
 import { Link } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Scissors } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { Piece } from "./parts";
-import { imageOf, useKit } from "./kit";
+import HeroSlider from "../../../../components/store/HeroSlider";
+import Card from "./Card";
+import { categoryImage, hasDiscount, money, priceOf, productImage, useHero, useKit, useUsedCategories } from "./kit";
 import "./styles.css";
 
 export default function StoreFront() {
-  const { tenant, categories, active, path, sf } = useKit();
+  const { tenant, active, path, sf, productPath, hidden } = useKit();
+  const cats = useUsedCategories();
+  const hero = useHero();
   const featured = active.filter((p) => p.is_featured);
-  const picks = (featured.length ? featured : active).slice(0, 5);
-  const pickIds = new Set(picks.map((p) => p.id));
-  const fresh = [...active].sort((a, b) => b.id - a.id).filter((p) => !pickIds.has(p.id)).slice(0, 4);
-  const looks = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 4);
-  const lead = imageOf(picks[0] || ({} as never));
-  const heroImg = tenant.banner_url || lead;
-  const about = tenant.about_text || "";
-  const catImage = (id: number) => {
-    const p = active.find((x) => x.category_id === id && imageOf(x));
-    return p ? imageOf(p) : "";
-  };
+  const pool = featured.length ? featured : active;
+  const showcase = pool.slice(0, tenant.featured_limit || 8);
+  const withPhoto = active.filter((p) => productImage(p));
+  const [a, b, c] = [withPhoto[0], withPhoto[1], withPhoto[2]];
+  const mainImage = tenant.banner_url || (a ? productImage(a) : "");
+  const title = tenant.hero_tagline || "Moda com assinatura, feita para ser vivida";
+  const about = tenant.about_text ? tenant.about_text.slice(0, 160) : "Peças selecionadas, cortes limpos e acabamento que se nota.";
+
+  const side = (p: typeof a, cls: string) =>
+    p ? (
+      <Link to={productPath(p)} className={`atl-look ${cls}`}>
+        <img src={productImage(p)} alt={p.name} loading="lazy" />
+        <span>
+          <strong>{p.name}</strong>
+          {!hidden && <em>{money(priceOf(p))}{hasDiscount(p) && <s>{money(Number(p.price))}</s>}</em>}
+        </span>
+      </Link>
+    ) : null;
+
+  const fallback = (
+    <section className="atl-hero">
+      <div className="atl-hero-main">
+        {mainImage && <img src={mainImage} alt="" />}
+        <div className="atl-hero-card">
+          <span className="atl-kicker">{sf.segment_label || "Nova coleção"}</span>
+          <h1>{title}</h1>
+          <p>{about}</p>
+          <Link className="atl-btn" to={path("/catalogo")}>{sf.hero_button_label || "Ver a coleção"} <ArrowRight size={17} /></Link>
+        </div>
+      </div>
+      {(b || c) && (
+        <div className="atl-hero-side">
+          {side(b, "atl-look-1")}
+          {side(c, "atl-look-2")}
+        </div>
+      )}
+    </section>
+  );
 
   return (
-    <div className="atl-page">
-      <StoreSEO title={`${tenant.name} — Moda e ateliê`} description={tenant.hero_tagline || about || `Conheça a coleção da ${tenant.name}.`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+    <main className="atl-page">
+      <StoreSEO
+        title={tenant.name}
+        description={tenant.hero_tagline || tenant.about_text || `Moda — ${tenant.name}`}
+        image={tenant.banner_url || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
 
-      <section className="atl-hero">
-        <div className="atl-hero-text">
-          <p className="atl-eyebrow">{sf.segment_label || "Nova coleção"}</p>
-          <h1>{tenant.hero_tagline || tenant.name}</h1>
-          <p className="atl-hero-sub">{about ? about.slice(0, 150) + (about.length > 150 ? "…" : "") : "Peças pensadas com cuidado, para vestir com calma."}</p>
-          <div className="atl-hero-cta">
-            <Link to={path("/catalogo")} className="atl-btn">{sf.hero_button_label || "Ver a coleção"} <ArrowRight size={16} /></Link>
-            <Link to={path("/sobre")} className="atl-link">Conheça o ateliê</Link>
+      <div className="atl-wrap atl-hero-wrap" data-no-fx>
+        <HeroSlider slides={hero.slides} autoplaySeconds={hero.autoplay} resolveUrl={hero.resolveUrl} layout="banner" className="atl-slider" fallback={fallback} />
+      </div>
+
+      {cats.length > 0 && (
+        <div className="atl-marquee" data-no-fx aria-hidden="true">
+          <div className="atl-marquee-track">
+            {[0, 1].map((k) => (
+              <div key={k} className="atl-marquee-set">
+                {cats.slice(0, 8).map((x) => (
+                  <span key={`${k}${x.id}`}>{x.name} <Scissors size={14} /></span>
+                ))}
+              </div>
+            ))}
           </div>
         </div>
-        <div className="atl-hero-photo">
-          {heroImg ? <img src={heroImg} alt="" /> : <span className="atl-hero-mark" aria-hidden="true">{tenant.name.slice(0, 1)}</span>}
-          <span className="atl-hero-cap">{tenant.name}</span>
-        </div>
-      </section>
+      )}
 
-      {looks.length > 0 && (
-        <section className="atl-section">
-          <header className="atl-sec-head">
-            <p className="atl-eyebrow">Lookbook</p>
-            <h2>{sf.home_categories_title || "Escolha o seu look"}</h2>
+      {cats.length > 0 && (
+        <section className="atl-wrap atl-section" aria-labelledby="atl-cats">
+          <header className="atl-head">
+            <span className="atl-kicker">Lookbook</span>
+            <h2 id="atl-cats">{sf.home_categories_title || "Explore por categoria"}</h2>
           </header>
-          <div className="atl-looks">
-            {looks.map((c, i) => {
-              const img = c.cover_url || catImage(c.id);
+          <ol className="atl-looks">
+            {cats.slice(0, 8).map((x, i) => {
+              const img = categoryImage(x, active);
               return (
-                <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className="atl-look">
-                  {img ? <img src={img} alt="" loading="lazy" /> : <span className="atl-look-blank" aria-hidden="true" />}
-                  <span className="atl-look-num">{String(i + 1).padStart(2, "0")}</span>
-                  <span className="atl-look-name">{c.name}<small>Ver peças <ArrowRight size={14} /></small></span>
-                </Link>
+                <li key={x.id}>
+                  <Link to={path(`/catalogo?categoria=${x.id}`)}>
+                    <span className="atl-looks-img">{img && <img src={img} alt="" loading="lazy" />}</span>
+                    <span className="atl-looks-n">{String(i + 1).padStart(2, "0")}</span>
+                    <strong>{x.name}</strong>
+                  </Link>
+                </li>
               );
             })}
-          </div>
+          </ol>
         </section>
       )}
 
-      {picks.length > 0 && (
-        <section className="atl-section">
-          <header className="atl-sec-head">
-            <p className="atl-eyebrow">Seleção do ateliê</p>
+      <section className="atl-wrap atl-section">
+        <header className="atl-head atl-head-row">
+          <div>
+            <span className="atl-kicker">Seleção</span>
             <h2>{sf.home_featured_title || "Peças em destaque"}</h2>
-          </header>
-          <div className="atl-mosaic">
-            {picks.map((p, i) => <Piece key={p.id} product={p} tall={i === 0} />)}
           </div>
-        </section>
-      )}
+          <Link className="atl-link" to={path("/catalogo")}>Ver tudo <ArrowRight size={16} /></Link>
+        </header>
+        {showcase.length ? (
+          <div className="atl-grid">{showcase.map((p) => <Card key={p.id} product={p} />)}</div>
+        ) : (
+          <p className="atl-empty">A coleção está sendo preparada. Volte em breve.</p>
+        )}
+      </section>
 
-      {about && (
-        <section className="atl-quote">
-          <blockquote>“{about.slice(0, 220)}{about.length > 220 ? "…" : ""}”</blockquote>
-          <Link to={path("/sobre")} className="atl-link">Ler a nossa história</Link>
-        </section>
-      )}
-
-      {fresh.length > 0 && (
-        <section className="atl-section">
-          <header className="atl-sec-head">
-            <p className="atl-eyebrow">Acabou de chegar</p>
-            <h2>Novidades</h2>
-          </header>
-          <div className="atl-row">{fresh.map((p) => <Piece key={p.id} product={p} />)}</div>
-          <div className="atl-center"><Link to={path("/catalogo")} className="atl-btn atl-btn-line">Ver toda a coleção</Link></div>
-        </section>
-      )}
-
-      {active.length === 0 && <p className="atl-note">Em breve, novas peças por aqui.</p>}
-    </div>
+      <section className="atl-wrap atl-section">
+        <div className="atl-band">
+          <span className="atl-kicker">O ateliê</span>
+          <p>{tenant.about_text ? tenant.about_text.slice(0, 220) : "Cada peça é escolhida com atenção ao caimento, ao tecido e ao detalhe."}</p>
+          <Link className="atl-btn atl-btn-ghost" to={path("/sobre")}>Conheça nossa história</Link>
+        </div>
+      </section>
+    </main>
   );
 }

@@ -124,7 +124,7 @@ export default function StoreCatalog() {
           <aside
             style={{
               border: "1px solid var(--vitra-line)",
-              borderRadius: 6,
+              borderRadius: 24,
               background: "#ffffff",
               padding: "24px",
             }}
@@ -252,7 +252,7 @@ export default function StoreCatalog() {
                     width: "100%",
                     boxSizing: "border-box",
                     border: "1px solid var(--vitra-line)",
-                    borderRadius: 4,
+                    borderRadius: 14,
                     padding: "10px 36px 10px 36px",
                     fontSize: 13,
                     outline: "none",
@@ -293,7 +293,7 @@ export default function StoreCatalog() {
                     background: "#ffffff",
                     color: "var(--vitra-ink)",
                     fontSize: 13,
-                    borderRadius: 4,
+                    borderRadius: 14,
                     outline: "none",
                     cursor: "pointer",
                   }}

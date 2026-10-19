@@ -1,21 +1,51 @@
+import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, Zap, Dumbbell } from "lucide-react";
+import { ArrowRight, CreditCard, Flame, Dumbbell, RefreshCw, Tag, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
+import HeroSlider from "../../../../components/store/HeroSlider";
 import Card from "./Card";
+import { useHeroFx } from "./fx";
 import { imageOf, priceOf, useKit } from "./lib";
 import "./styles.css";
 
 export default function StoreFront() {
-  const { tenant, active, categories, path, sf, countIn } = useKit();
+  const { tenant, active, usedCategories, path, sf, countIn } = useKit();
   const featured = (active.some((p) => p.is_featured) ? active.filter((p) => p.is_featured) : active).slice(0, 8);
   const deals = active.filter((p) => priceOf(p).off).length;
-  const cats = categories.filter((c) => countIn(c.id) > 0);
   const withPhoto = active.find((p) => imageOf(p));
-    const title = tenant.hero_tagline || "Treine forte. Evolua todo dia.";
+  const title = tenant.hero_tagline || "Treine forte. Evolua todo dia.";
   const hero = tenant.banner_url || imageOf(withPhoto);
+  const root = useRef<HTMLElement>(null);
+  useHeroFx(root, active.length);
+  const coverOf = (id: number) => imageOf(active.find((p) => p.category_id === id && imageOf(p)));
+
+  const fallback = (
+    <section className="ft-hero">
+      <div className="ft-hero-copy" data-fx="copy">
+        <span className="ft-tag"><Flame size={14} /> {sf.segment_label || "Fitness & performance"}</span>
+        <h1 className="ft-h1">{title}</h1>
+        <p className="ft-lead">{tenant.about_text || "Suplementos, equipamentos e acessórios para acompanhar cada meta do seu treino."}</p>
+        <div className="ft-hero-cta">
+          <Link to={path("/catalogo")} className="ft-btn">{sf.hero_button_label || "Ver produtos"} <ArrowRight size={18} /></Link>
+          <Link to={path("/sobre")} className="ft-btn ft-btn--ghost">Conhecer a loja</Link>
+        </div>
+        <ul className="ft-hero-stats">
+          <li><b>{active.length}</b> produtos</li>
+          <li><b>{usedCategories.length}</b> categorias</li>
+          {deals > 0 && <li><b>{deals}</b> {deals === 1 ? "oferta" : "ofertas"}</li>}
+        </ul>
+      </div>
+      <div className="ft-hero-visual" data-fx="visual">
+        <span className="ft-hero-blob" aria-hidden="true" data-parallax />
+        {hero ? <img src={hero} alt="" /> : <Dumbbell className="ft-hero-symbol" size={140} strokeWidth={1.2} />}
+        <span className="ft-float ft-float--a"><Flame size={16} /> Alta performance</span>
+        <span className="ft-float ft-float--b"><Tag size={16} /> {deals > 0 ? `${deals} em oferta` : "Novidades"}</span>
+      </div>
+    </section>
+  );
 
   return (
-    <main className="ft-root">
+    <main className="ft-root" ref={root}>
       <StoreSEO
         title={`${tenant.name} | Treino, suplementos e fitness`}
         description={tenant.about_text || `Produtos de performance da ${tenant.name}.`}
@@ -23,54 +53,43 @@ export default function StoreFront() {
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
       />
-      <section className="ft-hero">
-        <div className="ft-wrap">
-          <div className="ft-hero-grid">
-            <div>
-              <span className="ft-tag"><i /> {sf.segment_label || "Fit Lab"} // online</span>
-              <h1 className="ft-title">{title}</h1>
-              <p className="ft-lead">{tenant.about_text || "Suplementos, equipamentos e acessórios para acompanhar cada meta do seu treino."}</p>
-              <div className="ft-hero-cta">
-                <Link to={path("/catalogo")} className="ft-btn">{sf.hero_button_label || "Montar meu pedido"} <ArrowRight size={18} /></Link>
-                <Link to={path("/sobre")} className="ft-btn ft-btn--line">Conhecer a loja</Link>
-              </div>
-            </div>
-            <div className="ft-showcase ft-bracket">
-              <div className="ft-showcase-noise" aria-hidden="true" />
-              {hero ? <img className="ft-showcase-img" src={hero} alt="" /> : <Dumbbell className="ft-showcase-symbol" size={130} strokeWidth={1} />}
-              <div className="ft-showcase-overlay" />
-              <span className="ft-showcase-label"><Zap size={15} /> PERFORMANCE / EVERY DAY</span>
-              <span className="ft-showcase-corner">NO EXCUSES <ArrowUpRight size={17} /></span>
-              <div className="ft-showcase-bottom"><strong>FOCO.<br/>FORÇA.<br/><em>EVOLUÇÃO.</em></strong><span>MOVE YOUR LIMITS</span></div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <div className="ft-wrap ft-hero-wrap">
+        <HeroSlider
+          slides={sf.hero_slides}
+          autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+          resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+          layout="banner"
+          className="ft-slider"
+          fallback={fallback}
+        />
+      </div>
 
-      <section className="ft-wrap" aria-label="Números da loja" style={{ paddingTop: 12 }}>
-        <div className="ft-goals">
-          <div className="ft-goal"><b>{active.length}<i>un.</i></b><span>produtos no catálogo</span></div>
-          <div className="ft-goal"><b>{cats.length}</b><span>categorias de treino</span></div>
-          <div className="ft-goal"><b>{deals}</b><span>{deals === 1 ? "oferta ativa" : "ofertas ativas"}</span></div>
-          <div className="ft-goal"><b>{active.filter((p) => p.is_featured).length}</b><span>em destaque</span></div>
-        </div>
-      </section>
+      <div className="ft-wrap">
+        <ul className="ft-trust" aria-label="Vantagens">
+          <li><Truck size={20} /><span><b>Entrega ou retirada</b>combine com a loja</span></li>
+          <li><CreditCard size={20} /><span><b>Pagamento facilitado</b>escolha no pedido</span></li>
+          <li><RefreshCw size={20} /><span><b>Troca simples</b>fale com a gente</span></li>
+        </ul>
+      </div>
 
-      {cats.length > 0 && (
-        <section className="ft-section">
+      {usedCategories.length > 0 && (
+        <section className="ft-section" aria-labelledby="ft-cats-title">
           <div className="ft-wrap">
             <div className="ft-section-head">
-              <div><span className="ft-tag">Módulos</span><h2 className="ft-title">{sf.home_categories_title || "Escolha seu foco"}</h2></div>
+              <div><span className="ft-tag">Escolha seu foco</span><h2 className="ft-h2" id="ft-cats-title">{sf.home_categories_title || "Compre por categoria"}</h2></div>
+              <Link to={path("/catalogo")} className="ft-more">Ver tudo <ArrowRight size={16} /></Link>
             </div>
-            <div className="ft-rows">
-              {cats.slice(0, 8).map((c, i) => (
-                <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className="ft-row">
-                  <span className="n">{String(i + 1).padStart(2, "0")}</span>
-                  <span className="t">{c.name}</span>
-                  <span className="c">{countIn(c.id)} {countIn(c.id) === 1 ? "item" : "itens"}</span>
-                  <ArrowUpRight size={22} />
-                </Link>
-              ))}
+            <div className="ft-cat-rail" data-no-fx>
+              {usedCategories.slice(0, 12).map((c) => {
+                const cover = coverOf(c.id);
+                return (
+                  <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className="ft-cat">
+                    <span className="ft-cat-img">{cover ? <img src={cover} alt="" loading="lazy" /> : <Dumbbell size={30} />}</span>
+                    <span className="ft-cat-name">{c.name}</span>
+                    <span className="ft-cat-n">{countIn(c.id)} {countIn(c.id) === 1 ? "item" : "itens"}</span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </section>
@@ -79,7 +98,7 @@ export default function StoreFront() {
       <section className="ft-section">
         <div className="ft-wrap">
           <div className="ft-section-head">
-            <div><span className="ft-tag">Seleção</span><h2 className="ft-title">{sf.home_featured_title || "Mais procurados"}</h2></div>
+            <div><span className="ft-tag">Seleção</span><h2 className="ft-h2">{sf.home_featured_title || "Mais procurados"}</h2></div>
             <Link to={path("/catalogo")} className="ft-more">Ver todos <ArrowRight size={16} /></Link>
           </div>
           {featured.length ? (
@@ -90,20 +109,11 @@ export default function StoreFront() {
         </div>
       </section>
 
-      <section className="ft-section" style={{ paddingTop: 8 }}>
+      <section className="ft-section">
         <div className="ft-wrap">
-          <div className="ft-steps">
-            {[
-              ["01", "Escolha", "Navegue por categoria e encontre o que combina com a sua rotina."],
-              ["02", "Monte o pedido", "Selecione opções, quantidade e adicione observações se precisar."],
-              ["03", "Finalize", "Conclua pelo carrinho e acompanhe o atendimento da loja."],
-            ].map(([n, t, d]) => (
-              <div className="ft-step" key={n}><b>{n} //</b><h3>{t}</h3><p>{d}</p></div>
-            ))}
-          </div>
           <div className="ft-cta-block">
-            <h2>Sua próxima meta começa aqui.</h2>
-            <Link to={path("/catalogo")} className="ft-btn">Ver catálogo <ArrowRight size={18} /></Link>
+            <div><h2>Sua próxima meta começa aqui.</h2><p>Monte seu pedido em poucos toques e finalize direto com a loja.</p></div>
+            <Link to={path("/catalogo")} className="ft-btn ft-btn--lime">Ver catálogo <ArrowRight size={18} /></Link>
           </div>
         </div>
       </section>

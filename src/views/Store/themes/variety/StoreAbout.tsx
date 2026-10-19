@@ -1,7 +1,64 @@
-import { Link,useParams } from "react-router-dom";
-import { ArrowRight,MapPin,MessageCircle,Store } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, MapPin, MessageCircle, Store } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath,resolveStoreSlug } from "../../store-routing";
-import { varietyImage } from "./ThemeParts";
-export default function StoreAbout(){const {slug:routeSlug}=useParams();const {tenant,products,categories}=useStore();const slug=resolveStoreSlug(routeSlug);const path=(suffix="")=>buildStorePath(slug,suffix);const active=products.filter((p)=>p.is_active);const images=active.map(varietyImage).filter(Boolean) as string[];const about=tenant.about_text||"Uma loja completa para encontrar utilidades, presentes e produtos para o dia a dia com praticidade.";return <main className="min-h-screen bg-[#f4f8ff] pb-16 text-[#142d5a]"><StoreSEO title={`A loja | ${tenant.name}`} description={about} image={tenant.banner_url||tenant.logo_url} url={typeof window!=="undefined"?window.location.href:""} siteName={tenant.name}/><section className="bg-[#ffda24] px-5 py-16"><div className="mx-auto max-w-6xl"><p className="text-[10px] font-black uppercase tracking-[.22em]">A nossa loja</p><h1 className="mt-4 text-5xl font-black tracking-[-.07em]">Variedade que<br/>resolve sua rotina.</h1></div></section><div className="mx-auto max-w-6xl px-5 py-14"><section className="grid gap-10 lg:grid-cols-[1fr_.9fr]"><div><p className="text-[10px] font-black uppercase tracking-[.2em] text-[#1761c2]">Sobre nós</p><p className="mt-5 whitespace-pre-line text-lg leading-8 text-[#597596]">{about}</p><div className="mt-8 flex gap-3"><Link to={path("/catalogo")} className="inline-flex h-11 items-center gap-2 rounded-full bg-[#1761c2] px-5 text-[10px] font-black uppercase tracking-wider text-white">Ver catálogo <ArrowRight size={14}/></Link>{tenant.whatsapp&&<a href={`https://wa.me/${tenant.whatsapp.replace(/\D/g,"")}`} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center gap-2 rounded-full border border-[#bdd1ea] px-5 text-[10px] font-black uppercase tracking-wider"><MessageCircle size={14}/> WhatsApp</a>}</div></div><div className="grid grid-cols-2 gap-3 rounded-3xl bg-[#dceaff] p-3">{images.slice(0,2).map((image,i)=><img key={image} src={image} alt="Produtos da loja" className={`h-full min-h-56 w-full rounded-2xl bg-white object-contain p-4 ${i?"mt-9":"mb-9"}`}/>)||<div className="col-span-2 grid place-items-center text-center text-[#1761c2]"><Store size={40}/><p className="mt-3 text-sm font-bold">As imagens dos seus produtos aparecem aqui.</p></div>}</div></section><section className="mt-10 grid gap-3 sm:grid-cols-3"><div className="rounded-2xl bg-white p-6 shadow-sm"><p className="text-4xl font-black text-[#1761c2]">{active.length}</p><p className="mt-1 text-[10px] font-black uppercase tracking-wider text-[#6b86a7]">Produtos</p></div><div className="rounded-2xl bg-white p-6 shadow-sm"><p className="text-4xl font-black text-[#1761c2]">{categories.length}</p><p className="mt-1 text-[10px] font-black uppercase tracking-wider text-[#6b86a7]">Seções</p></div><div className="rounded-2xl bg-white p-6 shadow-sm">{tenant.address?<><MapPin size={20} className="text-[#1761c2]"/><p className="mt-3 text-sm font-bold">{tenant.address}</p></>:<><MessageCircle size={20} className="text-[#1761c2]"/><p className="mt-3 text-sm font-bold">Pedidos online e atendimento da loja</p></>}</div></section></div></main>;}
+import { StoreButton } from "../../../../components/store/StoreButton";
+import { varietyImage, useVariety } from "./ThemeParts";
+import "./styles.css";
+
+export default function StoreAbout() {
+  const { tenant, active, usedCategories, path, whatsapp } = useVariety();
+  const images = active.map(varietyImage).filter(Boolean).slice(0, 4) as string[];
+  const about = tenant.about_text || "Uma loja completa para encontrar utilidades, presentes e produtos para o dia a dia com praticidade.";
+
+  return (
+    <main className="variety-page">
+      <StoreSEO
+        title={`A loja | ${tenant.name}`}
+        description={about}
+        image={tenant.banner_url || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+      <div className="variety-wrap variety-block">
+        <section className="variety-about-hero">
+          <div>
+            <span className="variety-kicker">A nossa loja</span>
+            <h1>Variedade que resolve sua rotina.</h1>
+            <p>{about}</p>
+            <div className="variety-hero-actions">
+              <StoreButton asChild className="variety-btn-yellow">
+                <Link to={path("/catalogo")}>Ver catálogo <ArrowRight size={15} /></Link>
+              </StoreButton>
+              {whatsapp && (
+                <StoreButton asChild variant="ghost" className="variety-btn-ghost">
+                  <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer"><MessageCircle size={15} /> WhatsApp</a>
+                </StoreButton>
+              )}
+            </div>
+          </div>
+          <div className="variety-about-pics">
+            {images.length ? (
+              images.map((src) => (
+                <span key={src}><img src={src} alt="" loading="lazy" /></span>
+              ))
+            ) : (
+              <span className="variety-about-empty"><Store size={40} aria-hidden="true" /></span>
+            )}
+          </div>
+        </section>
+
+        <section className="variety-stats">
+          <div className="variety-stat"><strong>{active.length}</strong><span>Produtos</span></div>
+          <div className="variety-stat"><strong>{usedCategories.length}</strong><span>Seções</span></div>
+          <div className="variety-stat variety-stat-wide">
+            {tenant.address ? (
+              <><MapPin size={20} aria-hidden="true" /><p>{tenant.address}</p></>
+            ) : (
+              <><MessageCircle size={20} aria-hidden="true" /><p>Pedidos online e atendimento da loja</p></>
+            )}
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}

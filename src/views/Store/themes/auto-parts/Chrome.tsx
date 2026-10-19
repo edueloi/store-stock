@@ -7,7 +7,7 @@ import "./styles.css";
 import "./storefront.css";
 
 export function Header() {
-  const { tenant, openCart, cartCount, path, vars, sf } = useShop();
+  const { tenant, categories, active, openCart, cartCount, path, vars } = useShop();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -26,15 +26,9 @@ export function Header() {
     navigate(term.trim() ? `${base}${sep}q=${encodeURIComponent(term.trim())}` : base);
     setOpen(false);
   };
-  const wa = waLink(tenant);
+  const sectors = categories.filter((c) => active.some((p) => p.category_id === c.id));
   return (
     <header className="tg-scope tg-header" style={vars}>
-      <div className="tg-ticker">
-        <div className="tg-wrap">
-          <span>{sf.segment_label || "Autopeças & Acessórios"} · confirme a compatibilidade antes de comprar</span>
-          {wa && <a href={wa} target="_blank" rel="noreferrer">Falar com a equipe</a>}
-        </div>
-      </div>
       <div className="tg-wrap tg-bar">
         <Link className="tg-brand" to={path()} aria-label={`${tenant.name} - página inicial`}>
           {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="tg-brand-mark"><Cog size={22} /></span>}
@@ -56,14 +50,25 @@ export function Header() {
       </div>
       <nav className="tg-nav" aria-label="Navegação principal">
         <div className="tg-wrap">
-          {links.map((l) => (
-            <Link key={l.name} to={l.to} aria-current={pathname === l.to.split("?")[0] ? "page" : undefined}>{l.name}</Link>
-          ))}
+          <div className="tg-nav-bar">
+            <div className="tg-nav-links">
+              {links.map((l) => (
+                <Link key={l.name} to={l.to} aria-current={pathname === l.to.split("?")[0] ? "page" : undefined}>{l.name}</Link>
+              ))}
+            </div>
+            {sectors.length > 0 && (
+              <div className="tg-nav-rail" data-no-fx role="group" aria-label="Setores">
+                {sectors.map((c) => <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link>)}
+              </div>
+            )}
+          </div>
         </div>
       </nav>
       {open && (
         <nav className="tg-drawer" aria-label="Menu">
           {links.map((l) => <Link key={l.name} to={l.to} onClick={() => setOpen(false)}>{l.name}</Link>)}
+          {sectors.length > 0 && <h4>Setores</h4>}
+          {sectors.map((c) => <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} onClick={() => setOpen(false)}>{c.name}</Link>)}
         </nav>
       )}
     </header>
@@ -89,7 +94,10 @@ export function Footer() {
               <li><Link to={path()}>Início</Link></li>
               <li><Link to={path("/catalogo")}>Catálogo de peças</Link></li>
               <li><Link to={path("/sobre")}>Sobre a garagem</Link></li>
-              {categories.slice(0, 4).map((c) => <li key={c.id}><Link to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link></li>)}
+            </ul>
+            <h3 style={{ marginTop: 16 }}>Setores</h3>
+            <ul>
+              {categories.slice(0, 5).map((c) => <li key={c.id}><Link to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link></li>)}
             </ul>
           </div>
           <div>

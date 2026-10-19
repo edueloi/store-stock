@@ -1,22 +1,114 @@
-import { useMemo, useState } from "react";
-import StockAvailability from "../../../../components/store/StockAvailability";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Check, Minus, Plus, ShoppingBag, Sparkles } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { Button } from "../../../../components/ui";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath, parseProductIdFromRoute, resolveStoreSlug } from "../../store-routing";
-import { beautyHide, beautyImage, beautyMoney } from "./ThemeParts";
+import StockAvailability from "../../../../components/store/StockAvailability";
+import { StoreButton } from "../../../../components/store/StoreButton";
+import { parseProductIdFromRoute } from "../../store-routing";
+import { priceInfo, useBuy, useKit, whatsappLink } from "./kit";
+import { ProductCard } from "./ThemeParts";
+import type { Product } from "../../../../types";
+import "./styles.css";
 
 export default function StoreProduct() {
-  const { slug: routeSlug, productId } = useParams();
-  const { tenant, products, categories, addToCart, openCart } = useStore();
-  const slug = resolveStoreSlug(routeSlug); const path = (suffix = "") => buildStorePath(slug, suffix);
-  const product = products.find((item) => item.id === parseProductIdFromRoute(productId));
-  const [quantity, setQuantity] = useState(1); const [note, setNote] = useState(""); const [selected, setSelected] = useState<Record<string, string>>({}); const [added, setAdded] = useState(false);
-  const choices = useMemo(() => Array.isArray(product?.variations) ? product.variations as Array<{ name: string; options: Array<{ value: string }> }> : Array.isArray(product?.attributes) ? product.attributes.map((attribute: any) => ({ name: attribute.name, options: (attribute.values || []).map((value: string) => ({ value })) })) : [], [product]);
-  if (!product) return <main className="grid min-h-[60vh] place-items-center bg-white p-6 text-center"><div><Sparkles className="mx-auto text-[#a96845]" size={42}/><h1 className="mt-4 text-xl font-medium">Produto não encontrado</h1><Link to={path("/catalogo")} className="mt-5 inline-block border border-[#a96845] px-5 py-3 text-xs text-[#8f563a]">Voltar aos produtos</Link></div></main>;
-  const image = beautyImage(product); const allSelected = choices.every((choice) => selected[choice.name]); const category = categories.find((item) => item.id === product.category_id)?.name || "Beauty";
-  const add = () => { if (!allSelected) return; const options = { ...selected, ...(note.trim() ? { "Observação": note.trim() } : {}) }; for (let index = 0; index < quantity; index += 1) addToCart(product, Object.keys(options).length ? options : undefined); setAdded(true); };
-  return <main className="min-h-screen bg-white pb-16 text-[#393532]"><StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description || product.name} image={image} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name}/><div className="mx-auto max-w-6xl px-5 py-7 sm:px-8"><Link to={path("/catalogo")} className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[#8f563a]"><ArrowLeft size={15}/> Voltar à coleção</Link><div className="mt-5 grid gap-0 border border-[#e3dbd5] bg-white lg:grid-cols-[minmax(0,1.12fr)_minmax(360px,.88fr)]"><section className="grid min-h-[380px] place-items-center bg-[#f5f4f3] p-8 sm:p-12 lg:min-h-[640px]">{image ? <img src={image} alt={product.name} className="h-full max-h-[530px] w-full object-contain"/> : <Sparkles size={54} strokeWidth={1} className="text-[#b98261]"/>}</section><section className="p-6 sm:p-9"><p className="text-[10px] font-semibold uppercase tracking-[.2em] text-[#9a674a]">{category}</p><h1 className="mt-4 text-3xl font-light leading-[1.04] tracking-[-.05em] sm:text-4xl">{product.name}</h1><p className="mt-5 border-b border-[#b98261] pb-5 text-xl font-medium">{beautyHide(tenant) ? "Produto sob consulta" : beautyMoney(Number(product.discount_price || product.price))}</p>{product.description && <p className="mt-6 whitespace-pre-line text-sm leading-7 text-[#645d58]">{product.description}</p>}<div className="mt-7 space-y-5">{choices.map((choice) => <div key={choice.name}><p className="text-sm font-medium">{choice.name} <span className="text-xs text-[#9a674a]">obrigatório</span></p><div className="mt-3 flex flex-wrap gap-2">{choice.options.map((option) => <button key={option.value} onClick={() => setSelected((current) => ({ ...current, [choice.name]: option.value }))} className={`border px-3 py-2 text-sm ${selected[choice.name] === option.value ? "border-[#a96845] bg-[#a96845] text-white" : "border-[#ded7d2] bg-white hover:border-[#b98261]"}`}>{selected[choice.name] === option.value && <Check size={13} className="mr-1 inline"/>}{option.value}</button>)}</div></div>)}</div><label className="mt-7 block text-sm font-medium">Mensagem ou observação<textarea value={note} onChange={(event) => setNote(event.target.value.slice(0, 250))} placeholder="Ex.: presente para entrega ou preferência de atendimento" className="mt-3 min-h-24 w-full resize-none border border-[#ded7d2] bg-[#faf9f8] p-3 text-sm outline-none focus:border-[#a96845]"/></label><StockAvailability product={product} tenant={tenant} selected={selected} className="mt-5" /><div className="mt-6 flex flex-col gap-3 sm:flex-row"><div className="flex h-12 shrink-0 items-center self-start border border-[#ded7d2]"><button onClick={() => setQuantity((value) => Math.max(1, value - 1))} className="grid h-full w-10 place-items-center"><Minus size={15}/></button><span className="w-8 text-center text-sm">{quantity}</span><button onClick={() => setQuantity((value) => value + 1)} className="grid h-full w-10 place-items-center"><Plus size={15}/></button></div><Button onClick={add} disabled={!allSelected} fullWidth iconLeft={<ShoppingBag size={16}/>} className="h-12 rounded-none border-[#3d3936] bg-[#3d3936] text-[10px] font-bold uppercase tracking-[.14em] hover:bg-[#23211f]">Adicionar à sacola</Button></div>{added && <div className="mt-5 border border-[#d8b8a5] bg-[#f8eee8] p-4"><p className="flex items-center gap-2 text-sm font-medium"><Check size={16}/> Produto adicionado ao pedido.</p><Button onClick={openCart} size="sm" className="mt-3 rounded-none bg-[#a96845] text-xs hover:bg-[#8f563a]">Ver sacola</Button></div>}<p className="mt-6 text-xs leading-relaxed text-[#716963]">Envie o pedido online; a loja confirma disponibilidade, pagamento e entrega.</p></section></div></div></main>;
+  const { productId } = useParams();
+  const { active, path } = useKit();
+  const product = active.find((p) => p.id === parseProductIdFromRoute(productId));
+  if (!product)
+    return (
+      <div className="bty-page bty-notfound">
+        <Sparkles size={44} aria-hidden="true" />
+        <h1>Produto não encontrado</h1>
+        <p>Ele pode ter saído da seleção. Veja os outros produtos.</p>
+        <StoreButton asChild size="lg" className="bty-btn bty-btn-lg"><Link to={path("/catalogo")}>Voltar ao catálogo</Link></StoreButton>
+      </div>
+    );
+  return <Details key={product.id} product={product} />;
+}
+
+function Details({ product }: { product: Product }) {
+  const { tenant, active, hidden, path, catName, sf } = useKit();
+  const b = useBuy(product);
+  const price = priceInfo(product, hidden);
+  const related = active.filter((p) => p.id !== product.id && p.category_id === product.category_id).slice(0, 4);
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Tenho uma dúvida sobre: ${product.name}`);
+  const missing = b.groups.filter((g) => !b.selected[g.name]).map((g) => g.name);
+  return (
+    <div className="bty-page">
+      <StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description || product.name} image={b.gallery[0]} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+      <nav className="bty-wrap bty-crumbs" aria-label="Você está em">
+        <Link to={path("/catalogo")}><ArrowLeft size={15} /> Produtos</Link>
+        {catName(product) && (<><span aria-hidden="true">/</span><Link to={path(`/catalogo?categoria=${product.category_id}`)}>{catName(product)}</Link></>)}
+      </nav>
+      <div className="bty-wrap bty-pd">
+        <section className="bty-gallery" aria-label="Fotos do produto">
+          <div className="bty-gallery-main">
+            {b.gallery.length ? <img src={b.gallery[b.photo] || b.gallery[0]} alt={product.name} /> : <Sparkles size={56} aria-label="Sem imagem" />}
+          </div>
+          {b.gallery.length > 1 && (
+            <div className="bty-thumbs">
+              {b.gallery.map((src, i) => (
+                <button key={`${src}-${i}`} type="button" aria-label={`Ver foto ${i + 1}`} aria-pressed={b.photo === i} onClick={() => b.setPhoto(i)}><img src={src} alt="" /></button>
+              ))}
+            </div>
+          )}
+        </section>
+        <section className="bty-buy">
+          {catName(product) && <span className="bty-eyebrow">{catName(product)}</span>}
+          <h1>{product.name}</h1>
+          {product.sku && <small className="bty-sku">Código: {product.sku}</small>}
+          <div className="bty-price bty-price-lg">
+            <strong>{hidden ? "Valor sob consulta" : price.now}</strong>
+            {price.old && <s>{price.old}</s>}
+          </div>
+          {product.description && <p className="bty-desc">{product.description}</p>}
+          <StockAvailability product={product} tenant={tenant} selected={b.ready ? b.selected : undefined} />
+          {b.groups.map((g) => (
+            <fieldset key={g.name} className="bty-fieldset">
+              <legend>{g.name} <small>obrigatório</small></legend>
+              <div className="bty-opts">
+                {g.values.map((v) => (
+                  <button key={v} type="button" aria-pressed={b.selected[g.name] === v} onClick={() => b.setSelected((prev) => ({ ...prev, [g.name]: v }))}>
+                    {b.selected[g.name] === v && <Check size={14} aria-hidden="true" />} {v}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          ))}
+          <label className="bty-note-field">
+            <span>Observação (opcional)</span>
+            <textarea value={b.note} maxLength={250} rows={3} onChange={(e) => b.setNote(e.target.value)} placeholder="Ex.: é presente, quero embalagem especial" />
+          </label>
+          <div className="bty-buy-row">
+            <div className="bty-qty" role="group" aria-label="Quantidade">
+              <button type="button" aria-label="Diminuir quantidade" disabled={b.qty <= 1} onClick={() => b.setQty((v) => Math.max(1, v - 1))}><Minus size={16} /></button>
+              <output aria-live="polite">{b.qty}</output>
+              <button type="button" aria-label="Aumentar quantidade" disabled={b.qty >= b.maxQty} onClick={() => b.setQty((v) => Math.min(b.maxQty, v + 1))}><Plus size={16} /></button>
+            </div>
+            <StoreButton size="lg" className="bty-btn bty-add" disabled={!b.canAdd} onClick={b.add}>
+              <ShoppingBag size={18} /> {b.soldOut ? "Indisponível" : sf.checkout_mode === "order_request" ? "Incluir no pedido" : "Adicionar à sacola"}
+            </StoreButton>
+          </div>
+          {!b.ready && <p className="bty-hint" role="status">Escolha {missing.join(" e ")} para continuar.</p>}
+          {b.added && (
+            <div className="bty-added" role="status">
+              <span><Check size={17} aria-hidden="true" /> Adicionado à sacola</span>
+              <StoreButton variant="outline" size="sm" className="bty-btn bty-btn-line" onClick={b.openCart}>Ver sacola</StoreButton>
+            </div>
+          )}
+          {wa && <a className="bty-link" href={wa} target="_blank" rel="noreferrer">Tirar dúvida pelo WhatsApp</a>}
+          {tenant.show_address && tenant.address && <p className="bty-small">Retirada: {tenant.address}</p>}
+        </section>
+      </div>
+      <div className="bty-sticky-buy">
+        <div><strong>{hidden ? "Sob consulta" : price.now}</strong><span>{product.name}</span></div>
+        <StoreButton className="bty-btn" disabled={!b.canAdd} onClick={b.add}><ShoppingBag size={17} /> {b.ready ? "Adicionar" : "Escolher opções"}</StoreButton>
+      </div>
+      {related.length > 0 && (
+        <section className="bty-wrap bty-section">
+          <header className="bty-head"><span className="bty-eyebrow">Combina com</span><h2>Veja também</h2></header>
+          <div className="bty-grid">{related.map((p) => <ProductCard key={p.id} product={p} />)}</div>
+        </section>
+      )}
+    </div>
+  );
 }

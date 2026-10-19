@@ -1,14 +1,50 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import type { Product, Tenant } from "../../../../types";
 import { useStore } from "../../StoreLayout";
-import { buildStorePath, productRouteSegment, resolveStoreSlug } from "../../store-routing";
-import type { Category, Product, Tenant } from "../../../../types";
+import {
+  buildStorePath,
+  parseProductIdFromRoute,
+  productRouteSegment,
+  resolveStoreSlug,
+} from "../../store-routing";
 import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
+import { getVariationImages } from "../../../../utils/variationImages";
 
 export const money = (value: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value) || 0);
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
-/** Hook base do tema: loja, caminhos (preservando previewTheme) e flags de preço. */
+export const productImage = (p: Product) => (Array.isArray(p.images) && p.images[0]) || p.image_url || "";
+
+export const optionGroups = (p: Product) =>
+  p.attributes?.length
+    ? p.attributes.map((a) => ({ name: a.name, values: a.values, colors: a.colors }))
+    : (p.variations || []).map((a) => ({ name: a.name, values: a.options.map((o) => o.value), colors: undefined as Record<string, string> | undefined }));
+
+export const priceOf = (p: Product) => Number(p.discount_price ?? p.price);
+export const hasDiscount = (p: Product) => p.discount_price != null && Number(p.discount_price) < Number(p.price);
+
+export const isSoldOut = (p: Product, tenant: Tenant) => storeTracksStock(tenant) && availableUnits(p) === 0;
+
+export const DAY_LABELS: Record<string, string> = { seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta", sex: "Sexta", sab: "Sábado", dom: "Domingo" };
+const DAY_ORDER = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"];
+export function hoursRows(tenant: Tenant) {
+  const hours = tenant.business_hours;
+  if (!hours) return [];
+  return Object.entries(hours)
+    .map(([key, v]) => {
+      const k = key.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").slice(0, 3);
+      const i = DAY_ORDER.indexOf(k);
+      return {
+        order: i < 0 ? 99 : i,
+        day: DAY_LABELS[k] || key,
+        text: !v || v.closed ? "Fechado" : `${v.open} às ${v.close}`,
+      };
+    })
+    .sort((a, b) => a.order - b.order);
+}
+
+/** Dados comuns do tema: caminhos (preservando previewTheme), preços ocultos e produtos ativos. */
 export function useKit() {
   const store = useStore();
   const { slug: routeSlug } = useParams();
@@ -20,105 +56,120 @@ export function useKit() {
     return preview ? `${base}${base.includes("?") ? "&" : "?"}previewTheme=${encodeURIComponent(preview)}` : base;
   };
   const sf = store.tenant.policies?.storefront || {};
-  const hidePrices = sf.hide_prices === true || sf.checkout_mode === "order_request";
-  const active = useMemo(
-    () => store.products.filter((p) => p.is_active && p.type !== "internal"),
-    [store.products],
+  const hidden = sf.hide_prices === true || sf.checkout_mode === "order_request";
+  const active = useMemo(() => store.products.filter((p) => p.is_active), [store.products]);
+  const productPath = (p: Product) => path(`/produto/${productRouteSegment(p)}`);
+  const waLink = (text?: string) =>
+    store.tenant.whatsapp ? `https://wa.me/${store.tenant.whatsapp.replace(/\D/g, "")}${text ? `?text=${encodeURIComponent(text)}` : ""}` : "";
+  return { ...store, slug, path, sf, hidden, active, productPath, preview, waLink, cartCount: store.cart.reduce((s, i) => s + i.quantity, 0) };
+}
+
+/** Estado completo da página de produto (opções, galeria, quantidade, limite de estoque). */
+export function useProductState() {
+  const kit = useKit();
+  const { productId } = useParams();
+  const { products, tenant, addToCart, openCart } = kit;
+  const product = products.find((p) => p.id === parseProductIdFromRoute(productId) && p.is_active);
+  const [selected, setSelected] = useState<Record<string, string>>({});
+  const [activeImage, setActiveImage] = useState(0);
+  const [quantity, setQuantity] = useState(1);
+  const groups = product ? optionGroups(product) : [];
+  const ready = groups.every((g) => selected[g.name]);
+  const base = product ? (Array.isArray(product.images) && product.images.length ? product.images : product.image_url ? [product.image_url] : []) : [];
+  const variant = product ? getVariationImages(product, selected) : [];
+  const images = variant.length ? variant : base;
+  const tracks = storeTracksStock(tenant);
+  const units = product && tracks ? availableUnits(product, selected) : null;
+  const maxQty = units === null ? 99 : Math.max(0, units);
+  const soldOut = Boolean(product && tracks && availableUnits(product, ready ? selected : undefined) === 0);
+  const qty = Math.min(Math.max(1, quantity), Math.max(1, maxQty));
+  const choose = (name: string, value: string) => {
+    setSelected((c) => ({ ...c, [name]: value }));
+    setActiveImage(0);
+    setQuantity(1);
+  };
+  const canAdd = Boolean(product && ready && !soldOut && maxQty > 0);
+  const add = () => {
+    if (!product || !canAdd) return;
+    for (let i = 0; i < qty; i += 1) addToCart(product, groups.length ? selected : undefined);
+    openCart();
+  };
+  return { ...kit, product, selected, choose, groups, ready, images, activeImage, setActiveImage: (n: number) => setActiveImage(n), qty, setQuantity, maxQty, soldOut, canAdd, add };
+}
+
+/** Lê categoria da URL (?categoria= ou ?cat=) e busca (?q=). */
+export function useCatalogQuery() {
+  const [params, setParams] = useSearchParams();
+  const raw = params.get("categoria") || params.get("cat");
+  const category = raw ? Number(raw) : null;
+  const q = params.get("q") || "";
+  const update = (patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(params);
+    next.delete("cat");
+    for (const [k, v] of Object.entries(patch)) {
+      if (v) next.set(k, v);
+      else next.delete(k);
+    }
+    setParams(next, { replace: true });
+  };
+  return { category: Number.isFinite(category) ? category : null, q, update };
+}
+
+/** Categorias que realmente têm produtos ativos (com contagem), na ordem original. */
+export function useUsedCategories() {
+  const { categories, active } = useKit();
+  return useMemo(
+    () =>
+      categories
+        .map((c) => ({ ...c, count: active.filter((p) => p.category_id === c.id).length }))
+        .filter((c) => c.count > 0),
+    [categories, active],
   );
-  const tracks = storeTracksStock(store.tenant);
-  return { ...store, slug, path, preview, sf, hidePrices, active, tracks };
 }
 
-export const productHref = (path: (s?: string) => string, p: Product) => path(`/produto/${productRouteSegment(p)}`);
-export const imageOf = (p: Product) => p.images?.[0] || p.image_url || "";
-
-export function priceInfo(p: Product) {
-  const base = Number(p.price) || 0;
-  const disc = p.discount_price != null ? Number(p.discount_price) : 0;
-  const hasDiscount = disc > 0 && disc < base;
-  const price = hasDiscount ? disc : base;
-  return { price, full: base, hasDiscount, pct: hasDiscount ? Math.round((1 - disc / base) * 100) : 0 };
+/** Primeira imagem disponível para ilustrar uma categoria (capa ou foto de um produto dela). */
+export function categoryImage(cat: { id: number; cover_url?: string | null }, products: Product[]) {
+  if (cat.cover_url) return cat.cover_url;
+  const sample = products.find((p) => p.category_id === cat.id && productImage(p));
+  return sample ? productImage(sample) : "";
 }
 
-export function inStock(p: Product, tenant: Tenant) {
-  if (!storeTracksStock(tenant)) return true;
-  const units = availableUnits(p);
-  return units === null ? true : units > 0;
+/** Banners do carrossel configurados pelo lojista e função que resolve os links internos. */
+export function useHero() {
+  const { sf, path } = useKit();
+  return {
+    slides: sf.hero_slides,
+    autoplay: sf.hero_autoplay_seconds ?? 6,
+    resolveUrl: (u: string) => (u.startsWith("/") ? path(u) : u),
+  };
 }
 
-export type VariationGroup = { name: string; options: { value: string; color?: string; stock: number | null }[] };
-export function variationGroups(p: Product): VariationGroup[] {
-  if (p.attributes?.length) {
-    const skus = Array.isArray(p.skus) ? p.skus : [];
-    return p.attributes.map((a) => ({
-      name: a.name,
-      options: a.values.map((v) => ({
-        value: v,
-        color: a.colors?.[v],
-        stock: skus.length ? skus.filter((s) => s.combo?.[a.name] === v).reduce((n, s) => n + (Number(s.stock) || 0), 0) : null,
-      })),
-    }));
-  }
-  return (p.variations || []).map((v) => ({
-    name: v.name,
-    options: v.options.map((o) => ({ value: o.value, color: undefined, stock: typeof o.stock === "number" ? o.stock : null })),
-  }));
-}
+export type SortKey = "destaques" | "menor" | "maior" | "nome";
 
-/** Limite de quantidade: saldo da opção escolhida quando a loja controla estoque. */
-export function maxQuantity(p: Product, tenant: Tenant, selected: Record<string, string>, ready: boolean) {
-  if (!storeTracksStock(tenant)) return 99;
-  const units = availableUnits(p, ready && Object.keys(selected).length ? selected : undefined);
-  return units === null ? 99 : Math.max(0, units);
-}
-
-export function cartCount(cart: { quantity: number }[]) {
-  return cart.reduce((n, i) => n + i.quantity, 0);
-}
-
-export function whatsappLink(tenant: Tenant, text?: string) {
-  const digits = (tenant.whatsapp || "").replace(/\D/g, "");
-  if (!digits) return "";
-  return `https://wa.me/${digits.length <= 11 ? `55${digits}` : digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
-}
-
-const DAY_ORDER: Record<string, [number, string]> = {
-  monday: [0, "Segunda"], segunda: [0, "Segunda"], seg: [0, "Segunda"], mon: [0, "Segunda"],
-  tuesday: [1, "Terça"], terca: [1, "Terça"], terça: [1, "Terça"], ter: [1, "Terça"], tue: [1, "Terça"],
-  wednesday: [2, "Quarta"], quarta: [2, "Quarta"], qua: [2, "Quarta"], wed: [2, "Quarta"],
-  thursday: [3, "Quinta"], quinta: [3, "Quinta"], qui: [3, "Quinta"], thu: [3, "Quinta"],
-  friday: [4, "Sexta"], sexta: [4, "Sexta"], sex: [4, "Sexta"], fri: [4, "Sexta"],
-  saturday: [5, "Sábado"], sabado: [5, "Sábado"], sábado: [5, "Sábado"], sab: [5, "Sábado"], sat: [5, "Sábado"],
-  sunday: [6, "Domingo"], domingo: [6, "Domingo"], dom: [6, "Domingo"], sun: [6, "Domingo"],
-};
-export function hoursList(tenant: Tenant) {
-  return Object.entries(tenant.business_hours || {})
-    .sort(([a], [b]) => (DAY_ORDER[a.toLowerCase()]?.[0] ?? 99) - (DAY_ORDER[b.toLowerCase()]?.[0] ?? 99))
-    .map(([k, v]) => ({ day: DAY_ORDER[k.toLowerCase()]?.[1] || k, text: v?.closed ? "Fechado" : `${v?.open} às ${v?.close}` }));
-}
-
-/** Categoria vinda da URL: aceita ?cat= / ?categoria= com id ou nome. */
-export function categoryFromParams(params: URLSearchParams, categories: Category[]): number | null {
-  const raw = params.get("categoria") ?? params.get("cat");
-  if (!raw) return null;
-  if (/^\d+$/.test(raw)) return Number(raw);
-  const found = categories.find((c) => c.name.toLowerCase() === raw.toLowerCase());
-  return found ? found.id : null;
-}
-export function withCategory(params: URLSearchParams, id: number | null) {
-  const next = new URLSearchParams(params);
-  next.delete("categoria");
-  if (id) next.set("cat", String(id)); else next.delete("cat");
-  return next;
-}
-
-export async function shareLink(title: string) {
-  const url = window.location.href;
-  try {
-    if (navigator.share) { await navigator.share({ title, url }); return "Compartilhado"; }
-    await navigator.clipboard.writeText(url);
-    return "Link copiado";
-  } catch {
-    return "";
-  }
+/** Lista do catálogo: busca (?q=), categoria (?categoria=), ordenação (?sort=) e "mostrar mais". */
+export function useCatalogList(pageSize = 12) {
+  const kit = useKit();
+  const query = useCatalogQuery();
+  const [params, setParams] = useSearchParams();
+  const sort = (params.get("sort") as SortKey) || "destaques";
+  const [visible, setVisible] = useState(pageSize);
+  useEffect(() => setVisible(pageSize), [query.q, query.category, sort, pageSize]);
+  const setSort = (value: SortKey) => {
+    const next = new URLSearchParams(params);
+    if (value === "destaques") next.delete("sort");
+    else next.set("sort", value);
+    setParams(next, { replace: true });
+  };
+  const list = useMemo(() => {
+    const term = query.q.trim().toLowerCase();
+    const out = kit.active.filter(
+      (p) => (!query.category || p.category_id === query.category) && (!term || `${p.name} ${p.sku || ""} ${p.description || ""}`.toLowerCase().includes(term)),
+    );
+    if (!kit.hidden && sort === "menor") out.sort((a, b) => priceOf(a) - priceOf(b));
+    else if (!kit.hidden && sort === "maior") out.sort((a, b) => priceOf(b) - priceOf(a));
+    else if (sort === "nome") out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    else out.sort((a, b) => Number(b.is_featured) - Number(a.is_featured));
+    return out;
+  }, [kit.active, kit.hidden, query.q, query.category, sort]);
+  return { ...kit, ...query, sort, setSort, list, shown: list.slice(0, visible), more: () => setVisible((v) => v + pageSize), hasMore: list.length > visible };
 }

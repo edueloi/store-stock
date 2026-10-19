@@ -1,9 +1,173 @@
-import { useMemo,useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, Check, Minus, Plus, ShieldCheck, ShoppingBag, Store, Truck } from "lucide-react";
 import StockAvailability from "../../../../components/store/StockAvailability";
-import { Link,useParams } from "react-router-dom";
-import { ArrowLeft,Check,Minus,Plus,ShoppingBag,Store } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath,parseProductIdFromRoute,resolveStoreSlug } from "../../store-routing";
-import { varietyHidePrices,varietyImage,varietyMoney } from "./ThemeParts";
-export default function StoreProduct(){const {slug:routeSlug,productId}=useParams();const {tenant,products,categories,addToCart,openCart}=useStore();const slug=resolveStoreSlug(routeSlug);const path=(suffix="")=>buildStorePath(slug,suffix);const product=products.find((item)=>item.id===parseProductIdFromRoute(productId));const [quantity,setQuantity]=useState(1);const [note,setNote]=useState("");const [selected,setSelected]=useState<Record<string,string>>({});const [added,setAdded]=useState(false);const choices=useMemo(()=>Array.isArray(product?.variations)?product.variations as Array<{name:string;options:Array<{value:string}>}>:Array.isArray(product?.attributes)?product.attributes.map((a:any)=>({name:a.name,options:(a.values||[]).map((value:string)=>({value}))})):[],[product]);if(!product)return <main className="grid min-h-[60vh] place-items-center bg-[#f4f8ff]"><div className="text-center"><Store className="mx-auto text-[#1761c2]" size={44}/><h1 className="mt-4 text-xl font-black">Produto não encontrado</h1><Link to={path("/catalogo")} className="mt-5 inline-block rounded-full bg-[#1761c2] px-5 py-3 text-xs font-black text-white">Voltar ao catálogo</Link></div></main>;const image=varietyImage(product);const complete=choices.every((choice)=>selected[choice.name]);const add=()=>{if(!complete)return;const options={...selected,...(note.trim()?{"Observação":note.trim()}:{})};for(let i=0;i<quantity;i+=1)addToCart(product,Object.keys(options).length?options:undefined);setAdded(true);};return <main className="min-h-screen bg-[#f4f8ff] pb-16 text-[#142d5a]"><StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description||product.name} image={image} url={typeof window!=="undefined"?window.location.href:""} siteName={tenant.name}/><div className="mx-auto max-w-6xl px-5 py-8"><Link to={path("/catalogo")} className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-[#1761c2]"><ArrowLeft size={15}/> Voltar ao catálogo</Link><div className="mt-6 grid overflow-hidden rounded-3xl border border-[#cdddf1] bg-white shadow-[0_16px_35px_rgba(24,60,120,.1)] lg:grid-cols-[minmax(0,1fr)_440px]"><div className="grid min-h-[340px] place-items-center bg-[#eef5ff] p-8 lg:min-h-[540px]">{image?<img src={image} alt={product.name} className="h-full max-h-[490px] w-full object-contain"/>:<Store size={54} className="text-[#1761c2]"/>}</div><section className="p-6 sm:p-8"><p className="text-[10px] font-black uppercase tracking-[.18em] text-[#1761c2]">{categories.find((c)=>c.id===product.category_id)?.name||"Variedades"}</p><h1 className="mt-3 text-3xl font-black leading-tight tracking-[-.05em]">{product.name}</h1><p className="mt-3 text-xl font-black text-[#1761c2]">{varietyHidePrices(tenant)?"Produto sob consulta":varietyMoney(Number(product.discount_price||product.price))}</p>{product.description&&<p className="mt-5 border-y border-[#dce7f4] py-5 text-sm leading-relaxed text-[#5e789a]">{product.description}</p>}<div className="mt-6 space-y-5">{choices.map((choice)=><div key={choice.name}><p className="text-sm font-black">{choice.name} <span className="text-xs font-normal text-[#1761c2]">obrigatório</span></p><div className="mt-3 flex flex-wrap gap-2">{choice.options.map((option)=><button key={option.value} onClick={()=>setSelected((cur)=>({...cur,[choice.name]:option.value}))} className={`rounded-xl border px-4 py-2.5 text-sm font-bold ${selected[choice.name]===option.value?"border-[#1761c2] bg-[#1761c2] text-white":"border-[#c7d9ef] text-[#315579]"}`}>{selected[choice.name]===option.value&&<Check size={13} className="mr-1 inline"/>}{option.value}</button>)}</div></div>)}</div><textarea value={note} onChange={(e)=>setNote(e.target.value.slice(0,250))} placeholder="Observação do pedido (opcional)" className="mt-6 min-h-24 w-full resize-none rounded-2xl border border-[#c7d9ef] bg-[#f8fbff] p-4 text-sm outline-none focus:border-[#1761c2]"/><StockAvailability product={product} tenant={tenant} selected={selected} className="mt-5" /><div className="mt-6 flex gap-3"><div className="flex h-12 items-center rounded-xl border border-[#c7d9ef]"><button onClick={()=>setQuantity((v)=>Math.max(1,v-1))} className="grid h-full w-10 place-items-center"><Minus size={15}/></button><span className="w-7 text-center font-black">{quantity}</span><button onClick={()=>setQuantity((v)=>v+1)} className="grid h-full w-10 place-items-center"><Plus size={15}/></button></div><button onClick={add} disabled={!complete} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#1761c2] text-[10px] font-black uppercase tracking-wider text-white disabled:bg-[#aac5e7]"><ShoppingBag size={16}/> Adicionar ao pedido</button></div>{added&&<div className="mt-5 rounded-2xl bg-[#e5f0ff] p-4"><p className="text-sm font-black"><Check size={16} className="mr-1 inline text-[#1761c2]"/> Adicionado ao pedido online</p><button onClick={openCart} className="mt-3 rounded-full bg-[#1761c2] px-4 py-2 text-[10px] font-black uppercase text-white">Ver pedido</button></div>}</section></div></div></main>;}
+import { StoreButton } from "../../../../components/store/StoreButton";
+import { parseProductIdFromRoute } from "../../store-routing";
+import { availableUnits } from "../../../../utils/storeStock";
+import { getVariationImages } from "../../../../utils/variationImages";
+import { VarietyProductCard, varietyChoices, varietyPrice, useVariety } from "./ThemeParts";
+import "./styles.css";
+
+export default function StoreProduct() {
+  const { productId } = useParams();
+  const { tenant, products, active, catName, cart, tracks, hidden, addToCart, openCart, path } = useVariety();
+  const product = products.find((item) => item.id === parseProductIdFromRoute(productId));
+  const [quantity, setQuantity] = useState(1);
+  const [note, setNote] = useState("");
+  const [selected, setSelected] = useState<Record<string, string>>({});
+  const [added, setAdded] = useState(false);
+  const [photo, setPhoto] = useState(0);
+  const choices = useMemo(() => varietyChoices(product), [product]);
+
+  useEffect(() => {
+    setSelected({});
+    setQuantity(1);
+    setNote("");
+    setAdded(false);
+    setPhoto(0);
+  }, [product?.id]);
+
+  if (!product) {
+    return (
+      <main className="variety-page">
+        <div className="variety-wrap variety-block">
+          <div className="variety-empty">
+            <Store size={44} aria-hidden="true" />
+            <h1>Produto não encontrado</h1>
+            <StoreButton asChild className="variety-btn-solid">
+              <Link to={path("/catalogo")}>Voltar ao catálogo</Link>
+            </StoreButton>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  const complete = choices.every((choice) => selected[choice.name]);
+  const baseImages = Array.isArray(product.images) && product.images.length ? product.images : product.image_url ? [product.image_url] : [];
+  const variationImages = getVariationImages(product, selected);
+  const gallery = variationImages.length ? variationImages : baseImages;
+  const price = varietyPrice(product, hidden);
+  const units = tracks ? availableUnits(product, complete ? selected : undefined) : null;
+  const inCart = cart
+    .filter((i) => i.id === product.id && choices.every((g) => i.selectedOptions?.[g.name] === selected[g.name]))
+    .reduce((s, i) => s + i.quantity, 0);
+  const maxQty = units === null ? 99 : Math.max(0, units - (complete ? inCart : 0));
+  const soldOut = units !== null && complete && maxQty <= 0;
+  const canAdd = complete && !soldOut && quantity >= 1 && quantity <= maxQty;
+  const lowStock = units !== null && units > 0 && units <= 5;
+  const related = active.filter((p) => p.id !== product.id && p.category_id === product.category_id).slice(0, 4);
+  const label = soldOut ? "Esgotado" : !complete ? "Escolha as opções" : "Adicionar ao pedido";
+
+  const add = () => {
+    if (!canAdd) return;
+    const options = { ...selected, ...(note.trim() ? { Observação: note.trim() } : {}) };
+    for (let i = 0; i < quantity; i += 1) addToCart(product, Object.keys(options).length ? options : undefined);
+    setAdded(true);
+  };
+
+  return (
+    <main className="variety-page variety-page-product">
+      <StoreSEO
+        title={`${product.name} | ${tenant.name}`}
+        description={product.description || product.name}
+        image={gallery[0] || null}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+      <div className="variety-wrap variety-block">
+        <Link to={path("/catalogo")} className="variety-back"><ArrowLeft size={15} /> Voltar ao catálogo</Link>
+
+        <div className="variety-product">
+          <div className="variety-gallery">
+            <div className="variety-gallery-main">
+              {gallery[photo] ? <img src={gallery[photo]} alt={product.name} /> : <Store size={54} aria-hidden="true" />}
+              {price.off && <span className="variety-tag variety-tag-sale">Oferta</span>}
+            </div>
+            {gallery.length > 1 && (
+              <div className="variety-thumbs">
+                {gallery.slice(0, 6).map((src, i) => (
+                  <button key={src} type="button" aria-label={`Foto ${i + 1}`} aria-pressed={i === photo} onClick={() => setPhoto(i)}>
+                    <img src={src} alt="" loading="lazy" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <section className="variety-buy">
+            <span className="variety-eyebrow">{catName(product) || "Variedades"}</span>
+            <h1>{product.name}</h1>
+            <div className="variety-price variety-price-lg">
+              <strong>{hidden ? "Produto sob consulta" : price.now}</strong>
+              {price.old && <s>{price.old}</s>}
+              {lowStock && <span className="variety-low">Restam {units}</span>}
+            </div>
+            {product.description && <p className="variety-desc">{product.description}</p>}
+
+            {choices.map((choice) => (
+              <fieldset key={choice.name} className="variety-option-group">
+                <legend>{choice.name} <span>obrigatório</span></legend>
+                <div className="variety-options">
+                  {choice.options.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={selected[choice.name] === option.value}
+                      onClick={() => setSelected((cur) => ({ ...cur, [choice.name]: option.value }))}
+                    >
+                      {selected[choice.name] === option.value && <Check size={14} />} {option.value}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            ))}
+
+            <textarea
+              className="variety-note-input"
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, 250))}
+              placeholder="Observação do pedido (opcional)"
+              aria-label="Observação do pedido"
+            />
+            <StockAvailability product={product} tenant={tenant} selected={selected} className="mt-4" />
+
+            <div className="variety-buyrow">
+              <div className="variety-qty" role="group" aria-label="Quantidade">
+                <button type="button" aria-label="Diminuir" onClick={() => setQuantity((v) => Math.max(1, v - 1))}><Minus size={15} /></button>
+                <span>{quantity}</span>
+                <button type="button" aria-label="Aumentar" disabled={quantity >= maxQty} onClick={() => setQuantity((v) => Math.min(maxQty || 1, v + 1))}><Plus size={15} /></button>
+              </div>
+              <StoreButton className="variety-btn-solid variety-buy-btn" onClick={add} disabled={!canAdd}>
+                <ShoppingBag size={17} /> {label}
+              </StoreButton>
+            </div>
+
+            {added && (
+              <div className="variety-added" role="status">
+                <p><Check size={16} /> Adicionado ao pedido online</p>
+                <StoreButton size="sm" className="variety-btn-solid" onClick={openCart}>Ver pedido</StoreButton>
+              </div>
+            )}
+
+            <ul className="variety-trust">
+              <li><Truck size={17} aria-hidden="true" /> Entrega combinada com a loja</li>
+              <li><ShieldCheck size={17} aria-hidden="true" /> Compra simples e segura</li>
+            </ul>
+          </section>
+        </div>
+
+        {related.length > 0 && (
+          <section className="variety-related">
+            <h2>Veja também</h2>
+            <div className="variety-grid variety-grid-4">
+              {related.map((p) => <VarietyProductCard key={p.id} product={p} />)}
+            </div>
+          </section>
+        )}
+      </div>
+    </main>
+  );
+}

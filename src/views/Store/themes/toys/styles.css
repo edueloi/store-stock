@@ -486,3 +486,37 @@
 .toys-tile strong { font-size: 15px; }
 .toys-tile { padding: 14px 8px 12px; }
 .toys-tile-img { max-width: 110px; }
+
+/* ---- 2ª rodada: slider, carrinho, contenção de categorias ---- */
+.toys-slider {
+  --hs-radius: 40px;
+  --hs-height: clamp(240px, 36vw, 440px);
+  --hs-accent: #ff5c8a;
+  --hs-ink: #fff;
+  width: calc(100% - 32px);
+  margin: 24px auto 8px;
+}
+.toys-slider .hs-track { border: 6px solid #fff; box-shadow: 0 14px 30px rgba(113, 72, 213, 0.25); background: #efe8ff; }
+.toys-slider .hs-copy h2 { font-family: "Fredoka", system-ui, sans-serif; }
+.toys-slider .hs-btn { font-family: "Fredoka", system-ui, sans-serif; min-height: 44px; border: 3px solid #fff; box-shadow: 0 4px 0 rgba(43, 23, 99, 0.25); }
+.toys-slider .hs-arrow { background: #fff; color: #7148d5; }
+.toys-slider .hs-dots button.is-on { background: #ffcf3d; }
+.toys-hero { margin-top: 0; }
+
+/* Categorias: cartões com a mesma altura, bem contidos */
+.toys-tiles { align-items: stretch; }
+.toys-tile { height: 100%; align-content: start; min-width: 0; }
+.toys-tile strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.2em; }
+.toys-foot-card a, .toys-foot-card p { overflow-wrap: anywhere; }
+
+/* Carrinho (gaveta compartilhada) */
+.store-theme-toys .fragrance-cart-drawer { background: #fff7e8 !important; color: #2b1763 !important; border-radius: 32px 0 0 32px !important; border: 0 !important; font-family: "Nunito", system-ui, sans-serif; }
+.store-theme-toys .fragrance-cart-head { background: linear-gradient(135deg, #7148d5, #a45cf0 60%, #ff6fa5) !important; color: #fff !important; border-radius: 32px 0 0 0 !important; border-bottom: 0 !important; }
+.store-theme-toys .fragrance-cart-head * { color: inherit !important; }
+.store-theme-toys .fragrance-cart-total { background: #fff !important; color: #2b1763 !important; border-top: 0 !important; border-radius: 28px 0 0 0 !important; box-shadow: 0 -8px 24px rgba(113, 72, 213, 0.15); }
+.store-theme-toys .fragrance-cart-total button { min-height: 46px !important; max-height: 52px; border-radius: 999px !important; font-family: "Fredoka", system-ui, sans-serif; font-weight: 600; }
+@media (max-width: 520px) {
+  .store-theme-toys .fragrance-cart-drawer { border-radius: 0 !important; }
+  .store-theme-toys .fragrance-cart-head { border-radius: 0 !important; }
+  .toys-slider { width: calc(100% - 24px); --hs-radius: 28px; }
+}

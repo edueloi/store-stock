@@ -1,73 +1,69 @@
 import { Link, useParams } from "react-router-dom";
-import { Check, Coffee, Heart, Minus, Plus, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Check, Coffee, Minus, Plus, ShoppingBag } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import StockAvailability from "../../../../components/store/StockAvailability";
 import { parseProductIdFromRoute } from "../../store-routing";
 import { priceInfo, useBuy, useKit, whatsappLink } from "./kit";
-import { Bean, MenuRow, Steam } from "./parts";
+import { ProductCard } from "./parts";
+import type { Product } from "../../../../types";
 import "./styles.css";
 
 export default function StoreProduct() {
   const { productId } = useParams();
-  const { tenant, products, categories, path, hidden, wishlist, toggleWishlist, active } = useKit();
-  const product = products.find((p) => p.id === parseProductIdFromRoute(productId) && p.is_active);
-  const buy = useBuy(product);
-
+  const { active, path } = useKit();
+  const product = active.find((p) => p.id === parseProductIdFromRoute(productId));
   if (!product)
     return (
-      <main className="cf-root">
-        <div className="cf-emptybox cf-notfound">
-          <Coffee size={44} aria-hidden="true" />
-          <h1>Produto não encontrado</h1>
-          <Link to={path("/catalogo")} className="cf-btn">
-            Voltar ao cardápio
-          </Link>
-        </div>
-      </main>
+      <div className="cf-page cf-notfound">
+        <Coffee size={56} aria-hidden="true" />
+        <h1>Item não encontrado</h1>
+        <p>Ele pode ter saído do cardápio. Veja o que mais temos hoje.</p>
+        <Link className="cf-btn cf-btn-lg" to={path("/catalogo")}>
+          Voltar ao cardápio
+        </Link>
+      </div>
     );
+  return <Details key={product.id} product={product} />;
+}
 
-  const p = priceInfo(product, hidden);
-  const category = categories.find((c) => c.id === product.category_id);
-  const liked = wishlist.includes(product.id);
-  const related = active.filter((x) => x.id !== product.id && x.category_id === product.category_id).slice(0, 4);
-  const more = related.length ? related : active.filter((x) => x.id !== product.id).slice(0, 4);
-  const wa = whatsappLink(tenant.whatsapp, `Olá! Tenho interesse em ${product.name}.`);
-  const missing = buy.groups.filter((g) => !buy.selected[g.name]).map((g) => g.name);
-
+function Details({ product }: { product: Product }) {
+  const { tenant, active, hidden, path, catName, sf } = useKit();
+  const b = useBuy(product);
+  const price = priceInfo(product, hidden);
+  const related = active.filter((p) => p.id !== product.id && p.category_id === product.category_id).slice(0, 4);
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Tenho uma dúvida sobre: ${product.name}`);
+  const missing = b.groups.filter((g) => !b.selected[g.name]).map((g) => g.name);
   return (
-    <main className="cf-root">
+    <div className="cf-page cf-product">
       <StoreSEO
-        title={`${product.name} — ${tenant.name}`}
+        title={`${product.name} | ${tenant.name}`}
         description={product.description || product.name}
-        image={buy.gallery[0]}
-        type="product"
-        price={hidden ? undefined : String(product.discount_price ?? product.price)}
+        image={b.gallery[0]}
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
       />
       <nav className="cf-crumbs" aria-label="Você está em">
-        <Link to={path()}>Início</Link>
-        <span aria-hidden="true">·</span>
-        <Link to={path("/catalogo")}>Cardápio</Link>
-        {category && (
+        <Link to={path("/catalogo")}>
+          <ArrowLeft size={16} /> Cardápio
+        </Link>
+        {catName(product) && (
           <>
-            <span aria-hidden="true">·</span>
-            <Link to={path(`/catalogo?cat=${category.id}`)}>{category.name}</Link>
+            <span aria-hidden="true">/</span>
+            <Link to={path(`/catalogo?categoria=${product.category_id}`)}>{catName(product)}</Link>
           </>
         )}
       </nav>
 
-      <div className="cf-product cf-new-product">
-        <section className="cf-gallery cf-new-gallery" aria-label="Fotos do produto">
-          <div className="cf-bigarch cf-new-stage">
-            <Steam className="cf-steam" />
-            {buy.gallery.length ? <img src={buy.gallery[buy.photo] || buy.gallery[0]} alt={product.name} /> : <Bean className="cf-arch-bean" />}
-            {p.off && <em className="cf-tag cf-tag-lg">Oferta</em>}
+      <div className="cf-pd">
+        <section className="cf-gallery" aria-label="Fotos do item">
+          <div className="cf-gallery-main">
+            {b.gallery.length ? <img src={b.gallery[b.photo] || b.gallery[0]} alt={product.name} /> : <Coffee size={90} aria-label="Sem imagem" />}
+            {price.off && <span className="cf-badge">Oferta</span>}
           </div>
-          {buy.gallery.length > 1 && (
-            <div className="cf-dots">
-              {buy.gallery.map((src, i) => (
-                <button key={`${src}-${i}`} aria-label={`Ver foto ${i + 1}`} aria-pressed={buy.photo === i} onClick={() => buy.setPhoto(i)}>
+          {b.gallery.length > 1 && (
+            <div className="cf-thumbs">
+              {b.gallery.map((src, i) => (
+                <button key={`${src}-${i}`} type="button" aria-label={`Ver foto ${i + 1}`} aria-pressed={b.photo === i} onClick={() => b.setPhoto(i)}>
                   <img src={src} alt="" />
                 </button>
               ))}
@@ -75,79 +71,89 @@ export default function StoreProduct() {
           )}
         </section>
 
-        <section className="cf-card cf-new-buybox">
-          {category && <p className="cf-eyebrow">{category.name}</p>}
+        <section className="cf-buy">
+          {catName(product) && <span className="cf-hand">{catName(product)}</span>}
           <h1>{product.name}</h1>
-          {product.sku && <p className="cf-ref">Ref. {product.sku}</p>}
-          <p className="cf-priceline">
-            <span>Preço</span>
-            <span className="cf-leader" aria-hidden="true" />
-            <span className="cf-priceval">
-              {p.old && <s>{p.old}</s>}
-              <strong>{p.now}</strong>
-            </span>
-          </p>
+          {product.sku && <small className="cf-sku">Código: {product.sku}</small>}
+          <div className="cf-price cf-price-lg">
+            <strong>{hidden ? "Valor sob consulta" : price.now}</strong>
+            {price.old && <s>{price.old}</s>}
+          </div>
           {product.description && <p className="cf-desc">{product.description}</p>}
 
-          {buy.groups.map((g) => (
-            <fieldset key={g.name} className="cf-opts">
+          <StockAvailability product={product} tenant={tenant} selected={b.ready ? b.selected : undefined} />
+
+          {b.groups.map((g) => (
+            <fieldset key={g.name} className="cf-fieldset">
               <legend>
-                {g.name} <small>{buy.selected[g.name] || "escolha uma opção"}</small>
+                {g.name} <small>obrigatório</small>
               </legend>
-              <div className="cf-opt-row">
-                {g.values.map((v) => {
-                  const on = buy.selected[g.name] === v;
-                  return (
-                    <button key={v} className={`cf-opt ${on ? "is-on" : ""}`} aria-pressed={on} onClick={() => buy.setSelected((s) => ({ ...s, [g.name]: v }))}>
-                      {on && <Check size={14} />} {v}
-                    </button>
-                  );
-                })}
+              <div className="cf-opts">
+                {g.values.map((v) => (
+                  <button key={v} type="button" className="cf-opt" aria-pressed={b.selected[g.name] === v} onClick={() => b.setSelected((prev) => ({ ...prev, [g.name]: v }))}>
+                    {b.selected[g.name] === v && <Check size={15} aria-hidden="true" />} {v}
+                  </button>
+                ))}
               </div>
             </fieldset>
           ))}
 
-          <StockAvailability product={product} tenant={tenant} selected={buy.ready ? buy.selected : undefined} className="cf-stock" />
-          {missing.length > 0 && <p className="cf-hint">Escolha {missing.join(" e ")} para pedir.</p>}
+          <label className="cf-note-field">
+            <span>Observação (opcional)</span>
+            <textarea value={b.note} maxLength={250} onChange={(e) => b.setNote(e.target.value)} placeholder="Ex.: sem açúcar, bem quentinho..." rows={3} />
+          </label>
 
-          <div className="cf-buyrow">
+          <div className="cf-buy-row">
             <div className="cf-qty" role="group" aria-label="Quantidade">
-              <button aria-label="Diminuir quantidade" onClick={() => buy.setQty((q) => Math.max(1, q - 1))} disabled={buy.qty <= 1}>
-                <Minus size={16} />
+              <button type="button" aria-label="Diminuir quantidade" disabled={b.qty <= 1} onClick={() => b.setQty((v) => Math.max(1, v - 1))}>
+                <Minus size={18} />
               </button>
-              <output aria-live="polite">{buy.qty}</output>
-              <button aria-label="Aumentar quantidade" onClick={() => buy.setQty((q) => Math.min(buy.maxQty || 1, q + 1))} disabled={buy.qty >= buy.maxQty}>
-                <Plus size={16} />
+              <output aria-live="polite">{b.qty}</output>
+              <button type="button" aria-label="Aumentar quantidade" disabled={b.qty >= b.maxQty} onClick={() => b.setQty((v) => Math.min(b.maxQty, v + 1))}>
+                <Plus size={18} />
               </button>
             </div>
-            <button className="cf-btn cf-grow" onClick={buy.add} disabled={!buy.canAdd}>
-              <ShoppingBag size={18} /> {buy.soldOut ? "Esgotado" : "Adicionar à comanda"}
-            </button>
-            <button className="cf-ico" aria-pressed={liked} aria-label={liked ? "Remover dos favoritos" : "Favoritar"} onClick={() => toggleWishlist(product.id)}>
-              <Heart size={20} fill={liked ? "currentColor" : "none"} />
+            <button type="button" className="cf-btn cf-btn-lg cf-add-main" disabled={!b.canAdd} onClick={b.add}>
+              <ShoppingBag size={19} /> {b.soldOut ? "Indisponível" : sf.checkout_mode === "order_request" ? "Incluir no pedido" : "Adicionar à sacola"}
             </button>
           </div>
+          {!b.ready && (
+            <p className="cf-hint" role="status">
+              Escolha {missing.join(" e ")} para continuar.
+            </p>
+          )}
+          {b.added && (
+            <div className="cf-added" role="status">
+              <span>
+                <Check size={18} aria-hidden="true" /> Adicionado à sacola!
+              </span>
+              <button type="button" className="cf-btn cf-btn-sm" onClick={b.openCart}>
+                Ver sacola
+              </button>
+            </div>
+          )}
           {wa && (
             <a className="cf-link" href={wa} target="_blank" rel="noreferrer">
-              Tirar uma dúvida pelo WhatsApp
+              Tirar dúvida pelo WhatsApp
             </a>
           )}
+          {tenant.show_address && tenant.address && <p className="cf-small">Retirada: {tenant.address}</p>}
         </section>
       </div>
 
-      {more.length > 0 && (
-        <section className="cf-block">
+      {related.length > 0 && (
+        <section className="cf-section">
           <header className="cf-head">
-            <p className="cf-eyebrow">Para acompanhar</p>
-            <h2>Também no cardápio</h2>
+            <span className="cf-hand">combina com</span>
+            <h2>Peça também</h2>
           </header>
-          <div className="cf-menu">
-            {more.map((x) => (
-              <MenuRow key={x.id} product={x} />
+          <div className="cf-list">
+            {related.map((p) => (
+              <ProductCard key={p.id} product={p} />
             ))}
           </div>
         </section>
       )}
-    </main>
+    </div>
   );
 }

@@ -1,0 +1,30 @@
+/* Carrossel de banners. Temas ajustam via variáveis: --hs-radius, --hs-height, --hs-accent, --hs-ink. */
+.hs { --hs-radius: 28px; --hs-height: clamp(260px, 38vw, 480px); --hs-accent: var(--theme-accent, #2455d6); --hs-ink: #fff; position: relative; width: 100%; max-width: 1280px; margin: 0 auto; }
+.hs * { box-sizing: border-box; }
+.hs-track { position: relative; height: var(--hs-height); overflow: hidden; border-radius: var(--hs-radius); background: #e5e7eb; isolation: isolate; }
+.hs-slide { position: absolute; inset: 0; opacity: 0; visibility: hidden; transition: opacity .6s ease, visibility .6s; }
+.hs-slide.is-active { opacity: 1; visibility: visible; z-index: 1; }
+.hs-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hs-copy { position: absolute; z-index: 2; left: clamp(20px, 5vw, 64px); bottom: clamp(24px, 6vw, 64px); display: grid; gap: 12px; max-width: min(560px, 80%); color: var(--hs-ink); }
+.hs-banner .hs-slide::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.6), rgba(0,0,0,.05) 70%); }
+.hs-banner .hs-copy { z-index: 3; text-shadow: 0 2px 14px rgba(0,0,0,.35); }
+.hs-copy h2 { margin: 0; font-size: clamp(26px, 4.4vw, 52px); line-height: 1.04; font-weight: 800; }
+.hs-copy p { margin: 0; font-size: clamp(14px, 1.6vw, 18px); line-height: 1.5; opacity: .95; }
+.hs-btn { justify-self: start; display: inline-flex; align-items: center; min-height: 44px; padding: 0 24px; border-radius: 999px; background: var(--hs-accent); color: #fff !important; font-weight: 700; text-decoration: none; box-shadow: 0 8px 20px rgba(0,0,0,.25); transition: transform .15s; }
+.hs-btn:hover { transform: translateY(-2px); }
+.hs-split .hs-track { background: var(--hs-split-bg, #f4f4f5); }
+.hs-split .hs-img { left: auto; right: 0; width: 55%; border-radius: var(--hs-radius) 0 0 var(--hs-radius); }
+.hs-split .hs-copy { --hs-ink: #111; top: 0; bottom: 0; align-content: center; max-width: 42%; }
+.hs-arrow { position: absolute; z-index: 5; top: 50%; display: grid; place-items: center; width: 44px; height: 44px; margin-top: -22px; border: 0; border-radius: 50%; background: rgba(255,255,255,.92); color: #111; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25); transition: transform .15s; }
+.hs-arrow:hover { transform: scale(1.08); }
+.hs-prev { left: 14px; }
+.hs-next { right: 14px; }
+.hs-dots { position: absolute; z-index: 5; left: 0; right: 0; bottom: 14px; display: flex; justify-content: center; gap: 8px; }
+.hs-dots button { width: 10px; height: 10px; padding: 0; border: 0; border-radius: 999px; background: rgba(255,255,255,.65); box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: pointer; transition: width .2s, background .2s; }
+.hs-dots button.is-on { width: 28px; background: #fff; }
+.hs :focus-visible { outline: 3px solid var(--hs-accent); outline-offset: 2px; }
+@media (max-width: 700px) {
+  .hs-split .hs-img { width: 100%; border-radius: var(--hs-radius); }
+  .hs-split .hs-copy { max-width: 80%; top: auto; bottom: 36px; --hs-ink: #fff; }
+  .hs-arrow { width: 38px; height: 38px; margin-top: -19px; }
+}

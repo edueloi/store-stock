@@ -162,7 +162,7 @@ export default function StoreProduct() {
               style={{
                 height: "clamp(350px, 46vw, 530px)",
                 background: "var(--vitra-bg)",
-                borderRadius: 6,
+                borderRadius: 24,
                 overflow: "hidden",
                 border: "1px solid var(--vitra-line)",
                 display: "flex",
@@ -196,7 +196,7 @@ export default function StoreProduct() {
                         overflow: "hidden",
                         background: "var(--vitra-bg)",
                         border: `2px solid ${isSelected ? "var(--vitra-accent)" : "transparent"}`,
-                        borderRadius: 4,
+                        borderRadius: 14,
                         padding: 0,
                         cursor: "pointer",
                         flexShrink: 0,
@@ -292,7 +292,7 @@ export default function StoreProduct() {
                     padding: "13px 14px",
                     border: "1px solid #d6dfdc",
                     background: "#ffffff",
-                    borderRadius: 4,
+                    borderRadius: 14,
                     fontSize: 13,
                     color: "var(--vitra-ink)",
                     outline: "none",
@@ -323,7 +323,7 @@ export default function StoreProduct() {
                   minHeight: 70,
                   resize: "none",
                   border: "1px solid #d6dfdc",
-                  borderRadius: 4,
+                  borderRadius: 14,
                   padding: "10px 14px",
                   fontSize: 13,
                   outline: "none",
@@ -340,7 +340,7 @@ export default function StoreProduct() {
                   border: "1px solid var(--vitra-line)",
                   height: 48,
                   alignItems: "center",
-                  borderRadius: 4,
+                  borderRadius: 14,
                   background: "#ffffff",
                 }}
               >
@@ -366,7 +366,7 @@ export default function StoreProduct() {
               <button
                 onClick={add}
                 className="vitra-btn-primary"
-                style={{ flex: 1, height: 48, borderRadius: 4 }}
+                style={{ flex: 1, height: 48, borderRadius: 999 }}
               >
                 Adicionar ao carrinho ↗
               </button>
@@ -386,7 +386,7 @@ export default function StoreProduct() {
                   width: "100%",
                   height: 46,
                   border: "1px solid #bcd0c7",
-                  borderRadius: 4,
+                  borderRadius: 14,
                   background: "#f0f6f4",
                   color: "#1c5643",
                   fontWeight: 800,
@@ -407,7 +407,7 @@ export default function StoreProduct() {
                   marginTop: 14,
                   background: "var(--vitra-bg)",
                   border: "1px solid var(--vitra-accent)",
-                  borderRadius: 4,
+                  borderRadius: 14,
                   padding: "12px 16px",
                   display: "flex",
                   alignItems: "center",
@@ -423,7 +423,7 @@ export default function StoreProduct() {
                     background: "var(--vitra-accent)",
                     color: "#ffffff",
                     border: 0,
-                    borderRadius: 4,
+                    borderRadius: 14,
                     padding: "6px 14px",
                     fontSize: 12,
                     fontWeight: 700,

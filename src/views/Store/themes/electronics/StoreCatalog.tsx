@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { GitCompare, LayoutGrid, List, Search, X } from "lucide-react";
+import { GitCompare, LayoutGrid, List, Search, SlidersHorizontal, X } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { Card, Empty, deptIcon, installmentText } from "./parts";
 import { categoryFromParams, imageOf, inStock, money, priceInfo, productHref, useKit, variationGroups, withCategory } from "./kit";
@@ -24,6 +24,7 @@ export default function StoreCatalog() {
   const [shown, setShown] = useState(PAGE);
   const [picked, setPicked] = useState<number[]>([]);
   const [modal, setModal] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
   const title = sf.catalog_title || "Todos os produtos";
   const description = sf.catalog_description || "Compare, filtre por departamento e escolha o melhor para você.";
@@ -97,59 +98,74 @@ export default function StoreCatalog() {
           </form>
         </header>
 
-        <div className="elx-chips" role="group" aria-label="Departamentos">
-          <button type="button" aria-pressed={!selected} className={!selected ? "is-on" : ""} onClick={() => setCat(null)}>Todos <span>{active.length}</span></button>
-          {categories.filter((c) => counts.get(c.id)).map((c) => {
-            const Icon = deptIcon(c.name);
-            return <button key={c.id} type="button" aria-pressed={selected === c.id} className={selected === c.id ? "is-on" : ""} onClick={() => setCat(c.id)}><Icon size={15} /> {c.name} <span>{counts.get(c.id)}</span></button>;
-          })}
-        </div>
+        <div className="elx-cat-layout">
+          <aside className={`elx-side${filtersOpen ? " is-open" : ""}`} aria-label="Filtros">
+            <section className="elx-side-card">
+              <p className="elx-side-h">Departamentos</p>
+              <div className="elx-chips" role="group" aria-label="Departamentos">
+                <button type="button" aria-pressed={!selected} className={!selected ? "is-on" : ""} onClick={() => setCat(null)}>Todos <span>{active.length}</span></button>
+                {categories.filter((c) => counts.get(c.id)).map((c) => {
+                  const Icon = deptIcon(c.name);
+                  return <button key={c.id} type="button" aria-pressed={selected === c.id} className={selected === c.id ? "is-on" : ""} onClick={() => setCat(c.id)}><Icon size={15} /> {c.name} <span>{counts.get(c.id)}</span></button>;
+                })}
+              </div>
+            </section>
+            <section className="elx-side-card elx-filters">
+              <p className="elx-side-h">Filtrar</p>
+              {!hidePrices && (
+                <>
+                  <label className="elx-check"><input type="checkbox" checked={onlyOffers} onChange={(e) => setOnlyOffers(e.target.checked)} /> Só ofertas</label>
+                  <div className="elx-range">
+                    <label className="elx-field"><span>De R$</span><input type="number" inputMode="decimal" min="0" value={min} onChange={(e) => setMin(e.target.value)} /></label>
+                    <label className="elx-field"><span>Até R$</span><input type="number" inputMode="decimal" min="0" value={max} onChange={(e) => setMax(e.target.value)} /></label>
+                  </div>
+                </>
+              )}
+              <label className="elx-check"><input type="checkbox" checked={onlyStock} onChange={(e) => setOnlyStock(e.target.checked)} /> Somente disponíveis</label>
+            </section>
+          </aside>
 
-        <div className="elx-bar">
-          <p className="elx-count"><b>{list.length}</b> {list.length === 1 ? "produto" : "produtos"}{urlQ ? <> para “{urlQ}”</> : null}</p>
-          <div className="elx-filters">
-            {!hidePrices && (
+          <section className="elx-cat-main">
+            <div className="elx-bar">
+              <p className="elx-count"><b>{list.length}</b> {list.length === 1 ? "produto" : "produtos"}{urlQ ? <> para “{urlQ}”</> : null}</p>
+              <div className="elx-bar-tools">
+                <button type="button" className="elx-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((v) => !v)}><SlidersHorizontal size={16} /> Filtros</button>
+                <label className="elx-field elx-field-sort"><span>Ordenar</span>
+                  <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                    <option value="relevance">Relevância</option>
+                    <option value="recent">Mais recentes</option>
+                    {!hidePrices && <option value="low">Menor preço</option>}
+                    {!hidePrices && <option value="high">Maior preço</option>}
+                    {!hidePrices && <option value="off">Maior desconto</option>}
+                    <option value="name">Nome (A–Z)</option>
+                  </select>
+                </label>
+                <div className="elx-view" role="group" aria-label="Modo de exibição">
+                  <button type="button" aria-pressed={view === "grid"} aria-label="Ver em grade" className={view === "grid" ? "is-on" : ""} onClick={() => setView("grid")}><LayoutGrid size={18} /></button>
+                  <button type="button" aria-pressed={view === "list"} aria-label="Ver em lista" className={view === "list" ? "is-on" : ""} onClick={() => setView("list")}><List size={18} /></button>
+                </div>
+              </div>
+            </div>
+
+            {list.length === 0 ? (
+              <Empty title="Nenhum produto encontrado" text="Ajuste a busca ou remova alguns filtros." />
+            ) : (
               <>
-                <label className="elx-check"><input type="checkbox" checked={onlyOffers} onChange={(e) => setOnlyOffers(e.target.checked)} /> Só ofertas</label>
-                <label className="elx-field"><span>De R$</span><input type="number" inputMode="decimal" min="0" value={min} onChange={(e) => setMin(e.target.value)} /></label>
-                <label className="elx-field"><span>Até R$</span><input type="number" inputMode="decimal" min="0" value={max} onChange={(e) => setMax(e.target.value)} /></label>
+                <div className={view === "grid" ? "elx-grid" : "elx-list"}>
+                  {list.slice(0, shown).map((p) => (
+                    <Card key={p.id} product={p} list={view === "list"} compare={{ on: picked.includes(p.id), disabled: picked.length >= MAX_COMPARE, toggle: () => toggle(p.id) }} />
+                  ))}
+                </div>
+                {shown < list.length && (
+                  <div className="elx-more">
+                    <span>Exibindo {Math.min(shown, list.length)} de {list.length}</span>
+                    <button type="button" className="elx-btn elx-btn-inline" onClick={() => setShown((n) => n + PAGE)}>Carregar mais produtos</button>
+                  </div>
+                )}
               </>
             )}
-            <label className="elx-check"><input type="checkbox" checked={onlyStock} onChange={(e) => setOnlyStock(e.target.checked)} /> Disponíveis</label>
-            <label className="elx-field elx-field-sort"><span>Ordenar</span>
-              <select value={sort} onChange={(e) => setSort(e.target.value)}>
-                <option value="relevance">Relevância</option>
-                <option value="recent">Mais recentes</option>
-                {!hidePrices && <option value="low">Menor preço</option>}
-                {!hidePrices && <option value="high">Maior preço</option>}
-                {!hidePrices && <option value="off">Maior desconto</option>}
-                <option value="name">Nome (A–Z)</option>
-              </select>
-            </label>
-            <div className="elx-view" role="group" aria-label="Modo de exibição">
-              <button type="button" aria-pressed={view === "grid"} aria-label="Ver em grade" className={view === "grid" ? "is-on" : ""} onClick={() => setView("grid")}><LayoutGrid size={18} /></button>
-              <button type="button" aria-pressed={view === "list"} aria-label="Ver em lista" className={view === "list" ? "is-on" : ""} onClick={() => setView("list")}><List size={18} /></button>
-            </div>
-          </div>
+          </section>
         </div>
-
-        {list.length === 0 ? (
-          <Empty title="Nenhum produto encontrado" text="Ajuste a busca ou remova alguns filtros." />
-        ) : (
-          <>
-            <div className={view === "grid" ? "elx-grid" : "elx-list"}>
-              {list.slice(0, shown).map((p) => (
-                <Card key={p.id} product={p} list={view === "list"} compare={{ on: picked.includes(p.id), disabled: picked.length >= MAX_COMPARE, toggle: () => toggle(p.id) }} />
-              ))}
-            </div>
-            {shown < list.length && (
-              <div className="elx-more">
-                <span>Exibindo {Math.min(shown, list.length)} de {list.length}</span>
-                <button type="button" className="elx-btn elx-btn-inline" onClick={() => setShown((n) => n + PAGE)}>Carregar mais produtos</button>
-              </div>
-            )}
-          </>
-        )}
       </div>
 
       {chosen.length > 0 && (

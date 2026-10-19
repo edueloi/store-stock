@@ -1,91 +1,131 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Instagram, Menu, MessageCircle, Search, ShoppingBag, Store, X } from "lucide-react";
-import SearchBar from "../../../../components/layout/SearchBar";
+import { Clock, Droplets, Facebook, Instagram, MapPin, Menu, MessageCircle, ShoppingBag, X } from "lucide-react";
 import { hoursLines, useKit, whatsappLink } from "./kit";
+import { SearchField } from "./parts";
 import "./styles.css";
-import "./reference.css";
 
 export function Header() {
-  const { tenant, categories, cart, openCart, path } = useKit();
-  const { pathname, search } = useLocation();
+  const { tenant, categories, active, openCart, cartCount, path } = useKit();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const [menu, setMenu] = useState(false);
+  const [term, setTerm] = useState("");
+  const used = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 10);
   const links = [
-    { label: "Início", to: path() },
-    { label: "Coleção", to: path("/catalogo") },
-    { label: "Nossa loja", to: path("/sobre") },
+    { name: "Início", to: path(), on: !/catalogo|sobre|produto/.test(pathname) },
+    { name: "Fragrâncias", to: path("/catalogo"), on: /catalogo|produto/.test(pathname) },
+    { name: "Nossa loja", to: path("/sobre"), on: /sobre/.test(pathname) },
   ];
-  const submit = (event: React.FormEvent) => {
-    event.preventDefault();
-    const term = query.trim();
-    navigate(path(term ? `/catalogo?q=${encodeURIComponent(term)}` : "/catalogo"));
-    setMenuOpen(false);
+  useEffect(() => setMenu(false), [pathname]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMenu(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setMenu(false);
+    navigate(path(`/catalogo${term.trim() ? `?q=${encodeURIComponent(term.trim())}` : ""}`));
   };
-
-  useEffect(() => setMenuOpen(false), [pathname, search]);
-
   return (
-    <header className="fr-header">
-      <div className="fr-announcement">
-        <div className="fr-wrap">
-          <span>{tenant.hero_tagline || "Escolhas para os seus momentos."}</span>
-          {tenant.whatsapp && <a href={whatsappLink(tenant.whatsapp)} target="_blank" rel="noreferrer"><MessageCircle size={14} /> Atendimento pelo WhatsApp</a>}
-        </div>
-      </div>
-      <div className="fr-wrap fr-mainbar">
-        <button type="button" className="fr-icon-button fr-menu-button" aria-label={menuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
-          {menuOpen ? <X size={21} /> : <Menu size={21} />}
+    <header className="frg-header">
+      <div className="frg-bar">
+        <button type="button" className="frg-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
+          {menu ? <X size={22} /> : <Menu size={22} />}
         </button>
-        <Link className="fr-brand" to={path()} aria-label={`${tenant.name} - início`}>
-          {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="fr-brand-mark"><Store size={20} /></span>}
+        <Link className="frg-brand" to={path()} aria-label={`${tenant.name} - página inicial`}>
+          {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="frg-brand-mark"><Droplets size={19} /></span>}
           <span>{tenant.name}</span>
         </Link>
-        <form className="fr-search" role="search" onSubmit={submit}>
-          <SearchBar value={query} onChange={setQuery} placeholder="Buscar na coleção" />
-          <button type="submit" aria-label="Buscar"><Search size={18} /></button>
+        <form className="frg-search" role="search" onSubmit={submit}>
+          <SearchField value={term} onChange={setTerm} placeholder="Busque por fragrância, marca ou nota" />
         </form>
-        <button type="button" className="fr-cart" onClick={openCart} aria-label={`Abrir pedido, ${count} ${count === 1 ? "item" : "itens"}`}>
-          <ShoppingBag size={19} /><span>Pedido</span><b>{count}</b>
+        <button type="button" className="frg-cart" aria-label={`Abrir sacola, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`} onClick={openCart}>
+          <ShoppingBag size={20} />
+          <span className="frg-cart-label">Sacola</span>
+          <b>{cartCount}</b>
         </button>
       </div>
-      <nav className={`fr-nav ${menuOpen ? "is-open" : ""}`} aria-label="Navegação principal">
-        <div className="fr-wrap fr-nav-inner">
-          {links.map((link) => <Link key={link.label} to={link.to} aria-current={pathname === link.to.split("?")[0] ? "page" : undefined}>{link.label}</Link>)}
+      <div className="frg-tray-wrap">
+        <nav className="frg-tray" aria-label="Navegação e famílias">
+          {links.map((l) => (
+            <Link key={l.to} to={l.to} className="frg-tray-link" aria-current={l.on ? "page" : undefined}>{l.name}</Link>
+          ))}
+          {used.length > 0 && <span className="frg-tray-sep" aria-hidden="true" />}
+          {used.map((c) => (
+            <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)} className="frg-tray-cat">{c.name}</Link>
+          ))}
+        </nav>
+      </div>
+      {menu && (
+        <div className="frg-drawer">
+          <form role="search" onSubmit={submit}>
+            <SearchField value={term} onChange={setTerm} placeholder="Buscar fragrância" />
+          </form>
+          <nav aria-label="Menu">
+            {links.map((l) => (
+              <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>
+            ))}
+          </nav>
+          {used.length > 0 && (
+            <>
+              <p className="frg-drawer-title">Famílias olfativas</p>
+              <div className="frg-drawer-chips">
+                {used.map((c) => (
+                  <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>{c.name}</Link>
+                ))}
+              </div>
+            </>
+          )}
         </div>
-      </nav>
+      )}
     </header>
   );
 }
 
 export function Footer() {
-  const { tenant, categories, path } = useKit();
+  const { tenant, categories, active, path } = useKit();
   const hours = hoursLines(tenant.business_hours);
-  const whatsapp = whatsappLink(tenant.whatsapp);
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
+  const cats = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 6);
   return (
-    <footer className="fr-footer">
-      <div className="fr-wrap fr-footer-main">
-        <div className="fr-footer-about">
-          <span className="fr-footer-label">Uma coleção de</span>
-          <h2>{tenant.name}</h2>
-          <p>{tenant.footer_text || tenant.about_text || "Produtos escolhidos com cuidado, atendimento próximo e um pedido simples."}</p>
-          <div className="fr-socials">
-            {tenant.instagram_url && <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={18} /></a>}
-            {whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={18} /></a>}
+    <footer className="frg-footer">
+      <div className="frg-footer-inner">
+        <section className="frg-foot-card frg-foot-about">
+          <Link className="frg-brand" to={path()}>
+            {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="frg-brand-mark"><Droplets size={19} /></span>}
+            <span>{tenant.name}</span>
+          </Link>
+          <p>{tenant.footer_text || tenant.about_text || "Fragrâncias selecionadas para marcar presença em cada momento."}</p>
+          <div className="frg-social">
+            {tenant.instagram_url && <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={19} /></a>}
+            {tenant.facebook_url && <a href={tenant.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={19} /></a>}
+            {wa && <a href={wa} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={19} /></a>}
           </div>
-        </div>
-        <div><h3>Explore</h3><Link to={path()}>Início</Link><Link to={path("/catalogo")}>Toda a coleção</Link><Link to={path("/sobre")}>Nossa loja</Link></div>
-        <div><h3>Categorias</h3>{categories.slice(0, 6).map((category) => <Link key={category.id} to={path(`/catalogo?cat=${category.id}`)}>{category.name}</Link>)}</div>
-        <div>
-          <h3>Atendimento</h3>
-          {tenant.show_address && tenant.address && <p>{tenant.address}</p>}
-          {whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer">Fale pelo WhatsApp</a>}
-          {hours.map((hour) => <p key={hour.day}>{hour.day}: {hour.text}</p>)}
-        </div>
+        </section>
+        <section className="frg-foot-card">
+          <h2>Navegue</h2>
+          <Link to={path()}>Início</Link>
+          <Link to={path("/catalogo")}>Todas as fragrâncias</Link>
+          <Link to={path("/sobre")}>Nossa loja</Link>
+        </section>
+        {cats.length > 0 && (
+          <section className="frg-foot-card">
+            <h2>Famílias</h2>
+            {cats.map((c) => <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>{c.name}</Link>)}
+          </section>
+        )}
+        <section className="frg-foot-card">
+          <h2>Atendimento</h2>
+          {wa && <a href={wa} target="_blank" rel="noreferrer"><MessageCircle size={15} /> {tenant.whatsapp}</a>}
+          {tenant.show_address && tenant.address && <p><MapPin size={15} /> {tenant.address}</p>}
+          {hours.slice(0, 7).map((h) => <p key={h.day}><Clock size={14} /> {h.day}: {h.text}</p>)}
+        </section>
       </div>
-      <div className="fr-footer-bottom">© {new Date().getFullYear()} {tenant.name} · Powered by <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a></div>
+      <p className="frg-credit">
+        © {new Date().getFullYear()} {tenant.name} · Desenvolvido por <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a>
+      </p>
     </footer>
   );
 }

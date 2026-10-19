@@ -1,56 +1,38 @@
 import { Link } from "react-router-dom";
-import { Sprout } from "lucide-react";
+import { Clock, Leaf, MapPin, MessageCircle, Sprout } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { hoursLines, useKit } from "./kit";
-import { Leaf } from "./parts";
+import { whatsappLink } from "./extras";
+import { LeafArt } from "./parts";
 
 export default function StoreAbout() {
   const { tenant, categories, active, config, path } = useKit();
   const hours = hoursLines(tenant.business_hours);
-  const wa = tenant.whatsapp?.replace(/\D/g, "");
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
   return (
     <div className="garden-page">
-      <StoreSEO title={`${config.about_title || "Nossa loja"} - ${tenant.name}`} description={tenant.about_text || `Conheça a ${tenant.name}.`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+      <StoreSEO title={`${config.about_title || "Nossa história"} - ${tenant.name}`} description={tenant.about_text || `Conheça a ${tenant.name}.`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
       <div className="garden-wrap">
         <section className="garden-about">
-          <div>
-            <span className="garden-eyebrow"><Leaf size={18} /> {config.segment_label || "Horta & Jardinagem"}</span>
-            <h1>{config.about_title || `Raízes da ${tenant.name}`}</h1>
-            <p className="garden-about-text">{tenant.about_text || `${tenant.name} nasceu para ajudar você a cultivar espaços mais verdes, com sementes, ferramentas e atendimento de quem entende de jardim.`}</p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 26 }}>
-              <Link className="garden-btn" to={path("/catalogo")}>Ver o catálogo</Link>
-              {wa && <a className="garden-btn is-line" href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">WhatsApp</a>}
+          <div className="garden-about-copy">
+            <span className="garden-eyebrow"><Leaf size={14} aria-hidden="true" /> {config.segment_label || "Jardinagem"}</span>
+            <h1>{config.about_title || `Quem é a ${tenant.name}`}</h1>
+            <p>{tenant.about_text || `${tenant.name} nasceu do gosto por plantas e por quem cultiva. Aqui você encontra tudo para o seu jardim, com atendimento de quem entende.`}</p>
+            <div className="garden-about-actions">
+              <StoreButton asChild className="garden-cta"><Link to={path("/catalogo")}>Ver catálogo</Link></StoreButton>
+              {wa && <StoreButton asChild variant="outline" className="garden-ghost"><a href={wa} target="_blank" rel="noreferrer"><MessageCircle size={18} aria-hidden="true" /> WhatsApp</a></StoreButton>}
             </div>
           </div>
           <div className="garden-about-art">
-            <Leaf size={72} className="garden-leaf-a" />
-            <Leaf size={52} className="garden-leaf-b" />
-            <div className="garden-arch">
-              {tenant.banner_url ? <img src={tenant.banner_url} alt="" /> : <Sprout size={110} aria-hidden />}
-            </div>
+            <LeafArt className="garden-leaf-float garden-leaf-1" />
+            <span className="garden-blob garden-blob-a">{tenant.banner_url ? <img src={tenant.banner_url} alt="" /> : <Sprout size={64} aria-hidden="true" />}</span>
           </div>
         </section>
-        <div className="garden-info">
-          <div>
-            <h2>No jardim da loja</h2>
-            <ul>
-              <li><span>Produtos</span><b>{active.length}</b></li>
-              <li><span>Coleções</span><b>{categories.length}</b></li>
-            </ul>
-          </div>
-          {hours.length > 0 && (
-            <div>
-              <h2>Horários</h2>
-              <ul>{hours.map((h) => <li key={h.label}><span>{h.label}</span><b>{h.text}</b></li>)}</ul>
-            </div>
-          )}
-          <div>
-            <h2>Visite ou chame</h2>
-            {tenant.show_address && tenant.address && <p>{tenant.address}</p>}
-            {wa ? <p><a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer">Chamar no WhatsApp</a></p> : <p>Monte sua seleção no catálogo e a loja confirma com você.</p>}
-            {tenant.instagram_url && <p><a href={tenant.instagram_url} target="_blank" rel="noreferrer">Instagram</a></p>}
-            {tenant.facebook_url && <p><a href={tenant.facebook_url} target="_blank" rel="noreferrer">Facebook</a></p>}
-          </div>
+        <div className="garden-about-cards">
+          <section className="garden-box"><h2>A loja em números</h2><ul><li><span>Produtos</span><b>{active.length}</b></li><li><span>Categorias</span><b>{categories.length}</b></li></ul></section>
+          {hours.length > 0 && <section className="garden-box"><h2><Clock size={18} aria-hidden="true" /> Horário</h2><ul>{hours.map((h) => <li key={h.label}><span>{h.label}</span><b>{h.text}</b></li>)}</ul></section>}
+          {tenant.show_address && tenant.address && <section className="garden-box"><h2><MapPin size={18} aria-hidden="true" /> Onde estamos</h2><p>{tenant.address}</p></section>}
         </div>
       </div>
     </div>

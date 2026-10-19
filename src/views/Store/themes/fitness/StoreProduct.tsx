@@ -57,8 +57,8 @@ export default function StoreProduct() {
         </nav>
         <div className="ft-pdp">
           <div>
-            <div className="ft-stage ft-bracket">
-              {img ? <img src={img} alt={product.name} /> : <span className="ft-mono" style={{ color: "#8b9885" }}>SEM FOTO</span>}
+            <div className="ft-stage">
+              {img ? <img src={img} alt={product.name} /> : <span className="ft-nophoto">Sem foto</span>}
               {f.images.length > 1 && (
                 <>
                   <button className="ft-snav" style={{ left: 8 }} aria-label="Foto anterior" onClick={() => f.setActive((f.active - 1 + f.images.length) % f.images.length)}><ChevronLeft size={20} /></button>
@@ -77,8 +77,8 @@ export default function StoreProduct() {
 
           <div className="ft-box">
             {category && <span className="ft-tag">{category}</span>}
-            <h1 className="ft-title">{product.name}</h1>
-            {product.sku && <p className="ft-ref">REF {product.sku}</p>}
+            <h1 className="ft-h1">{product.name}</h1>
+            {product.sku && <p className="ft-ref">Ref. {product.sku}</p>}
             <div className="ft-priceblock">
               {hidden ? (
                 <strong style={{ fontSize: 26, color: "var(--ft-text)" }}>Valor a confirmar</strong>
@@ -143,13 +143,13 @@ export default function StoreProduct() {
           </div>
           <div className="ft-tabs2-body" role="tabpanel">
             {tab === "desc" && (lines.length ? lines.filter((l) => !/^[-•*]\s*/.test(l)).map((l, i) => <p key={i}>{l}</p>) : <p>Esta ficha ainda não tem descrição. Fale com a loja para mais detalhes sobre {product.name}.</p>)}
-                         {tab === "details" && <ul className="ft-checks">{details.map((detail, i) => <li key={i}><Check size={16} />{detail}</li>)}</ul>}
-</div>
+            {tab === "details" && <ul className="ft-checks">{details.map((detail, i) => <li key={i}><Check size={16} />{detail}</li>)}</ul>}
+          </div>
         </section>
 
         {related.length > 0 && (
           <section style={{ paddingBottom: 64 }}>
-            <div className="ft-section-head"><div><span className="ft-tag">Combina com</span><h2 className="ft-title" style={{ fontSize: 30, marginTop: 10, textTransform: "uppercase" }}>Mais da categoria</h2></div></div>
+            <div className="ft-section-head"><div><span className="ft-tag">Combina com</span><h2 className="ft-h2" style={{ marginTop: 10 }}>Mais da categoria</h2></div></div>
             <div className="ft-grid">{related.map((p) => <Card key={p.id} product={p} />)}</div>
           </section>
         )}

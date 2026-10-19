@@ -5,6 +5,7 @@ import { useStore } from "../../StoreLayout";
 import { productRouteSegment } from "../../store-routing";
 import type { Product } from "../../../../types";
 import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { groups, imageOf, money, pricesHidden, unitPrice, useTheme } from "./lib";
 
 export const PERKS = [
@@ -61,10 +62,10 @@ export function Card({ product }: { product: Product }) {
           ) : options ? (
             <Link to={to} className="nx-btn nx-btn-sm">Escolher <ArrowUpRight size={15} aria-hidden="true" /></Link>
           ) : (
-            <button type="button" className="nx-btn nx-btn-sm" onClick={add}>
+            <StoreButton size="sm" className="nx-btn nx-btn-sm" onClick={add}>
               {done ? <Check size={15} aria-hidden="true" /> : <ShoppingBag size={15} aria-hidden="true" />}
               {done ? "Adicionado" : "Comprar"}
-            </button>
+            </StoreButton>
           )}
         </div>
       </div>

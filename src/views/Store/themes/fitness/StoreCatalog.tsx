@@ -50,8 +50,8 @@ export default function StoreCatalog() {
       />
       <div className="ft-wrap">
         <div className="ft-cat-head">
-          <span className="ft-tag">{sf.segment_label || "Fit Lab"} // catálogo</span>
-          <h1 className="ft-title">{selected?.name || sf.catalog_title || "Catálogo"}</h1>
+          <span className="ft-tag">{sf.segment_label || "Fitness"} · catálogo</span>
+          <h1 className="ft-h1">{selected?.name || sf.catalog_title || "Catálogo"}</h1>
           <p>{sf.catalog_description || "Filtre por categoria, busque pelo nome e monte o pedido ideal para o seu treino."}</p>
         </div>
       </div>
@@ -82,7 +82,7 @@ export default function StoreCatalog() {
 
       <div className="ft-wrap">
         <section className="ft-results" aria-live="polite">
-          <p className="ft-count-line">{visible.length} {visible.length === 1 ? "resultado" : "resultados"}{q && ` // "${q}"`}</p>
+          <p className="ft-count-line">{visible.length} {visible.length === 1 ? "resultado" : "resultados"}{q && ` · "${q}"`}</p>
           {visible.length === 0 ? (
             <div className="ft-empty">
               <h3>Nenhum resultado</h3>
@@ -103,7 +103,7 @@ export default function StoreCatalog() {
                   <article className={`ft-li${out ? " ft-out" : ""}`} key={p.id}>
                     <Link to={productPath(p)} className="ft-li-img" aria-label={p.name}>{imageOf(p) && <img src={imageOf(p)} alt="" loading="lazy" />}</Link>
                     <div className="ft-li-info">
-                      <span className="ft-card-cat">{catName(p.category_id) || "Geral"}{out ? " // esgotado" : ""}</span>
+                      <span className="ft-card-cat">{catName(p.category_id) || "Geral"}{out ? " · esgotado" : ""}</span>
                       <Link to={productPath(p)} className="ft-card-name">{p.name}</Link>
                     </div>
                     <div className="ft-li-side">

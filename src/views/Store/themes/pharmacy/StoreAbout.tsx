@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Clock, Facebook, Instagram, MapPin, MessageCircle, Truck } from "lucide-react";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { hoursRows, pageUrl, useShop, whatsappLink } from "./core";
 import { Cross, T } from "./parts";
@@ -23,7 +24,7 @@ export default function StoreAbout() {
           {tenant.banner_url && <img src={tenant.banner_url} alt={tenant.name} />}
           <h2>Cuidado com clareza</h2>
           <p>{tenant.about_text || T.sub}</p>
-          <Link to={path("/catalogo")} className="ph-btn">Ver catálogo <ArrowRight size={17} aria-hidden="true" /></Link>
+          <StoreButton asChild size="md"><Link to={path("/catalogo")}>Ver catálogo <ArrowRight size={17} aria-hidden="true" /></Link></StoreButton>
         </article>
         <aside className="ph-about-side">
           <div className="ph-infocard">

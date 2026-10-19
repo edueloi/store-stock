@@ -1,259 +1,151 @@
-import React, { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Heart, Menu, Search, ShoppingBag, X } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Clock, Facebook, Heart, Instagram, MapPin, Menu, MessageCircle, Search, ShoppingBag, X } from "lucide-react";
 import SearchBar from "../../../../components/layout/SearchBar";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { hoursLines, useShop, whatsappHref } from "./kit";
 import "./styles.css";
 
-export function Header() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, categories, cart, openCart, wishlist } = useStore();
-  const { pathname, search } = useLocation();
+function HeaderSearch({ className, onDone }: { className: string; onDone?: () => void }) {
+  const { path } = useShop();
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
-  const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-  const submit = (e: React.FormEvent) => {
+  const [value, setValue] = useState("");
+  const submit = (e: FormEvent) => {
     e.preventDefault();
-    const term = query.trim();
-    navigate(path(term ? `/catalogo?q=${encodeURIComponent(term)}` : "/catalogo"));
-    setMenuOpen(false);
-    setMobileSearchOpen(false);
+    onDone?.();
+    navigate(path("/catalogo", { q: value.trim() }));
   };
+  return (
+    <form className={className} role="search" onSubmit={submit}>
+      <SearchBar value={value} onChange={setValue} placeholder="Buscar peças e novidades" />
+    </form>
+  );
+}
+
+export function Header() {
+  const { tenant, categories, active, wishlist, openCart, cartCount, path } = useShop();
+  const { pathname } = useLocation();
+  const [menu, setMenu] = useState(false);
+  const [find, setFind] = useState(false);
+  const used = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 12);
+  const links = [
+    { name: "Início", to: path(), on: !/catalogo|sobre|produto/.test(pathname) },
+    { name: "Catálogo", to: path("/catalogo"), on: /catalogo|produto/.test(pathname) },
+    { name: "Sobre", to: path("/sobre"), on: /sobre/.test(pathname) },
+  ];
 
   useEffect(() => {
-    setMenuOpen(false);
-    setMobileSearchOpen(false);
-  }, [pathname, search]);
+    setMenu(false);
+    setFind(false);
+  }, [pathname]);
 
   return (
-    <>
-      {/* Top Announcement */}
-      <div className="aura-announcement">
-        <span>
-          <i className="fa-solid fa-gift" style={{ color: "var(--aura-gold)", marginRight: "6px" }}></i>
-          FRETE GRÁTIS EM COMPRAS ACIMA DE R$ 300
-        </span>
-        <span style={{ opacity: 0.4 }}>|</span>
-        <span className="hidden md:inline">
-          GANHE 10% OFF NO PIX OU 1ª COMPRA COM O CUPOM: <strong>AURA10</strong>
-        </span>
-      </div>
-
-      <header className="aura-header">
-        <div className="aura-header-inner">
-          {/* Mobile hamburger & search */}
-          <div className="flex items-center lg:hidden gap-2">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(true)}
-              className="aura-icon-btn text-xl"
-              aria-label="Abrir menu"
-            >
-              <Menu size={22} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
-              className="aura-icon-btn text-lg"
-              aria-label="Buscar"
-            >
-              <Search size={19} />
-            </button>
-          </div>
-
-          {/* Logo / Brand */}
-          <Link to={path()} className="aura-brand-link">
-            <h1 className="aura-brand-title">{tenant.name || "Aura Feminina"}</h1>
-            <span className="aura-brand-sub">{tenant.hero_tagline || "Moda & Sofisticação"}</span>
+    <header className="au-scope au-head">
+      <div className="au-wrap au-glass-bar">
+        <div className="au-bar-row">
+          <button type="button" className="au-icon au-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
+            {menu ? <X size={21} /> : <Menu size={21} />}
+          </button>
+          <Link className="au-brand" to={path()} aria-label={`${tenant.name} - início`}>
+            {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="dot" aria-hidden="true" />}
+            <span className="nm">{tenant.name}</span>
           </Link>
-
-          {/* Desktop Nav */}
-          <nav className="aura-nav-desktop">
-            <Link to={path()}>Início</Link>
-            <Link to={path("/catalogo")}>Catálogo</Link>
-            <Link to={path("/sobre")}>Sobre</Link>
+          <nav className="au-nav" aria-label="Principal">
+            {links.map((l) => (
+              <Link key={l.name} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>
+            ))}
           </nav>
-
-          {/* Actions */}
-          <div className="aura-header-actions">
-            <form className="aura-search-wrap" role="search" onSubmit={submit}>
-              <i className="fa-solid fa-magnifying-glass aura-search-icon"></i>
-              <SearchBar value={query} onChange={setQuery} placeholder="Pesquisar peças..." />
-            </form>
-
-            <Link to={path("/catalogo")} className="aura-icon-btn" title="Favoritos">
-              <Heart size={21} />
-              {wishlist.length > 0 && <span className="aura-badge-wish">{wishlist.length}</span>}
+          <HeaderSearch className="au-search" />
+          <div className="au-actions">
+            <button type="button" className="au-icon au-find" aria-label="Buscar" aria-expanded={find} onClick={() => setFind((v) => !v)}>
+              <Search size={20} />
+            </button>
+            <Link className="au-icon" to={path("/catalogo")} aria-label={`Favoritos, ${wishlist.length}`}>
+              <Heart size={20} />
+              {wishlist.length > 0 && <span className="n">{wishlist.length}</span>}
             </Link>
-
-            <button type="button" onClick={openCart} className="aura-icon-btn" title="Carrinho">
-              <ShoppingBag size={21} />
-              {count > 0 && <span className="aura-badge-cart">{count}</span>}
+            <button type="button" className="au-icon au-bag" aria-label={`Abrir sacola, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`} onClick={openCart}>
+              <ShoppingBag size={20} />
+              {cartCount > 0 && <span className="n">{cartCount}</span>}
             </button>
           </div>
         </div>
-
-        {/* Mobile Search Bar Expandable */}
-        {mobileSearchOpen && (
-          <div className="aura-mobile-search">
-            <form role="search" onSubmit={submit}>
-              <div className="relative">
-                <i className="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-xs text-stone-500"></i>
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="O que você está procurando?"
-                  autoFocus
-                />
-              </div>
-            </form>
+        {used.length > 0 && (
+          <nav className="au-rail" aria-label="Categorias">
+            {used.map((c, i) => (
+              <Link key={c.id} className={`au-pastel p${i % 4}`} to={path("/catalogo", { categoria: String(c.id) })}>{c.name}</Link>
+            ))}
+          </nav>
+        )}
+        {find && <HeaderSearch className="au-search-mobile" onDone={() => setFind(false)} />}
+        {menu && (
+          <div className="au-drawer">
+            <nav aria-label="Menu">
+              {links.map((l) => (
+                <Link key={l.name} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>
+              ))}
+            </nav>
+            {used.length > 0 && (
+              <>
+                <p className="au-drawer-title">Categorias</p>
+                <div className="au-drawer-cats">
+                  {used.map((c, i) => (
+                    <Link key={c.id} className={`au-pastel p${i % 4}`} to={path("/catalogo", { categoria: String(c.id) })}>{c.name}</Link>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
-      </header>
-
-      {/* Mobile Slide-Over Menu */}
-      {menuOpen && (
-        <>
-          <div className="aura-mobile-overlay" onClick={() => setMenuOpen(false)} />
-          <div className="aura-mobile-panel open">
-            <div>
-              <div className="flex items-center justify-between pb-4 border-b border-stone-200">
-                <h2 className="aura-serif text-xl font-bold uppercase tracking-wider">Menu</h2>
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen(false)}
-                  className="aura-icon-btn text-xl"
-                >
-                  <X size={22} />
-                </button>
-              </div>
-
-              <nav className="pt-4">
-                <Link to={path()} onClick={() => setMenuOpen(false)}>
-                  Início
-                </Link>
-                <Link to={path("/catalogo")} onClick={() => setMenuOpen(false)}>
-                  Catálogo
-                </Link>
-                <Link to={path("/sobre")} onClick={() => setMenuOpen(false)}>
-                  Sobre
-                </Link>
-              </nav>
-            </div>
-
-            <div className="border-t border-stone-200 pt-4 text-xs text-stone-500 text-center">
-              <p className="font-semibold text-stone-800">{tenant.name}</p>
-              <p className="mt-1">Elegância em cada detalhe.</p>
-            </div>
-          </div>
-        </>
-      )}
-    </>
+      </div>
+    </header>
   );
 }
 
 export function Footer() {
-  const { slug: routeSlug } = useParams();
-  const { tenant, categories } = useStore();
-  const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
-  const whatsapp = tenant.whatsapp?.replace(/\D/g, "");
-
+  const { tenant, categories, active, path } = useShop();
+  const hours = hoursLines(tenant);
+  const cats = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 6);
+  const wa = tenant.whatsapp ? whatsappHref(tenant, `Olá! Vim pela loja ${tenant.name}.`) : "";
   return (
-    <footer className="aura-footer">
-      <div className="aura-footer-inner">
-        <div className="aura-footer-grid">
-          {/* Brand */}
-          <div className="space-y-4">
-            <h3 className="aura-serif text-2xl tracking-[0.2em] font-bold text-white uppercase">
-              {tenant.name || "Aura Feminina"}
-            </h3>
-            <p className="text-xs text-stone-300 leading-relaxed font-light">
-              {tenant.footer_text ||
-                tenant.about_text ||
-                "Moda feminina sofisticada que une a alfaiataria clássica às tendências contemporâneas da alta costura."}
-            </p>
-            <div className="flex space-x-4 text-lg text-stone-400">
-              <a href="#" className="hover:text-amber-300 transition-colors">
-                <i className="fa-brands fa-instagram"></i>
-              </a>
-              <a href="#" className="hover:text-amber-300 transition-colors">
-                <i className="fa-brands fa-facebook-f"></i>
-              </a>
-              <a href="#" className="hover:text-amber-300 transition-colors">
-                <i className="fa-brands fa-pinterest-p"></i>
-              </a>
-              {whatsapp && (
-                <a
-                  href={`https://wa.me/${whatsapp}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="hover:text-amber-300 transition-colors"
-                >
-                  <i className="fa-brands fa-whatsapp"></i>
-                </a>
-              )}
+    <footer className="au-scope au-foot">
+      <div className="au-wrap">
+        <div className="au-foot-panel">
+          <section className="au-foot-col au-foot-about">
+            <p className="brand">{tenant.name}</p>
+            <p>{tenant.footer_text || tenant.about_text || "Peças com cuidado, cor e leveza para o seu dia a dia."}</p>
+            <div className="au-social">
+              {tenant.instagram_url && <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={18} /></a>}
+              {tenant.facebook_url && <a href={tenant.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={18} /></a>}
+              {wa && <a href={wa} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={18} /></a>}
             </div>
-          </div>
-
-          {/* Navigation */}
-          <div>
-            <h4>Navegação</h4>
+          </section>
+          <section className="au-foot-col">
+            <h3>Loja</h3>
             <ul>
-              <li>
-                <Link to={path()}>Início</Link>
-              </li>
-              <li>
-                <Link to={path("/catalogo")}>Coleção Completa</Link>
-              </li>
-              <li>
-                <Link to={path("/sobre")}>Sobre a Marca</Link>
-              </li>
+              <li><Link to={path()}>Início</Link></li>
+              <li><Link to={path("/catalogo")}>Todas as peças</Link></li>
+              <li><Link to={path("/sobre")}>Sobre nós</Link></li>
             </ul>
-          </div>
-
-          {/* Categories */}
-          <div>
-            <h4>Categorias</h4>
+          </section>
+          {cats.length > 0 && (
+            <section className="au-foot-col">
+              <h3>Categorias</h3>
+              <ul>{cats.map((c) => <li key={c.id}><Link to={path("/catalogo", { categoria: String(c.id) })}>{c.name}</Link></li>)}</ul>
+            </section>
+          )}
+          <section className="au-foot-col">
+            <h3>Contato</h3>
             <ul>
-              {categories.slice(0, 6).map((cat) => (
-                <li key={cat.id}>
-                  <Link to={path(`/catalogo?cat=${cat.id}`)}>{cat.name}</Link>
-                </li>
-              ))}
+              {wa && <li><a href={wa} target="_blank" rel="noreferrer"><MessageCircle size={15} /> {tenant.whatsapp}</a></li>}
+              {tenant.show_address && tenant.address && <li><p><MapPin size={15} /> {tenant.address}</p></li>}
+              {hours.length > 0 && <li><p className="hh"><Clock size={15} /> Horários</p></li>}
+              {hours.map((h) => <li key={h.day} className="hr"><span>{h.day}</span><span>{h.text}</span></li>)}
             </ul>
-          </div>
-
-          {/* Payments & Security */}
-          <div>
-            <h4>Pagamento & Segurança</h4>
-            <div className="flex flex-wrap gap-3 text-2xl text-stone-300 mb-4">
-              <i className="fa-brands fa-cc-visa" title="Visa"></i>
-              <i className="fa-brands fa-cc-mastercard" title="Mastercard"></i>
-              <i className="fa-brands fa-pix" title="Pix"></i>
-              <i className="fa-solid fa-qrcode" title="Pix QR"></i>
-            </div>
-            <h4>Garantia & Confiança</h4>
-            <div className="space-y-2 text-xs text-stone-300">
-              <p className="flex items-center gap-1.5">
-                <i className="fa-solid fa-lock text-amber-400"></i> Compra 100% Segura
-              </p>
-              <p className="flex items-center gap-1.5">
-                <i className="fa-solid fa-truck-fast text-amber-400"></i> Envio Rápido e Rastreado
-              </p>
-            </div>
-          </div>
+          </section>
         </div>
-
-        <div className="aura-footer-bottom">
-          <p>© {new Date().getFullYear()} {tenant.name}. Todos os direitos reservados.</p>
-          <p>Desenvolvido com sofisticação para mulheres autênticas.</p>
-        </div>
+        <p className="au-foot-end">
+          © {new Date().getFullYear()} {tenant.name} · Powered by <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a>
+        </p>
       </div>
     </footer>
   );

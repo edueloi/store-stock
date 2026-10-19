@@ -2,7 +2,6 @@ import { Link } from "react-router-dom";
 import { Heart, Plus, ArrowRight } from "lucide-react";
 import type { Product } from "../../../../types";
 import { availableUnits } from "../../../../utils/storeStock";
-import { availableUnits } from "../../../../utils/storeStock";
 import { groups, imageOf, money, priceOf, useKit } from "./lib";
 
 export function Price({ product, hidden }: { product: Product; hidden: boolean }) {
@@ -30,7 +29,7 @@ export default function Card({ product }: { product: Product }) {
   return (
     <article className={`ft-card${out ? " ft-out" : ""}`}>
       <Link to={productPath(product)} className="ft-card-media" aria-label={product.name}>
-        {img ? <img src={img} alt="" loading="lazy" /> : <span className="ft-mono" style={{ color: "#aab5a2" }}>SEM FOTO</span>}
+        {img ? <img src={img} alt="" loading="lazy" /> : <span className="ft-nophoto">Sem foto</span>}
         {out ? <span className="ft-chip ft-chip--out">Esgotado</span> : off && !hidden ? <span className="ft-chip">-{pct}%</span> : null}
       </Link>
       <button className="ft-fav" aria-pressed={saved} aria-label={saved ? "Remover dos favoritos" : "Favoritar"} onClick={() => toggleWishlist(product.id)}>

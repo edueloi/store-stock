@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, HeartHandshake, MessageCircle, ShoppingBag, Sparkles } from "lucide-react";
+import HeroSlider from "../../../../components/store/HeroSlider";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { productImage, useKit, whatsappLink } from "./kit";
 import { Cloud, GiftCard, Star, tintOf } from "./parts";
@@ -25,31 +26,40 @@ export default function StoreFront() {
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
       />
-      <section className="bb-hero bb-v2-hero" aria-labelledby="bb-v2-title">
-        <div className="bb-hero-text">
-          <p className="bb-kicker"><Sparkles size={14} aria-hidden="true" /> {sf.segment_label || "Bebês & Enxoval"}</p>
-          <h1 id="bb-v2-title" className="bb-script">{title}</h1>
-          <p className="bb-lead">{subtitle.length > 175 ? `${subtitle.slice(0, 172)}…` : subtitle}</p>
-          <div className="bb-hero-actions">
-            <Link to={path("/catalogo")} className="bb-btn bb-btn-main">
-              {sf.hero_button_label || "Explorar produtos"} <ArrowRight size={17} aria-hidden="true" />
-            </Link>
-            {wa && <a className="bb-btn bb-btn-ghost" href={wa} target="_blank" rel="noopener noreferrer">
-              <MessageCircle size={17} aria-hidden="true" /> Atendimento
-            </a>}
-          </div>
-          <div className="bb-v2-highlights" aria-label="Destaques da loja">
-            <span><HeartHandshake size={17} aria-hidden="true" /> Feito com carinho</span>
-            <span><ShoppingBag size={17} aria-hidden="true" /> Escolha com facilidade</span>
-          </div>
-        </div>
-        <div className="bb-v2-hero-art">
-          <div className="bb-v2-hero-frame">
-            <img src={heroImage} alt="" fetchPriority="high" />
-          </div>
-          <span className="bb-v2-hero-sticker" aria-hidden="true"><Star /> Com carinho</span>
-        </div>
-      </section>
+      <HeroSlider
+        slides={sf.hero_slides}
+        autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+        resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+        layout="split"
+        className="bb-slider"
+        fallback={
+          <section className="bb-hero bb-v2-hero" aria-labelledby="bb-v2-title">
+            <div className="bb-hero-text">
+              <p className="bb-kicker"><Sparkles size={14} aria-hidden="true" /> {sf.segment_label || "Bebês & Enxoval"}</p>
+              <h1 id="bb-v2-title" className="bb-script">{title}</h1>
+              <p className="bb-lead">{subtitle.length > 175 ? `${subtitle.slice(0, 172)}…` : subtitle}</p>
+              <div className="bb-hero-actions">
+                <Link to={path("/catalogo")} className="bb-btn bb-btn-main">
+                  {sf.hero_button_label || "Explorar produtos"} <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+                {wa && <a className="bb-btn bb-btn-ghost" href={wa} target="_blank" rel="noopener noreferrer">
+                  <MessageCircle size={17} aria-hidden="true" /> Atendimento
+                </a>}
+              </div>
+              <div className="bb-v2-highlights" aria-label="Destaques da loja">
+                <span><HeartHandshake size={17} aria-hidden="true" /> Feito com carinho</span>
+                <span><ShoppingBag size={17} aria-hidden="true" /> Escolha com facilidade</span>
+              </div>
+            </div>
+            <div className="bb-v2-hero-art">
+              <div className="bb-v2-hero-frame">
+                <img src={heroImage} alt="" fetchPriority="high" />
+              </div>
+              <span className="bb-v2-hero-sticker" aria-hidden="true"><Star /> Com carinho</span>
+            </div>
+          </section>
+        }
+      />
 
       {cats.length > 0 && <section className="bb-section bb-v2-categories" aria-labelledby="bb-v2-categories-heading">
         <header className="bb-head">

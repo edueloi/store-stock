@@ -59,6 +59,7 @@ import {
   Send,
 } from "lucide-react";
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
+import HeroSlidesEditor from "./HeroSlidesEditor";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import {
@@ -3948,6 +3949,11 @@ export default function Settings({
                         </div>
                       </div>
                     )}
+                    <HeroSlidesEditor
+                      slides={storefront.hero_slides || []}
+                      autoplaySeconds={storefront.hero_autoplay_seconds ?? 6}
+                      onChange={(patch) => setStorefront(patch)}
+                    />
                     <div className="rounded-lg border border-slate-200 bg-white p-5 space-y-4">
                       <p className="text-xs font-semibold text-slate-800">
                         Textos da vitrine

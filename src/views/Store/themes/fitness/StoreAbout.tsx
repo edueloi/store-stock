@@ -22,8 +22,8 @@ export default function StoreAbout() {
       />
       <div className="ft-wrap">
         <section className="ft-about-hero">
-          <span className="ft-tag"><i /> {sf.segment_label || "Fit Lab"} // sobre</span>
-          <h1 className="ft-title">{sf.about_title || "Sobre a loja"}</h1>
+          <span className="ft-tag"><i /> {sf.segment_label || "Fitness"} · sobre</span>
+          <h1 className="ft-h1">{sf.about_title || "Sobre a loja"}</h1>
         </section>
         <section className="ft-goals" aria-label="Números da loja" style={{ margin: "8px 0 28px" }}>
           <div className="ft-goal"><b>{active.length}</b><span>produtos</span></div>
@@ -32,7 +32,7 @@ export default function StoreAbout() {
           <div className="ft-goal"><b>24h</b><span>catálogo aberto</span></div>
         </section>
         <div className="ft-about-grid">
-          <div className="ft-panel ft-bracket">
+          <div className="ft-panel">
             {tenant.banner_url && <img className="ft-about-img" src={tenant.banner_url} alt="" />}
             <p className="ft-about-text">{tenant.about_text || `${tenant.name} reúne produtos de treino, suplementação e acessórios para quem leva a evolução a sério.`}</p>
             <div style={{ marginTop: 24, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -41,7 +41,7 @@ export default function StoreAbout() {
             </div>
           </div>
           <aside className="ft-panel ft-contact">
-            <h3>// Contato e horários</h3>
+            <h3>Contato e horários</h3>
             {tenant.show_address && tenant.address && <p><MapPin size={18} />{tenant.address}</p>}
             {wa && <p><MessageCircle size={18} />+{wa}</p>}
             {hours.length > 0 && (

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { PackageSearch, Search, X } from "lucide-react";
+import { PackageSearch, Search, SlidersHorizontal, X } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { useStore } from "../../StoreLayout";
 import { Card } from "./parts";
@@ -21,6 +21,7 @@ export default function StoreCatalog() {
   const onlyOffers = params.get("ofertas") === "1";
   const [text, setText] = useState(q);
   const [limit, setLimit] = useState(PAGE);
+  const [drawer, setDrawer] = useState(false);
 
   useEffect(() => setText(q), [q]);
   useEffect(() => setLimit(PAGE), [q, cat, sort, onlyOffers]);
@@ -90,30 +91,58 @@ export default function StoreCatalog() {
             <Search size={18} aria-hidden="true" />
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Buscar no catálogo" aria-label="Buscar no catálogo" />
           </form>
-          <div className="nx-pills" role="group" aria-label="Categorias">
-            <button type="button" aria-pressed={!cat} className={!cat ? "is-on" : ""} onClick={() => update({ cat: null })}>Todos</button>
-            {cats.map((c) => (
-              <button key={c.id} type="button" aria-pressed={cat === c.id} className={cat === c.id ? "is-on" : ""} onClick={() => update({ cat: String(c.id) })}>
-                {c.name}
-              </button>
-            ))}
+          <button type="button" className="nx-filter-btn" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)}>
+            <SlidersHorizontal size={17} aria-hidden="true" /> Filtros{filtered ? <b>{Number(Boolean(q)) + Number(Boolean(cat)) + Number(onlyOffers)}</b> : null}
+          </button>
+          <label className="nx-select">
+            <span className="nx-sr">Ordenar por</span>
+            <select value={sort} onChange={(e) => update({ ordem: e.target.value === "destaque" ? null : e.target.value })}>
+              <option value="destaque">Destaques</option>
+              <option value="menor">Menor preço</option>
+              <option value="maior">Maior preço</option>
+              <option value="nome">Nome (A–Z)</option>
+            </select>
+          </label>
+        </div>
+        {filtered && (
+          <div className="nx-wrap nx-active">
+            {q && <button type="button" onClick={() => update({ q: null })}>“{q}” <X size={13} aria-hidden="true" /></button>}
+            {current && <button type="button" onClick={() => update({ cat: null })}>{current.name} <X size={13} aria-hidden="true" /></button>}
+            {onlyOffers && <button type="button" onClick={() => update({ ofertas: null })}>Em oferta <X size={13} aria-hidden="true" /></button>}
           </div>
-          <div className="nx-filter-end">
-            <button type="button" aria-pressed={onlyOffers} className={`nx-toggle ${onlyOffers ? "is-on" : ""}`} onClick={() => update({ ofertas: onlyOffers ? null : "1" })}>
-              Em oferta
-            </button>
-            <label className="nx-select">
-              <span className="nx-sr">Ordenar por</span>
-              <select value={sort} onChange={(e) => update({ ordem: e.target.value === "destaque" ? null : e.target.value })}>
-                <option value="destaque">Destaques</option>
-                <option value="menor">Menor preço</option>
-                <option value="maior">Maior preço</option>
-                <option value="nome">Nome (A–Z)</option>
-              </select>
-            </label>
+        )}
+      </div>
+
+      {drawer && (
+        <div className="nx-drawer" role="dialog" aria-modal="true" aria-label="Filtros">
+          <button type="button" className="nx-drawer-bg" aria-label="Fechar filtros" onClick={() => setDrawer(false)} />
+          <div className="nx-drawer-panel">
+            <header>
+              <h2>Filtros</h2>
+              <button type="button" className="nx-ico" aria-label="Fechar filtros" onClick={() => setDrawer(false)}><X size={22} /></button>
+            </header>
+            <div className="nx-drawer-body">
+              <p className="nx-drawer-h">Categoria</p>
+              <div className="nx-pills" role="group" aria-label="Categorias">
+                <button type="button" aria-pressed={!cat} className={!cat ? "is-on" : ""} onClick={() => update({ cat: null })}>Todos</button>
+                {cats.map((c) => (
+                  <button key={c.id} type="button" aria-pressed={cat === c.id} className={cat === c.id ? "is-on" : ""} onClick={() => update({ cat: String(c.id) })}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+              <p className="nx-drawer-h">Condição</p>
+              <button type="button" aria-pressed={onlyOffers} className={`nx-toggle ${onlyOffers ? "is-on" : ""}`} onClick={() => update({ ofertas: onlyOffers ? null : "1" })}>
+                Somente produtos em oferta
+              </button>
+            </div>
+            <footer>
+              <button type="button" className="nx-btn nx-btn-ghost" onClick={() => update({ q: null, cat: null, ofertas: null })}>Limpar</button>
+              <button type="button" className="nx-btn" onClick={() => setDrawer(false)}>Ver {list.length} {list.length === 1 ? "produto" : "produtos"}</button>
+            </footer>
           </div>
         </div>
-      </div>
+      )}
 
       <section className="nx-wrap nx-cat-body">
         <div className="nx-cat-meta">

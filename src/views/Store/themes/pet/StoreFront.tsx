@@ -1,6 +1,9 @@
+import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Heart, PawPrint, ShieldCheck, Sparkles, Star } from "lucide-react";
+import { ArrowRight, Heart, PawPrint, ShieldCheck, Sparkles, Star, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
+import HeroSlider from "../../../../components/store/HeroSlider";
+import { useHeroFx } from "./fx";
 import { detectAnimal, tint } from "./animals";
 import Card from "./Card";
 import { priceOf, useKit } from "./lib";
@@ -18,11 +21,13 @@ export default function StoreFront() {
   const deals = active.filter((p) => priceOf(p).off).slice(0, 4);
   const title = tenant.hero_tagline || "Tudo para uma vida feliz de quatro patas";
   const hero = tenant.banner_url || "/store-assets/pet-companions-hero-v1.png";
+  const root = useRef<HTMLElement>(null);
+  useHeroFx(root, active.length);
   const words = title.trim().split(/\s+/);
   const cut = Math.max(1, words.length - 2);
 
   return (
-    <main className="pet-root">
+    <main className="pet-root" ref={root}>
       <StoreSEO
         title={`${tenant.name} | Pet shop`}
         description={tenant.about_text || `Tudo para o seu pet na ${tenant.name}.`}
@@ -31,10 +36,17 @@ export default function StoreFront() {
         siteName={tenant.name}
       />
 
+      <div className="pet-wrap pet-hero-wrap">
+        <HeroSlider
+          slides={sf.hero_slides}
+          autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+          resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+          layout="banner"
+          className="pet-slider"
+          fallback={
       <section className="pet-hero">
-        <div className="pet-wrap">
-          <div className="pet-hero-grid">
-            <div>
+        <div className="pet-hero-grid">
+            <div className="pet-hero-copy" data-fx="copy">
               <span className="pet-pill-tag"><PawPrint size={16} /> {sf.segment_label || "Pet shop com carinho"}</span>
               <h1 className="pet-h">
                 {words.length > 3 ? (<>{words.slice(0, cut).join(" ")} <em>{words.slice(cut).join(" ")}</em></>) : title}
@@ -45,7 +57,7 @@ export default function StoreFront() {
                 <Link to={path("/sobre")} className="pet-btn pet-btn--light">Conheça a loja</Link>
               </div>
             </div>
-            <div style={{ position: "relative", padding: "14px 10px 24px" }}>
+            <div className="pet-hero-visual" data-fx="visual">
               <div className="pet-blob">
                 <img src={hero} alt="" fetchPriority="high" />
               </div>
@@ -55,8 +67,15 @@ export default function StoreFront() {
               )}
             </div>
           </div>
-        </div>
       </section>
+          }
+        />
+        <ul className="pet-trust" aria-label="Vantagens">
+          <li><Truck size={20} /><span><b>Entrega ou retirada</b>combine com a loja</span></li>
+          <li><ShieldCheck size={20} /><span><b>Compra tranquila</b>atendimento direto</span></li>
+          <li><Heart size={20} /><span><b>Escolhido com carinho</b>para o seu pet</span></li>
+        </ul>
+      </div>
 
       {usedCategories.length > 0 && (
         <section className="pet-sec" style={{ paddingTop: 20 }}>

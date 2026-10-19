@@ -1,10 +1,11 @@
 import { Link, useParams } from "react-router-dom";
-import { Check, Minus, Package, Plus, ShoppingCart } from "lucide-react";
+import { Check, Minus, Package, Plus, Repeat, ShieldCheck, ShoppingBasket, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import StockAvailability from "../../../../components/store/StockAvailability";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { parseProductIdFromRoute } from "../../store-routing";
-import { onSale, priceOf, useBuy, useKit } from "./kit";
-import { Card, Empty, Price, Seal } from "./parts";
+import { money, onSale, priceOf, useBuy, useKit } from "./kit";
+import { Card, Empty, Price, SectionTitle } from "./parts";
 
 export default function StoreProduct() {
   const { productId } = useParams();
@@ -13,9 +14,15 @@ export default function StoreProduct() {
   const buy = useBuy(product);
   if (!product)
     return (
-      <div className="agro-page"><div className="agro-wrap" style={{ padding: "56px 20px" }}>
-        <Empty title="Produto não encontrado" text="Ele pode ter saído do catálogo." action={<Link className="agro-btn" style={{ marginTop: 14 }} to={path("/catalogo")}>Voltar ao catálogo</Link>} />
-      </div></div>
+      <div className="agro-page">
+        <div className="agro-wrap agro-section">
+          <Empty
+            title="Produto não encontrado"
+            text="Ele pode ter saído do catálogo."
+            action={<StoreButton asChild className="agro-cta"><Link to={path("/catalogo")}>Voltar ao catálogo</Link></StoreButton>}
+          />
+        </div>
+      </div>
     );
   const cat = categories.find((c) => c.id === product.category_id);
   const img = buy.gallery[buy.photo] || buy.gallery[0];
@@ -26,85 +33,88 @@ export default function StoreProduct() {
       <StoreSEO title={`${product.name} - ${tenant.name}`} description={product.description || product.name} image={buy.gallery[0]} url={typeof window !== "undefined" ? window.location.href : ""} type="product" price={hidden ? undefined : String(priceOf(product))} siteName={tenant.name} />
       <div className="agro-wrap">
         <nav className="agro-crumbs" aria-label="Você está em">
-          <Link to={path()}>Início</Link> / <Link to={path("/catalogo")}>Catálogo</Link>
-          {cat && <> / <Link to={path("/catalogo", { cat: String(cat.id) })}>{cat.name}</Link></>}
+          <Link to={path()}>Início</Link> <span aria-hidden="true">/</span> <Link to={path("/catalogo")}>Catálogo</Link>
+          {cat && (
+            <>
+              {" "}<span aria-hidden="true">/</span> <Link to={path("/catalogo", { cat: String(cat.id) })}>{cat.name}</Link>
+            </>
+          )}
         </nav>
         <div className="agro-prod">
           <div className="agro-gallery">
+            <div className="agro-stage">
+              {onSale(product) && <span className="agro-badge">Oferta</span>}
+              {img ? <img src={img} alt={product.name} /> : <Package size={72} aria-hidden="true" />}
+            </div>
             {buy.gallery.length > 1 && (
               <div className="agro-thumbs">
                 {buy.gallery.map((g, i) => (
-                  <button key={g + i} aria-label={`Ver foto ${i + 1}`} aria-current={i === buy.photo} onClick={() => buy.setPhoto(i)}><img src={g} alt="" /></button>
+                  <button key={g + i} type="button" aria-label={`Ver foto ${i + 1}`} aria-current={i === buy.photo} onClick={() => buy.setPhoto(i)}>
+                    <img src={g} alt="" />
+                  </button>
                 ))}
               </div>
             )}
-            <div className="agro-stage">
-              {onSale(product) && <span className="agro-ribbon">Oferta do campo</span>}
-              {img ? <img src={img} alt={product.name} /> : <Package size={80} aria-hidden />}
-            </div>
           </div>
           <section className="agro-panel" aria-labelledby="agro-ptitle">
-            <div className="agro-panel-head">
-              {cat && <span className="agro-tag is-gold">{cat.name}</span>}
-              <h1 id="agro-ptitle">{product.name}</h1>
-              {product.sku && <small style={{ opacity: .8 }}>Cód. {product.sku}</small>}
+            {cat && <span className="agro-eyebrow">{cat.name}</span>}
+            <h1 id="agro-ptitle">{product.name}</h1>
+            {product.sku && <small className="agro-sku">Cód. {product.sku}</small>}
+            <div className="agro-panel-price">
+              <Price product={product} big />
+              {onSale(product) && !hidden && <span className="agro-save">Economize {money(Number(product.price) - priceOf(product))}</span>}
+              {hidden && <p>Valor a confirmar com a loja.</p>}
             </div>
-            <div className="agro-panel-body">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+            <StockAvailability product={product} tenant={tenant} selected={buy.selected} />
+            {buy.choices.map((c) => (
+              <fieldset key={c.name} className="agro-opt">
+                <legend>{c.name}</legend>
                 <div>
-                  <Price product={product} big />
-                  {onSale(product) && !hidden && <p style={{ margin: "6px 0 0", fontWeight: 700 }}>Economia de {(Number(product.price) - priceOf(product)).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</p>}
-                  {hidden && <p style={{ margin: "6px 0 0" }}>Valor a confirmar com a loja.</p>}
+                  {c.values.map((v) => (
+                    <button key={v} type="button" aria-pressed={buy.selected[c.name] === v} onClick={() => buy.choose(c.name, v)}>
+                      {buy.selected[c.name] === v && <Check size={14} aria-hidden="true" />} {v}
+                    </button>
+                  ))}
                 </div>
-                {onSale(product) && <Seal className="" text="OFERTA DO CAMPO" />}
-              </div>
-              <StockAvailability product={product} tenant={tenant} selected={buy.selected} />
-              {buy.choices.map((c) => (
-                <fieldset key={c.name} className="agro-opt">
-                  <legend>{c.name}</legend>
-                  <div>
-                    {c.values.map((v) => (
-                      <button key={v} type="button" aria-pressed={buy.selected[c.name] === v} onClick={() => buy.choose(c.name, v)}>
-                        {buy.selected[c.name] === v && <Check size={14} aria-hidden style={{ marginRight: 4, verticalAlign: "-2px" }} />}{v}
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-              ))}
-              <div className="agro-note">
-                <label htmlFor="agro-note">Observação (opcional)</label>
-                <textarea id="agro-note" value={buy.note} onChange={(e) => buy.setNote(e.target.value)} placeholder="Ex.: retirada na loja, combinar entrega" />
-              </div>
-              {missing.length > 0 && <p className="agro-hint">Escolha: {missing.join(", ")} para adicionar ao pedido.</p>}
-              <div className="agro-buyrow">
-                <div className="agro-qty">
-                  <button aria-label="Diminuir quantidade" onClick={buy.dec} disabled={buy.qty <= 1}><Minus size={16} /></button>
-                  <output aria-live="polite">{buy.qty}</output>
-                  <button aria-label="Aumentar quantidade" onClick={buy.inc} disabled={buy.qty >= buy.max}><Plus size={16} /></button>
-                </div>
-                <button className="agro-btn" disabled={!buy.canAdd} onClick={buy.add}>
-                  <ShoppingCart size={18} aria-hidden /> {buy.soldOut ? "Indisponível" : "Adicionar ao pedido"}
-                </button>
-              </div>
-              {buy.added && (
-                <div className="agro-added" role="status">
-                  <span>Item adicionado ao pedido.</span>
-                  <button className="agro-btn" onClick={openCart}>Ver pedido</button>
-                </div>
-              )}
+              </fieldset>
+            ))}
+            <div className="agro-note">
+              <label htmlFor="agro-note">Observação (opcional)</label>
+              <textarea id="agro-note" value={buy.note} onChange={(e) => buy.setNote(e.target.value)} placeholder="Ex.: combinar retirada ou entrega" rows={2} />
             </div>
+            {missing.length > 0 && <p className="agro-hint">Escolha {missing.join(", ")} para continuar.</p>}
+            <div className="agro-buyrow">
+              <div className="agro-qty">
+                <button type="button" aria-label="Diminuir quantidade" onClick={buy.dec} disabled={buy.qty <= 1}><Minus size={16} /></button>
+                <output aria-live="polite">{buy.qty}</output>
+                <button type="button" aria-label="Aumentar quantidade" onClick={buy.inc} disabled={buy.qty >= buy.max}><Plus size={16} /></button>
+              </div>
+              <StoreButton type="button" shape="soft" className="agro-cta agro-buy" disabled={!buy.canAdd} onClick={buy.add}>
+                <ShoppingBasket size={18} aria-hidden="true" /> {buy.soldOut ? "Indisponível" : hidden ? "Incluir no pedido" : "Adicionar ao pedido"}
+              </StoreButton>
+            </div>
+            <ul className="agro-trust" aria-label="Garantias da loja">
+              <li><ShieldCheck size={16} aria-hidden="true" /> Compra segura</li>
+              <li><Truck size={16} aria-hidden="true" /> Entrega combinada</li>
+              <li><Repeat size={16} aria-hidden="true" /> Troca facilitada</li>
+            </ul>
+            {buy.added && (
+              <div className="agro-added" role="status">
+                <span>Item adicionado ao pedido.</span>
+                <StoreButton type="button" size="sm" variant="outline" className="agro-ghost" onClick={openCart}>Ver pedido</StoreButton>
+              </div>
+            )}
           </section>
         </div>
-
         {product.description && (
           <section className="agro-spec" aria-labelledby="agro-spec-t">
             <h2 id="agro-spec-t">Ficha do produto</h2>
-            <div className="agro-spec-body">{product.description}</div>
+            <div>{product.description}</div>
           </section>
         )}
         {related.length > 0 && (
-          <section style={{ paddingBottom: 64 }}>
-            <div className="agro-section-title"><h2>Mais do mesmo departamento</h2></div>
+          <section className="agro-section">
+            <SectionTitle eyebrow="No mesmo departamento" title="Você também pode precisar" />
             <div className="agro-grid">{related.map((p) => <Card key={p.id} product={p} />)}</div>
           </section>
         )}

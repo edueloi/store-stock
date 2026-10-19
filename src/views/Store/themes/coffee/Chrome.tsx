@@ -1,15 +1,191 @@
-import {useEffect,useState,type FormEvent} from 'react';
-import {Link,useLocation,useNavigate} from 'react-router-dom';
-import {ArrowRight,Coffee,Instagram,Facebook,MessageCircle,Menu,Search,ShoppingBag,X} from 'lucide-react';
-import {useKit,hoursLines,whatsappLink} from './kit';
-import './styles.css';
-import './storefront.css';
-export function Header(){
- const {tenant,path,openCart,cartCount,sf}=useKit(); const location=useLocation(),navigate=useNavigate();const [panel,setPanel]=useState<'menu'|'search'|null>(null);const [q,setQ]=useState('');
- useEffect(()=>{setPanel(null);},[location.pathname,location.search]);useEffect(()=>{if(!panel)return;const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape')setPanel(null)};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);},[panel]);
- const submit=(e:FormEvent)=>{e.preventDefault();navigate(path(q.trim()?`/catalogo?q=${encodeURIComponent(q.trim())}`:'/catalogo'));setPanel(null);};
- const links=[{label:'Início',url:path()},{label:'Cardápio',url:path('/catalogo')},{label:'Nossa história',url:path('/sobre')}];
- return <header className="cf-header"><div className="cf-topline"><div className="cf-container"><span><Coffee size={14}/>{sf.segment_label||'Cafés & experiências'}</span><Link to={path('/catalogo')}>Explore nossos sabores <ArrowRight size={13}/></Link></div></div><div className="cf-container cf-mainnav"><button aria-label="Abrir menu" aria-expanded={panel==='menu'} onClick={()=>setPanel(panel==='menu'?null:'menu')} className="cf-header-icon cf-menu-toggle"><Menu size={22}/></button><Link className="cf-logo" to={path()}>{tenant.logo_url?<img src={tenant.logo_url} alt=""/>:<span className="cf-logomark"><Coffee size={23}/></span>}<span>{tenant.name}</span></Link><nav className="cf-desktop-links" aria-label="Principal">{links.map(l=><Link key={l.url} to={l.url} aria-current={location.pathname===l.url.split('?')[0]?'page':undefined}>{l.label}</Link>)}</nav><div className="cf-header-actions"><button aria-label="Buscar produtos" aria-expanded={panel==='search'} className="cf-header-icon" onClick={()=>setPanel(panel==='search'?null:'search')}><Search size={20}/></button><button className="cf-cart-button" onClick={openCart} aria-label={`Abrir comanda, ${cartCount} itens`}><ShoppingBag size={19}/><span>Minha comanda</span><b>{cartCount}</b></button></div></div>
- {panel&&<div className="cf-dropdown"><div className="cf-container"> <div className="cf-drop-heading"><strong>{panel==='menu'?'Explore nossa casa':'Encontre seu favorito'}</strong><button onClick={()=>setPanel(null)} aria-label="Fechar"><X size={21}/></button></div>{panel==='search'?<form className="cf-header-search" onSubmit={submit}><Search size={20}/><input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="Café, doce, bebida, presente..."/><button className="cf-btn" type="submit">Buscar <ArrowRight size={16}/></button></form>:<div className="cf-menu-layout"><nav className="cf-menu-primary">{links.map(l=><Link to={l.url} key={l.url} onClick={()=>setPanel(null)}>{l.label}<ArrowRight size={17}/></Link>)}</nav></div>}</div></div>}</header>;
+import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { ChevronDown, Clock, Coffee, Facebook, Instagram, MapPin, Menu, MessageCircle, Search, ShoppingBag, X } from "lucide-react";
+import { hoursLines, useKit, whatsappLink } from "./kit";
+import "./styles.css";
+
+function Brand({ foot = false }: { foot?: boolean }) {
+  const { tenant, path } = useKit();
+  return (
+    <Link className={`cf-brand ${foot ? "cf-brand-foot" : ""}`} to={path()} aria-label={`${tenant.name} - página inicial`}>
+      {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <Coffee size={26} aria-hidden="true" />}
+      <span>{tenant.name}</span>
+    </Link>
+  );
 }
-export function Footer(){const {tenant,path,active,categories,sf}=useKit();const wa=whatsappLink(tenant.whatsapp);const hours=hoursLines(tenant.business_hours);const cats=categories.filter(c=>active.some(p=>p.category_id===c.id)).slice(0,5);return <footer className="cf-footer"><div className="cf-footer-cta"><div className="cf-container"><div><span className="cf-eyebrow">UM CONVITE ESPECIAL</span><h2>Seu próximo momento favorito começa aqui.</h2></div><Link to={path('/catalogo')} className="cf-btn cf-btn-light">Explorar cardápio <ArrowRight size={18}/></Link></div></div><div className="cf-container cf-footer-grid"><section><h3>{tenant.name}</h3><p>{tenant.footer_text||tenant.about_text||'Um lugar para descobrir sabores, colecionar momentos e apreciar cada pausa.'}</p><div className="cf-socials">{tenant.instagram_url&&<a href={tenant.instagram_url} aria-label="Instagram" target="_blank" rel="noreferrer"><Instagram size={18}/></a>}{tenant.facebook_url&&<a href={tenant.facebook_url} aria-label="Facebook" target="_blank" rel="noreferrer"><Facebook size={18}/></a>}{wa&&<a href={wa} aria-label="WhatsApp" target="_blank" rel="noreferrer"><MessageCircle size={18}/></a>}</div></section><section><h4>Explore</h4><Link to={path()}>Início</Link><Link to={path('/catalogo')}>Cardápio completo</Link><Link to={path('/sobre')}>Nossa história</Link></section><section><h4>Seleções</h4>{cats.map(c=><Link key={c.id} to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link>)}</section><section><h4>Visite e converse</h4>{tenant.show_address&&tenant.address&&<p>{tenant.address}</p>}{wa&&<a href={wa} target="_blank" rel="noreferrer">WhatsApp: {tenant.whatsapp}</a>}{hours.map(h=><p key={h.day} className="cf-hour"><span>{h.day}</span><span>{h.text}</span></p>)}</section></div><div className="cf-footer-bottom cf-container"><span>© {new Date().getFullYear()} {tenant.name}</span><span>Powered by <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a></span></div></footer>}
+
+export function Header() {
+  const { categories, active, openCart, cartCount, path } = useKit();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [menu, setMenu] = useState(false);
+  const [mega, setMega] = useState(false);
+  const [term, setTerm] = useState("");
+  const used = categories
+    .map((c) => ({ ...c, total: active.filter((p) => p.category_id === c.id).length }))
+    .filter((c) => c.total > 0)
+    .slice(0, 12);
+  const close = () => {
+    setMenu(false);
+    setMega(false);
+  };
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    close();
+    navigate(path(`/catalogo${term.trim() ? `?q=${encodeURIComponent(term.trim())}` : ""}`));
+  };
+  return (
+    <header className="cf-header">
+      <div className="cf-bar">
+        <Brand />
+        <nav className="cf-nav" aria-label="Principal">
+          <Link to={path()} aria-current={!/catalogo|sobre|produto/.test(pathname) ? "page" : undefined}>
+            Início
+          </Link>
+          <button type="button" aria-expanded={mega} aria-controls="cf-mega" onClick={() => setMega((v) => !v)}>
+            Cardápio <ChevronDown size={16} aria-hidden="true" />
+          </button>
+          <Link to={path("/sobre")} aria-current={/sobre/.test(pathname) ? "page" : undefined}>
+            Nossa casa
+          </Link>
+        </nav>
+        <form className="cf-search" role="search" onSubmit={submit}>
+          <Search size={18} aria-hidden="true" />
+          <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="O que você quer hoje?" aria-label="Buscar no cardápio" />
+        </form>
+        <button type="button" className="cf-cart" aria-label={`Abrir sacola, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`} onClick={openCart}>
+          <ShoppingBag size={21} />
+          <span>{cartCount}</span>
+        </button>
+        <button type="button" className="cf-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
+          {menu ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
+      {mega && (
+        <div id="cf-mega" className="cf-mega">
+          <div className="cf-mega-inner">
+            <p>O cardápio por seção</p>
+            <div className="cf-mega-grid">
+              <Link to={path("/catalogo")} onClick={close}>
+                <strong>Tudo</strong>
+                <span>{active.length} itens</span>
+              </Link>
+              {used.map((c) => (
+                <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)} onClick={close}>
+                  <strong>{c.name}</strong>
+                  <span>{c.total} {c.total === 1 ? "item" : "itens"}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+      {menu && (
+        <div className="cf-drawer">
+          <form className="cf-search" role="search" onSubmit={submit}>
+            <Search size={18} aria-hidden="true" />
+            <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="O que você quer hoje?" aria-label="Buscar no cardápio" />
+          </form>
+          <nav aria-label="Menu">
+            <Link to={path()} onClick={close}>
+              Início
+            </Link>
+            <Link to={path("/catalogo")} onClick={close}>
+              Todo o cardápio
+            </Link>
+            <Link to={path("/sobre")} onClick={close}>
+              Nossa casa
+            </Link>
+          </nav>
+          {used.length > 0 && (
+            <>
+              <p className="cf-drawer-title">Seções do cardápio</p>
+              <div className="cf-drawer-grid">
+                {used.map((c) => (
+                  <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)} onClick={close}>
+                    {c.name}
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </header>
+  );
+}
+
+export function Footer() {
+  const { tenant, categories, active, path } = useKit();
+  const hours = hoursLines(tenant.business_hours);
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
+  const cats = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 6);
+  return (
+    <footer className="cf-footer">
+      <div className="cf-footer-inner">
+        <section className="cf-foot-card cf-foot-about">
+          <Brand foot />
+          <p>{tenant.footer_text || tenant.about_text || "Sabores feitos com calma, para você aproveitar sem pressa."}</p>
+          <div className="cf-social">
+            {tenant.instagram_url && (
+              <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram">
+                <Instagram size={20} />
+              </a>
+            )}
+            {tenant.facebook_url && (
+              <a href={tenant.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook">
+                <Facebook size={20} />
+              </a>
+            )}
+            {wa && (
+              <a href={wa} target="_blank" rel="noreferrer" aria-label="WhatsApp">
+                <MessageCircle size={20} />
+              </a>
+            )}
+          </div>
+        </section>
+        <section className="cf-foot-card">
+          <h2>Cardápio</h2>
+          <Link to={path("/catalogo")}>Ver tudo</Link>
+          {cats.map((c) => (
+            <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>
+              {c.name}
+            </Link>
+          ))}
+        </section>
+        <section className="cf-foot-card">
+          <h2>Visite a gente</h2>
+          {tenant.show_address && tenant.address && (
+            <p>
+              <MapPin size={16} /> {tenant.address}
+            </p>
+          )}
+          {wa && (
+            <a href={wa} target="_blank" rel="noreferrer">
+              <MessageCircle size={16} /> {tenant.whatsapp}
+            </a>
+          )}
+          {hours.length > 0 && (
+            <dl className="cf-hours">
+              <dt className="cf-hours-title">
+                <Clock size={15} /> Horários
+              </dt>
+              {hours.map((h) => (
+                <div key={h.day}>
+                  <dt>{h.day}</dt>
+                  <dd>{h.text}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+      </div>
+      <p className="cf-credit">
+        © {new Date().getFullYear()} {tenant.name} · Desenvolvido por{" "}
+        <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">
+          BoxSys
+        </a>
+      </p>
+    </footer>
+  );
+}

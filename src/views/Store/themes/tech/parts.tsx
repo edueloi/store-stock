@@ -1,14 +1,20 @@
 import { Link } from "react-router-dom";
-import { Heart, Package } from "lucide-react";
+import { Heart, Package, ShoppingBag } from "lucide-react";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { productRouteSegment } from "../../store-routing";
 import type { Product } from "../../../../types";
-import { groupsOf, hasDiscount, imageOf, money, priceOf, useShop } from "./kit";
+import { groupsOf, hasDiscount, imageOf, money, priceOf, useQuickAdd, useShop } from "./kit";
 import "./styles.css";
 
 export function Price({ product, big = false }: { product: Product; big?: boolean }) {
   const { hidden } = useShop();
   const cls = big ? "tp-big-price" : "tp-price";
-  if (hidden) return <div className={cls}><em>Sob consulta</em></div>;
+  if (hidden)
+    return (
+      <div className={cls}>
+        <em>Sob consulta</em>
+      </div>
+    );
   return (
     <div className={cls}>
       <strong>{money(priceOf(product))}</strong>
@@ -26,35 +32,56 @@ export function Empty({ title, text }: { title: string; text: string }) {
   );
 }
 
-/** Cartão com "especificações rápidas": descrição curta e opções disponíveis. */
-export function TechCard({ product, wide = false }: { product: Product; wide?: boolean }) {
-  const { path, categories, wishlist, toggleWishlist } = useShop();
+/** Cartão com imagem em quadrado fixo, preço claro e botão de tamanho moderado. */
+export function TechCard({ product }: { product: Product }) {
+  const { path, categories, wishlist, toggleWishlist, hidden } = useShop();
+  const quick = useQuickAdd()(product);
   const faved = wishlist.includes(product.id);
   const img = imageOf(product);
-  const cat = categories.find((c) => c.id === product.category_id)?.name || "Geral";
-  const groups = groupsOf(product);
-  const chips = groups.flatMap((g) => g.values).slice(0, 4);
-  const hasSpec = Boolean(product.description) || chips.length > 0;
+  const cat = categories.find((c) => c.id === product.category_id)?.name;
+  const href = path(`/produto/${productRouteSegment(product)}`);
+  const options = groupsOf(product).flatMap((g) => g.values).length;
   return (
-    <article className={`tp-card${wide ? " is-wide" : ""}`}>
+    <article className="tp-card">
       <div className="tp-card-media">
-        {img ? <img src={img} alt={product.name} loading="lazy" /> : <Package className="ph" size={48} aria-label="Produto sem imagem" />}
-        {hasDiscount(product) ? <span className="tp-badge off">Oferta</span> : product.is_featured ? <span className="tp-badge">Destaque</span> : null}
+        {img ? <img src={img} alt={product.name} loading="lazy" /> : <Package className="ph" size={44} aria-label="Produto sem imagem" />}
+        {quick.soldOut ? (
+          <span className="tp-badge off">Esgotado</span>
+        ) : hasDiscount(product) ? (
+          <span className="tp-badge sale">Oferta</span>
+        ) : product.is_featured ? (
+          <span className="tp-badge">Destaque</span>
+        ) : null}
       </div>
-      <button type="button" className="tp-fav" aria-pressed={faved} aria-label={faved ? `Remover ${product.name} dos favoritos` : `Favoritar ${product.name}`} onClick={() => toggleWishlist(product.id)}>
+      <button
+        type="button"
+        className="tp-fav"
+        aria-pressed={faved}
+        aria-label={faved ? `Remover ${product.name} dos favoritos` : `Favoritar ${product.name}`}
+        onClick={() => toggleWishlist(product.id)}
+      >
         <Heart size={18} fill={faved ? "currentColor" : "none"} />
       </button>
       <div className="tp-card-body">
-        <span className="tp-card-cat">{cat}</span>
-        <Link className="tp-card-name" to={path(`/produto/${productRouteSegment(product)}`)}>{product.name}</Link>
-        {hasSpec && (
-          <div className="tp-spec">
-            <b>Especificações rápidas</b>
-            {product.description && <p>{product.description}</p>}
-            {chips.length > 0 && <div className="tp-chipset">{chips.map((c) => <span key={c}>{c}</span>)}</div>}
-          </div>
+        {cat && <span className="tp-card-cat">{cat}</span>}
+        <Link className="tp-card-name" to={href}>
+          {product.name}
+        </Link>
+        {options > 0 && (
+          <span className="tp-card-opts">
+            {options} {options === 1 ? "opção" : "opções"} disponíveis
+          </span>
         )}
         <Price product={product} />
+        {quick.hasOptions || quick.soldOut ? (
+          <StoreButton asChild variant="secondary" size="sm" className="tp-card-btn">
+            <Link to={href}>{quick.soldOut ? "Ver produto" : "Escolher opções"}</Link>
+          </StoreButton>
+        ) : (
+          <StoreButton size="sm" className="tp-card-btn is-main" onClick={quick.add}>
+            <ShoppingBag size={16} /> {hidden ? "Incluir no pedido" : "Adicionar"}
+          </StoreButton>
+        )}
       </div>
     </article>
   );

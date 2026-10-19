@@ -1,8 +1,106 @@
-import {useState} from 'react';
-import {Link} from 'react-router-dom';
-import {Search,SlidersHorizontal,LayoutGrid,List,ArrowRight,X,Coffee} from 'lucide-react';
-import StoreSEO from '../../../../components/store/StoreSEO';
-import {useCatalog} from './kit';
-import {CoffeeCard,MenuRow} from './parts';
-import './styles.css';
-export default function StoreCatalog(){const kit=useCatalog(12);const {tenant,categories,active,sf,q,cat,sort,setParam,list,shown,more,hasMore,path,hidden}=kit;const [filterOpen,setFilterOpen]=useState(false),[catSearch,setCatSearch]=useState(''),[view,setView]=useState<'grid'|'list'>('grid');const used=categories.filter(c=>active.some(p=>p.category_id===c.id));const found=used.filter(c=>c.name.toLowerCase().includes(catSearch.toLowerCase()));const title=sf.catalog_title||'Nosso cardápio';return <main className="cf-root"><StoreSEO title={`${title} — ${tenant.name}`} description={sf.catalog_description||tenant.about_text||`Explore os produtos da ${tenant.name}.`} image={tenant.banner_url||tenant.logo_url} url={typeof window!=='undefined'?window.location.href:''} siteName={tenant.name}/><div className="cf-catalog-banner"><div className="cf-container"><span className="cf-eyebrow">SELEÇÃO DA CASA</span><h1>{title}</h1><p>{sf.catalog_description||'Sabores, aromas e escolhas para todos os momentos do seu dia.'}</p></div></div><div className="cf-container cf-catalog-container"><nav className="cf-breadcrumb"><Link to={path()}>Início</Link><span>/</span><span>Cardápio</span></nav><div className="cf-catalog-layout"><aside className={`cf-sidebar ${filterOpen?'is-open':''}`}><div className="cf-sidebar-head"><h2>Categorias</h2><button className="cf-sidebar-close" aria-label="Fechar filtros" onClick={()=>setFilterOpen(false)}><X size={19}/></button></div><label className="cf-sidebar-search"><Search size={17}/><input value={catSearch} onChange={e=>setCatSearch(e.target.value)} placeholder="Buscar categoria"/></label><div className="cf-category-list"><button aria-pressed={!cat} onClick={()=>{setParam('cat',null);setFilterOpen(false)}}>Todos os produtos <span>{active.length}</span></button>{found.map(c=><button key={c.id} aria-pressed={cat===c.id} onClick={()=>{setParam('cat',String(c.id));setFilterOpen(false)}}>{c.name}<span>{active.filter(p=>p.category_id===c.id).length}</span></button>)}</div></aside><section className="cf-catalog-main"><div className="cf-catalog-tools"><button className="cf-filter-open" onClick={()=>setFilterOpen(v=>!v)} aria-expanded={filterOpen}><SlidersHorizontal size={18}/> Filtrar categorias</button><label className="cf-catalog-search"><Search size={18}/><input type="search" value={q} onChange={e=>setParam('q',e.target.value||null)} placeholder="Buscar no cardápio"/></label><label className="cf-sort"><span className="cf-sr">Ordenar</span><select value={sort} onChange={e=>setParam('sort',e.target.value==='featured'?null:e.target.value)}><option value="featured">Destaques</option>{!hidden&&<><option value="menor">Menor preço</option><option value="maior">Maior preço</option></>}<option value="nome">Nome (A–Z)</option></select></label><div className="cf-toggle-view"><button aria-pressed={view==='grid'} onClick={()=>setView('grid')} aria-label="Visualização em grade"><LayoutGrid size={19}/></button><button aria-pressed={view==='list'} onClick={()=>setView('list')} aria-label="Visualização em lista"><List size={19}/></button></div></div><div className="cf-result-line"><strong>{list.length} {list.length===1?'produto':'produtos'}</strong><span>{q?`Resultados para “${q}”`:'Explore nossa seleção'}</span></div>{shown.length?<div className={view==='grid'?'cf-products-grid cf-catalog-grid':'cf-menu-results'}>{shown.map((p,i)=>view==='grid'?<CoffeeCard product={p} key={p.id} index={i}/>:<MenuRow product={p} key={p.id}/>)}</div>:<div className="cf-emptybox"><Coffee size={42}/><h2>Nenhum produto encontrado</h2><p>Tente ajustar sua busca ou categoria.</p><button className="cf-btn" onClick={()=>{setParam('q',null);setParam('cat',null)}}>Limpar filtros <ArrowRight size={17}/></button></div>}{hasMore&&<div className="cf-loadmore"><button className="cf-btn cf-btn-outline" onClick={more}>Mostrar mais produtos <ArrowRight size={17}/></button></div>}</section></div></div></main>}
+import { Coffee } from "lucide-react";
+import StoreSEO from "../../../../components/store/StoreSEO";
+import SearchBar from "../../../../components/layout/SearchBar";
+import { useCatalog } from "./kit";
+import { Empty, ProductCard } from "./parts";
+import "./styles.css";
+
+export default function StoreCatalog() {
+  const c = useCatalog(12);
+  const { tenant, sf, categories, active, hidden } = c;
+  const title = sf.catalog_title || "Cardápio";
+  const desc = sf.catalog_description || "Cafés, doces, salgados e tudo o que a casa prepara.";
+  const current = categories.find((x) => x.id === c.cat);
+  const used = categories.filter((cat) => active.some((p) => p.category_id === cat.id));
+  return (
+    <div className="cf-page cf-catalog">
+      <StoreSEO
+        title={`${current ? `${current.name} | ` : ""}${title} | ${tenant.name}`}
+        description={desc}
+        image={tenant.banner_url || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+      <header className="cf-cat-head">
+        <span className="cf-hand">
+          <Coffee size={16} aria-hidden="true" /> o que servimos
+        </span>
+        <h1>{current ? current.name : title}</h1>
+        <p>{desc}</p>
+      </header>
+
+      <div className="cf-cat-layout">
+        <aside className="cf-side" aria-label="Filtros">
+          <div className="cf-side-search" role="search">
+            <SearchBar value={c.q} onChange={(v) => c.setParam("q", v)} placeholder="Buscar no cardápio" />
+          </div>
+          <label className="cf-select">
+            <span>Ordenar por</span>
+            <select value={c.sort} onChange={(e) => c.setParam("sort", e.target.value === "destaques" ? null : e.target.value)}>
+              <option value="destaques">Favoritos primeiro</option>
+              <option value="nome">Nome (A a Z)</option>
+              {!hidden && <option value="menor">Menor preço</option>}
+              {!hidden && <option value="maior">Maior preço</option>}
+            </select>
+          </label>
+          <label className="cf-select cf-select-mobile">
+            <span>Seção</span>
+            <select value={c.cat ? String(c.cat) : ""} onChange={(e) => c.setParam("categoria", e.target.value || null)}>
+              <option value="">Todas ({active.length})</option>
+              {used.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <nav className="cf-side-menu" aria-label="Seções">
+            <p>Seções</p>
+            <button type="button" aria-pressed={!c.cat} onClick={() => c.setParam("categoria", null)}>
+              <span>Tudo</span>
+              <small>{active.length}</small>
+            </button>
+            {used.map((cat) => (
+              <button key={cat.id} type="button" aria-pressed={c.cat === cat.id} onClick={() => c.setParam("categoria", String(cat.id))}>
+                <span>{cat.name}</span>
+                <small>{active.filter((p) => p.category_id === cat.id).length}</small>
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <div className="cf-results">
+          <p className="cf-count" role="status">
+            {c.list.length} {c.list.length === 1 ? "item encontrado" : "itens encontrados"}
+            {current ? ` em ${current.name}` : ""}
+          </p>
+          {c.list.length ? (
+            <>
+              <div className="cf-list cf-list-one">
+                {c.shown.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </div>
+              {c.hasMore && (
+                <div className="cf-more">
+                  <button type="button" className="cf-btn cf-btn-lg" onClick={c.more}>
+                    Ver mais itens
+                  </button>
+                  <span>
+                    Mostrando {c.shown.length} de {c.list.length}
+                  </span>
+                </div>
+              )}
+            </>
+          ) : (
+            <Empty
+              title={active.length ? "Não achamos esse item" : "O cardápio ainda está vazio"}
+              text={active.length ? "Tente outro nome ou veja outra seção." : "Volte em breve, estamos preparando novidades."}
+              onClear={active.length ? c.clear : undefined}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

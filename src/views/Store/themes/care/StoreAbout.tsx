@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Clock, Facebook, HeartHandshake, Instagram, Leaf, MapPin, MessageCircle, Sparkles } from "lucide-react";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { hoursRows, pageUrl, useShop, whatsappLink } from "./core";
 import { Blob, T } from "./parts";
@@ -26,7 +27,9 @@ export default function StoreAbout() {
           <h1>{tenant.name}</h1>
           <p className="ca-lead">{tenant.hero_tagline || T.hero}</p>
           <p>{tenant.about_text || T.sub}</p>
-          <Link to={path("/catalogo")} className="ca-btn">Explorar produtos <ArrowRight size={18} aria-hidden="true" /></Link>
+          <StoreButton asChild size="lg" className="ca-b ca-b-solid">
+            <Link to={path("/catalogo")}>Explorar produtos <ArrowRight size={18} aria-hidden="true" /></Link>
+          </StoreButton>
         </div>
       </section>
 

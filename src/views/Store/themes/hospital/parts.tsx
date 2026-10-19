@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Heart, Package, Plus, SlidersHorizontal } from "lucide-react";
 import type { Product, Tenant } from "../../../../types";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
 import { productRouteSegment } from "../../store-routing";
 import { isSoldOut, money, optionGroups, priceOf, productImage, useShop } from "./lib";
@@ -32,18 +33,22 @@ export function SupplyCard({ product }: { product: Product }) {
         <Heart size={19} fill={fav ? "currentColor" : "none"} />
       </button>
       <div className="ms-card-body">
-        {cat && <span className="ms-card-cat">{cat}</span>}
+        <div className="ms-card-meta">
+          {product.sku ? <span className="ms-code">SKU {product.sku}</span> : <span />}
+          {cat && <span className="ms-card-cat">{cat}</span>}
+        </div>
         <Link className="ms-card-name" to={href}>{product.name}</Link>
-        {product.sku && <span className="ms-code">Cód. {product.sku}</span>}
         <div className="ms-price">
           {hidden ? <em>Valor a confirmar</em> : (<>{discounted && <s>{money(full)}</s>}<b>{money(current)}</b></>)}
         </div>
         {needs ? (
-          <Link className="ms-btn ghost sm" to={href}><SlidersHorizontal size={16} />Ver opções</Link>
+          <StoreButton asChild variant="outline" shape="soft" size="sm" className="ms-obtn ms-cardbtn">
+            <Link to={href}><SlidersHorizontal size={16} />Ver opções</Link>
+          </StoreButton>
         ) : (
-          <button className="ms-btn sm" disabled={out} onClick={() => addToCart(product)}>
-            <Plus size={17} />{out ? "Indisponível" : "Adicionar ao pedido"}
-          </button>
+          <StoreButton shape="soft" size="sm" className="ms-fbtn ms-cardbtn" disabled={out} onClick={() => addToCart(product)}>
+            <Plus size={17} />{out ? "Indisponível" : hidden ? "Solicitar orçamento" : "Adicionar"}
+          </StoreButton>
         )}
       </div>
     </article>

@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
-import { Package } from "lucide-react";
+import { Heart, Package } from "lucide-react";
 import { productRouteSegment } from "../../store-routing";
 import { availableUnits } from "../../../../utils/storeStock";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import type { Product } from "../../../../types";
 import { optionGroups, priceOf, productImage, useShop } from "./core";
 import "./styles.css";
@@ -14,7 +15,7 @@ export const T = {
   catalog: "Escolhas com essência",
   categories: "Explore nossas coleções",
   featured: "Da nossa seleção",
-  cart: "Sua cesta natural",
+  seal: "100% natural",
 };
 
 export function Leaf({ size = 24, className = "" }: { size?: number; className?: string }) {
@@ -26,28 +27,25 @@ export function Leaf({ size = 24, className = "" }: { size?: number; className?:
   );
 }
 
-export function Sprig({ className = "" }: { className?: string }) {
+/** Divisor ondulado em SVG; `flip` inverte verticalmente e `fill` define a cor da onda. */
+export function Wave({ fill = "var(--or-sand)", flip = false, className = "" }: { fill?: string; flip?: boolean; className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 120 24" width="120" height="24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-      <path d="M4 12h112" />
-      <path d="M30 12c-3-7-8-8-12-8 0 5 4 8 12 8zM30 12c-3 7-8 8-12 8 0-5 4-8 12-8zM60 12c-3-7-8-8-12-8 0 5 4 8 12 8zM60 12c-3 7-8 8-12 8 0-5 4-8 12-8zM90 12c3-7 8-8 12-8 0 5-4 8-12 8zM90 12c3 7 8 8 12 8 0-5-4-8-12-8z" />
+    <svg className={`or-wave ${className}`} style={flip ? { transform: "scaleY(-1)" } : undefined} viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
+      <path fill={fill} d="M0 40C120 10 240 6 360 28s240 46 360 30 240-52 360-48 240 30 360 48v22H0z" />
     </svg>
   );
 }
 
-export function Seal({ className = "" }: { className?: string }) {
+export function Seal({ className = "", label = T.seal }: { className?: string; label?: string }) {
   return (
-    <span className={`or-seal ${className}`} aria-label="Selo 100% natural">
-      <Leaf size={14} />
-      <b>100%</b>
-      <i>natural</i>
+    <span className={`or-seal ${className}`}>
+      <Leaf size={16} />
+      <b>{label}</b>
     </span>
   );
 }
 
-const ratios = ["4 / 5", "1 / 1", "3 / 4", "5 / 6"];
-
-export function ProductCard({ product, index = 0 }: { product: Product; index?: number }) {
+export function ProductCard({ product }: { product: Product; index?: number }) {
   const { path, hidden, categories, wishlist, toggleWishlist, addToCart, tracks } = useShop();
   const to = path(`/produto/${productRouteSegment(product)}`);
   const price = priceOf(product, hidden);
@@ -59,10 +57,14 @@ export function ProductCard({ product, index = 0 }: { product: Product; index?: 
   const category = categories.find((c) => c.id === product.category_id)?.name;
   return (
     <article className="or-card">
-      <Link to={to} className="or-card-img" style={{ aspectRatio: ratios[index % ratios.length] }} aria-label={product.name}>
-        {img ? <img src={img} alt="" loading="lazy" /> : <Package size={40} aria-hidden="true" />}
-        {index % 3 === 0 && <Seal />}
-      </Link>
+      <div className="or-card-frame">
+        <Link to={to} className="or-card-img" aria-label={product.name}>
+          {img ? <img src={img} alt="" loading="lazy" /> : <Package size={40} aria-hidden="true" />}
+        </Link>
+        <button type="button" className="or-fav" aria-label={liked ? "Remover dos favoritos" : "Favoritar produto"} aria-pressed={liked} onClick={() => toggleWishlist(product.id)}>
+          <Heart size={18} className={liked ? "is-on" : ""} />
+        </button>
+      </div>
       <div className="or-card-body">
         {category && <small>{category}</small>}
         <Link to={to} className="or-card-name">{product.name}</Link>
@@ -70,16 +72,15 @@ export function ProductCard({ product, index = 0 }: { product: Product; index?: 
           <strong className={hidden ? "is-hidden" : ""}>{price.now}</strong>
           {price.old && <s>{price.old}</s>}
         </p>
-        <div className="or-card-act">
-          {needsOptions || out ? (
-            <Link to={to} className="or-textbtn">{out ? "Indisponível" : "Escolher opções"}</Link>
-          ) : (
-            <button type="button" className="or-textbtn" onClick={() => addToCart(product)}>{hidden ? "Adicionar ao pedido" : "Adicionar à cesta"}</button>
-          )}
-          <button type="button" className="or-fav" aria-label={liked ? "Remover dos favoritos" : "Favoritar produto"} aria-pressed={liked} onClick={() => toggleWishlist(product.id)}>
-            <Leaf size={20} className={liked ? "is-on" : ""} />
-          </button>
-        </div>
+        {needsOptions || out ? (
+          <StoreButton asChild variant="outline" size="sm" className="or-cardbtn or-line">
+            <Link to={to}>{out ? "Indisponível" : "Escolher opções"}</Link>
+          </StoreButton>
+        ) : (
+          <StoreButton type="button" size="sm" className="or-cardbtn or-cta" onClick={() => addToCart(product)}>
+            {hidden ? "Adicionar ao pedido" : "Adicionar à cesta"}
+          </StoreButton>
+        )}
       </div>
     </article>
   );

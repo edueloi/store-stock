@@ -77,7 +77,7 @@ export default function StoreProduct() {
   };
 
   return (
-    <main className="nx-page">
+    <main className="nx-page nx-prod-page">
       <StoreSEO
         title={`${product.name} — ${tenant.name}`}
         description={product.description || `${product.name} na ${tenant.name}.`}
@@ -229,6 +229,15 @@ export default function StoreProduct() {
             <div className="nx-grid">{related.map((p) => <Card key={p.id} product={p} />)}</div>
           </section>
         )}
+      </div>
+      <div className="nx-sticky" role="region" aria-label="Compra rápida">
+        <div>
+          <small>{product.name}</small>
+          <strong>{hidden ? "Sob consulta" : money(price)}</strong>
+        </div>
+        <button type="button" className="nx-btn" disabled={soldOut} onClick={add}>
+          <ShoppingBag size={17} aria-hidden="true" /> {soldOut ? "Esgotado" : !ready ? "Escolher opções" : "Comprar"}
+        </button>
       </div>
     </main>
   );

@@ -140,7 +140,7 @@ export default function StoreAbout() {
                   width: "100%",
                   height: "clamp(340px, 45vw, 560px)",
                   objectFit: "cover",
-                  borderRadius: 6,
+                  borderRadius: 24,
                 }}
                 loading="lazy"
               />
@@ -157,7 +157,7 @@ export default function StoreAbout() {
               background: "var(--vitra-bg)",
               border: "1px solid var(--vitra-line)",
               padding: "50px 55px",
-              borderRadius: 8,
+              borderRadius: 28,
               display: "flex",
               flexWrap: "wrap",
               justifyContent: "space-between",

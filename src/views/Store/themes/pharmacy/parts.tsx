@@ -4,6 +4,7 @@ import { productRouteSegment } from "../../store-routing";
 import { availableUnits } from "../../../../utils/storeStock";
 import type { Product } from "../../../../types";
 import { optionGroups, priceOf, productImage, useShop } from "./core";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import "./styles.css";
 
 export const T = {
@@ -18,10 +19,10 @@ export const T = {
 };
 
 /** Ícones de departamento: cruz, gota, cápsula e coração, alternados. */
-export function CatIcon({ index }: { index: number }) {
+export function CatIcon({ index, size = 40 }: { index: number; size?: number }) {
   const n = index % 4;
   return (
-    <svg viewBox="0 0 48 48" width="40" height="40" aria-hidden="true" className="ph-caticon">
+    <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden="true" className="ph-caticon">
       {n === 0 && <path d="M19 6h10v13h13v10H29v13H19V29H6V19h13z" fill="currentColor" />}
       {n === 1 && (
         <>
@@ -71,7 +72,7 @@ export function ProductCard({ product }: { product: Product }) {
       </button>
       <Link to={to} className="ph-card-media" aria-label={product.name}>
         {img ? <img src={img} alt="" loading="lazy" /> : <Package size={44} aria-hidden="true" />}
-        {price.old && <span className="ph-flag">Oferta</span>}
+        {price.old && <span className="ph-flag">{price.pct ? `-${price.pct}%` : "Oferta"}</span>}
       </Link>
       <div className="ph-card-body">
         {category && <small>{category}</small>}
@@ -82,11 +83,13 @@ export function ProductCard({ product }: { product: Product }) {
         </div>
         <span className="ph-pickup">Retirada na loja</span>
         {needsOptions || out ? (
-          <Link to={to} className="ph-btn ph-btn-soft">{out ? "Indisponível" : "Escolher opções"}</Link>
+          <StoreButton asChild variant="outline" size="sm" shape="soft" className="ph-card-btn">
+            <Link to={to}>{out ? "Indisponível" : "Escolher opções"}</Link>
+          </StoreButton>
         ) : (
-          <button type="button" className="ph-btn" onClick={() => addToCart(product)}>
+          <StoreButton size="sm" shape="soft" className="ph-card-btn ph-card-btn-main" onClick={() => addToCart(product)}>
             {hidden ? "Adicionar ao pedido" : "Adicionar"}
-          </button>
+          </StoreButton>
         )}
       </div>
     </article>

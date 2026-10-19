@@ -1,7 +1,69 @@
 import { Link } from "react-router-dom";
-import { Heart, ShoppingBag, Sparkles } from "lucide-react";
+import { Heart, Search, ShoppingBag, Sparkles } from "lucide-react";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { productRouteSegment } from "../../store-routing";
-export const beautyImage=(p:{image_url?:string|null;images?:unknown})=>(Array.isArray(p.images)&&typeof p.images[0]==="string"?p.images[0]:p.image_url)||null;
-export const beautyMoney=(v:number)=>v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
-export const beautyHide=(t:any)=>t.policies?.storefront?.checkout_mode==="order_request"||t.policies?.storefront?.hide_prices===true;
-export function BeautyCard({product,path,category,saved,onFavorite,onAdd,hidePrices}:any){const image=beautyImage(product),price=Number(product.discount_price||product.price);return <article className="group relative min-w-0 bg-white"><Link to={path(`/produto/${productRouteSegment(product)}`)} className="relative grid aspect-[.95] place-items-center overflow-hidden bg-[#f6f6f5] p-5">{image?<img src={image} alt={product.name} className="h-full w-full object-contain transition duration-500 group-hover:scale-105"/>:<Sparkles className="text-[#b37851]" size={36}/>}</Link><button onClick={onFavorite} aria-label="Favoritar" className={`absolute right-3 top-3 ${saved?"text-[#a96845]":"text-[#3d3936]"}`}><Heart size={19} fill={saved?"currentColor":"none"}/></button><div className="pb-3 pt-4"><p className="text-[10px] font-medium uppercase tracking-[.14em] text-[#9a674a]">{category||"Beauty"}</p><Link to={path(`/produto/${productRouteSegment(product)}`)} className="mt-2 block min-h-10 text-[15px] leading-snug text-[#393532]">{product.name}</Link><p className="mt-3 text-base font-medium">{hidePrices?"Sob consulta":beautyMoney(price)}</p><button onClick={onAdd} className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.13em] text-[#9a674a] hover:text-[#3d3936]"><ShoppingBag size={14}/> Adicionar à sacola</button></div></article>}
+import type { Product } from "../../../../types";
+import { priceInfo, productImage, useKit, useQuickAdd } from "./kit";
+
+/** Campo de busca do tema (pílula com ícone). */
+export function SearchField({ value, onChange, placeholder, label = "Buscar" }: { value: string; onChange: (v: string) => void; placeholder: string; label?: string }) {
+  return (
+    <label className="bty-field">
+      <Search size={17} aria-hidden="true" />
+      <span className="bty-sr">{label}</span>
+      <input type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+    </label>
+  );
+}
+
+export function ProductCard({ product }: { product: Product }) {
+  const { path, hidden, wishlist, toggleWishlist, catName } = useKit();
+  const quick = useQuickAdd()(product);
+  const price = priceInfo(product, hidden);
+  const image = productImage(product);
+  const saved = wishlist.includes(product.id);
+  const href = path(`/produto/${productRouteSegment(product)}`);
+  return (
+    <article className="bty-card">
+      <div className="bty-card-frame">
+        <Link className="bty-card-media" to={href} aria-label={product.name}>
+          {image ? <img src={image} alt={product.name} loading="lazy" /> : <Sparkles size={34} aria-label="Produto sem imagem" />}
+          {(quick.soldOut || price.off || product.is_featured) && <span className="bty-tag">{quick.soldOut ? "Esgotado" : price.off ? "Oferta" : "Destaque"}</span>}
+        </Link>
+        <button type="button" className="bty-heart" aria-pressed={saved} aria-label={saved ? `Remover ${product.name} dos favoritos` : `Favoritar ${product.name}`} onClick={() => toggleWishlist(product.id)}>
+          <Heart size={18} fill={saved ? "currentColor" : "none"} />
+        </button>
+      </div>
+      <div className="bty-card-body">
+        {catName(product) && <span className="bty-eyebrow">{catName(product)}</span>}
+        <Link className="bty-card-name" to={href}>{product.name}</Link>
+        <div className="bty-price">
+          <strong>{price.now}</strong>
+          {price.old && <s>{price.old}</s>}
+        </div>
+        {quick.hasOptions || quick.soldOut ? (
+          <StoreButton asChild variant="outline" size="sm" className="bty-btn bty-btn-line">
+            <Link to={href}>{quick.soldOut ? "Ver produto" : "Escolher opções"}</Link>
+          </StoreButton>
+        ) : (
+          <StoreButton size="sm" className="bty-btn" onClick={quick.add}>
+            <ShoppingBag size={16} /> {hidden ? "Incluir no pedido" : "Adicionar"}
+          </StoreButton>
+        )}
+      </div>
+    </article>
+  );
+}
+
+export function Empty({ title, text, onClear }: { title: string; text: string; onClear?: () => void }) {
+  return (
+    <div className="bty-empty">
+      <Sparkles size={34} aria-hidden="true" />
+      <h2>{title}</h2>
+      <p>{text}</p>
+      {onClear && (
+        <StoreButton className="bty-btn" onClick={onClear}>Ver todos os produtos</StoreButton>
+      )}
+    </div>
+  );
+}

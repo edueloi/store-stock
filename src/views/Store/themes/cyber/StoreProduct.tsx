@@ -4,7 +4,7 @@ import StoreSEO from "../../../../components/store/StoreSEO";
 import StockAvailability from "../../../../components/store/StockAvailability";
 import { parseProductIdFromRoute } from "../../store-routing";
 import { priceOf, usePurchase, useShop, whatsappHref } from "./kit";
-import { CircuitCard, PriceTag } from "./parts";
+import { NeonCard, PriceTag } from "./parts";
 import "./styles.css";
 
 const COLORS: Record<string, string> = { preto: "#111", branco: "#f5f5f5", vermelho: "#e03131", azul: "#2d5da8", verde: "#3f9b57", amarelo: "#e5bd3c", rosa: "#e07aa0", cinza: "#8a919a" };
@@ -20,7 +20,7 @@ export default function StoreProduct() {
       <div className="cy-scope cy-page">
         <div className="cy-wrap" style={{ padding: "60px 0" }}>
           <div className="cy-empty" role="status">
-            <strong>&gt; erro 404: módulo não encontrado</strong>
+            <strong>Produto não encontrado</strong>
             <Link className="cy-btn" style={{ marginTop: 14 }} to={path("/catalogo")}>Voltar ao catálogo</Link>
           </div>
         </div>
@@ -33,12 +33,12 @@ export default function StoreProduct() {
   const label = buy.soldOut ? "Indisponível" : !buy.ready ? "Escolha as opções" : "Adicionar ao carrinho";
 
   return (
-    <div className="cy-scope cy-page">
+    <div className="cy-scope cy-page cy-product-page">
       <StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description || product.name} image={gallery[0]} type="product" price={hidden ? undefined : String(priceOf(product))} siteName={tenant.name} url={typeof window !== "undefined" ? window.location.href : ""} />
       <div className="cy-wrap">
         <nav className="cy-crumbs" aria-label="Você está em">
-          <Link to={path()}>~</Link><span>/</span><Link to={path("/catalogo")}>catalogo</Link>
-          {cat && <><span>/</span><Link to={path("/catalogo", { categoria: String(cat.id) })}>{cat.name.toLowerCase()}</Link></>}
+          <Link to={path()}>Início</Link><span>/</span><Link to={path("/catalogo")}>Catálogo</Link>
+          {cat && <><span>/</span><Link to={path("/catalogo", { categoria: String(cat.id) })}>{cat.name}</Link></>}
         </nav>
         <div className="cy-pgrid">
           <div>
@@ -61,7 +61,7 @@ export default function StoreProduct() {
           </div>
 
           <section className="cy-buy cy-corner">
-            <span className="cy-tag">{cat?.name || "módulo geral"}</span>
+            <span className="cy-tag">{cat?.name || "Produto"}</span>
             <h1>{product.name}</h1>
             <PriceTag product={product} big />
             <div className="cy-stock"><StockAvailability product={product} tenant={tenant} selected={ready && choices.length ? selected : undefined} /></div>
@@ -80,7 +80,7 @@ export default function StoreProduct() {
 
             {choices.map((c) => (
               <fieldset className="cy-fieldset" key={c.name}>
-                <legend>{c.name} <b>*obrigatório</b></legend>
+                <legend>{c.name} <b>obrigatório</b></legend>
                 <div className="cy-opts">
                   {c.values.map((v) => {
                     const hex = c.colors?.[v] || COLORS[v.toLowerCase()];
@@ -107,19 +107,24 @@ export default function StoreProduct() {
             {buy.units !== null && buy.maximum > 0 && buy.maximum < 99 && buy.qty >= buy.maximum && <p className="cy-note">Limite de {buy.maximum} {buy.maximum === 1 ? "unidade" : "unidades"} para este pedido.</p>}
             {tenant.whatsapp && (
               <div className="cy-cta-row">
-                <a className="cy-link" href={whatsappHref(tenant, `Olá! Tenho interesse em ${product.name}.`)} target="_blank" rel="noreferrer">tirar dúvida no whatsapp →</a>
+                <a className="cy-link" href={whatsappHref(tenant, `Olá! Tenho interesse em ${product.name}.`)} target="_blank" rel="noreferrer">Tirar dúvida no WhatsApp →</a>
               </div>
             )}
             {product.description && (
-              <div className="cy-readme"><h3>readme.txt</h3>{product.description}</div>
+              <div className="cy-readme"><h3>Descrição</h3>{product.description}</div>
             )}
           </section>
         </div>
 
+        <div className="cy-buybar">
+          <PriceTag product={product} />
+          <button type="button" className="cy-btn is-solid" disabled={!buy.canAdd} onClick={buy.add}><ShoppingCart size={17} /> {buy.soldOut ? "Indisponível" : !buy.ready ? "Escolha as opções" : "Adicionar"}</button>
+        </div>
+
         {related.length > 0 && (
           <section className="cy-section">
-            <div className="cy-sec-head"><div><span className="cy-tag">relacionados</span><h2>Mais do mesmo módulo</h2></div></div>
-            <div className="cy-grid is-4">{related.map((p, i) => <CircuitCard key={p.id} product={p} index={i} />)}</div>
+            <div className="cy-sec-head"><div><span className="cy-tag">Relacionados</span><h2>Você também pode gostar</h2></div></div>
+            <div className="cy-grid is-4">{related.map((p) => <NeonCard key={p.id} product={p} />)}</div>
           </section>
         )}
       </div>

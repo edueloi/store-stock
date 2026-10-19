@@ -1,24 +1,112 @@
+import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, MoveUpRight, ShoppingBag, Zap } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CreditCard, RefreshCw, Trophy, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
+import HeroSlider from "../../../../components/store/HeroSlider";
 import Card from "./Card";
+import { useHeroFx } from "./fx";
 import { imageOf, priceOf, useKit } from "./lib";
 import "./styles.css";
-import "./v3.css";
-export default function StoreFront(){
-  const {tenant,active,path,sf,hidden,usedCategories,countIn,productPath}=useKit();
-  const featured=(active.filter(p=>p.is_featured).length?active.filter(p=>p.is_featured):active).slice(0,8);
-  const offers=hidden?[]:active.filter(p=>priceOf(p).off).slice(0,4);
-  const mainProduct=featured.find(p=>imageOf(p)) || active.find(p=>imageOf(p));
-  const spotlight=offers[0]||featured[0];
-  const title=tenant.hero_tagline||"Seu movimento. Sua próxima conquista.";
-  return <main className="sport-root sv3-root"><StoreSEO title={`${tenant.name} | Artigos esportivos`} description={tenant.about_text||`Conheça os produtos da ${tenant.name}.`} image={tenant.banner_url|| (mainProduct?imageOf(mainProduct):tenant.logo_url)} url={typeof window!=="undefined"?window.location.href:""} siteName={tenant.name}/>
-    <section className="sv3-hero"><div className="sport-wrap sv3-hero-layout"><div className="sv3-hero-copy"><span className="sv3-eyebrow"><i/>{sf.segment_label||"VIVA O ESPORTE"}</span><h1>{title}</h1><p>{tenant.about_text||"Artigos esportivos, vestuário e acessórios para acompanhar você em cada etapa."}</p><div className="sv3-hero-buttons"><Link to={path("/catalogo")} className="sv3-primary">{sf.hero_button_label||"Explorar produtos"}<ArrowUpRight size={20}/></Link><Link to={path("/sobre")} className="sv3-secondary">Conhecer a loja <ArrowRight size={18}/></Link></div><div className="sv3-hero-meta"><span><strong>{active.length}</strong> produtos</span><span><strong>{usedCategories.length}</strong> categorias</span></div></div><div className="sv3-hero-visual"><div className="sv3-hero-glow"/>{tenant.banner_url?<img className="sv3-hero-image" src={tenant.banner_url} alt=""/>:mainProduct?<img className="sv3-hero-image sv3-contain" src={imageOf(mainProduct)} alt={mainProduct.name}/>:<ShoppingBag size={126} className="sv3-hero-placeholder"/>}<span className="sv3-visual-label">DISCOVER / MOVE / REPEAT</span><span className="sv3-visual-ring"/></div></div></section>
-    <div className="sv3-stripe"><div className="sport-wrap"><span>MOVE FORWARD</span><Zap size={16}/><span>ALÉM DOS LIMITES</span><Zap size={16}/><span>SEU RITMO, SUA ESCOLHA</span></div></div>
-    {usedCategories.length>0 && <section className="sport-wrap sv3-section"><div className="sv3-section-head"><div><span className="sv3-overline">ESCOLHA SEU CAMINHO</span><h2>{sf.home_categories_title||"Explore por categoria"}</h2><p>Encontre o que combina com a sua modalidade.</p></div><Link to={path("/catalogo")} className="sv3-text-link">Ver catálogo <ArrowUpRight size={18}/></Link></div><div className="sv3-category-grid">{usedCategories.slice(0,6).map((c,i)=><Link to={path(`/catalogo?cat=${c.id}`)} key={c.id} className="sv3-category-card"><span className="sv3-category-index">{String(i+1).padStart(2,"0")}</span><strong>{c.name}</strong><span>{countIn(c.id)} {countIn(c.id)===1?"produto":"produtos"}</span><MoveUpRight size={23}/></Link>)}</div>{usedCategories.length>6 && <div className="sv3-view-all"><Link to={path("/catalogo")}>Ver todas as {usedCategories.length} categorias <ArrowRight size={17}/></Link></div>}</section>}
-    <section className="sv3-product-section"><div className="sport-wrap"><div className="sv3-section-head"><div><span className="sv3-overline">SELEÇÃO DA LOJA</span><h2>{sf.home_featured_title||"Destaques para você"}</h2><p>Uma seleção especial do nosso catálogo.</p></div><Link to={path("/catalogo")} className="sv3-text-link">Ver todos <ArrowUpRight size={18}/></Link></div>{featured.length?<div className="sv3-product-grid">{featured.map(p=><Card key={p.id} product={p}/>)}</div>:<div className="sv3-no-products">O catálogo está sendo preparado. Volte em breve!</div>}</div></section>
-    {spotlight && <section className="sport-wrap sv3-feature"><div className="sv3-feature-copy"><span className="sv3-overline">{offers.length?"OFERTA SELECIONADA":"EM DESTAQUE"}</span><h2>{spotlight.name}</h2><p>{spotlight.description||"Conheça os detalhes deste produto."}</p><Link className="sv3-primary" to={productPath(spotlight)}>Conhecer produto <ArrowUpRight size={18}/></Link></div><div className="sv3-feature-image">{imageOf(spotlight)&&<img src={imageOf(spotlight)} alt={spotlight.name} loading="lazy"/>}</div></section>}
-    {offers.length>1 && <section className="sport-wrap sv3-section"><div className="sv3-section-head"><div><span className="sv3-overline">APROVEITE</span><h2>Ofertas da loja</h2></div><Link to={path("/catalogo")} className="sv3-text-link">Explorar tudo <ArrowRight size={17}/></Link></div><div className="sv3-product-grid">{offers.map(p=><Card key={p.id} product={p}/>)}</div></section>}
-    <section className="sv3-last-call"><div className="sport-wrap"><div><span className="sv3-overline">PRÓXIMO PASSO</span><h2>O equipamento certo muda o jogo.</h2></div><Link to={path("/catalogo")} className="sv3-primary">Ver o catálogo <ArrowUpRight size={18}/></Link></div></section>
-  </main>;
+
+const TICKER = ["Treine melhor", "Jogue mais", "Vá mais longe", "Equipamento de verdade", "Seu ritmo, sua escolha"];
+
+export default function StoreFront() {
+  const { tenant, active, path, sf, hidden, usedCategories, countIn } = useKit();
+  const root = useRef<HTMLElement>(null);
+  const featured = (active.some((p) => p.is_featured) ? active.filter((p) => p.is_featured) : active).slice(0, 8);
+  const offers = hidden ? [] : active.filter((p) => priceOf(p).off).slice(0, 8);
+  const photos = featured.filter((p) => imageOf(p));
+  const main = tenant.banner_url || (photos[0] ? imageOf(photos[0]) : "");
+  const title = tenant.hero_tagline || "Seu movimento. Sua próxima conquista.";
+  const coverOf = (id: number) => imageOf(active.find((p) => p.category_id === id && imageOf(p)));
+  useHeroFx(root, active.length);
+
+  const fallback = (
+    <section className="sp-hero">
+      <div className="sp-hero-copy" data-fx="copy">
+        <span className="sp-kicker">{sf.segment_label || "Viva o esporte"}</span>
+        <h1>{title}</h1>
+        <p>{tenant.about_text || "Artigos esportivos, vestuário e acessórios para acompanhar você em cada etapa."}</p>
+        <div className="sp-hero-actions">
+          <Link to={path("/catalogo")} className="sp-btn">{sf.hero_button_label || "Explorar produtos"} <ArrowUpRight size={19} /></Link>
+          <Link to={path("/sobre")} className="sp-btn sp-btn--soft">Conhecer a loja</Link>
+        </div>
+      </div>
+      <div className="sp-mosaic" data-fx="visual">
+        <div className="sp-mosaic-main" data-parallax>{main ? <img src={main} alt="" /> : <Trophy size={96} />}</div>
+        {photos.slice(1, 3).map((p) => (
+          <Link key={p.id} to={path(`/catalogo?q=${encodeURIComponent(p.name)}`)} className="sp-mosaic-tile" aria-label={p.name}><img src={imageOf(p)} alt="" loading="lazy" /></Link>
+        ))}
+      </div>
+    </section>
+  );
+
+  return (
+    <main className="sp-root" ref={root}>
+      <StoreSEO title={`${tenant.name} | Artigos esportivos`} description={tenant.about_text || `Conheça os produtos da ${tenant.name}.`} image={main || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+      <div className="sp-wrap sp-hero-wrap">
+        <HeroSlider
+          slides={sf.hero_slides}
+          autoplaySeconds={sf.hero_autoplay_seconds ?? 6}
+          resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
+          layout="split"
+          className="sp-slider"
+          fallback={fallback}
+        />
+      </div>
+
+      <div className="sp-wrap">
+        <ul className="sp-trust" aria-label="Vantagens">
+          <li><Truck size={20} /><span><b>Entrega ou retirada</b>combine com a loja</span></li>
+          <li><CreditCard size={20} /><span><b>Pagamento facilitado</b>escolha no pedido</span></li>
+          <li><RefreshCw size={20} /><span><b>Troca simples</b>fale com a gente</span></li>
+        </ul>
+      </div>
+
+      <div className="sp-ticker" aria-hidden="true" data-no-fx>
+        <div className="sp-ticker-track">{[...TICKER, ...TICKER, ...TICKER].map((t, i) => <span key={i}>{t}<i /></span>)}</div>
+      </div>
+
+      {usedCategories.length > 0 && (
+        <section className="sp-wrap sp-section" aria-labelledby="sp-cats">
+          <div className="sp-head">
+            <div><span className="sp-kicker">Escolha seu caminho</span><h2 id="sp-cats">{sf.home_categories_title || "Explore por categoria"}</h2></div>
+            <Link to={path("/catalogo")} className="sp-link">Ver catálogo <ArrowUpRight size={18} /></Link>
+          </div>
+          <div className="sp-tiles">
+            {usedCategories.slice(0, 5).map((c) => {
+              const cover = coverOf(c.id);
+              return (
+                <Link to={path(`/catalogo?cat=${c.id}`)} key={c.id} className="sp-tile">
+                  {cover && <img src={cover} alt="" loading="lazy" />}
+                  <span className="sp-tile-label"><strong>{c.name}</strong><small>{countIn(c.id)} {countIn(c.id) === 1 ? "produto" : "produtos"}</small></span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      <section className="sp-wrap sp-section">
+        <div className="sp-head">
+          <div><span className="sp-kicker">Seleção da loja</span><h2>{sf.home_featured_title || "Destaques para você"}</h2></div>
+          <Link to={path("/catalogo")} className="sp-link">Ver todos <ArrowUpRight size={18} /></Link>
+        </div>
+        {featured.length ? <div className="sp-grid">{featured.map((p) => <Card key={p.id} product={p} />)}</div> : <div className="sp-empty">O catálogo está sendo preparado. Volte em breve!</div>}
+      </section>
+
+      {offers.length > 0 && (
+        <section className="sp-wrap sp-section">
+          <div className="sp-offers">
+            <div className="sp-offers-head">
+              <span className="sp-kicker">Aproveite</span>
+              <h2>Ofertas da loja</h2>
+              <Link to={path("/catalogo?sort=ofertas")} className="sp-btn sp-btn--white">Ver ofertas <ArrowRight size={18} /></Link>
+            </div>
+            <div className="sp-offers-rail" data-no-fx>{offers.map((p) => <Card key={p.id} product={p} />)}</div>
+          </div>
+        </section>
+      )}
+    </main>
+  );
 }

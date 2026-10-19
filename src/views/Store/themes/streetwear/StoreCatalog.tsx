@@ -1,320 +1,94 @@
-import { useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
-import { ArrowUpDown, Flame, Search, X, Zap } from "lucide-react";
+import { useState } from "react";
+import { Search, SlidersHorizontal, X } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useStore } from "../../StoreLayout";
-import { buildStorePath, resolveStoreSlug } from "../../store-routing";
-import { SwProductCard, SwEmpty, swHidePrices } from "./ThemeParts";
+import { useCatalog } from "../street/kit";
+import { Empty, ProductCard, SortSelect } from "../street/shared";
+import "./styles.css";
 
 export default function StoreCatalog() {
-  const { slug: routeSlug } = useParams();
-  const [params, setParams] = useSearchParams();
-  const { tenant, products, categories, addToCart, wishlist, toggleWishlist } = useStore();
-  const slug = resolveStoreSlug(routeSlug);
-  const path = (suffix = "") => buildStorePath(slug, suffix);
-
-  const [query, setQuery] = useState(params.get("q") || "");
-  const [sortBy, setSortBy] = useState<"featured" | "price_asc" | "price_desc" | "name">("featured");
-  const categoryId = params.get("cat") ? Number(params.get("cat")) : null;
-
-  const visible = useMemo(() => {
-    let list = products.filter(
-      (p) =>
-        p.is_active &&
-        (!categoryId || p.category_id === categoryId) &&
-        (!query ||
-          `${p.name} ${p.description || ""}`.toLowerCase().includes(query.toLowerCase())),
-    );
-
-    if (sortBy === "price_asc") {
-      list = [...list].sort((a, b) => Number(a.discount_price || a.price) - Number(b.discount_price || b.price));
-    } else if (sortBy === "price_desc") {
-      list = [...list].sort((a, b) => Number(b.discount_price || b.price) - Number(a.discount_price || a.price));
-    } else if (sortBy === "name") {
-      list = [...list].sort((a, b) => a.name.localeCompare(b.name));
-    }
-    return list;
-  }, [products, categoryId, query, sortBy]);
-
-  const choose = (id: number | null) => {
-    const next = new URLSearchParams(params);
-    if (id) next.set("cat", String(id));
-    else next.delete("cat");
-    setParams(next);
+  const c = useCatalog(12);
+  const [open, setOpen] = useState(false);
+  const { tenant, sf, categories, active, hidden } = c;
+  const title = sf.catalog_title || "Coleção completa";
+  const desc = sf.catalog_description || "";
+  const current = categories.find((x) => x.id === c.cat);
+  const used = categories.filter((x) => active.some((p) => p.category_id === x.id));
+  const pick = (id: number | null) => {
+    c.setParam("categoria", id ? String(id) : null);
+    setOpen(false);
   };
-
-  const currentCategoryName = categories.find((c) => c.id === categoryId)?.name;
-
   return (
-    <main
-      className="sw-root"
-      style={{
-        minHeight: "100vh",
-        background: "#09090b",
-        color: "#f4f4f5",
-        fontFamily: "'Inter', sans-serif",
-        paddingBottom: "5rem",
-      }}
-    >
+    <div className="sw-page sw-catalog">
       <StoreSEO
-        title={`Catálogo Oficial | ${tenant.name}`}
-        description={`Explore todos os drops e peças exclusivas da ${tenant.name}.`}
+        title={`${current ? `${current.name} | ` : ""}${title} | ${tenant.name}`}
+        description={desc || title}
         image={tenant.banner_url || tenant.logo_url}
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
-        keywords={`${tenant.name}, streetwear, catálogo, drops, moda urbana`}
       />
+      <header className="sw-cat-head">
+        <h1>{current ? current.name : title}</h1>
+        <span>{c.list.length} {c.list.length === 1 ? "peça" : "peças"}</span>
+        <button type="button" className="sw-filter-btn" onClick={() => setOpen(true)}>
+          <SlidersHorizontal size={18} /> Filtros
+        </button>
+      </header>
+      {desc && <p className="sw-cat-desc">{desc}</p>}
 
-      {/* ── HEADER BANNER ── */}
-      <section
-        style={{
-          background: "linear-gradient(180deg, #18181b 0%, #09090b 100%)",
-          borderBottom: "1px solid #27272a",
-          padding: "4rem 1.5rem 3rem",
-        }}
-      >
-        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#facc15", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".18em", marginBottom: ".75rem" }}>
-            <Zap size={14} /> CATÁLOGO & DROPS ATIVOS
-          </div>
-          <h1
-            style={{
-              fontSize: "clamp(2.25rem, 6vw, 4.25rem)",
-              fontWeight: 900,
-              textTransform: "uppercase",
-              lineHeight: 0.9,
-              letterSpacing: "-0.05em",
-              margin: "0 0 1rem",
-            }}
-          >
-            ESCOLHA SUA<br />
-            <span style={{ color: "#facc15" }}>PRÓXIMA PEÇA.</span>
-          </h1>
-          <p style={{ color: "#a1a1aa", fontSize: ".95rem", maxWidth: 540, margin: 0 }}>
-            {tenant.about_text || "Toda a coleção autêntica disponível para entrega rápida e pronta retirada."}
-          </p>
-        </div>
-      </section>
-
-      {/* ── FILTER & SEARCH TOOLBAR ── */}
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "2.5rem 1.5rem 0" }}>
-        <div
-          style={{
-            background: "#18181b",
-            border: "1px solid #27272a",
-            borderRadius: "1.25rem",
-            padding: "1.25rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "1.25rem",
-          }}
-        >
-          {/* Top row: Search and Sort */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "1rem", alignItems: "center", justifyContent: "space-between" }}>
-            {/* Search input */}
-            <div style={{ position: "relative", flex: "1 1 280px", maxWidth: 460 }}>
-              <Search
-                size={16}
-                style={{
-                  position: "absolute",
-                  left: 14,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#facc15",
-                  pointerEvents: "none",
-                }}
-              />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar por nome, estampa, peça..."
-                style={{
-                  width: "100%",
-                  boxSizing: "border-box",
-                  background: "#09090b",
-                  border: "1px solid #3f3f46",
-                  borderRadius: "12px",
-                  padding: "12px 40px 12px 42px",
-                  fontSize: ".875rem",
-                  color: "#f4f4f5",
-                  outline: "none",
-                  fontFamily: "'Inter', sans-serif",
-                  transition: "border-color .2s",
-                }}
-                onFocus={(e) => ((e.currentTarget as HTMLInputElement).style.borderColor = "#facc15")}
-                onBlur={(e) => ((e.currentTarget as HTMLInputElement).style.borderColor = "#3f3f46")}
-              />
-              {query && (
-                <button
-                  onClick={() => setQuery("")}
-                  style={{
-                    position: "absolute",
-                    right: 12,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    color: "#71717a",
-                    cursor: "pointer",
-                  }}
-                >
-                  <X size={15} />
-                </button>
-              )}
-            </div>
-
-            {/* Sort Dropdown */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <ArrowUpDown size={14} style={{ color: "#facc15" }} />
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                style={{
-                  background: "#09090b",
-                  border: "1px solid #3f3f46",
-                  borderRadius: "12px",
-                  color: "#f4f4f5",
-                  padding: "11px 16px",
-                  fontSize: ".8rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: ".05em",
-                  outline: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <option value="featured">Relevância / Destaques</option>
-                <option value="price_asc">Menor Preço</option>
-                <option value="price_desc">Maior Preço</option>
-                <option value="name">Nome (A - Z)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Category Filter Pills */}
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: ".5rem",
-              borderTop: "1px solid rgba(255, 255, 255, 0.06)",
-              paddingTop: "1rem",
-            }}
-          >
-            <button
-              onClick={() => choose(null)}
-              style={{
-                flexShrink: 0,
-                border: `1px solid ${!categoryId ? "#facc15" : "#3f3f46"}`,
-                background: !categoryId ? "#facc15" : "#09090b",
-                color: !categoryId ? "#000" : "#a1a1aa",
-                padding: "8px 16px",
-                fontSize: 11,
-                fontWeight: 800,
-                textTransform: "uppercase",
-                letterSpacing: ".08em",
-                borderRadius: 10,
-                cursor: "pointer",
-                transition: "all .2s",
-              }}
-            >
-              Todos ({products.filter((p) => p.is_active).length})
+      <div className="sw-layout">
+        {open && <button type="button" className="sw-sheet-bg" aria-label="Fechar filtros" onClick={() => setOpen(false)} />}
+        <aside className={`sw-filters ${open ? "is-open" : ""}`} aria-label="Filtros">
+          <div className="sw-filters-top">
+            <strong>Filtros</strong>
+            <button type="button" aria-label="Fechar filtros" onClick={() => setOpen(false)}>
+              <X size={20} />
             </button>
-            {categories.map((cat) => {
-              const isSelected = categoryId === cat.id;
-              const count = products.filter((p) => p.is_active && p.category_id === cat.id).length;
-              if (count === 0) return null;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => choose(cat.id)}
-                  style={{
-                    flexShrink: 0,
-                    border: `1px solid ${isSelected ? "#facc15" : "#3f3f46"}`,
-                    background: isSelected ? "#facc15" : "#09090b",
-                    color: isSelected ? "#000" : "#a1a1aa",
-                    padding: "8px 16px",
-                    fontSize: 11,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: ".08em",
-                    borderRadius: 10,
-                    cursor: "pointer",
-                    transition: "all .2s",
-                  }}
-                >
-                  {cat.name} ({count})
-                </button>
-              );
-            })}
           </div>
-        </div>
-
-        {/* Status info bar */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginTop: "1.75rem",
-            marginBottom: "1.5rem",
-          }}
-        >
-          <p style={{ fontSize: 11, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: ".12em", margin: 0 }}>
-            {visible.length} {visible.length === 1 ? "peça encontrada" : "peças encontradas"}
-          </p>
-
-          {(categoryId || query) && (
-            <button
-              onClick={() => {
-                choose(null);
-                setQuery("");
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                color: "#facc15",
-                fontSize: 11,
-                fontWeight: 800,
-                textTransform: "uppercase",
-                letterSpacing: ".08em",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-              }}
-            >
-              <X size={12} /> Limpar filtros
+          <label className="sw-find">
+            <Search size={17} aria-hidden="true" />
+            <input type="search" value={c.q} onChange={(e) => c.setParam("q", e.target.value)} placeholder="Buscar" aria-label="Buscar no catálogo" />
+          </label>
+          <div className="sw-filter-group">
+            <h2>Categorias</h2>
+            <button type="button" aria-pressed={!c.cat} onClick={() => pick(null)}>
+              Todas <small>{active.length}</small>
             </button>
-          )}
-        </div>
-
-        {/* Products Grid */}
-        {visible.length > 0 ? (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-              gap: "1.25rem",
-            }}
-          >
-            {visible.map((product) => (
-              <SwProductCard
-                key={product.id}
-                product={product}
-                category={categories.find((c) => c.id === product.category_id)?.name}
-                path={path}
-                saved={wishlist.includes(product.id)}
-                onFavorite={() => toggleWishlist(product.id)}
-                onAdd={() => addToCart(product)}
-                hidePrices={swHidePrices(tenant)}
-              />
+            {used.map((cat) => (
+              <button key={cat.id} type="button" aria-pressed={c.cat === cat.id} onClick={() => pick(cat.id)}>
+                {cat.name} <small>{active.filter((p) => p.category_id === cat.id).length}</small>
+              </button>
             ))}
           </div>
-        ) : (
-          <SwEmpty onClear={() => { choose(null); setQuery(""); }} />
-        )}
+          <div className="sw-filter-group">
+            <h2>Ordenar</h2>
+            <SortSelect t="sw" sort={c.sort} hidden={hidden} onChange={(v) => c.setParam("sort", v)} />
+          </div>
+        </aside>
+
+        <div className="sw-results" role="status" aria-live="polite">
+          {c.list.length ? (
+            <>
+              <div className="sw-grid">
+                {c.shown.map((p) => (
+                  <ProductCard key={p.id} product={p} t="sw" fab />
+                ))}
+              </div>
+              {c.hasMore && (
+                <div className="sw-more">
+                  <button type="button" className="sw-btn sw-btn-solid sw-btn-lg" onClick={c.more}>
+                    Ver mais peças
+                  </button>
+                  <span>
+                    {c.shown.length} de {c.list.length}
+                  </span>
+                </div>
+              )}
+            </>
+          ) : (
+            <Empty t="sw" title={active.length ? "Nenhuma peça encontrada" : "Coleção em breve"} text={active.length ? "Tente outro termo ou limpe os filtros." : "Estamos preparando as peças."} onClear={active.length ? c.clear : undefined} />
+          )}
+        </div>
       </div>
-    </main>
+    </div>
   );
 }

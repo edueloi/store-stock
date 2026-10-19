@@ -1,64 +1,57 @@
-import { useEffect, useMemo, useState } from "react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import SearchBar from "../../../../components/layout/SearchBar";
-import { filterProducts, useCatalogParams, useShop } from "./kit";
-import { Empty, Piece } from "./parts";
+import { StoreButton } from "../../../../components/store/StoreButton";
+import { useCatalog } from "./kit";
+import { Empty, ProductCard, SearchField } from "./parts";
 import "./styles.css";
 
-const PAGE = 9;
-
 export default function StoreCatalog() {
-  const { tenant, categories, active, hidden, config } = useShop();
-  const { q, cat, sort, set } = useCatalogParams();
-  const [limit, setLimit] = useState(PAGE);
-  useEffect(() => setLimit(PAGE), [q, cat, sort]);
-  const list = useMemo(() => filterProducts(active, q, cat, sort, hidden), [active, q, cat, sort, hidden]);
-  const title = config.catalog_title || "A coleção";
-  const desc = config.catalog_description || "Descubra uma seleção para marcar seus momentos.";
-
+  const c = useCatalog(12);
+  const { tenant, sf, categories, active, hidden } = c;
+  const title = sf.catalog_title || "A coleção";
+  const desc = sf.catalog_description || "Peças selecionadas, reunidas com critério.";
+  const current = categories.find((x) => x.id === c.cat);
   return (
-    <div className="lx-scope lx-page">
-      <StoreSEO title={`${title} | ${tenant.name}`} description={desc} siteName={tenant.name} url={typeof window !== "undefined" ? window.location.href : ""} />
-      <div className="lx-wrap">
-        <header className="lx-cat-head">
-          <span className="lx-eyebrow">{config.segment_label || "Joias & Seleções Especiais"}</span>
-          <h1>{title}</h1>
-          <div className="lx-rule"><span /></div>
-          <p>{desc}</p>
-        </header>
-
-        <div className="lx-filters" role="group" aria-label="Filtrar por categoria">
-          <button type="button" className="lx-filter" aria-pressed={!cat} onClick={() => set("categoria", "")}>Todas</button>
-          {categories.map((c) => (
-            <button key={c.id} type="button" className="lx-filter" aria-pressed={cat === String(c.id)} onClick={() => set("categoria", String(c.id))}>{c.name}</button>
-          ))}
+    <div className="lux-page">
+      <StoreSEO title={`${current ? `${current.name} | ` : ""}${title} | ${tenant.name}`} description={desc} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+      <header className="lux-wrap lux-cat-hero">
+        <span className="lux-eyebrow">Coleção</span>
+        <h1>{current ? current.name : title}</h1>
+        <p>{desc}</p>
+      </header>
+      <div className="lux-wrap">
+        <div className="lux-bar">
+          <div className="lux-tabs" role="group" aria-label="Coleções">
+            <button type="button" aria-pressed={!c.cat} onClick={() => c.setParam("categoria", null)}>Todas</button>
+            {categories.map((cat) => (
+              <button key={cat.id} type="button" aria-pressed={c.cat === cat.id} onClick={() => c.setParam("categoria", String(cat.id))}>{cat.name}</button>
+            ))}
+          </div>
+          <div className="lux-bar-tools">
+            <SearchField value={c.q} onChange={(v) => c.setParam("q", v)} placeholder="Buscar peça" label="Buscar na coleção" />
+            <label className="lux-select">
+              <span className="lux-sr">Ordenar por</span>
+              <select value={c.sort} onChange={(e) => c.setParam("sort", e.target.value === "destaques" ? null : e.target.value)}>
+                <option value="destaques">Destaques</option>
+                <option value="nome">Nome (A a Z)</option>
+                {!hidden && <option value="menor">Menor preço</option>}
+                {!hidden && <option value="maior">Maior preço</option>}
+              </select>
+            </label>
+          </div>
         </div>
-        <div className="lx-tools">
-          <SearchBar className="lx-sbar" value={q} onChange={(v) => set("q", v)} placeholder="Nome ou código da peça" />
-          <span className="lx-count" role="status">{list.length} {list.length === 1 ? "peça" : "peças"}</span>
-          <label>
-            <span className="lx-sr">Ordenação</span>
-            <select className="lx-select" value={sort} onChange={(e) => set("sort", e.target.value)}>
-              <option value="featured">Em destaque</option>
-              <option value="name">Nome, A a Z</option>
-              {!hidden && <option value="price_up">Menor valor</option>}
-              {!hidden && <option value="price_down">Maior valor</option>}
-            </select>
-          </label>
-        </div>
-
-        {list.length ? (
+        <p className="lux-count" role="status">{c.list.length} {c.list.length === 1 ? "peça" : "peças"}</p>
+        {c.list.length ? (
           <>
-            <div className="lx-grid is-3">{list.slice(0, limit).map((p) => <Piece key={p.id} product={p} />)}</div>
-            {limit < list.length && (
-              <div className="lx-more"><button type="button" className="lx-btn" onClick={() => setLimit((l) => l + PAGE)}>Ver mais peças</button></div>
+            <div className="lux-grid lux-grid-cat">{c.shown.map((p) => <ProductCard key={p.id} product={p} />)}</div>
+            {c.hasMore && (
+              <div className="lux-more">
+                <StoreButton variant="outline" size="lg" className="lux-btn lux-btn-line lux-btn-lg" onClick={c.more}>Ver mais peças</StoreButton>
+                <span>Mostrando {c.shown.length} de {c.list.length}</span>
+              </div>
             )}
           </>
         ) : (
-          <Empty
-            title={active.length ? "Nenhuma peça encontrada" : "Coleção em preparação"}
-            text={active.length ? "Experimente outro termo ou escolha outra categoria." : "Ainda não há peças publicadas nesta loja."}
-          />
+          <Empty title={active.length ? "Nada encontrado" : "Em breve por aqui"} text={active.length ? "Tente outro termo ou outra coleção." : "Estamos preparando a coleção."} onClear={active.length ? c.clear : undefined} />
         )}
       </div>
     </div>

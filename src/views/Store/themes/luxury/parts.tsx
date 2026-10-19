@@ -1,50 +1,66 @@
 import { Link } from "react-router-dom";
-import { Heart } from "lucide-react";
+import { Gem, Heart, Search, ShoppingBag } from "lucide-react";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { productRouteSegment } from "../../store-routing";
 import type { Product } from "../../../../types";
-import { hasDiscount, imageOf, money, priceOf, useShop } from "./kit";
-import "./styles.css";
+import { priceInfo, productImage, useKit, useQuickAdd } from "./kit";
 
-export function Price({ product, big = false }: { product: Product; big?: boolean }) {
-  const { hidden } = useShop();
-  const cls = big ? "lx-big-price" : "lx-price";
-  if (hidden) return <div className={cls}><em>Valor a confirmar</em></div>;
+export function SearchField({ value, onChange, placeholder, label = "Buscar", autoFocus = false }: { value: string; onChange: (v: string) => void; placeholder: string; label?: string; autoFocus?: boolean }) {
   return (
-    <div className={cls}>
-      <span>{money(priceOf(product))}</span>
-      {hasDiscount(product) && <s>{money(Number(product.price))}</s>}
-    </div>
+    <label className="lux-field">
+      <Search size={17} aria-hidden="true" />
+      <span className="lux-sr">{label}</span>
+      <input type="search" value={value} autoFocus={autoFocus} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+    </label>
   );
 }
 
-export function Empty({ title, text }: { title: string; text: string }) {
+export function ProductCard({ product }: { product: Product }) {
+  const { path, hidden, wishlist, toggleWishlist, catName } = useKit();
+  const quick = useQuickAdd()(product);
+  const price = priceInfo(product, hidden);
+  const image = productImage(product);
+  const saved = wishlist.includes(product.id);
+  const href = path(`/produto/${productRouteSegment(product)}`);
   return (
-    <div className="lx-empty" role="status">
-      <h2>{title}</h2>
-      <p>{text}</p>
-    </div>
-  );
-}
-
-export function Piece({ product }: { product: Product }) {
-  const { path, categories, wishlist, toggleWishlist } = useShop();
-  const faved = wishlist.includes(product.id);
-  const img = imageOf(product);
-  const cat = categories.find((c) => c.id === product.category_id)?.name;
-  return (
-    <article className="lx-card">
-      <div className="lx-card-media">
-        {img ? <img src={img} alt={product.name} loading="lazy" /> : <span className="ph">Sem imagem</span>}
-        {hasDiscount(product) ? <span className="lx-seal">Condição especial</span> : product.is_featured ? <span className="lx-seal">Destaque</span> : null}
+    <article className="lux-card">
+      <div className="lux-card-frame">
+        <Link className="lux-card-media" to={href} aria-label={product.name}>
+          {image ? <img src={image} alt={product.name} loading="lazy" /> : <Gem size={34} aria-label="Produto sem imagem" />}
+          {(quick.soldOut || price.off || product.is_featured) && <span className="lux-tag">{quick.soldOut ? "Esgotado" : price.off ? "Oferta" : "Destaque"}</span>}
+        </Link>
+        <button type="button" className="lux-heart" aria-pressed={saved} aria-label={saved ? `Remover ${product.name} dos favoritos` : `Favoritar ${product.name}`} onClick={() => toggleWishlist(product.id)}>
+          <Heart size={18} fill={saved ? "currentColor" : "none"} />
+        </button>
       </div>
-      <button type="button" className="lx-fav" aria-pressed={faved} aria-label={faved ? `Remover ${product.name} dos favoritos` : `Favoritar ${product.name}`} onClick={() => toggleWishlist(product.id)}>
-        <Heart size={18} strokeWidth={1.4} fill={faved ? "currentColor" : "none"} />
-      </button>
-      <div className="lx-card-body">
-        {cat && <span className="lx-card-cat">{cat}</span>}
-        <Link className="lx-card-name" to={path(`/produto/${productRouteSegment(product)}`)}>{product.name}</Link>
-        <Price product={product} />
+      <div className="lux-card-body">
+        {catName(product) && <span className="lux-eyebrow">{catName(product)}</span>}
+        <Link className="lux-card-name" to={href}>{product.name}</Link>
+        <div className="lux-price">
+          <strong>{price.now}</strong>
+          {price.old && <s>{price.old}</s>}
+        </div>
+        {quick.hasOptions || quick.soldOut ? (
+          <StoreButton asChild variant="outline" size="sm" className="lux-btn lux-btn-line">
+            <Link to={href}>{quick.soldOut ? "Ver peça" : "Escolher opções"}</Link>
+          </StoreButton>
+        ) : (
+          <StoreButton size="sm" className="lux-btn lux-btn-line" onClick={quick.add}>
+            <ShoppingBag size={16} /> {hidden ? "Incluir no pedido" : "Adicionar"}
+          </StoreButton>
+        )}
       </div>
     </article>
+  );
+}
+
+export function Empty({ title, text, onClear }: { title: string; text: string; onClear?: () => void }) {
+  return (
+    <div className="lux-empty">
+      <Gem size={34} aria-hidden="true" />
+      <h2>{title}</h2>
+      <p>{text}</p>
+      {onClear && <StoreButton className="lux-btn" onClick={onClear}>Ver toda a coleção</StoreButton>}
+    </div>
   );
 }

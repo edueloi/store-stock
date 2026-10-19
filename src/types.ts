@@ -34,6 +34,10 @@ export interface StorePolicies {
     home_featured_title?: string;
     segment_label?: string;
     hero_button_label?: string;
+    /** Banners do carrossel da home (se vazio, o tema usa o hero padrão). */
+    hero_slides?: HeroSlide[];
+    /** Segundos entre slides; 0 desliga a troca automática. */
+    hero_autoplay_seconds?: number;
     about_title?: string;
     cart_title?: string;
     show_whatsapp_widget?: boolean;
@@ -56,6 +60,16 @@ export interface StorePolicies {
       cep_zones?: Array<{ name: string; from: string; to: string; fee?: number }>;
     };
   };
+}
+
+export interface HeroSlide {
+  id: string;
+  image: string;
+  title?: string;
+  subtitle?: string;
+  button_label?: string;
+  /** Caminho interno (/catalogo) ou link externo. */
+  button_url?: string;
 }
 
 export interface Tenant {

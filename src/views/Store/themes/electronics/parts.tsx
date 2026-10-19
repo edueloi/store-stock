@@ -6,6 +6,7 @@ import type { ComponentType } from "react";
 import type { Product, Tenant } from "../../../../types";
 import { imageOf, inStock, money, priceInfo, productHref, useKit, variationGroups } from "./kit";
 import { availableUnits } from "../../../../utils/storeStock";
+import { StoreButton } from "../../../../components/store/StoreButton";
 
 type Icon = ComponentType<{ size?: number; strokeWidth?: number }>;
 const DEPT_ICONS: [string[], Icon][] = [
@@ -71,9 +72,9 @@ export function Card({ product, compare, list = false }: { product: Product; com
         )}
         <div className="elx-card-actions">
           {needsOptions || !has ? (
-            <Link to={href} className="elx-btn elx-btn-ghost">{has ? "Escolher opções" : "Ver produto"}</Link>
+            <StoreButton asChild variant="outline" size="sm" className="elx-btn elx-btn-ghost"><Link to={href}>{has ? "Escolher opções" : "Ver produto"}</Link></StoreButton>
           ) : (
-            <button type="button" className="elx-btn" onClick={() => { addToCart(product); openCart(); }}><ShoppingCart size={16} /> {hidePrices ? "Incluir no pedido" : "Adicionar"}</button>
+            <StoreButton size="sm" className="elx-btn" onClick={() => { addToCart(product); openCart(); }}><ShoppingCart size={16} /> {hidePrices ? "Incluir no pedido" : "Adicionar"}</StoreButton>
           )}
         </div>
         {compare && (

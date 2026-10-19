@@ -1,76 +1,114 @@
 import { Link } from "react-router-dom";
+import { ArrowRight, BookOpen, Clock, MapPin, MessageCircle, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { hoursLines, useKit, whatsappLink } from "./kit";
-import { Ornament } from "./parts";
+import { hoursLines, productImage, useKit, whatsappLink } from "./kit";
 import "./styles.css";
 
 export default function StoreAbout() {
-  const { tenant, categories, active, path, sf } = useKit();
+  const { tenant, active, categories, path, sf } = useKit();
   const hours = hoursLines(tenant.business_hours);
-  const wa = whatsappLink(tenant.whatsapp);
-  const title = sf.about_title || "Sobre a livraria";
-  const text = tenant.about_text || `${tenant.name} reúne leituras escolhidas com cuidado para quem gosta de histórias, descobertas e boa conversa.`;
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
+  const about = tenant.about_text || `${tenant.name} reúne livros escolhidos com cuidado para quem ama uma boa leitura.`;
+  const photo = tenant.banner_url || productImage(active.find((p) => p.is_featured) || active[0]);
+  const policies = tenant.policies;
   return (
-    <main className="bk-root">
-      <StoreSEO title={`${title} — ${tenant.name}`} description={text.slice(0, 160)} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
-      <header className="bk-pagehead">
-        <p className="bk-eyebrow">Colofão</p>
-        <h1>{title}</h1>
-        <Ornament className="bk-orn" />
+    <div className="bk-page bk-about">
+      <StoreSEO
+        title={`${sf.about_title || "A livraria"} | ${tenant.name}`}
+        description={about}
+        image={tenant.banner_url || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+      <header className="bk-about-hero">
+        <div className="bk-about-copy">
+          <span className="bk-kicker">
+            <BookOpen size={15} aria-hidden="true" /> A livraria
+          </span>
+          <h1>{sf.about_title || `Bem-vindo à ${tenant.name}`}</h1>
+          <p className="bk-pre">{about}</p>
+          <div className="bk-actions">
+            <Link className="bk-btn bk-btn-lg" to={path("/catalogo")}>
+              Explorar a estante <ArrowRight size={18} />
+            </Link>
+            {wa && (
+              <a className="bk-btn bk-btn-line bk-btn-lg" href={wa} target="_blank" rel="noreferrer">
+                <MessageCircle size={18} /> Falar com a livraria
+              </a>
+            )}
+          </div>
+        </div>
+        <div className="bk-about-cover">{photo ? <img src={photo} alt={tenant.name} /> : <BookOpen size={80} aria-label="Sem imagem" />}</div>
       </header>
 
-      <div className="bk-about">
-        {tenant.banner_url && (
-          <figure className="bk-plate">
-            <img src={tenant.banner_url} alt="" loading="lazy" />
-            <figcaption>{tenant.name}</figcaption>
-          </figure>
-        )}
-        <div className="bk-columns bk-dropcap-p">
-          {text.split(/\n{1,}/).filter(Boolean).map((para, i) => (
-            <p key={i}>{para}</p>
-          ))}
+      <section className="bk-section bk-about-stats">
+        <div>
+          <strong>{active.length}</strong>
+          <span>títulos na estante</span>
         </div>
-      </div>
-
-      <section className="bk-block bk-block-paper">
-        <h2 className="bk-sheet-title">Ficha técnica</h2>
-        <dl className="bk-sheet">
-          <div>
-            <dt>Títulos no catálogo</dt>
-            <dd>{active.length}</dd>
-          </div>
-          <div>
-            <dt>Seções</dt>
-            <dd>{categories.length}</dd>
-          </div>
-          {tenant.show_address && tenant.address && (
-            <div>
-              <dt>Endereço</dt>
-              <dd>{tenant.address}</dd>
-            </div>
-          )}
-          {wa && (
-            <div>
-              <dt>Atendimento</dt>
-              <dd>
-                <a href={wa} target="_blank" rel="noreferrer">
-                  WhatsApp {tenant.whatsapp}
-                </a>
-              </dd>
-            </div>
-          )}
-          {hours.map((h) => (
-            <div key={h.day}>
-              <dt>{h.day}</dt>
-              <dd>{h.text}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="bk-more">
-          <Link to={path("/catalogo")}>Explorar a estante →</Link>
-        </p>
+        <div>
+          <strong>{categories.length}</strong>
+          <span>gêneros</span>
+        </div>
+        <div>
+          <BookOpen size={30} aria-hidden="true" />
+          <span>curadoria feita com carinho</span>
+        </div>
       </section>
-    </main>
+
+      <section className="bk-section bk-info">
+        {((tenant.show_address && tenant.address) || hours.length > 0 || wa) && (
+          <article className="bk-info-card">
+            <h2>Venha nos visitar</h2>
+            {tenant.show_address && tenant.address && (
+              <p>
+                <MapPin size={18} aria-hidden="true" /> {tenant.address}
+              </p>
+            )}
+            {wa && (
+              <p>
+                <MessageCircle size={18} aria-hidden="true" />
+                <a href={wa} target="_blank" rel="noreferrer">
+                  {tenant.whatsapp}
+                </a>
+              </p>
+            )}
+            {hours.length > 0 && (
+              <dl className="bk-hours">
+                <dt className="bk-hours-title">
+                  <Clock size={16} aria-hidden="true" /> Horários
+                </dt>
+                {hours.map((h) => (
+                  <div key={h.day}>
+                    <dt>{h.day}</dt>
+                    <dd>{h.text}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </article>
+        )}
+        {policies?.shipping && (
+          <article className="bk-info-card">
+            <h2>
+              <Truck size={20} aria-hidden="true" /> Entrega
+            </h2>
+            <p className="bk-pre">{policies.shipping}</p>
+          </article>
+        )}
+        {policies?.returns && (
+          <article className="bk-info-card">
+            <h2>Trocas e devoluções</h2>
+            <p className="bk-pre">{policies.returns}</p>
+          </article>
+        )}
+        {policies?.exchange && (
+          <article className="bk-info-card">
+            <h2>Trocas</h2>
+            <p className="bk-pre">{policies.exchange}</p>
+          </article>
+        )}
+      </section>
+    </div>
   );
 }

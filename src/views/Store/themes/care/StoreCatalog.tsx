@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Package, Search, X } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
+import { StoreButton } from "../../../../components/store/StoreButton";
 import { normalize, pageUrl, useShop } from "./core";
-import { ProductCard, Rail, T } from "./parts";
+import { categoryIcon, ProductCard, T } from "./parts";
 
 const STEP = 12;
 
 export default function StoreCatalog() {
-  const { tenant, categories, active, config, hidden, path } = useShop();
+  const { tenant, categories, active, config, hidden } = useShop();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") || "";
   const cat = params.get("cat") || "";
@@ -31,7 +32,6 @@ export default function StoreCatalog() {
         : Number(b.is_featured) - Number(a.is_featured),
     );
   const filtering = Boolean(q.trim() || cat);
-  const railCats = categories.map((c) => ({ c, items: active.filter((p) => p.category_id === c.id) })).filter((r) => r.items.length);
   const current = categories.find((c) => String(c.id) === cat);
 
   return (
@@ -41,44 +41,46 @@ export default function StoreCatalog() {
         <span className="ca-eyebrow">{config.segment_label || T.tag}</span>
         <h1>{current ? current.name : config.catalog_title || T.catalog}</h1>
         <p>{config.catalog_description || T.sub}</p>
+      </header>
+
+      <div className="ca-filter">
         <div className="ca-finder">
           <label className="ca-sr" htmlFor="ca-q">Buscar no catálogo</label>
           <Search size={19} aria-hidden="true" />
           <input id="ca-q" value={q} onChange={(e) => update("q", e.target.value)} placeholder="Buscar produtos" />
           {q && <button type="button" aria-label="Limpar busca" onClick={() => update("q", "")}><X size={17} /></button>}
         </div>
-        <div className="ca-pills" role="group" aria-label="Categorias">
+        <label className="ca-sort">
+          <span className="ca-sr">Ordenar por</span>
+          <select value={sort} onChange={(e) => update("sort", e.target.value)} aria-label="Ordenar por">
+            <option value="">Destaques</option>
+            <option value="name">Nome (A-Z)</option>
+            {!hidden && <option value="price_up">Menor preço</option>}
+            {!hidden && <option value="price_down">Maior preço</option>}
+          </select>
+        </label>
+        <div className="ca-chips" role="group" aria-label="Categorias">
           <button type="button" aria-pressed={!cat} onClick={() => update("cat", "")}>Tudo</button>
-          {categories.map((c) => (
-            <button key={c.id} type="button" aria-pressed={cat === String(c.id)} onClick={() => update("cat", String(c.id))}>{c.name}</button>
-          ))}
+          {categories.map((c, i) => {
+            const Icon = categoryIcon(i);
+            return (
+              <button key={c.id} type="button" aria-pressed={cat === String(c.id)} onClick={() => update("cat", String(c.id))}>
+                <Icon size={16} aria-hidden="true" /> {c.name}
+              </button>
+            );
+          })}
         </div>
-      </header>
-
-      {!filtering && railCats.map(({ c, items }) => (
-        <Rail key={c.id} title={c.name} to={path(`/catalogo?cat=${c.id}`)}>
-          {items.slice(0, 12).map((p) => <div className="ca-slide" key={p.id}><ProductCard product={p} /></div>)}
-        </Rail>
-      ))}
+      </div>
 
       <section className="ca-block ca-all">
-        <div className="ca-all-head">
-          <h2 className="ca-h2">{filtering ? "Resultados" : "Todos os produtos"} <small>({list.length})</small></h2>
-          <label className="ca-sort">
-            <span className="ca-sr">Ordenar por</span>
-            <select value={sort} onChange={(e) => update("sort", e.target.value)} aria-label="Ordenar por">
-              <option value="">Destaques</option>
-              <option value="name">Nome (A-Z)</option>
-              {!hidden && <option value="price_up">Menor preço</option>}
-              {!hidden && <option value="price_down">Maior preço</option>}
-            </select>
-          </label>
-        </div>
+        <h2 className="ca-h2">{filtering ? "Resultados" : "Todos os produtos"} <small>({list.length})</small></h2>
         {list.length ? (
           <>
             <div className="ca-grid">{list.slice(0, shown).map((p) => <ProductCard key={p.id} product={p} />)}</div>
             {shown < list.length && (
-              <div className="ca-more"><button type="button" className="ca-btn ca-btn-ghost" onClick={() => setShown((n) => n + STEP)}>Ver mais</button></div>
+              <div className="ca-more">
+                <StoreButton type="button" size="lg" className="ca-b ca-b-line" onClick={() => setShown((n) => n + STEP)}>Ver mais</StoreButton>
+              </div>
             )}
           </>
         ) : (
@@ -86,7 +88,7 @@ export default function StoreCatalog() {
             <Package size={40} aria-hidden="true" />
             <h3>{active.length ? "Não encontramos nada por aqui" : "Estamos preparando o catálogo"}</h3>
             <p>{active.length ? "Experimente outro termo ou volte para todas as categorias." : "Volte em breve para conhecer nossa seleção."}</p>
-            {filtering && <button type="button" className="ca-btn" onClick={() => setParams(new URLSearchParams())}>Limpar filtros</button>}
+            {filtering && <StoreButton type="button" className="ca-b ca-b-solid" onClick={() => setParams(new URLSearchParams())}>Limpar filtros</StoreButton>}
           </div>
         )}
       </section>

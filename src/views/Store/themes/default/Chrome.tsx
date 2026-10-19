@@ -12,7 +12,6 @@ export function Header() {
   const [query, setQuery] = useState("");
   const [menu, setMenu] = useState(false);
   const count = cartCount(cart);
-  const wa = whatsappLink(tenant);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const q = query.trim();
@@ -30,15 +29,6 @@ export function Header() {
 
   return (
     <header className="dfl-header">
-      <div className="dfl-util">
-        <div className="dfl-wrap dfl-util-in">
-          <span>{tenant.hero_tagline || "Compre online com atendimento de verdade"}</span>
-          <div className="dfl-util-links">
-            {wa && <a href={wa} target="_blank" rel="noreferrer">Atendimento pelo WhatsApp</a>}
-            <Link to={path("/sobre")}>Sobre a loja</Link>
-          </div>
-        </div>
-      </div>
       <div className="dfl-wrap dfl-main">
         <button type="button" className="dfl-icon-btn dfl-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
           {menu ? <X size={22} /> : <Menu size={22} />}
