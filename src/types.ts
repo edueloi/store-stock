@@ -265,6 +265,7 @@ export interface Supplier {
 }
 
 export interface Order {
+  sales_channel?: string;
   id: number;
   tenant_id: number;
   seller_id?: number | null;

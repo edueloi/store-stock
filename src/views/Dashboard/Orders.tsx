@@ -42,6 +42,7 @@ import { printThermalText, buildOrderReceiptText } from "../../lib/thermalReceip
 import { buildWarrantyDocumentHtml } from "../../lib/warrantyDocument";
 import { Printer } from "lucide-react";
 import OrderReturnModal from "./OrderReturnModal";
+import OrderShippingLabel from "../../components/orders/OrderShippingLabel";
 import OrdersPageTour, { type OrdersPageTourHandle } from "../../components/onboarding/OrdersPageTour";
 import {
   Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Alert, Badge, Tabs,
@@ -422,6 +423,7 @@ export default function Orders() {
   const selectedOrderIdRef = useRef<number | null>(null);
   useEffect(() => { selectedOrderIdRef.current = selectedOrder?.id ?? null; }, [selectedOrder?.id]);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [labelOrderId,setLabelOrderId]=useState<number|null>(null);
   const [generatingWarrantyPdf, setGeneratingWarrantyPdf] = useState(false);
   const [generatingReceiptPdf, setGeneratingReceiptPdf] = useState(false);
   const [remoteTerminals, setRemoteTerminals] = useState<RemotePrintTerminal[]>([]);
@@ -1891,6 +1893,7 @@ ${
       </div>
 
       {/* Detalhes do pedido */}
+      {labelOrderId!==null&&<OrderShippingLabel orderId={labelOrderId} onClose={()=>setLabelOrderId(null)}/>}
       <Modal
         open={isDetailModalOpen && !!selectedOrder}
         onClose={() => setIsDetailModalOpen(false)}
@@ -1903,6 +1906,7 @@ ${
                 <Button variant="primary" size="md" onClick={handlePrintReceipt} className="w-full justify-center">
                   <Receipt size={14} /> Imprimir cupom
                 </Button>
+                {selectedOrder?.sales_channel==="storefront"&&selectedOrder.status!=="cancelled"&&<Button variant="outline" size="sm" fullWidth iconLeft={<Package size={14}/>} onClick={()=>setLabelOrderId(selectedOrder.id)}>Gerar etiqueta de entrega</Button>}
 
                 {remoteTerminals.length > 0 && (
                   <details className="group rounded-lg border border-blue-100 bg-blue-50/40 overflow-hidden">

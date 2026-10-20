@@ -31,3 +31,11 @@ O endereço usa a consulta ViaCEP no servidor, com tempo limite e preenchimento 
 Os e-mails ao cliente e à equipe entram na caixa de saída `store_order_emails`, na mesma transação do pedido. Um worker reenvia falhas até cinco tentativas. A equipe recebe também um PDF para conferência. Os destinatários são definidos em **Minha Loja → Checkout**; sem configuração, usa-se o administrador mais antigo. O painel mostra o e-mail do cliente, variações, observações e situação dos envios.
 
 `scripts/verify-store-checkout.ts` testa as regras financeiras e de estoque com banco simulado. `scripts/verify-stride-checkout.cjs` verifica a compra no navegador em desktop e celular, com APIs simuladas e sem criar pedidos ou enviar e-mails reais.
+
+## Etiquetas dos pedidos online
+
+Em **Minha Loja → Vendas online** e nos detalhes de **Pedidos**, o botão **Gerar etiqueta de entrega** permite conferir remetente, destinatário, endereço e CEP, escolher papel térmico de 100 × 150 mm ou A4 e gerar até 20 volumes. Cada volume ocupa uma página do PDF. Os ajustes se aplicam somente à impressão; o pedido não é alterado.
+
+A etiqueta tem código de barras interno do pedido. Não contrata frete, não gera rastreio de transportadora e não substitui documento fiscal. Pedidos cancelados e pedidos de outras lojas são bloqueados no servidor. A geração não grava arquivos públicos nem altera estoque ou pagamento.
+
+`scripts/verify-shipping-label.ts` verifica acesso, validações e geração do PDF. Defina `LABEL_PDF_FIXTURES` para salvar os dois exemplos usados na conferência visual. O teste de navegador `scripts/verify-shipping-label-ui.cjs` usa esses exemplos e verifica os dois pontos de entrada e o modal no celular.

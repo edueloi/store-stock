@@ -29,6 +29,7 @@ import {
 } from "../../components/ui";
 import { cn } from "../../lib/utils";
 import type { Tenant } from "../../types";
+import OrderShippingLabel from "../../components/orders/OrderShippingLabel";
 
 type Tab = "visao" | "vendas" | "faturamento" | "configurar";
 type StoreData = {
@@ -417,6 +418,7 @@ function OnlineOrders({
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [editingRequest, setEditingRequest] = useState(false);
+  const [labelOrderId,setLabelOrderId]=useState<number|null>(null);
   const updateOrder = async (status: "confirmed" | "completed") => {
     if (!selected) return;
     setActionLoading(true);
@@ -528,6 +530,7 @@ function OnlineOrders({
                 <Badge color={statusBadgeColor(selected.status)}>{statusLabel[selected.status] || selected.status}</Badge>
               </div>
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                {!["cancelled","canceled"].includes(selected.status)&&<Button variant="outline" size="sm" iconLeft={<Package size={14}/>} onClick={()=>setLabelOrderId(selected.id)}>Gerar etiqueta de entrega</Button>}
                 <DetailCard
                   icon={UserRound}
                   label="Cliente"
@@ -674,6 +677,7 @@ function OnlineOrders({
               }}
             />
           )}
+          {labelOrderId!==null&&<OrderShippingLabel orderId={labelOrderId} onClose={()=>setLabelOrderId(null)}/>}
         </div>
       )}
     </PanelCard>
