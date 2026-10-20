@@ -20,6 +20,8 @@ interface CostItem {
   source: "financeiro" | "contas_pagar";
   /** Conta a pagar ainda não paga: entra no mês do vencimento. */
   pending?: boolean;
+  /** Lançamento sem Fixo/Variável definido: somado em Custo Variável até ser classificado. */
+  unclassified?: boolean;
 }
 
 interface EntradasBucket {
@@ -117,7 +119,6 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
       prisma.accountPayable.findMany({
         where: {
           tenant_id: tenantId,
-          cost_type: { not: null },
           OR: [
             { status: "paid", paid_date: { gte: from, lt: to } },
             { status: { not: "paid" }, due_date: { gte: from, lt: to } },
@@ -198,7 +199,7 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
       const target = p.cost_type === "fixed" ? months[m].custoFixo : months[m].custoVariavel;
       const amount = Number(p.amount);
       target.total += amount;
-      target.items.push({ description: p.description, amount, date: new Date(when).toISOString().substring(0, 10), source: "contas_pagar", pending });
+      target.items.push({ description: p.description, amount, date: new Date(when).toISOString().substring(0, 10), source: "contas_pagar", pending, ...(p.cost_type ? {} : { unclassified: true }) });
     }
 
     res.json({ year, months });

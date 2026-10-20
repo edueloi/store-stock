@@ -14,7 +14,7 @@ import RelatorioFinanceiroPageTour, { RELATORIO_FINANCEIRO_PAGE_TOUR_EVENTS, typ
 // ── types (espelham backend/controllers/financial-reports.controller.ts) ─────
 type PmKey = "money" | "pix" | "debit" | "credit";
 type OrigemKey = "produtos" | "servicos" | "mista";
-interface CostItem { description: string; amount: number; date: string; source: "financeiro" | "contas_pagar"; pending?: boolean }
+interface CostItem { description: string; amount: number; date: string; source: "financeiro" | "contas_pagar"; pending?: boolean; unclassified?: boolean }
 interface EntradasBucket { byOperator: Record<string, Record<PmKey, number>>; totalByMethod: Record<PmKey, number>; total: number }
 interface MonthReport {
   year: number;
@@ -415,7 +415,7 @@ function CustoCards({ custoVariavel, custoFixo }: { custoVariavel: { total: numb
               <div key={i} className={cn("flex items-center justify-between gap-3 px-3 py-2 transition-colors", tone === "warning" ? "hover:bg-amber-50" : "hover:bg-violet-50")}>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-medium text-slate-700">{it.description}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">{fmtDateBR(it.date)} · {it.source === "contas_pagar" ? (it.pending ? "Contas a Pagar · em aberto" : "Contas a Pagar · pago") : "Financeiro"}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">{fmtDateBR(it.date)} · {it.source === "contas_pagar" ? ((it.pending ? "Contas a Pagar · em aberto" : "Contas a Pagar · pago") + (it.unclassified ? " · sem classificação (somado como variável)" : "")) : "Financeiro"}</p>
                 </div>
                 <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-700">R$ {fmt(it.amount)}</span>
               </div>
