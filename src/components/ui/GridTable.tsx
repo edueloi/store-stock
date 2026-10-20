@@ -114,14 +114,14 @@ function MobileCard<T>({
       {/* ── Header (always visible) ── */}
       <div
         className={cn(
-          'flex items-center gap-2 px-3 py-2.5 transition-colors',
+          'flex items-start gap-3 px-3.5 py-3.5 transition-colors',
           (isExpandable || onRowClick) && 'cursor-pointer active:bg-zinc-50',
         )}
         onClick={handleHeaderClick}
       >
         {/* Checkbox */}
         {isSelectable && (
-          <div className="pt-0.5 shrink-0" onClick={e => e.stopPropagation()}>
+          <div className="shrink-0 pt-px" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => onToggleSelect?.(id)}
               className="text-zinc-300 hover:text-blue-500 transition-colors"
@@ -146,7 +146,7 @@ function MobileCard<T>({
           <motion.div
             animate={{ rotate: expanded ? 180 : 0 }}
             transition={{ duration: 0.2 }}
-            className="shrink-0"
+            className="shrink-0 pt-0.5"
           >
             <ChevronDown size={16} className="text-zinc-300" />
           </motion.div>
@@ -195,18 +195,18 @@ export function GridTable<T>({
 
     return (
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3 px-1">
-          <div className="font-medium text-sm text-zinc-900 pr-4 break-words">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 break-words text-[15px] font-semibold leading-snug text-zinc-900">
             {titleCol?.render ? titleCol.render(row) : titleCol?.accessor ? String(row[titleCol.accessor] ?? '') : ''}
           </div>
         </div>
-        
+
         {detailsCols.length > 0 && (
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-3 border-t border-zinc-100">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg bg-zinc-50 px-3 py-2.5">
             {detailsCols.map((col, idx) => (
-              <div key={idx} className="flex flex-col min-w-0">
-                <span className="text-[10px] font-medium tracking-normal text-zinc-400 mb-0.5 truncate">{col.header}</span>
-                <div className="text-xs font-medium text-zinc-700">
+              <div key={idx} className="flex min-w-0 flex-col gap-0.5">
+                <span className="truncate text-[11px] font-medium tracking-normal text-zinc-400">{col.header}</span>
+                <div className="min-w-0 break-words text-[13px] font-medium leading-snug text-zinc-800">
                   {col.render ? col.render(row) : col.accessor ? String(row[col.accessor] ?? '') : ''}
                 </div>
               </div>
@@ -215,11 +215,8 @@ export function GridTable<T>({
         )}
 
         {actionCol && (
-          <div className="pt-3 mt-1 border-t border-zinc-100">
-            <span className="text-[10px] font-medium tracking-normal text-zinc-400 mb-2 block">Ações</span>
-            <div className="flex flex-wrap gap-2">
-              {actionCol.render ? actionCol.render(row) : null}
-            </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-zinc-100 pt-3" onClick={(e) => e.stopPropagation()}>
+            {actionCol.render ? actionCol.render(row) : null}
           </div>
         )}
       </div>
@@ -322,7 +319,7 @@ export function GridTable<T>({
 
       {/* ─── MOBILE CARD VIEW ─── */}
       {!disableMobileCards && (
-        <div className={cn('space-y-2 pb-2', { sm: 'block sm:hidden', lg: 'block lg:hidden', xl: 'block xl:hidden' }[mobileBreakpoint])}>
+        <div className={cn('space-y-3 pb-2', { sm: 'block sm:hidden', lg: 'block lg:hidden', xl: 'block xl:hidden' }[mobileBreakpoint])}>
           {isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="animate-pulse bg-white border border-zinc-200 rounded-lg p-4 flex flex-col gap-3">

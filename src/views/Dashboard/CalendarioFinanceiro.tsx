@@ -162,7 +162,7 @@ export default function CalendarioFinanceiro() {
     { value: "all", label: "Todos" },
     { value: "pending", label: "Pendentes" },
     { value: "overdue", label: "Vencidos" },
-    { value: "settled", label: "Histórico (pago/recebido)" },
+    { value: "settled", label: "Histórico" },
   ];
 
   return (
@@ -192,9 +192,9 @@ export default function CalendarioFinanceiro() {
 
         <ContentCard>
           <div data-tour="calendario-nav" className="mb-3 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
               <Button variant="outline" size="sm" className="!min-w-0 !px-2" aria-label="Mês anterior" onClick={() => shiftMonth(-1)}><ChevronLeft size={14} /></Button>
-              <h3 className="w-40 text-center text-[13px] font-medium text-slate-800">{MONTHS[viewMonth]} {viewYear}</h3>
+              <h3 className="min-w-0 flex-1 truncate text-center text-[13px] font-medium text-slate-800 sm:w-40 sm:flex-none">{MONTHS[viewMonth]} {viewYear}</h3>
               <Button variant="outline" size="sm" className="!min-w-0 !px-2" aria-label="Próximo mês" onClick={() => shiftMonth(1)}><ChevronRight size={14} /></Button>
             </div>
             <Select
@@ -237,7 +237,7 @@ export default function CalendarioFinanceiro() {
                     key={idx}
                     onClick={() => entries.length > 0 && setSelectedDay(isSelected ? null : key)}
                     className={cn(
-                      "flex min-h-[64px] min-w-0 flex-col items-start rounded-lg border p-1 text-left transition-all sm:min-h-[76px] sm:p-1.5",
+                      "flex min-h-[56px] min-w-0 flex-col items-center rounded-lg border p-1 text-center transition-all sm:min-h-[76px] sm:items-start sm:p-1.5 sm:text-left",
                       cell.inMonth ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50/50",
                       isSelected && "border-blue-300 ring-2 ring-blue-400",
                       entries.length > 0 && "cursor-pointer hover:border-blue-300",
@@ -249,7 +249,17 @@ export default function CalendarioFinanceiro() {
                     )}>
                       {isToday ? <span className="rounded-md bg-blue-600 px-1.5 py-0.5 text-white">{cell.day}</span> : cell.day}
                     </span>
-                    <div className="w-full space-y-0.5">
+                    {/* Celular: bolinhas (vermelha = a pagar, verde = a receber) e quantidade; toque abre o dia */}
+                    <div className="flex w-full flex-col items-center gap-0.5 sm:hidden">
+                      <div className="flex items-center gap-1">
+                        {pagar > 0 && <span className="h-2 w-2 rounded-full bg-rose-500" aria-label="Contas a pagar" />}
+                        {receber > 0 && <span className="h-2 w-2 rounded-full bg-emerald-500" aria-label="Contas a receber" />}
+                      </div>
+                      {entries.length > 0 && (
+                        <span className="rounded-full bg-slate-100 px-1.5 text-[10px] font-semibold leading-4 text-slate-600">{entries.length}</span>
+                      )}
+                    </div>
+                    <div className="hidden w-full space-y-0.5 sm:block">
                       {pagar > 0 && (
                         <div className="truncate rounded bg-rose-50 px-1 py-0.5 text-[11px] font-medium text-rose-600">R$ {fmt(pagar)}</div>
                       )}
@@ -262,6 +272,11 @@ export default function CalendarioFinanceiro() {
               })}
             </div>
           )}
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 sm:hidden">
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-rose-500" />A pagar</span>
+            <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-500" />A receber</span>
+            <span>Número = lançamentos do dia · toque no dia para ver</span>
+          </div>
         </ContentCard>
       </div>
 
