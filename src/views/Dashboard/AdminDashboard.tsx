@@ -51,6 +51,7 @@ import { cn } from "../../lib/utils";
 import { ToastProvider, useToast } from "../../components/ui/Toast";
 import { Button, IconButton, PageWrapper } from "../../components/ui";
 import { getStoredUser } from "../../lib/session";
+import { onRealtime } from "../../lib/realtime";
 import MenuSettingsPage from "./MenuSettingsPage";
 import { MENU_LAYOUT_PREF_KEY, MENU_PROFILES_PREF_KEY, activeLayout, emptyProfiles, isInternalUrl, isValidLayout, isValidProfiles, profilesFromLegacy, resolveMenu, type MenuGroupDef, type MenuItemDef, type MenuProfiles } from "./menuLayout";
 import { listHeldSales, type HeldSale } from "../../lib/heldSales";
@@ -583,6 +584,8 @@ export default function AdminDashboard() {
   const [dueSoonBills, setDueSoonBills] = useState<DueSoonBill[]>([]);
   const [overdueInstallments, setOverdueInstallments] = useState<OverdueInstallment[]>([]);
   const [dueSoonInstallments, setDueSoonInstallments] = useState<OverdueInstallment[]>([]);
+  // Contas a receber lançadas manualmente (aba Administrativo) vencidas ou vencendo em breve.
+  const [receivableAlertCount, setReceivableAlertCount] = useState(0);
   const [subscriptionOverdue, setSubscriptionOverdue] = useState(false);
   const [whatsappCounts, setWhatsappCounts] = useState({ bot: 0, queued: 0, assigned: 0, closed: 0 });
   const location = useLocation();
@@ -681,7 +684,7 @@ export default function AdminDashboard() {
         const now = Date.now();
         const soon = data.filter((b: { status: string; due_date: string }) => {
           if (b.status !== "pending") return false;
-          const daysUntil = (new Date(b.due_date).getTime() - now) / 86_400_000;
+          const daysUntil = (new Date(b.due_date.substring(0, 10) + "T23:59:59").getTime() - now) / 86_400_000;
           return daysUntil >= 0 && daysUntil <= DUE_SOON_DAYS;
         });
         if (!cancelled) setIfChanged(setDueSoonBills, soon);
@@ -689,7 +692,9 @@ export default function AdminDashboard() {
     };
     fetchDueSoon();
     const interval = setInterval(fetchDueSoon, 60000);
-    return () => { cancelled = true; clearInterval(interval); };
+    // Excluir/baixar/editar uma conta atualiza o aviso na hora, sem esperar o ciclo de 60s.
+    const stopRealtime = onRealtime("finance:changed", fetchDueSoon);
+    return () => { cancelled = true; clearInterval(interval); stopRealtime(); };
   }, []);
 
   // Parcelas de crediário vencidas e vencendo em breve — mesmo endpoint (já
@@ -719,7 +724,35 @@ export default function AdminDashboard() {
     };
     fetchInstallments();
     const interval = setInterval(fetchInstallments, 60000);
-    return () => { cancelled = true; clearInterval(interval); };
+    const stopRealtime = onRealtime("finance:changed", fetchInstallments);
+    return () => { cancelled = true; clearInterval(interval); stopRealtime(); };
+  }, []);
+
+  // Contas a receber administrativas: o aviso do menu antes só contava parcelas de crediário,
+  // por isso não batia com os cards da tela Contas a Receber.
+  useEffect(() => {
+    let cancelled = false;
+    const fetchReceivables = async () => {
+      try {
+        const res = await fetch("/api/accounts-receivable", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!Array.isArray(data)) return;
+        const now = Date.now();
+        const alerts = data.filter((a: { status: string; due_date: string }) => {
+          if (a.status !== "pending" && a.status !== "overdue") return false;
+          const due = new Date(a.due_date.substring(0, 10) + "T23:59:59").getTime();
+          return due < now || (due - now) / 86_400_000 <= DUE_SOON_DAYS;
+        });
+        if (!cancelled) setReceivableAlertCount(alerts.length);
+      } catch { /* silencioso */ }
+    };
+    fetchReceivables();
+    const interval = setInterval(fetchReceivables, 60000);
+    const stopRealtime = onRealtime("finance:changed", fetchReceivables);
+    return () => { cancelled = true; clearInterval(interval); stopRealtime(); };
   }, []);
 
   // Bolinha de aviso no menu "Assinatura" quando a mensalidade do Box Sys está em atraso
@@ -1033,7 +1066,7 @@ export default function AdminDashboard() {
                         item.path === "/admin/consignacoes" ? overdueConsignments
                           : item.path === "/admin/stock" ? lowStockCount
                           : item.path === "/admin/contas-pagar" ? dueSoonBills.length
-                          : item.path === "/admin/contas-receber" ? overdueInstallments.length + dueSoonInstallments.length
+                          : item.path === "/admin/contas-receber" ? overdueInstallments.length + dueSoonInstallments.length + receivableAlertCount
                           : item.path === "/admin/assinatura" ? (subscriptionOverdue ? 1 : 0)
                           : item.path === "/admin/atendimento/bot" ? whatsappCounts.bot
                           : item.path === "/admin/atendimento/fila" ? whatsappCounts.queued
@@ -1044,7 +1077,7 @@ export default function AdminDashboard() {
                       badgeLabel={
                         item.path === "/admin/stock" ? "com estoque baixo"
                           : item.path === "/admin/contas-pagar" ? "vencendo em breve"
-                          : item.path === "/admin/contas-receber" ? "parcelas de crediário vencidas ou vencendo em breve"
+                          : item.path === "/admin/contas-receber" ? "contas e parcelas vencidas ou vencendo em breve"
                           : item.path === "/admin/assinatura" ? "em atraso"
                           : item.path.startsWith("/admin/atendimento/") ? "atendimentos"
                           : undefined
@@ -1117,7 +1150,7 @@ export default function AdminDashboard() {
                         item.path === "/admin/consignacoes" ? overdueConsignments
                           : item.path === "/admin/stock" ? lowStockCount
                           : item.path === "/admin/contas-pagar" ? dueSoonBills.length
-                          : item.path === "/admin/contas-receber" ? overdueInstallments.length + dueSoonInstallments.length
+                          : item.path === "/admin/contas-receber" ? overdueInstallments.length + dueSoonInstallments.length + receivableAlertCount
                           : item.path === "/admin/assinatura" ? (subscriptionOverdue ? 1 : 0)
                           : item.path === "/admin/atendimento/bot" ? whatsappCounts.bot
                           : item.path === "/admin/atendimento/fila" ? whatsappCounts.queued
