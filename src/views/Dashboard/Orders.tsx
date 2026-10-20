@@ -122,9 +122,17 @@ function isCrediarioOrder(paymentMethod?: string | null): boolean {
   return !!paymentMethod && paymentMethod.split("|").some((seg) => seg.split(":")[0]?.split("-")[0] === "crediario");
 }
 
+// Nomes das formas de pagamento. Inclui as que só nascem no checkout da vitrine
+// (to_confirm = "pagamento a combinar" em pedido por solicitação) para nunca exibir o código cru.
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito",
+  to_confirm: "A combinar", cash_on_delivery: "Dinheiro na entrega", card_on_delivery: "Cartão na entrega",
+  asaas: "Online (Asaas)", mercadopago: "Online (Mercado Pago)",
+};
+
 function formatPaymentLabel(pm?: string | null) {
   if (!pm) return "—";
-  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+  const labels = PAYMENT_METHOD_LABELS;
   return pm.split("|").map((seg) => {
     const [methodPart, amountStr] = seg.split(":");
     const tokens = methodPart.split("-");
@@ -870,7 +878,7 @@ export default function Orders() {
     <div class="info-row">Data de Emissão: <span>${orderDate}</span></div>
     <div class="info-row">Cliente: <span>${clientName}</span></div>
     ${clientPhone ? `<div class="info-row">Contato: <span>${clientPhone}</span></div>` : ""}
-    <div class="info-row">Pagamento: <span>${order.payment_method || "—"}</span></div>
+    <div class="info-row">Pagamento: <span>${formatPaymentLabel(order.payment_method)}</span></div>
     <div class="info-row">Valor Total: <span>R$ ${Number(order.total_amount).toFixed(2)}</span></div>
   </div>
 </div>
@@ -1516,7 +1524,7 @@ ${
                 const pm = order.payment_method || "";
                 const pmDot: Record<string, string> = { money: "bg-slate-400", pix: "bg-violet-500", debit: "bg-blue-500", credit: "bg-emerald-500" };
                 const pmBadge: Record<string, string> = { money: "bg-slate-100 text-slate-600", pix: "bg-violet-50 text-violet-700", debit: "bg-blue-50 text-blue-700", credit: "bg-emerald-50 text-emerald-700" };
-                const pmLabel: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+                const pmLabel = PAYMENT_METHOD_LABELS;
                 const segs = pm ? pm.split("|").map(seg => {
                   const method = seg.split(":")[0].split("-")[0];
                   return { method, label: pmLabel[method] ?? method };
@@ -2164,7 +2172,7 @@ ${
                       amount: parseFloat(amt ?? "0") || 0,
                     };
                   });
-                  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+                  const labels = PAYMENT_METHOD_LABELS;
                   const methodStyle: Record<string, { bg: string; icon: React.ReactNode }> = {
                     money: { bg: "bg-slate-100", icon: <BanknoteIcon size={18} className="text-slate-600" /> },
                     pix:   { bg: "bg-violet-50", icon: <ZapIcon size={18} className="text-violet-600" /> },
