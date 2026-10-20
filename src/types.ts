@@ -305,6 +305,13 @@ export interface FinanceEntry {
 export type AccountStatus = 'pending' | 'received' | 'paid' | 'overdue' | 'cancelled';
 
 export interface FinanceSeriesRef {
+  description?: string;
+  category?: string | null;
+  party_name?: string | null;
+  notes?: string | null;
+  interval_unit?: "day" | "week" | "month";
+  interval_count?: number;
+  value_mode?: "per_installment" | "fixed" | "variable";
   installments_count: number;
   total_amount: number;
   interest_rate: number;
@@ -331,6 +338,11 @@ export interface AccountReceivable {
   is_recurring?: boolean;
   recurrence_interval_unit?: "day" | "week" | "month" | null;
   recurrence_interval_count?: number | null;
+  payment_method?: string | null;
+  document_number?: string | null;
+  cost_center?: string | null;
+  payment_details?: string | null;
+  recurrence_value_mode?: "fixed" | "variable" | null;
   created_at: string;
   updated_at: string;
 }
@@ -355,6 +367,11 @@ export interface AccountPayable {
   recurrence_interval_unit?: "day" | "week" | "month" | null;
   recurrence_interval_count?: number | null;
   cost_type?: "fixed" | "variable" | null;
+  payment_method?: string | null;
+  document_number?: string | null;
+  cost_center?: string | null;
+  payment_details?: string | null;
+  recurrence_value_mode?: "fixed" | "variable" | null;
   created_at: string;
   updated_at: string;
 }

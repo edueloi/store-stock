@@ -32,6 +32,10 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { AccountPayable, AccountStatus, Tenant } from "../../types";
+import AccountPaymentFields, { ACCOUNT_PAYMENT_METHODS, AccountPaymentMethod, type AccountPaymentData } from "../../components/finance/AccountPaymentFields";
+import CurrencyInput from "../../components/finance/CurrencyInput";
+import AccountSchedulePreview from "../../components/finance/AccountSchedulePreview";
+import { accountDay, accountKindLabel, controlAccounts } from "../../lib/account-control";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
@@ -46,11 +50,11 @@ import ContasPagarPageTour, { type ContasPagarPageTourHandle } from "../../compo
 const fmt = (v: number) =>
   v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const today = () => new Date().toISOString().split("T")[0];
+const today = accountDay;
 
 function formatDateBR(d: string | null | undefined) {
   if (!d) return "—";
-  return new Date(d + (d.length === 10 ? "T12:00:00" : "")).toLocaleDateString("pt-BR");
+  return new Date(d.slice(0, 10) + "T12:00:00").toLocaleDateString("pt-BR");
 }
 
 // due_date vem da API como ISO completo ("2026-12-30T00:00:00.000Z"), não como
@@ -59,7 +63,7 @@ function formatDateBR(d: string | null | undefined) {
 // isso "Vencidas"/"Vencendo em Breve" ficavam sempre zerados. Corta pros 10 primeiros
 // caracteres primeiro, que funciona tanto pro formato completo quanto pro puro.
 function isOverdue(due: string, status: AccountStatus) {
-  if (status !== "pending") return false;
+  if (status !== "pending" && status !== "overdue") return false;
   return new Date(due.substring(0, 10) + "T23:59:59") < new Date();
 }
 
@@ -74,7 +78,7 @@ function isDueSoon(due: string, status: AccountStatus) {
 // exibir, nunca acumulada automaticamente (mesmo padrão do crediário em PDV.tsx).
 function suggestedInterest(remaining: number, due_date: string, rate: number, period: "day" | "month", graceDays: number): number {
   if (rate <= 0) return 0;
-  const daysLate = Math.floor((Date.now() - new Date(due_date + "T00:00:00").getTime()) / 86400000);
+  const daysLate = Math.floor((Date.now() - new Date(due_date.slice(0, 10) + "T00:00:00").getTime()) / 86400000);
   const billableDays = Math.max(0, daysLate - graceDays);
   if (billableDays <= 0) return 0;
   const factor = period === "day" ? billableDays : billableDays / 30;
@@ -352,6 +356,7 @@ type StatusTabId = typeof STATUS_TABS[number]["id"];
 
 const FORM_TABS = [
   { id: "dados", label: "Dados", icon: FileText },
+  { id: "pagamento", label: "Pagamento", icon: DollarSign },
   { id: "lancamento", label: "Lançamento", icon: Repeat },
 ] as const;
 type FormTabId = typeof FORM_TABS[number]["id"];
@@ -367,7 +372,7 @@ function DetailRow({ label, value, valueClass }: { label: string; value: React.R
 
 type ModalMode = "create" | "edit" | "pay" | "delete" | null;
 
-interface FormData {
+interface FormData extends AccountPaymentData {
   description: string;
   amount: string;
   due_date: string;
@@ -377,6 +382,7 @@ interface FormData {
 }
 
 const EMPTY_FORM: FormData = {
+  payment_method: "", document_number: "", cost_center: "", payment_details: "",
   description: "",
   amount: "",
   due_date: today(),
@@ -398,12 +404,21 @@ export default function ContasPagar() {
   // jeito de abrir editar/pagar/excluir (nem o clique na linha fazia nada).
   const [detailItem, setDetailItem] = useState<AccountPayable | null>(null);
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
+  const [editScope, setEditScope] = useState<"account" | "pending_series">("account");
+  const [settlementMethod, setSettlementMethod] = useState("");
+  const canPlan = modalMode === "create" || !selected?.series_id || editScope === "pending_series";
+  const pendingSeries = selected?.series_id ? items.filter(item => item.series_id === selected.series_id && item.status === "pending").sort((a,b) => Number(a.installment_number)-Number(b.installment_number)) : [];
+  const lockedSeriesCount = selected?.series_id ? items.filter(item => item.series_id === selected.series_id && item.status !== "pending").length : 0;
   const [paidDate, setPaidDate] = useState(today());
   const [continueRecurring, setContinueRecurring] = useState(true);
 
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get("fornecedor") || "");
   const [statusFilter, setStatusFilter] = useState<AccountStatus | "all">("all");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [launchFilter, setLaunchFilter] = useState("all");
+  const [dueFilter, setDueFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("due_asc");
   const [costTypeFilter, setCostTypeFilter] = useState<"all" | "fixed" | "variable">("all");
 
   // Filtro de período — default "Tudo" preserva o comportamento atual (nada
@@ -468,7 +483,7 @@ export default function ContasPagar() {
   const [installmentsCount, setInstallmentsCount] = useState("2");
   const [intervalUnit, setIntervalUnit] = useState<"day" | "week" | "month">("month");
   const [intervalCount, setIntervalCount] = useState("1");
-  const [valueMode, setValueMode] = useState<"fixed" | "variable">("fixed");
+  const [valueMode, setValueMode] = useState<"per_installment" | "fixed" | "variable">("per_installment");
   const [variableAmounts, setVariableAmounts] = useState<string[]>([]);
   const [interestRate, setInterestRate] = useState("0");
   const [interestPeriod, setInterestPeriod] = useState<"day" | "month">("month");
@@ -575,14 +590,15 @@ export default function ContasPagar() {
 
   const openCreate = () => {
     setSelected(null);
-    setForm(EMPTY_FORM);
+    setEditScope("account");
+    setForm({ ...EMPTY_FORM, due_date: today() });
     setRecurrenceEnabled(false);
     setRecurringVariable(false);
     setRecurringValueMode("variable");
     setInstallmentsCount("2");
     setIntervalUnit("month");
     setIntervalCount("1");
-    setValueMode("fixed");
+    setValueMode("per_installment");
     setVariableAmounts([]);
     setInterestRate("0");
     setInterestPeriod("month");
@@ -595,15 +611,28 @@ export default function ContasPagar() {
   // operador estiver no modo "personalizar valores" — reparte igual como ponto de
   // partida editável, não força o operador a preencher tudo do zero.
   const syncVariableAmounts = (count: number, totalStr: string) => {
+    count = Math.min(360, Math.max(1, Math.floor(count) || 1));
     const total = Number(totalStr) || 0;
     setVariableAmounts(count > 0 && total > 0 ? splitEvenly(total, count) : Array(Math.max(0, count)).fill("0.00"));
   };
 
+  const [pendingSnapshot, setPendingSnapshot] = useState<{ id: number; updated_at: string }[]>([]);
+  const [sameSettlementValue, setSameSettlementValue] = useState(true);
+  const [settlementAmount, setSettlementAmount] = useState("");
+  const variableSettlement = !!selected?.is_recurring && selected.recurrence_value_mode !== "fixed";
+  const planTotal = valueMode === "per_installment" ? (Math.round((Number(form.amount) || 0) * 100) * (Number(installmentsCount) || 0) / 100).toFixed(2) : form.amount;
+  const changeValueMode = (mode: "per_installment" | "fixed" | "variable") => {
+    const total = Number(planTotal) || 0;
+    setForm(prev => ({ ...prev, amount: mode === "per_installment" ? (total / (Number(installmentsCount) || 1)).toFixed(2) : total.toFixed(2) }));
+    if (mode === "variable") syncVariableAmounts(Number(installmentsCount) || 2, String(total));
+    setValueMode(mode);
+  };
   const variableSum = valueMode === "variable" ? variableAmounts.reduce((a, v) => a + (Number(v) || 0), 0) : 0;
   const variableMismatch = valueMode === "variable" && Math.abs(variableSum - (Number(form.amount) || 0)) > 0.01;
 
   const openEdit = (item: AccountPayable) => {
     setSelected(item);
+    setEditScope("account");
     setForm({
       description: item.description,
       amount: String(item.amount),
@@ -611,18 +640,46 @@ export default function ContasPagar() {
       supplier_name: item.supplier_name || "",
       category: item.category || "",
       notes: item.notes || "",
+      payment_method: item.payment_method || "", document_number: item.document_number || "", cost_center: item.cost_center || "", payment_details: item.payment_details || "",
     });
-    setRecurrenceEnabled(false);
+    setRecurrenceEnabled(!!item.series_id);
     setRecurringVariable(!!item.is_recurring);
-    setRecurringValueMode("variable");
-    setIntervalUnit((item.recurrence_interval_unit as "day" | "week" | "month") || "month");
-    setIntervalCount(String(item.recurrence_interval_count || 1));
+    setRecurringValueMode(item.recurrence_value_mode || "variable");
+    setIntervalUnit(item.series?.interval_unit || (item.recurrence_interval_unit as "day" | "week" | "month") || "month");
+    setIntervalCount(String(item.series?.interval_count || item.recurrence_interval_count || 1));
     setCostType((item.cost_type as "fixed" | "variable") || "");
+    setInstallmentsCount(String(item.series?.installments_count || 2));
+    setValueMode(item.series?.value_mode || "fixed");
+    setVariableAmounts([]);
+    setInterestRate(String(item.series?.interest_rate || 0));
+    setInterestPeriod(item.series?.interest_period || "month");
+    setInterestGraceDays(String(item.series?.interest_grace_days || 0));
     setModalMode("edit");
+  };
+
+  const changeEditScope = (scope: "account" | "pending_series") => {
+    if (!selected) return;
+    if (scope === "account") { openEdit(selected); return; }
+    const first = pendingSeries[0];
+    if (!first) { toastError("Este parcelamento não possui parcelas pendentes."); return; }
+    setEditScope(scope);
+    setPendingSnapshot(pendingSeries.map(item => ({ id: item.id, updated_at: item.updated_at })));
+    setForm({ description: selected.series?.description || first.description, amount: (pendingSeries.reduce((sum,item)=>sum+Math.round(Number(item.amount)*100),0)/100).toFixed(2), due_date: first.due_date.slice(0,10), supplier_name: selected.series?.party_name || first.supplier_name || "", category: selected.series?.category || first.category || "", notes: selected.series?.notes || first.notes || "", payment_method: first.payment_method || "", document_number: first.document_number || "", cost_center: first.cost_center || "", payment_details: first.payment_details || "" });
+    const equal = pendingSeries.every(item => Math.round(Number(item.amount)*100) === Math.round(Number(first.amount)*100));
+    const mode = selected.series?.value_mode === "per_installment" && equal ? "per_installment" : selected.series?.value_mode === "variable" || !equal ? "variable" : "fixed";
+    setValueMode(mode);
+    if (mode === "per_installment") setForm(prev => ({ ...prev, amount: Number(first.amount).toFixed(2) }));
+    setInstallmentsCount(String(pendingSeries.length));
+    setVariableAmounts(pendingSeries.map(item=>Number(item.amount).toFixed(2)));
+    setRecurrenceEnabled(true);
+    setRecurringVariable(false);
   };
 
   const openPay = (item: AccountPayable) => {
     setSelected(item);
+    setSettlementMethod(item.payment_method || "");
+    setSameSettlementValue(true);
+    setSettlementAmount(Number(item.amount).toFixed(2));
     setPaidDate(today());
     setContinueRecurring(true);
     setModalMode("pay");
@@ -661,7 +718,7 @@ export default function ContasPagar() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (modalMode === "create" && recurrenceEnabled && valueMode === "variable" && variableMismatch) {
+    if (canPlan && recurrenceEnabled && valueMode === "variable" && variableMismatch) {
       toastError("A soma dos valores das parcelas precisa bater com o valor total.");
       return;
     }
@@ -674,11 +731,16 @@ export default function ContasPagar() {
         supplier_name: form.supplier_name || null,
         category: form.category || null,
         notes: form.notes || null,
+        payment_method: form.payment_method || null, document_number: form.document_number || null, cost_center: form.cost_center || null, payment_details: form.payment_details || null,
+        recurrence_value_mode: recurringVariable ? recurringValueMode : null,
+        edit_scope: editScope,
+        expected_updated_at: editScope === "account" ? selected?.updated_at : undefined,
+        expected_pending: editScope === "pending_series" ? pendingSnapshot : undefined,
         cost_type: costType || null,
       };
-      if (modalMode === "create" && recurrenceEnabled) {
+      if (canPlan && recurrenceEnabled) {
         body.recurrence = {
-          installments_count: Math.max(2, Number(installmentsCount) || 2),
+          installments_count: Number(installmentsCount),
           interval_unit: intervalUnit,
           interval_count: Math.max(1, Number(intervalCount) || 1),
           value_mode: valueMode,
@@ -696,7 +758,7 @@ export default function ContasPagar() {
         body.recurrence_interval_unit = recurringVariable ? intervalUnit : null;
         body.recurrence_interval_count = recurringVariable ? Math.max(1, Number(intervalCount) || 1) : null;
       }
-      const url = modalMode === "edit" ? `/api/accounts-payable/${selected!.id}` : "/api/accounts-payable";
+      const url = modalMode === "edit" ? `/api/accounts-payable/${editScope === "pending_series" ? pendingSeries[0]?.id : selected!.id}` : "/api/accounts-payable";
       const method = modalMode === "edit" ? "PUT" : "POST";
       const res = await fetch(url, {
         method,
@@ -732,7 +794,7 @@ export default function ContasPagar() {
       const res = await fetch(`/api/accounts-payable/${selected!.id}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ paid_date: paidDate, continue_recurring: continueRecurring }),
+        body: JSON.stringify({ paid_date: paidDate, continue_recurring: continueRecurring, payment_method: settlementMethod || null, amount: variableSettlement && !sameSettlementValue ? Number(settlementAmount) : undefined, expected_updated_at: selected?.updated_at }),
       });
       if (res.ok) {
         success("Pagamento confirmado!");
@@ -949,39 +1011,24 @@ export default function ContasPagar() {
     setApplyingInterest(false);
   };
 
-  const filtered = useMemo(() => {
-    return items
-      .map(item => ({
-        ...item,
-        status: isOverdue(item.due_date, item.status as AccountStatus) ? "overdue" as AccountStatus : item.status as AccountStatus,
-      }))
-      .filter(item => {
-        if (statusFilter !== "all" && item.status !== statusFilter) return false;
-        if (costTypeFilter !== "all" && item.cost_type !== costTypeFilter) return false;
-        if (periodPreset !== "all") {
-          const due = item.due_date.substring(0, 10);
-          if (due < dateFrom || due > dateTo) return false;
-        }
-        if (search &&
-            !item.description.toLowerCase().includes(search.toLowerCase()) &&
-            !(item.supplier_name || "").toLowerCase().includes(search.toLowerCase())) return false;
-        return true;
-      });
-  }, [items, statusFilter, costTypeFilter, periodPreset, dateFrom, dateTo, search]);
+  const controlBase = useMemo(() => controlAccounts(items, { search, category: categoryFilter, kind: launchFilter, due: dueFilter, sort: sortBy, costType: costTypeFilter, from: periodPreset === "all" ? undefined : dateFrom, to: periodPreset === "all" ? undefined : dateTo }), [items, search, categoryFilter, launchFilter, dueFilter, sortBy, costTypeFilter, periodPreset, dateFrom, dateTo]);
+  const filtered = useMemo(() => controlBase.filter(item => statusFilter === "all" || item.status === statusFilter), [controlBase, statusFilter]);
+  useEffect(() => { setSelectedIds(previous => { const next = new Set([...previous].filter(id => filtered.some(item => item.id === id))); return next.size === previous.size ? previous : next; }); }, [filtered]);
+  const filterCategories = useMemo(() => Array.from(new Set(items.map(item => item.category).filter(Boolean))).sort((a,b)=>a!.localeCompare(b!,"pt-BR")), [items]);
 
-  const totalPending = items.filter(i => i.status === "pending" && !isOverdue(i.due_date, i.status as AccountStatus)).reduce((a, i) => a + Number(i.amount), 0);
-  const totalOverdue = items.filter(i => isOverdue(i.due_date, i.status as AccountStatus)).reduce((a, i) => a + Number(i.amount), 0);
-  const totalPaid    = items.filter(i => i.status === "paid").reduce((a, i) => a + Number(i.amount), 0);
-  const dueSoonItems = items.filter(i => isDueSoon(i.due_date, i.status as AccountStatus));
+  const totalPending = controlBase.filter(i => i.status === "pending" && !isOverdue(i.due_date, i.status as AccountStatus)).reduce((a, i) => a + Number(i.amount), 0);
+  const totalOverdue = controlBase.filter(i => isOverdue(i.due_date, i.status as AccountStatus)).reduce((a, i) => a + Number(i.amount), 0);
+  const totalPaid    = controlBase.filter(i => i.status === "paid").reduce((a, i) => a + Number(i.amount), 0);
+  const dueSoonItems = controlBase.filter(i => isDueSoon(i.due_date, i.status as AccountStatus));
   const totalDueSoon = dueSoonItems.reduce((a, i) => a + Number(i.amount), 0);
 
   const isFormModal = modalMode === "create" || modalMode === "edit";
-  const statusCounts = items.reduce<Record<string, number>>((acc, i) => {
+  const statusCounts = controlBase.reduce<Record<string, number>>((acc, i) => {
     const eff = isOverdue(i.due_date, i.status as AccountStatus) ? "overdue" : i.status;
     acc[eff] = (acc[eff] || 0) + 1;
     return acc;
   }, {});
-  const statusTabItems = STATUS_TABS.map((t) => ({ ...t, badge: t.id === "all" ? items.length : (statusCounts[t.id] || 0) }));
+  const statusTabItems = STATUS_TABS.map((t) => ({ ...t, badge: t.id === "all" ? controlBase.length : (statusCounts[t.id] || 0) }));
   const [formTab, setFormTab] = useState<FormTabId>("dados");
   useEffect(() => { if (!isFormModal) setFormTab("dados"); }, [isFormModal]);
 
@@ -1022,7 +1069,7 @@ export default function ContasPagar() {
           <StatCard
             title="A Pagar"
             value={`R$ ${fmt(totalPending)}`}
-            description={`${items.filter(i => i.status === "pending" && !isOverdue(i.due_date, i.status as AccountStatus)).length} contas pendentes`}
+            description={`${controlBase.filter(i => i.status === "pending" && !isOverdue(i.due_date, i.status as AccountStatus)).length} contas pendentes`}
             icon={Clock}
             color="warning"
           />
@@ -1036,14 +1083,14 @@ export default function ContasPagar() {
           <StatCard
             title="Vencidas"
             value={`R$ ${fmt(totalOverdue)}`}
-            description={`${items.filter(i => isOverdue(i.due_date, i.status as AccountStatus)).length} contas vencidas`}
+            description={`${controlBase.filter(i => isOverdue(i.due_date, i.status as AccountStatus)).length} contas vencidas`}
             icon={AlertCircle}
             color="danger"
           />
           <StatCard
             title="Pago"
             value={`R$ ${fmt(totalPaid)}`}
-            description={`${items.filter(i => i.status === "paid").length} contas pagas`}
+            description={`${controlBase.filter(i => i.status === "paid").length} contas pagas`}
             icon={TrendingDown}
             color="danger"
           />
@@ -1061,13 +1108,14 @@ export default function ContasPagar() {
             <FilterLineSection grow>
               <FilterLineSearch
                 aria-label="Buscar contas a pagar"
-                placeholder="Buscar por descrição ou fornecedor..."
+                placeholder="Descrição, fornecedor, documento ou centro de custo..."
                 value={search}
                 onChange={setSearch}
               />
             </FilterLineSection>
           </FilterLine>
 
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"><Select label="Tipo de lançamento" value={launchFilter} onChange={event=>setLaunchFilter(event.target.value)}><option value="all">Todos os tipos</option><option value="single">Única</option><option value="installments">Parcelada</option><option value="recurring">Recorrente</option></Select><Select label="Categoria do filtro" value={categoryFilter} onChange={event=>setCategoryFilter(event.target.value)}><option value="">Todas as categorias</option>{filterCategories.map(category=><option key={category!} value={category!}>{category}</option>)}</Select><Select label="Vencimento das pendentes" value={dueFilter} onChange={event=>setDueFilter(event.target.value)}><option value="all">Todos os vencimentos</option><option value="overdue">Já vencidas</option><option value="today">Vencem hoje</option><option value="week">Hoje e próximos 7 dias</option></Select><Select label="Ordenação das contas" value={sortBy} onChange={event=>setSortBy(event.target.value)}><option value="due_asc">Vencimento mais próximo</option><option value="due_desc">Vencimento mais distante</option><option value="amount_desc">Maior valor</option><option value="amount_asc">Menor valor</option></Select></div>
           <FilterLine data-tour="contas-pagar-period-nav">
             <FilterLineSection wrap>
               {/* ← Mês/Ano → navigator — só faz sentido com Mês ou Ano selecionado */}
@@ -1173,6 +1221,7 @@ export default function ContasPagar() {
             </FilterLineSection>
           </FilterLine>
 
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5 text-xs"><span className="text-slate-500">{filtered.length} {filtered.length === 1 ? "conta exibida" : "contas exibidas"} · Indicadores conforme os filtros</span><strong className="font-semibold tabular-nums text-slate-700">Valor exibido: R$ {fmt(filtered.reduce((sum,item)=>sum+Number(item.amount),0))}</strong>{(search || categoryFilter || launchFilter !== "all" || dueFilter !== "all" || statusFilter !== "all" || periodPreset !== "all" || costTypeFilter !== "all") && <Button size="sm" variant="ghost" onClick={()=>{setSearch("");setCategoryFilter("");setLaunchFilter("all");setDueFilter("all");setStatusFilter("all");setPeriodPreset("all");setCostTypeFilter("all");}}>Limpar filtros</Button>}</div>
           {selectedIds.size > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <span className="mr-1 text-xs font-medium text-slate-500">
@@ -1447,6 +1496,10 @@ export default function ContasPagar() {
               )}
               <DetailRow label="Fornecedor" value={detailItem.supplier_name || "—"} />
               {detailItem.category && <DetailRow label="Categoria" value={detailItem.category} />}
+              {detailItem.payment_method && <DetailRow label="Forma de pagamento" value={ACCOUNT_PAYMENT_METHODS.find(([key]) => key === detailItem.payment_method)?.[1] || detailItem.payment_method} />}
+              {detailItem.document_number && <DetailRow label="Documento" value={detailItem.document_number} />}
+              {detailItem.cost_center && <DetailRow label="Centro de custo" value={detailItem.cost_center} />}
+              {detailItem.payment_details && <DetailRow label="Dados de cobrança" value={<span className="whitespace-pre-wrap break-all">{detailItem.payment_details}</span>} />}
               {detailItem.series && (
                 <DetailRow label="Parcela" value={`${detailItem.installment_number}/${detailItem.series.installments_count}`} valueClass="font-medium text-violet-600" />
               )}
@@ -1465,14 +1518,14 @@ export default function ContasPagar() {
       <Modal
         isOpen={isFormModal}
         onClose={closeModal}
-        size="lg"
+        size="xl"
         title={modalMode === "create" ? "Nova Conta a Pagar" : "Editar Conta"}
         subtitle="Preencha os dados da conta"
         footer={
           <ModalFooter>
             <Button variant="ghost" size="sm" onClick={closeModal}>Cancelar</Button>
             <Button form="ap-form" type="submit" size="sm" loading={saving}>
-              {modalMode === "create" ? "Cadastrar" : "Salvar"}
+              {modalMode === "create" ? "Cadastrar" : editScope === "pending_series" ? "Salvar parcelas pendentes" : "Salvar conta"}
             </Button>
           </ModalFooter>
         }
@@ -1504,15 +1557,14 @@ export default function ContasPagar() {
 
               {/* Valor + Vencimento */}
               <div data-tour="contas-pagap-form-amount-due" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Input
-                  label="Valor (R$) *"
-                  iconLeft={<DollarSign size={14} />}
-                  type="number" step="0.01" min="0.01" required placeholder="0,00"
+                <CurrencyInput
+                  label={recurrenceEnabled && canPlan ? valueMode === "per_installment" ? "Valor de cada parcela *" : editScope === "pending_series" ? "Total das parcelas pendentes *" : "Valor total do parcelamento *" : recurringVariable ? "Valor por ocorrência *" : "Valor *"}
+                  required placeholder="0,00"
                   value={form.amount}
-                  onChange={e => setForm({ ...form, amount: e.target.value })}
+                  onValueChange={amount => setForm({ ...form, amount })}
                 />
                 <Input
-                  label="Vencimento *"
+                  label={recurrenceEnabled && canPlan ? "Primeiro vencimento *" : "Vencimento *"}
                   type="date" required
                   value={form.due_date}
                   onChange={e => setForm({ ...form, due_date: e.target.value })}
@@ -1535,14 +1587,7 @@ export default function ContasPagar() {
                   />
                   <p className="text-[11px] text-slate-500">Não achou? Digite o nome e clique em "Adicionar" pra cadastrar.</p>
                 </div>
-                <Select
-                  label="Categoria"
-                  value={form.category}
-                  onChange={e => setForm({ ...form, category: e.target.value })}
-                >
-                  <option value="">Selecionar...</option>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </Select>
+                <div><Input label="Categoria" list="payable-categories" maxLength={191} placeholder="Selecionar ou digitar..." value={form.category} onChange={event=>setForm({...form,category:event.target.value})}/><datalist id="payable-categories">{Array.from(new Set([...CATEGORIES,...items.map(item=>item.category).filter(Boolean)])).map(category=><option key={category!} value={category!}/>)}</datalist></div>
               </div>
 
               <div className="space-y-1.5">
@@ -1563,21 +1608,22 @@ export default function ContasPagar() {
               />
             </div>
 
+            <div data-form-tab="pagamento" className={cn("space-y-4", formTab !== "pagamento" && "hidden")}><AccountPaymentFields kind="payable" value={form} onChange={patch=>setForm(previous=>({...previous,...patch}))}/></div>
+
             <div data-form-tab="lancamento" className={cn("space-y-3", formTab !== "lancamento" && "hidden")}>
+              {modalMode === "edit" && selected?.series_id && <div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50/40 p-4"><Select label="O que deseja editar?" value={editScope} onChange={event=>changeEditScope(event.target.value as "account" | "pending_series")}><option value="account">Somente esta parcela</option><option value="pending_series" disabled={!pendingSeries.length}>Parcelas pendentes do parcelamento</option></Select><p className="text-xs leading-relaxed text-slate-600">{editScope === "account" ? "Os dados e o valor desta parcela serão alterados individualmente." : <>{pendingSeries.length} pendentes serão revisadas. {lockedSeriesCount} baixadas ou canceladas permanecem como estão.</>}</p></div>}
               {(modalMode === "create" || modalMode === "edit") && (
                 <PanelCard title="Tipo de lançamento">
                   <div className="space-y-3">
-                    <FilterLineSegmented<string>
+                    <fieldset disabled={!!selected?.series_id || (modalMode === "edit" && selected?.status !== "pending" && selected?.status !== "overdue")}><FilterLineSegmented<string>
                       value={recurrenceEnabled ? "installments" : recurringVariable ? "recurring" : "single"}
                       onChange={(mode) => {
                         setRecurrenceEnabled(mode === "installments");
                         setRecurringVariable(mode === "recurring");
                         if (mode === "installments" && valueMode === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
                       }}
-                      options={modalMode === "create"
-                        ? [{ value: "single", label: "Única" }, { value: "installments", label: "Parcelada" }, { value: "recurring", label: "Recorrente" }]
-                        : [{ value: "single", label: "Única" }, { value: "recurring", label: "Recorrente" }]}
-                    />
+                      options={[{ value: "single", label: "Única" }, { value: "installments", label: "Parcelada" }, { value: "recurring", label: "Recorrente" }]}
+                    /></fieldset>
                     <p className="text-[11px] text-slate-500">
                       {recurrenceEnabled
                         ? "Nº de parcelas e valores já conhecidos (ex.: financiamento em 48x)."
@@ -1629,12 +1675,12 @@ export default function ContasPagar() {
                       </div>
                     )}
 
-                    {modalMode === "create" && recurrenceEnabled && (
+                    {recurrenceEnabled && canPlan && (
                       <div className="space-y-3 pt-1">
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                           <Input
                             label="Nº de parcelas"
-                            type="number" min={2} value={installmentsCount}
+                            type="number" min={selected?.series_id ? 1 : 2} max={360} disabled={!!selected?.series_id && lockedSeriesCount > 0} value={installmentsCount}
                             onChange={(e) => {
                               setInstallmentsCount(e.target.value);
                               if (valueMode === "variable") syncVariableAmounts(Number(e.target.value) || 2, form.amount);
@@ -1668,10 +1714,9 @@ export default function ContasPagar() {
                           <FilterLineSegmented<string>
                             value={valueMode}
                             onChange={(m) => {
-                              setValueMode(m as "fixed" | "variable");
-                              if (m === "variable") syncVariableAmounts(Number(installmentsCount) || 2, form.amount);
+                              changeValueMode(m as "per_installment" | "fixed" | "variable");
                             }}
-                            options={[{ value: "fixed", label: "Dividir igualmente" }, { value: "variable", label: "Personalizar valores" }]}
+                            options={[{ value: "per_installment", label: "Valor por parcela" }, { value: "fixed", label: "Dividir valor total" }, { value: "variable", label: "Personalizar valores" }]}
                           />
                         </div>
 
@@ -1680,10 +1725,10 @@ export default function ContasPagar() {
                             {variableAmounts.map((v, i) => (
                               <div key={i} className="flex items-center gap-2">
                                 <span className="w-6 shrink-0 text-[11px] text-slate-500">{i + 1}ª</span>
-                                <Input
+                                <CurrencyInput
                                   aria-label={`Valor da parcela ${i + 1}`}
-                                  type="number" step="0.01" min="0" value={v}
-                                  onChange={(e) => setVariableAmounts((prev) => prev.map((p, idx) => idx === i ? e.target.value : p))}
+                                  required value={v}
+                                  onValueChange={value => setVariableAmounts((prev) => prev.map((p, idx) => idx === i ? value : p))}
                                   wrapperClassName="flex-1"
                                 />
                               </div>
@@ -1716,6 +1761,9 @@ export default function ContasPagar() {
                         </div>
                       </div>
                     )}
+                    {recurrenceEnabled && !canPlan && <p className="rounded-lg bg-slate-50 p-3 text-xs leading-relaxed text-slate-500">Parcela {selected?.installment_number}/{selected?.series?.installments_count}. Para revisar quantidade, intervalo, juros e valores do parcelamento, escolha “Parcelas pendentes do parcelamento” acima.</p>}
+                    {recurrenceEnabled && canPlan && <><p className="text-xs text-slate-500">{lockedSeriesCount > 0 ? "A quantidade fica preservada porque já existem parcelas baixadas ou canceladas." : valueMode === "per_installment" ? "O valor informado será repetido em cada parcela." : "O total será distribuído entre os vencimentos abaixo."}</p><p className="rounded-lg bg-blue-50 p-3 text-sm font-semibold text-blue-900">{installmentsCount} parcelas · Total{editScope === "pending_series" ? " pendente" : ""}: R$ {fmt(Number(planTotal) || 0)}</p><AccountSchedulePreview amount={planTotal} due={form.due_date} count={Number(installmentsCount)} unit={intervalUnit} every={Number(intervalCount)} amounts={valueMode === "variable" ? variableAmounts : undefined}/></>}
+                    {recurringVariable && <AccountSchedulePreview recurring amount={form.amount} due={form.due_date} count={3} unit={intervalUnit} every={Number(intervalCount)}/>}
                   </div>
                 </PanelCard>
               )}
@@ -1764,7 +1812,7 @@ export default function ContasPagar() {
             {/* Valor em destaque */}
             <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-center">
               <p className="mb-1 text-[11px] text-rose-700">Valor a Pagar</p>
-              <p className="text-2xl font-semibold tabular-nums text-rose-700">R$ {fmt(Number(selected.amount))}</p>
+              <p className="text-2xl font-semibold tabular-nums text-rose-700">R$ {fmt(variableSettlement && !sameSettlementValue ? Number(settlementAmount) || 0 : Number(selected.amount))}</p>
             </div>
 
             {selected.is_recurring && (
@@ -1781,6 +1829,7 @@ export default function ContasPagar() {
 
             {/* Data pagamento */}
             <form id="pay-form" onSubmit={handlePay}>
+              <div className="mb-3"><>{variableSettlement && <div className="space-y-3 rounded-lg border border-slate-200 p-3"><Switch label="Usar o mesmo valor desta conta" checked={sameSettlementValue} onChange={setSameSettlementValue}/>{!sameSettlementValue && <CurrencyInput label="Valor real desta ocorrência *" required value={settlementAmount} onValueChange={setSettlementAmount}/>}<p className="text-xs leading-relaxed text-slate-500">O valor confirmado será a estimativa da próxima ocorrência, sem os juros desta conta. Você poderá conferir e ajustar novamente na próxima baixa.</p></div>}</><AccountPaymentMethod label="Forma de pagamento" value={settlementMethod} onChange={setSettlementMethod}/></div>
               <Input
                 label="Data do Pagamento"
                 type="date" value={paidDate}
@@ -1841,11 +1890,11 @@ export default function ContasPagar() {
                 Vencida em {formatDateBR(interestTarget.due_date)} · Valor atual R$ {fmt(Number(interestTarget.amount))}
               </p>
             </div>
-            <Input
-              label="Valor do juros (R$)"
-              type="number" step="0.01" min="0.01" autoFocus
+            <CurrencyInput
+              label="Valor dos juros"
+              autoFocus
               value={interestValue}
-              onChange={(e) => setInterestValue(e.target.value)}
+              onValueChange={setInterestValue}
               hint={`Novo valor da conta: R$ ${fmt(Number(interestTarget.amount) + (Number(interestValue) || 0))}. Essa ação não pode ser desfeita.`}
             />
           </div>

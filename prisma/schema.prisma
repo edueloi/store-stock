@@ -1049,6 +1049,11 @@ model AccountReceivable {
   // foi capturado via "Faturar" (pagamento imediato) — o cliente paga só depois de um
   // prazo. onDelete SetNull: excluir a OS não deve apagar o histórico financeiro já gerado.
   service_order_id          Int?
+  payment_method            String?
+  document_number           String?
+  cost_center               String?
+  payment_details           String? @db.Text
+  recurrence_value_mode     String? // fixed | variable
   created_at                DateTime  @default(now())
   updated_at                DateTime  @updatedAt
 
@@ -1083,6 +1088,11 @@ model AccountPayable {
   // Classificação contábil pra relatórios (Excel/PDF) — "fixed" (aluguel, salário,
   // financiamento) ou "variable" (fornecedor, comissão, insumo). Null = não classificado.
   cost_type                 String?
+  payment_method            String?
+  document_number           String?
+  cost_center               String?
+  payment_details           String? @db.Text
+  recurrence_value_mode     String? // fixed | variable
   created_at                DateTime  @default(now())
   updated_at                DateTime  @updatedAt
 
@@ -1109,7 +1119,7 @@ model FinanceSeries {
   installments_count  Int
   interval_unit       String // "day" | "week" | "month"
   interval_count      Int      @default(1) // "a cada N dias/semanas/meses"
-  value_mode          String   @default("fixed") // "fixed" | "variable"
+  value_mode          String   @default("fixed") // "per_installment" | "fixed" | "variable"
   interest_rate       Decimal  @default(0) @db.Decimal(5, 2) // % ao período
   interest_period     String   @default("month") // "day" | "month"
   interest_grace_days Int      @default(0)
