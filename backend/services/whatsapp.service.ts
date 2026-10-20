@@ -1644,6 +1644,26 @@ function extractAiText(payload: unknown, provider: WhatsappWorkspaceSettings["ai
 
 // Modelo fixo: o lojista não escolhe. Aliases "-latest" acompanham o modelo atual do Google;
 // um valor digitado errado (ou preenchido pelo navegador) derrubaria o atendimento.
+const AI_GEMINI_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"];
+
+function aiErrorReason(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    const apiMessage = isRecord(data) && isRecord(data.error) ? String(data.error.message ?? "") : "";
+    return apiMessage || error.message;
+  }
+  return error instanceof Error ? error.message : "erro desconhecido";
+}
+
+/** Texto amigável para o lojista a partir do motivo técnico devolvido pela API de IA. */
+function friendlyAiReason(reason: string): string {
+  const text = reason.toLowerCase();
+  if (/high demand|overloaded|unavailable|quota|rate|exceeded|too many/.test(text)) return "O serviço de IA está com alto volume de uso agora. Tente de novo em alguns instantes.";
+  if (/api key|api_key|permission|unauthenticated|invalid|forbidden|401|403/.test(text)) return "A chave da IA foi recusada. Confira se copiou a chave inteira e se ela está ativa no AI Studio.";
+  if (/not found|404/.test(text)) return "O modelo de IA não está disponível para esta chave.";
+  return `A IA não respondeu: ${reason.slice(0, 160)}`;
+}
+
 const AI_DEFAULT_MODEL = { gemini: "gemini-flash-latest", openai: "gpt-4o-mini" } as const;
 
 async function generateZeAiReply(
@@ -1651,7 +1671,7 @@ async function generateZeAiReply(
   tenantName: string,
   message: string,
   registeredCustomer: RegisteredCustomer | null,
-  context?: { tenantId: number; conversationId?: number },
+  context?: { tenantId: number; conversationId?: number; onError?: (reason: string) => void },
 ) {
   if (settings.ai_provider === "rules" || !settings.ai_api_key) return null;
 
@@ -1718,29 +1738,48 @@ async function generateZeAiReply(
       return extractAiText(response.data, "openai").slice(0, 1_200) || null;
     }
 
-    const model = encodeURIComponent(AI_DEFAULT_MODEL.gemini);
-    const response = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        systemInstruction: { parts: [{ text: instructions }] },
-        contents: [
-          ...history.map((h) => ({ role: h.role === "customer" ? "user" : "model", parts: [{ text: h.text }] })),
-          { role: "user", parts: [{ text: input }] },
-        ],
-        // modelos "thinking" gastam parte do limite pensando; folga para a resposta não vir vazia
-        generationConfig: { temperature: 0.5, maxOutputTokens: 1_500 },
-      },
-      {
-        headers: { "x-goog-api-key": settings.ai_api_key, "Content-Type": "application/json" },
-        timeout: 25_000,
-      },
-    );
-    return extractAiText(response.data, "gemini").slice(0, 1_200) || null;
+    // O Google às vezes responde "alto volume de uso" (503/429) em um modelo por alguns segundos:
+    // tenta de novo uma vez e, se continuar, cai para o modelo leve antes de desistir.
+    const body = {
+      systemInstruction: { parts: [{ text: instructions }] },
+      contents: [
+        ...history.map((h) => ({ role: h.role === "customer" ? "user" : "model", parts: [{ text: h.text }] })),
+        { role: "user", parts: [{ text: input }] },
+      ],
+      // modelos "thinking" gastam parte do limite pensando; folga para a resposta não vir vazia
+      generationConfig: { temperature: 0.5, maxOutputTokens: 1_500 },
+    };
+    let lastReason = "";
+    for (const modelName of AI_GEMINI_MODELS) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const response = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
+            body,
+            { headers: { "x-goog-api-key": settings.ai_api_key, "Content-Type": "application/json" }, timeout: 25_000 },
+          );
+          const text = extractAiText(response.data, "gemini").slice(0, 1_200);
+          if (text) return text;
+          lastReason = "a IA devolveu uma resposta vazia";
+          break;
+        } catch (error) {
+          lastReason = aiErrorReason(error);
+          const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+          console.error(`[whatsapp] IA do Zé (${modelName}, tentativa ${attempt + 1}): ${lastReason}`);
+          if (status && [429, 500, 502, 503, 504].includes(status) && attempt === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 1_500));
+            continue;
+          }
+          break;
+        }
+      }
+    }
+    context?.onError?.(lastReason);
+    return null;
   } catch (error) {
-    const reason = axios.isAxiosError(error)
-      ? String(error.response?.data && isRecord(error.response.data) ? error.response.data.error?.message ?? error.message : error.message)
-      : error instanceof Error ? error.message : "erro desconhecido";
+    const reason = aiErrorReason(error);
     console.error(`[whatsapp] IA do Zé indisponível: ${reason}`);
+    context?.onError?.(reason);
     return null;
   }
 }
@@ -1768,15 +1807,18 @@ async function tryHandleZeAiMessage(
   return true;
 }
 
-export async function testWhatsappAi(tenantId: number) {
+export async function testWhatsappAi(tenantId: number, question?: string) {
   const workspace = await ensureWorkspace(tenantId);
   const settings = parseSettings(workspace.settings);
   if (settings.ai_provider === "rules" || !settings.ai_api_key) {
     throw new Error("Escolha Gemini ou OpenAI e informe a chave da API antes de testar.");
   }
   const { tenant } = await getWorkspaceWithTenantByTenantId(tenantId);
-  const reply = await generateZeAiReply(settings, tenant.name, "Responda apenas: integração pronta.", null, { tenantId });
-  if (!reply) throw new Error("A API não retornou uma resposta. Confira a chave, o modelo e o acesso à API.");
+  // Com pergunta do lojista, responde como responderia a um cliente (com loja e catálogo reais).
+  const message = question?.trim() ? question.trim().slice(0, 300) : "Responda apenas: integração pronta.";
+  let failure = "";
+  const reply = await generateZeAiReply(settings, tenant.name, message, null, { tenantId, onError: (reason) => { failure = reason; } });
+  if (!reply) throw new Error(failure ? friendlyAiReason(failure) : "A API não retornou uma resposta. Confira a chave e o acesso à API.");
   return { ok: true, reply };
 }
 

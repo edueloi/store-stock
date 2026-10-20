@@ -55,6 +55,7 @@ export default function WhatsappChannelConfig() {
   const [startForm, setStartForm] = useState({ customer_name: "", phone: "" });
   const [testingAi, setTestingAi] = useState(false);
   const [aiTestReply, setAiTestReply] = useState("");
+  const [aiQuestion, setAiQuestion] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,8 +110,8 @@ export default function WhatsappChannelConfig() {
   const setSettings = (patch: Partial<Settings>) => setData((current) => current ? { ...current, workspace: { ...current.workspace, settings: { ...current.workspace.settings, ...patch } } } : current);
   const setWorkspace = (patch: Partial<Workspace>) => setData((current) => current ? { ...current, workspace: { ...current.workspace, ...patch } } : current);
 
-  async function saveWorkspace() {
-    if (!workspace) return;
+  async function saveWorkspace(): Promise<boolean> {
+    if (!workspace) return false;
     setSaving(true);
     try {
       const response = await fetch("/api/whatsapp/workspace", { method: "PUT", headers: headers(), body: JSON.stringify(workspace) });
@@ -119,7 +120,8 @@ export default function WhatsappChannelConfig() {
       setSettings({ ai_api_key: "" });
       toast.success("Configurações salvas.");
       await load();
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao salvar."); }
+      return true;
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao salvar."); return false; }
     finally { setSaving(false); }
   }
 
@@ -127,11 +129,15 @@ export default function WhatsappChannelConfig() {
     setTestingAi(true);
     setAiTestReply("");
     try {
-      const response = await fetch("/api/whatsapp/test-ai", { method: "POST", headers: headers() });
+      // Chave recém-digitada ainda não está no servidor: salva primeiro, depois testa.
+      if (settings?.ai_api_key) {
+        const saved = await saveWorkspace();
+        if (!saved) return;
+      }
+      const response = await fetch("/api/whatsapp/test-ai", { method: "POST", headers: headers(), body: JSON.stringify({ message: aiQuestion.trim() || undefined }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "O teste falhou.");
       setAiTestReply(String(result.reply || "Integração pronta."));
-      toast.success("A IA respondeu. Integração funcionando.");
     } catch (error) { toast.error(error instanceof Error ? error.message : "O teste falhou."); }
     finally { setTestingAi(false); }
   }
@@ -216,18 +222,22 @@ export default function WhatsappChannelConfig() {
             {settings.ai_provider !== "rules" && <>
               <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">O modelo de IA é escolhido automaticamente pelo sistema (sempre o mais recente e rápido). Você só precisa colar a chave.</p>
               <Input label={settings.ai_api_key_configured ? "Nova chave da IA (uma chave já está guardada)" : "Chave da IA (API key)"} name="ai-api-key-field" type="password" autoComplete="new-password" value={settings.ai_api_key} onChange={(e) => setSettings({ ai_api_key: e.target.value })} showCount={false} />
-              <div className="flex flex-wrap items-center gap-3">
-                <Button type="button" variant="outline" size="sm" onClick={() => void testAssistant()} loading={testingAi} disabled={!settings.ai_api_key_configured}>Testar assistente</Button>
-                <span className="text-xs text-slate-500">{settings.ai_api_key_configured ? "Usa a chave já salva." : "Salve a chave primeiro para poder testar."}</span>
+              <div className="rounded-lg border border-slate-200 p-4">
+                <p className="text-sm font-semibold text-slate-900">Testar o assistente</p>
+                <p className="mt-1 text-xs text-slate-500">Faça uma pergunta como se fosse um cliente (ex.: "tem bolo de chocolate?" ou "qual o horário?"). A resposta usa o catálogo e os dados reais da loja. Se você colou uma chave nova, ela é salva automaticamente ao testar.</p>
+                <div className="mt-3 flex gap-2">
+                  <div className="min-w-0 flex-1"><Input label="Pergunta do cliente" name="ai-test-question" autoComplete="off" value={aiQuestion} onChange={(e) => setAiQuestion(e.target.value)} placeholder="Deixe em branco só para testar a conexão" showCount={false} /></div>
+                  <div className="flex items-end"><Button type="button" variant="primary" size="md" onClick={() => void testAssistant()} loading={testingAi} disabled={!settings.ai_api_key && !settings.ai_api_key_configured}>Testar</Button></div>
+                </div>
+                {aiTestReply && <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm leading-6 text-emerald-900"><p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Resposta do assistente</p><p className="mt-1 whitespace-pre-wrap">{aiTestReply}</p></div>}
               </div>
-              {aiTestReply && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Resposta da IA: {aiTestReply}</p>}
               {settings.ai_provider === "gemini" && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
                   <p className="font-semibold text-slate-900">Como conseguir a chave do Gemini (grátis)</p>
                   <ol className="mt-2 list-decimal space-y-1 pl-5">
                     <li>Abra o <a className="inline-flex items-center gap-1 font-semibold text-blue-700 underline" href="https://aistudio.google.com/api-keys" target="_blank" rel="noreferrer">Google AI Studio <ExternalLink size={12} /></a> e entre com sua conta Google.</li>
                     <li>Clique em <b>Criar chave de API</b>, dê um nome (ex.: "Minha loja") e escolha o projeto.</li>
-                    <li>Copie a chave gerada e cole no campo acima. Depois clique em <b>Salvar</b> e em <b>Testar assistente</b>.</li>
+                    <li>Copie a chave gerada e cole no campo acima. Depois clique em <b>Testar</b> (a chave é salva junto) e, por fim, em <b>Salvar</b> no topo para ativar.</li>
                   </ol>
                   <p className="mt-2 text-xs text-slate-500">O plano gratuito tem limite de mensagens por minuto/dia e pode usar as conversas para melhorar os modelos do Google. Para uso em volume ou mais privacidade, ative o faturamento no AI Studio (pago por uso). A chave é sua e fica guardada só no servidor.</p>
                 </div>

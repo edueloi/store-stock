@@ -93,7 +93,7 @@ export async function testWhatsappAiHandler(req: Request, res: Response) {
   }
 
   try {
-    res.json(await testWhatsappAi(tenantId));
+    res.json(await testWhatsappAi(tenantId, typeof req.body?.message === "string" ? req.body.message : undefined));
   } catch (error) {
     res.status(400).json({ error: getErrorMessage(error) });
   }
