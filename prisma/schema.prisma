@@ -456,6 +456,12 @@ model Product {
   attributes     Json?
   skus           Json?
 
+  // --- Envio / embalagem (vendas online: cálculo de frete) ---
+  weight_grams       Int?                       // peso do produto embalado, em gramas
+  package_length_cm  Decimal? @db.Decimal(8, 2) // comprimento da embalagem
+  package_width_cm   Decimal? @db.Decimal(8, 2) // largura da embalagem
+  package_height_cm  Decimal? @db.Decimal(8, 2) // altura da embalagem
+
   // --- Venda por medida (m²/metro linear) --- vidraçaria/marcenaria/gráfica
   sale_unit             String   @default("unidade") // "unidade" | "m2" | "linear" | "peso" | "volume"
   price_per_measure     Decimal? @db.Decimal(10, 2)

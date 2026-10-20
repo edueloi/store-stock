@@ -229,6 +229,11 @@ export interface Product {
   measure_min_stock?: number | null;
   /** Unidade configurada para a venda por medida: m, cm, mm, km, m2, cm2... */
   measure_unit?: string | null;
+  // Envio / embalagem (vendas online)
+  weight_grams?: number | null;
+  package_length_cm?: number | null;
+  package_width_cm?: number | null;
+  package_height_cm?: number | null;
   // Dados fiscais
   ncm?: string;
   cest?: string;

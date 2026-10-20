@@ -882,6 +882,23 @@ export default function ProductForm({
                   )}
                 </PanelCard>
 
+                <PanelCard title="Envio e Embalagem" description="Usado no cálculo de frete das vendas online." icon={Boxes} contentClassName="space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <Input label="Peso (g)" type="number" step="1" min="0" placeholder="Ex.: 350" className="font-mono"
+                      value={editingProduct?.weight_grams ?? ""}
+                      onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, weight_grams: v === "" ? null : Math.round(Number(v)) })); }} />
+                    <Input label="Comprimento (cm)" type="number" step="0.1" min="0" className="font-mono"
+                      value={editingProduct?.package_length_cm ?? ""}
+                      onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, package_length_cm: v === "" ? null : Number(v) })); }} />
+                    <Input label="Largura (cm)" type="number" step="0.1" min="0" className="font-mono"
+                      value={editingProduct?.package_width_cm ?? ""}
+                      onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, package_width_cm: v === "" ? null : Number(v) })); }} />
+                    <Input label="Altura (cm)" type="number" step="0.1" min="0" className="font-mono"
+                      value={editingProduct?.package_height_cm ?? ""}
+                      onChange={e => { const v = e.target.value; setEditingProduct(prev => ({ ...prev!, package_height_cm: v === "" ? null : Number(v) })); }} />
+                  </div>
+                </PanelCard>
+
                 {/* ── VARIAÇÕES ── */}
                 <PanelCard
                   title="Grades & Variações"

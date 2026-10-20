@@ -34,6 +34,7 @@ type StorefrontSettings = {
   checkout_payment_methods?: { pix?: boolean; cash_on_delivery?: boolean; card_on_delivery?: boolean; mercadopago?: boolean; asaas?: boolean };
   delivery?: { pickup_enabled?: boolean; delivery_enabled?: boolean; cep_zones?: CepZone[] };
   order_notification_emails?: string;
+  hide_product_description?: boolean; // lojista não quer descrição dos produtos na vitrine
 };
 
 function digits(value: unknown) {
@@ -158,10 +159,12 @@ export async function getPublicStore(req: Request, res: Response) {
       }),
     ]);
 
+    const hideDescription = Boolean(checkoutSettings(tenant).hide_product_description);
+
     res.json({
       tenant: publicTenant(tenant),
       categories,
-      products,
+      products: hideDescription ? products.map((product) => ({ ...product, description: null })) : products,
     });
   } catch {
     res.status(500).json({ error: "Failed to fetch store" });
