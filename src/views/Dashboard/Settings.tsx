@@ -1237,6 +1237,7 @@ export default function Settings({
     {},
   );
   const [gatewaySaving, setGatewaySaving] = useState<string | null>(null);
+  const [asaasOwnToken, setAsaasOwnToken] = useState(false);
 
   // password fields
   const [newPass, setNewPass] = useState("");
@@ -4238,7 +4239,7 @@ export default function Settings({
                                   label="Pronta para ativação"
                                 />
                               </div>
-                              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_130px_auto]">
+                              <div className={`mt-3 grid gap-2 sm:grid-cols-[1fr_130px_auto] ${provider === "asaas" && !asaasOwnToken && !(gateway?.connected && !gateway?.managed) ? "hidden" : ""}`}>
                                 <Input value={gatewayTokens[provider] || ""} onChange={(e) =>
                                     setGatewayTokens((current) => ({
                                       ...current,
@@ -4283,7 +4284,16 @@ export default function Settings({
                                       : "Conectar"}
                                 </Button>
                               </div>
-                              {provider === "asaas" && (
+                              {provider === "asaas" && !gateway?.managed && !gateway?.connected && (
+                                <button
+                                  type="button"
+                                  className="mt-2 text-[11px] font-semibold text-sky-700 underline"
+                                  onClick={() => setAsaasOwnToken((v) => !v)}
+                                >
+                                  {asaasOwnToken ? "Voltar para abrir conta de recebimento" : "Já tenho conta Asaas própria (usar token)"}
+                                </button>
+                              )}
+                              {provider === "asaas" && !asaasOwnToken && (
                                 <AsaasAccountSetup
                                   key={gateway?.managed ? "managed" : "new"}
                                   gateway={gateway}

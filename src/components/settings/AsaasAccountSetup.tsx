@@ -29,7 +29,7 @@ const EMPTY = {
 };
 
 export default function AsaasAccountSetup({ gateway, headers, onChanged, onMessage }: Props) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!gateway?.connected);
   const [form, setForm] = useState(EMPTY);
   const [busy, setBusy] = useState(false);
   const [rules, setRules] = useState({
