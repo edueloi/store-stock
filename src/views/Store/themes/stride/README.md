@@ -19,3 +19,15 @@ Prompt utilizado:
 `scripts/verify-stride-theme.cjs` usa respostas de API simuladas e Playwright para verificar as quatro páginas em 375, 768 e 1440 px, a prévia, filtros, busca, favoritos, variações, estoque, preço promocional, sacola, abertura do checkout, preços ocultos, catálogo vazio, personalização, slides e menu móvel. Nenhum pedido real é criado.
 
 Execute com Node 20+, Vite na porta 4179 e `PLAYWRIGHT_MODULE` apontando para Playwright ou playwright-core. `THEME_TEST_URL` e `BROWSER_PATH` permitem ajustar o servidor e o navegador.
+
+## Compra completa
+
+Com o modo **Checkout online** ativo, a Stride usa `/checkout` com contato, entrega/retirada e revisão. A sacola guarda somente produtos, opções e quantidades por loja durante sete dias; os preços e saldos atuais são recuperados do catálogo. Dados pessoais não são salvos no armazenamento da sacola.
+
+O endereço usa a consulta ViaCEP no servidor, com tempo limite e preenchimento manual disponível. As taxas vêm das faixas de CEP cadastradas em Minha Loja. Nenhum prazo ou serviço de transportadora é inventado. As formas operacionais deste fluxo são PIX combinado com a loja e dinheiro/cartão na entrega ou retirada, conforme habilitados. A confirmação inicial significa **pedido recebido**, com pagamento pendente.
+
+`/api/public/store-checkout` confere preços, variações, estoque e entrega numa transação. O identificador da tentativa impede pedidos e baixas duplicados. A confirmação privada exige o token enviado na compra/e-mail e pode ser reaberta sem criar outra venda. `/ajuda` exibe as políticas cadastradas pela loja.
+
+Os e-mails ao cliente e à equipe entram na caixa de saída `store_order_emails`, na mesma transação do pedido. Um worker reenvia falhas até cinco tentativas. A equipe recebe também um PDF para conferência. Os destinatários são definidos em **Minha Loja → Checkout**; sem configuração, usa-se o administrador mais antigo. O painel mostra o e-mail do cliente, variações, observações e situação dos envios.
+
+`scripts/verify-store-checkout.ts` testa as regras financeiras e de estoque com banco simulado. `scripts/verify-stride-checkout.cjs` verifica a compra no navegador em desktop e celular, com APIs simuladas e sem criar pedidos ou enviar e-mails reais.

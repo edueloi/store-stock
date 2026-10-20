@@ -3949,6 +3949,16 @@ export default function Settings({
                         </div>
                       </div>
                     )}
+                    {storefront.checkout_mode === "online" && tenant?.template_id === "stride" && <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+                      <p className="text-xs font-semibold text-slate-800">Confirmações dos pedidos online</p>
+                      <Field label="E-mails que recebem cada novo pedido" hint="Separe por vírgula. Se deixar vazio, o administrador mais antigo da loja recebe o aviso. O cliente recebe uma confirmação no e-mail informado na compra.">
+                        <TextInput value={storefront.order_notification_emails || ""} onChange={value=>setStorefront({order_notification_emails:value.toLowerCase()})} placeholder="pedidos@sualoja.com.br"/>
+                      </Field>
+                      <Field label="Instruções de pagamento" hint="Informações que o cliente verá antes de confirmar, como a chave PIX e o nome do favorecido. O pedido continua pendente até a confirmação da loja.">
+                        <Textarea rows={3} maxLength={2000} value={storefront.checkout_payment_instructions || ""} onChange={event=>setStorefront({checkout_payment_instructions:event.target.value})} placeholder="Ex.: Aguarde a conferência da loja antes de fazer o PIX."/>
+                      </Field>
+                      <p className="text-[11px] leading-relaxed text-slate-500">Na Stride Sports, o checkout inclui contato, consulta de endereço por CEP, revisão e confirmação do pedido. Os avisos por e-mail são reenviados automaticamente quando uma tentativa falha.</p>
+                    </div>}
                     <HeroSlidesEditor
                       slides={storefront.hero_slides || []}
                       autoplaySeconds={storefront.hero_autoplay_seconds ?? 6}

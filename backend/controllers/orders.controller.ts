@@ -6,6 +6,7 @@ import { localDateString } from "../utils/date";
 import { cancelarNfce } from "../services/nfce/cancelar";
 import { emitToTenant } from "../services/realtime.service";
 import { recalculateCashSessionSummary } from "./cash-sessions.controller";
+import { adjustStoreCheckoutStock } from "../services/store-checkout-stock";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -421,7 +422,9 @@ export async function updatePendingStorefrontOrder(
     const productById = new Map(
       products.map((product) => [product.id, product]),
     );
-    const items = rawItems.map((item: any) => {
+    const isReservedCheckout = (order.storefront_details as any)?.version === 2;
+    const seenOriginals = new Set<number>();
+    const items = rawItems.map((item: any, index:number) => {
       const productId = Number(item.product_id);
       const product = productById.get(productId);
       const quantity = Math.max(
@@ -434,11 +437,15 @@ export async function updatePendingStorefrontOrder(
       );
       if (!product || !Number.isFinite(unitPrice))
         throw new Error("Há um produto inválido no pedido.");
+      const original = isReservedCheckout ? order.items.find(previous=>previous.id === Number(item.order_item_id)) || (!item.order_item_id && order.items[index]?.product_id === product.id ? order.items[index] : undefined) : undefined;
+      if(isReservedCheckout && (!original || original.product_id !== product.id || seenOriginals.has(original.id)))throw new Error("Confira os itens e suas opções antes de salvar.");
+      if(original)seenOriginals.add(original.id);
       return {
         product_id: product.id,
         name: product.name,
         quantity,
         unit_price: unitPrice,
+        ...(original ? {selected_options:original.selected_options || undefined,dimensions_label:original.dimensions_label} : {}),
       };
     });
     const shippingAmount = Math.max(
@@ -479,6 +486,11 @@ export async function updatePendingStorefrontOrder(
         : "to_confirm",
     };
     await prisma.$transaction(async (tx) => {
+      if(isReservedCheckout) {
+        const current=await tx.order.findFirst({where:{id:orderId,tenant_id:tenantId,status:"pending",updated_at:order.updated_at}});
+        if(!current)throw new Error("Este pedido foi alterado. Atualize a lista antes de editar novamente.");
+        if((order.storefront_details as any)?.stock_tracked !== false)await adjustStoreCheckoutStock(tx,tenantId,orderId,order.items,items);
+      }
       await tx.orderItem.deleteMany({ where: { order_id: orderId } });
       await tx.orderItem.createMany({
         data: items.map((item) => ({ order_id: orderId, ...item })),
@@ -492,7 +504,7 @@ export async function updatePendingStorefrontOrder(
           shipping_amount: shippingAmount,
         },
       });
-    });
+    },{isolationLevel:"Serializable"});
     await logAction(
       tenantId,
       orderId,
@@ -594,7 +606,7 @@ export async function cancelOrder(req: Request, res: Response) {
       quantity: item.quantity,
       selected_options: (item as any).selected_options ?? null,
     }));
-    await revertStock(itemsWithOptions);
+    if ((order.storefront_details as any)?.stock_tracked !== false) await revertStock(itemsWithOptions);
 
     // Build stock revert summary for the log
     const stockNote = order.items
@@ -923,7 +935,7 @@ export async function deleteOrder(req: Request, res: Response) {
     // confirmado) já debitam estoque na criação — precisam devolver ao excluir.
     // "cancelled" já teve o estoque revertido pelo cancelamento, não reverte de novo.
     if (order.status === "completed" || order.status === "pending") {
-      if (shouldRevertStock) {
+      if (shouldRevertStock && (order.storefront_details as any)?.stock_tracked !== false) {
         const itemsWithOptions = order.items.map((item) => ({
           product_id: item.product_id,
           quantity: item.quantity,
@@ -1009,7 +1021,7 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
 
     for (const order of deletable) {
       if (order.status === "completed" || order.status === "pending") {
-        if (shouldRevertStock) {
+        if (shouldRevertStock && (order.storefront_details as any)?.stock_tracked !== false) {
           const itemsWithOptions = order.items.map((item) => ({
             product_id: item.product_id,
             quantity: item.quantity,

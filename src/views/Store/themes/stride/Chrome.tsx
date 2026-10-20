@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { ArrowUpRight, Menu, Search, ShoppingBag, X } from "lucide-react";
+import { ArrowUpRight, Menu, Search, ShoppingBag, X, MessageCircle } from "lucide-react";
+import { useKit } from "../street/kit";
 import { useHeaderState } from "../street/shared";
 import SiteFooter from "../street/SiteFooter";
 import "./styles.css";
+import "./checkout.css";
 
 export function Header() {
   const h = useHeaderState();
@@ -32,6 +34,7 @@ export function Header() {
           <Link to={h.path("/catalogo")} aria-current={h.pathname.includes("/catalogo") ? "page" : undefined}>Explorar</Link>
           {h.used.slice(0, 3).map(c => <Link key={c.id} to={h.path(`/catalogo?categoria=${c.id}`)}>{c.name}</Link>)}
           <Link to={h.path("/sobre")}>Nossa essência</Link>
+          <Link to={h.path("/ajuda")}>Ajuda</Link>
         </nav>
         <div className="sr-actions">
           <button className="sr-icon" type="button" aria-label="Buscar produtos" aria-expanded={searching} onClick={() => setSearching(!searching)}>{searching ? <X size={21} /> : <Search size={21} />}</button>
@@ -48,6 +51,7 @@ export function Header() {
           <Link to={h.path()}>Início <ArrowUpRight /></Link><Link to={h.path("/catalogo")}>Toda a coleção <ArrowUpRight /></Link>
           {h.used.map(c => <Link key={c.id} to={h.path(`/catalogo?categoria=${c.id}`)}>{c.name} <ArrowUpRight /></Link>)}
           <Link to={h.path("/sobre")}>Nossa essência <ArrowUpRight /></Link>
+          <Link to={h.path("/ajuda")}>Entrega, trocas e ajuda <ArrowUpRight /></Link>
         </nav>
       </div>}
     </header>
@@ -55,5 +59,6 @@ export function Header() {
 }
 
 export function Footer() {
-  return <SiteFooter t="sr" tagline="Camisetas, tênis e roupas para viver o seu próprio ritmo. O próximo movimento é seu." />;
+  const {path}=useKit();
+  return <><section className="sr-commerce-help"><p><MessageCircle size={20}/> Uma boa compra vai além da sacola.</p><Link to={path("/ajuda")}>Entrega, trocas e atendimento <ArrowUpRight size={17}/></Link></section><SiteFooter t="sr" tagline="Camisetas, tênis e roupas para viver o seu próprio ritmo. O próximo movimento é seu." /></>;
 }

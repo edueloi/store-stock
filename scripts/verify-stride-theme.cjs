@@ -26,7 +26,7 @@ const products = Array.from({ length: 8 }, (_, i) => ({
         tenant: { id: 1, slug: 'demo', name: 'MOVIMENTO', template_id: 'minimal', primary_color: '', whatsapp: '5511999999999', show_address: true, address: 'Rua da Ação, 100', banner_url: custom ? image : '', hero_tagline: custom ? 'CAMPANHA DA LOJA' : '', policies: { storefront: { hide_prices: hidden, checkout_mode: 'online', cart_title: 'Sua sacola', hero_slides: slides ? [{ id: 'campaign', image, title: 'Banner personalizado', button_label: 'Ver coleção', button_url: '/catalogo' }] : [] } } },
         categories: [{ id: 1, name: 'Camisetas' }, { id: 2, name: 'Tênis' }, { id: 3, name: 'Roupas' }], products: empty ? [] : products,
       } });
-      return route.fulfill({ json: { payment_methods: { pix: true }, delivery: { pickup_available: true, delivery_available: false, delivery_fee: 0 } } });
+      return route.fulfill({ json: { checkout_enabled: true, payment_methods: { pix: true }, delivery: { pickup_available: true, delivery_enabled: false, delivery_available: false, delivery_fee: 0 } } });
     });
     const goto = async (suffix = '') => {
       await page.goto(`${base}/s/demo${suffix}${suffix.includes('?') ? '&' : '?'}previewTheme=stride`);
@@ -76,8 +76,8 @@ const products = Array.from({ length: 8 }, (_, i) => ({
     assert.match(await page.locator('.fragrance-cart-item').innerText(), /Tamanho: P/i);
     assert.match(await page.locator('.fragrance-cart-item').innerText(), /99,90/);
     await page.getByRole('button', { name: 'Continuar para checkout', exact: true }).click();
-    await page.getByPlaceholder('Seu nome *').waitFor();
-    await page.getByRole('button', { name: 'Fechar carrinho', exact: true }).click();
+    await page.getByLabel('Nome completo', { exact: true }).waitFor();
+    assert.ok(page.url().includes('/checkout'));
     console.log('PASS favoritos, prévia, busca, categorias, variação, estoque, preço promocional, sacola e checkout');
     hidden = true;
     await goto('/produto/camiseta-essential-1');

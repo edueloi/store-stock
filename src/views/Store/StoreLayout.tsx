@@ -39,10 +39,13 @@ import { SegmentHeader, SegmentFooter } from "./themes/segments/Chrome";
 import "./themes/segments/styles.css";
 import "./themes/refined-carts.css";
 import { ownPages, ownChrome } from "./themes/own";
+import { restoreStoreCart, serializeStoreCart, storeCartKey } from "../../lib/store-cart";
 
 // ── Store pages (lazy-loaded per theme)
 import { lazy, Suspense } from "react";
 import { useStoreFx } from "../../components/store/fx";
+const StrideCheckout = lazy(() => import("./themes/stride/StoreCheckout"));
+const StrideHelp = lazy(() => import("./themes/stride/StoreHelp"));
 
 function themePages(templateId: string | undefined) {
   const base = legacyThemePages(templateId);
@@ -222,6 +225,8 @@ interface StoreContextValue {
   removeFromCart: (cartItemId: string) => void;
   style: StoreStyle;
   openCart: () => void;
+  closeCart: () => void;
+  clearCart: () => void;
   isElectronics: boolean;
   wishlist: number[];
   toggleWishlist: (id: number) => void;
@@ -553,6 +558,20 @@ function StoreLayoutInner() {
 
   const cartRef = useRef(cart);
   cartRef.current = cart;
+  const [hydratedCartTenant, setHydratedCartTenant] = useState<number | null>(null);
+  useEffect(() => {
+    if (!storeData || templateId !== "stride" || hydratedCartTenant === storeData.tenant.id) return;
+    try {
+      const restored = restoreStoreCart(localStorage.getItem(storeCartKey(storeData.tenant.id)),storeData.products,storeTracksStock(storeData.tenant));
+      cartRef.current = restored;
+      setCart(restored);
+    } catch { /* Armazenamento desativado: a sacola continua funcionando nesta sessão. */ }
+    setHydratedCartTenant(storeData.tenant.id);
+  },[storeData?.tenant.id,templateId,hydratedCartTenant]);
+  useEffect(() => {
+    if (templateId !== "stride" || !storeData || hydratedCartTenant !== storeData.tenant.id) return;
+    try { localStorage.setItem(storeCartKey(storeData.tenant.id),serializeStoreCart(cart)); } catch { /* Sem espaço local. */ }
+  },[cart,hydratedCartTenant,storeData?.tenant.id,templateId]);
   const pageFxRef = useRef<HTMLElement>(null);
   useStoreFx(pageFxRef, templateId || "", location.pathname);
 
@@ -707,6 +726,12 @@ function StoreLayoutInner() {
   };
 
   const openCheckout = async () => {
+    if (templateId === "stride" && checkoutMode === "online") {
+      setIsCartOpen(false);
+      const preview = new URLSearchParams(location.search).get("previewTheme");
+      navigate(storePath("/checkout")+(preview ? `?previewTheme=${encodeURIComponent(preview)}` : ""));
+      return;
+    }
     setCheckoutMessage(null);
     setCheckoutOpen(true);
     await loadCheckoutOptions();
@@ -927,6 +952,8 @@ function StoreLayoutInner() {
     removeFromCart,
     style,
     openCart: () => setIsCartOpen(true),
+    closeCart: () => setIsCartOpen(false),
+    clearCart: () => { cartRef.current = []; setCart([]); },
     isElectronics,
     wishlist,
     toggleWishlist,
@@ -1553,6 +1580,8 @@ function StoreLayoutInner() {
               <Route path="catalogo" element={<StoreCatalog />} />
               <Route path="produto/:productId" element={<StoreProduct />} />
               <Route path="sobre" element={<StoreAbout />} />
+              {templateId === "stride" && <Route path="checkout" element={<StrideCheckout />} />}
+              {templateId === "stride" && <Route path="ajuda" element={<StrideHelp />} />}
             </Routes>
           </Suspense>
         </main>

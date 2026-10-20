@@ -45,6 +45,8 @@ export interface StorePolicies {
     hide_prices?: boolean;
     /** E-mails da fábrica/equipe que recebem o PDF das solicitações de encomenda. */
     order_notification_emails?: string;
+    /** Instruções publicadas pela loja, exibidas antes de confirmar a compra. */
+    checkout_payment_instructions?: string;
     /** Meios manuais e provedores habilitados na vitrine; nenhum token fica aqui. */
     checkout_payment_methods?: {
       pix?: boolean;
@@ -270,6 +272,7 @@ export interface Order {
   customer_id?: number | null;
   customer_name?: string;
   customer_phone?: string;
+  customer_email?: string | null;
   customer_address?: string;
   customer_document?: string | null;
   total_amount: number;

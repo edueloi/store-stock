@@ -51,6 +51,9 @@ type StoreData = {
     id: number;
     customer_name: string | null;
     customer_phone: string | null;
+    customer_email?: string | null;
+    customer_notes?: string;
+    store_emails?: {audience:string;status:string}[];
     customer_document: string | null;
     customer_address: string | null;
     total_amount: number;
@@ -62,9 +65,11 @@ type StoreData = {
     status: string;
     created_at: string;
     items: Array<{
+      id?: number;
       product_id: number | null;
       quantity: number;
       unit_price: number;
+      dimensions_label?: string | null;
       product?: { name: string; sku: string | null } | null;
       name: string | null;
     }>;
@@ -530,6 +535,7 @@ function OnlineOrders({
                   detail={
                     [
                       selected.customer_phone,
+                      selected.customer_email,
                       selected.customer_document
                         ? `Documento: ${selected.customer_document}`
                         : null,
@@ -544,6 +550,8 @@ function OnlineOrders({
                   value={deliveryLabel[selected.delivery_method || ""] || "A combinar"}
                   detail={selected.customer_address || "Endereço não informado"}
                 />
+                {selected.store_emails && selected.store_emails.length>0 && <DetailCard icon={UserRound} label="Confirmações por e-mail" value={selected.store_emails.every(message=>message.status === "sent") ? "E-mails enviados" : selected.store_emails.some(message=>message.status === "failed") ? "Confira os destinatários" : "Envio em andamento"} detail={selected.store_emails.map(message=>`${message.audience === "customer" ? "Cliente" : "Loja"}: ${message.status === "sent" ? "enviado" : message.status === "failed" ? "falhou após novas tentativas" : "na fila de envio"}`).join(" · ")}/>}
+                {selected.customer_notes && <DetailCard icon={UserRound} label="Observações do cliente" value="Informações do pedido" detail={selected.customer_notes}/>}
                 <DetailCard
                   icon={ShoppingCart}
                   label="Pagamento"
@@ -585,6 +593,7 @@ function OnlineOrders({
                           <p className="break-words text-xs font-medium text-slate-800">
                             {item.product?.name || item.name || "Produto removido"}
                           </p>
+                          {item.dimensions_label && <p className="mt-1 break-words text-[11px] text-slate-600">{item.dimensions_label}</p>}
                           <p className="mt-0.5 text-[11px] text-slate-500">
                             {item.product?.sku ? `SKU ${item.product.sku} · ` : ""}
                             {item.quantity} × {money(item.unit_price)}
@@ -743,6 +752,7 @@ function PendingOrderEditor({
           payment_method: payment,
           shipping_amount: Number(shipping) || 0,
           items: items.map((item) => ({
+            order_item_id: item.id,
             product_id: item.product_id,
             quantity: Number(item.quantity),
             unit_price: Number(item.unit_price),

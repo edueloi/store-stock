@@ -598,7 +598,9 @@ model Order {
   customer_id       Int?
   customer_name     String?
   customer_phone    String?
-  customer_address  String?
+  customer_address  String? @db.Text
+  customer_email    String?
+  storefront_details Json?
   customer_document String? // CPF/CNPJ avulso informado na venda (sem cliente cadastrado), para nota fiscal com destinatário identificado (Nota Fiscal Paulista/similares estaduais)
   total_amount      Decimal   @db.Decimal(10, 2)
   gross_amount      Decimal?  @db.Decimal(10, 2)
@@ -634,10 +636,33 @@ model Order {
   debts                 CustomerDebt[]
   returns               OrderReturn[]
   credit_usages         CustomerCreditUsage[]
+  store_emails          StoreOrderEmail[]
 
   @@index([cash_session_id])
   @@index([tenant_id, sales_channel, created_at])
   @@map("orders")
+}
+
+// Caixa de saída durável: falhas de SMTP não apagam nem duplicam uma compra.
+model StoreOrderEmail {
+  id              Int      @id @default(autoincrement())
+  tenant_id       Int
+  order_id        Int
+  audience        String
+  recipient       String
+  payload         Json
+  status          String   @default("pending")
+  attempts        Int      @default(0)
+  next_attempt_at DateTime @default(now())
+  last_error      String?  @db.Text
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  order           Order    @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@unique([order_id, audience, recipient])
+  @@index([status, next_attempt_at])
+  @@index([tenant_id, order_id])
+  @@map("store_order_emails")
 }
 
 model CashSession {
@@ -959,7 +984,8 @@ model OrderItem {
   ncm               String? // opcional, só para item avulso — fallback "00000000" se vazio
   quantity          Int
   unit_price        Decimal @db.Decimal(10, 2)
-  dimensions_label  String?
+  dimensions_label  String? @db.Text
+  selected_options  Json?
   // Quantidade física consumida para itens por medida (m ou m²). `quantity`
   // permanece inteira para preservar relatórios e vendas por unidade.
   measured_quantity Decimal? @db.Decimal(12, 3)

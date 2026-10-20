@@ -22,6 +22,7 @@ import {
   handleStoreSitemap,
 } from "./controllers/store-seo.controller";
 import { releaseExpiredStoreReservations } from "./controllers/public.controller";
+import { startStoreOrderEmailsLoop } from "./services/store-order-email.service";
 import { initRealtime } from "./services/realtime.service";
 
 async function attachFrontend(app: express.Express) {
@@ -88,6 +89,7 @@ export async function startServer() {
   startPushNotificationsLoop();
   startPlatformBillingSuspensionLoop();
   startEmailReportsCron();
+  startStoreOrderEmailsLoop();
   setInterval(() => { releaseExpiredStoreReservations().catch(() => undefined); }, 60_000).unref();
 
   const app = createApp();

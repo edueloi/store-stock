@@ -18,10 +18,11 @@ export async function getStorefrontDashboard(req: Request, res: Response) {
       // O limite ainda protege o painel de uma consulta sem paginação infinita.
       take: 250,
       select: {
-        id: true, customer_name: true, customer_phone: true, customer_document: true, customer_address: true, total_amount: true,
+        id: true, customer_name: true, customer_phone: true, customer_email: true, customer_document: true, customer_address: true, total_amount: true, storefront_details: true,
         gross_amount: true, discount_amount: true, payment_method: true,
         delivery_method: true, shipping_amount: true, status: true, created_at: true,
-        items: { select: { product_id: true, name: true, quantity: true, unit_price: true, product: { select: { name: true, sku: true } } } },
+        items: { select: { id: true, product_id: true, name: true, quantity: true, unit_price: true, dimensions_label: true, product: { select: { name: true, sku: true } } } },
+        store_emails: {select:{audience:true,status:true}},
       },
     });
     const confirmed = orders.filter((order) => order.status === "completed");
@@ -51,6 +52,8 @@ export async function getStorefrontDashboard(req: Request, res: Response) {
       top_products: [...productMap.values()].sort((a, b) => b.units - a.units || b.revenue - a.revenue).slice(0, 8),
       recent_orders: orders.map((order) => ({
         ...order,
+        storefront_details: undefined,
+        customer_notes: String((order.storefront_details as any)?.contact?.notes || ""),
         total_amount: Number(order.total_amount),
         gross_amount: order.gross_amount === null ? null : Number(order.gross_amount),
         discount_amount: order.discount_amount === null ? null : Number(order.discount_amount),
