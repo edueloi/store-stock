@@ -1,7 +1,5 @@
-import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Coffee, Heart, Plus, Search } from "lucide-react";
-import { gsap } from "gsap";
 import { productRouteSegment } from "../../store-routing";
 import type { Product } from "../../../../types";
 import { priceInfo, productImage, useKit, useQuickAdd } from "./kit";
@@ -64,31 +62,4 @@ export function Empty({ title, text, onClear }: { title: string; text: string; o
       )}
     </div>
   );
-}
-
-/** Contador animado (GSAP) que respeita prefers-reduced-motion. */
-export function CountUp({ value }: { value: number }) {
-  const ref = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      el.textContent = String(value);
-      return;
-    }
-    const state = { n: 0 };
-    const tween = gsap.to(state, {
-      n: value,
-      duration: 1.4,
-      ease: "power2.out",
-      scrollTrigger: undefined,
-      onUpdate: () => {
-        el.textContent = String(Math.round(state.n));
-      },
-    });
-    return () => {
-      tween.kill();
-    };
-  }, [value]);
-  return <strong ref={ref}>{value}</strong>;
 }

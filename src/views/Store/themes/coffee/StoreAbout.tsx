@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ArrowRight, Clock, Coffee, MapPin, MessageCircle, Truck } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { hoursLines, productImage, useKit, whatsappLink } from "./kit";
+import { hoursLines, useKit, whatsappLink } from "./kit";
 import "./styles.css";
 
 export default function StoreAbout() {
@@ -9,7 +9,7 @@ export default function StoreAbout() {
   const hours = hoursLines(tenant.business_hours);
   const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
   const about = tenant.about_text || `${tenant.name} nasceu para transformar cada pausa em um momento especial.`;
-  const photo = tenant.banner_url || productImage(active.find((p) => p.is_featured) || active[0]);
+  const photo = tenant.banner_url || "/store-assets/coffee-house-footer-v1.jpg";
   const policies = tenant.policies;
   return (
     <div className="cf-page cf-about">
@@ -50,7 +50,7 @@ export default function StoreAbout() {
         </div>
         <div>
           <Coffee size={30} aria-hidden="true" />
-          <span>feito na hora</span>
+          <span>cafés e sabores</span>
         </div>
       </section>
 

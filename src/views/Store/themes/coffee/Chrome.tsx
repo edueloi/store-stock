@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, Clock, Coffee, Facebook, Instagram, MapPin, Menu, MessageCircle, Search, ShoppingBag, X } from "lucide-react";
+import { ArrowUpRight, ChevronDown, Clock, Coffee, Facebook, Instagram, MapPin, Menu, MessageCircle, Search, ShoppingBasket, X } from "lucide-react";
 import { hoursLines, useKit, whatsappLink } from "./kit";
 import "./styles.css";
 
@@ -53,8 +53,8 @@ export function Header() {
           <Search size={18} aria-hidden="true" />
           <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="O que você quer hoje?" aria-label="Buscar no cardápio" />
         </form>
-        <button type="button" className="cf-cart" aria-label={`Abrir sacola, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`} onClick={openCart}>
-          <ShoppingBag size={21} />
+        <button type="button" className="cf-cart" aria-label={`Abrir cesta, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`} onClick={openCart}>
+          <ShoppingBasket size={22} />
           <span>{cartCount}</span>
         </button>
         <button type="button" className="cf-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
@@ -121,7 +121,13 @@ export function Footer() {
   const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
   const cats = categories.filter((c) => active.some((p) => p.category_id === c.id)).slice(0, 6);
   return (
+    <>
+    <section className="cf-before-footer" aria-label="Um convite para a sua próxima pausa">
+      <img src="/store-assets/coffee-house-footer-v1.jpg" alt="Mesa de madeira junto à janela de uma cafeteria acolhedora" loading="lazy" />
+      <div><span className="cf-hand">UM CANTINHO PARA A SUA PAUSA</span><h2>Tem sempre espaço<br />para um bom café.</h2><Link className="cf-btn" to={path("/sobre")}>Conheça a casa <ArrowUpRight size={18} /></Link></div>
+    </section>
     <footer className="cf-footer">
+      <div className="cf-footer-invitation"><p>A gente se encontra<br /><em>no próximo café.</em></p><Link className="cf-text-link" to={path("/catalogo")}>Escolher minha próxima pausa <ArrowUpRight size={18} /></Link></div>
       <div className="cf-footer-inner">
         <section className="cf-foot-card cf-foot-about">
           <Brand foot />
@@ -187,5 +193,6 @@ export function Footer() {
         </a>
       </p>
     </footer>
+    </>
   );
 }

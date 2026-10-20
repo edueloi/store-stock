@@ -70,10 +70,10 @@ export default function StoreCatalog() {
         </aside>
 
         <div className="cf-results">
-          <p className="cf-count" role="status">
+          <div className="cf-catalog-summary"><p className="cf-count" role="status">
             {c.list.length} {c.list.length === 1 ? "item encontrado" : "itens encontrados"}
             {current ? ` em ${current.name}` : ""}
-          </p>
+          </p>{(c.q || c.cat || c.sort !== "destaques") && <button type="button" onClick={c.clear}>Limpar filtros</button>}</div>
           {c.list.length ? (
             <>
               <div className="cf-list cf-list-one">

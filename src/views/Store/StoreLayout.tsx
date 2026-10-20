@@ -16,6 +16,7 @@ import {
 } from "react-router-dom";
 import {
   ShoppingCart,
+  ShoppingBasket,
   Menu,
   X,
   Search,
@@ -579,7 +580,7 @@ function StoreLayoutInner() {
       }
     }
     const variationImages = getVariationImages(product, options || {});
-    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books', 'agro', 'feed', 'garden', 'electric', 'toys', 'variety', 'aura'].includes(templateId || '');
+    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books', 'agro', 'feed', 'garden', 'electric', 'toys', 'variety', 'aura', 'coffee'].includes(templateId || '');
     const usesDiscountPrice = isSegment(templateId || '') || editorialTheme;
     const storefrontPrice = editorialTheme && Number(product.discount_price) <= 0
       ? product.price
@@ -1923,7 +1924,7 @@ function StoreLayoutInner() {
                     </p>
                   </div>
                   <button
-                    aria-label="Fechar carrinho"
+                    aria-label={templateId === "coffee" ? "Fechar cesta" : "Fechar carrinho"}
                     onClick={() => setIsCartOpen(false)}
                     className={cn(
                       "p-2 rounded-xl",
@@ -1937,6 +1938,7 @@ function StoreLayoutInner() {
                 </div>
 
                 <div className="fragrance-cart-content flex-1 overflow-y-auto bg-slate-50 px-5 py-5 space-y-3">
+                  {templateId === "coffee" && cart.length > 0 && <div className="cf-basket-note"><ShoppingBasket size={28} /><div><strong>Uma cesta de boas pausas.</strong><p>Confira os itens e as quantidades antes de continuar.</p></div></div>}
                   {cart.length === 0 ? (
                     <div
                       className={cn(
@@ -1944,13 +1946,13 @@ function StoreLayoutInner() {
                         isElectronics ? "text-slate-600" : "text-slate-400",
                       )}
                     >
-                      <ShoppingCart
+                      {templateId === "coffee" ? <ShoppingBasket size={52} strokeWidth={1.25} className="cf-empty-basket" /> : <ShoppingCart
                         size={48}
                         strokeWidth={1}
                         className="opacity-20"
-                      />
+                      />}
                       <p className="text-xs font-black uppercase tracking-wider">
-                        Carrinho vazio
+                        {templateId === "coffee" ? "Sua cesta está vazia" : "Carrinho vazio"}
                       </p>
                       <button
                         onClick={() => {
@@ -2327,13 +2329,14 @@ function StoreLayoutInner() {
           >
             <button
               onClick={() => setIsCartOpen(true)}
+              aria-label={templateId === "coffee" ? "Ver cesta de café" : undefined}
               style={{ backgroundColor: style.accent }}
               className={cn(
                 "h-12 px-5 text-white shadow-2xl flex items-center gap-3 font-black text-xs uppercase tracking-wider",
                 isFashion || isTechNova ? "rounded-full" : "rounded-2xl",
               )}
             >
-              <ShoppingCart size={16} />
+              {templateId === "coffee" ? <ShoppingBasket size={18} /> : <ShoppingCart size={16} />}
               {cartCount} {cartCount === 1 ? "item" : "itens"}{hideStorePrices ? " no pedido" : ` · ${total.toLocaleString('pt-BR', { style:'currency', currency:'BRL' })}`}
             </button>
           </motion.div>

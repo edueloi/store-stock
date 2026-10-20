@@ -32,7 +32,7 @@ export function useKit() {
   const sf = store.tenant.policies?.storefront || {};
   const hidden = sf.hide_prices === true || sf.checkout_mode === "order_request";
   const tracks = storeTracksStock(store.tenant);
-  const active = useMemo(() => store.products.filter((p) => p.is_active), [store.products]);
+  const active = useMemo(() => store.products.filter((p) => p.is_active && p.type !== "internal"), [store.products]);
   const cartCount = store.cart.reduce((s, i) => s + i.quantity, 0);
   const catName = (p: Product) =>
     store.categories.find((c) => c.id === p.category_id)?.name || p.category_name || "";
@@ -143,7 +143,7 @@ export function useCatalog(pageSize = 12) {
         (!cat || p.category_id === cat) &&
         (!term || p.name.toLowerCase().includes(term) || (p.sku || "").toLowerCase().includes(term) || (p.description || "").toLowerCase().includes(term)),
     );
-    const val = (p: Product) => Number(p.discount_price ?? p.price);
+    const val = (p: Product) => Number(p.discount_price) > 0 ? Number(p.discount_price) : Number(p.price);
     if (!kit.hidden && sort === "menor") out.sort((a, b) => val(a) - val(b));
     else if (!kit.hidden && sort === "maior") out.sort((a, b) => val(b) - val(a));
     else if (sort === "nome") out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));

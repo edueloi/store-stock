@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Coffee, Minus, Plus, ShoppingBag } from "lucide-react";
+import { ArrowLeft, Check, Coffee, Minus, Plus, ShoppingBasket } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import StockAvailability from "../../../../components/store/StockAvailability";
 import { parseProductIdFromRoute } from "../../store-routing";
@@ -98,6 +98,8 @@ function Details({ product }: { product: Product }) {
             </fieldset>
           ))}
 
+          <div className="cf-preparation-note"><Coffee size={21} /><div><strong>O pedido, do seu jeito.</strong><p>Confira as opções e use o campo abaixo para deixar uma observação para a equipe.</p></div></div>
+
           <label className="cf-note-field">
             <span>Observação (opcional)</span>
             <textarea value={b.note} maxLength={250} onChange={(e) => b.setNote(e.target.value)} placeholder="Ex.: sem açúcar, bem quentinho..." rows={3} />
@@ -114,7 +116,7 @@ function Details({ product }: { product: Product }) {
               </button>
             </div>
             <button type="button" className="cf-btn cf-btn-lg cf-add-main" disabled={!b.canAdd} onClick={b.add}>
-              <ShoppingBag size={19} /> {b.soldOut ? "Indisponível" : sf.checkout_mode === "order_request" ? "Incluir no pedido" : "Adicionar à sacola"}
+              <ShoppingBasket size={19} /> {b.soldOut ? "Indisponível" : sf.checkout_mode === "order_request" ? "Incluir no pedido" : "Adicionar à cesta"}
             </button>
           </div>
           {!b.ready && (
@@ -125,10 +127,10 @@ function Details({ product }: { product: Product }) {
           {b.added && (
             <div className="cf-added" role="status">
               <span>
-                <Check size={18} aria-hidden="true" /> Adicionado à sacola!
+                <Check size={18} aria-hidden="true" /> Adicionado à cesta!
               </span>
               <button type="button" className="cf-btn cf-btn-sm" onClick={b.openCart}>
-                Ver sacola
+                Ver cesta
               </button>
             </div>
           )}
