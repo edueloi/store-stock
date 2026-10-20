@@ -15,6 +15,8 @@ import RelatorioFinanceiroPageTour, { RELATORIO_FINANCEIRO_PAGE_TOUR_EVENTS, typ
 type PmKey = "money" | "pix" | "debit" | "credit";
 type OrigemKey = "produtos" | "servicos" | "mista";
 interface CostItem { description: string; amount: number; date: string; source: "financeiro" | "contas_pagar"; pending?: boolean; unclassified?: boolean }
+interface ReceivableItem { description: string; customer: string | null; amount: number; date: string; overdue: boolean }
+interface ReceberBucket { total: number; overdueTotal: number; items: ReceivableItem[] }
 interface EntradasBucket { byOperator: Record<string, Record<PmKey, number>>; totalByMethod: Record<PmKey, number>; total: number }
 interface MonthReport {
   year: number;
@@ -27,8 +29,9 @@ interface MonthReport {
   cmvByDayByOrigem: Record<number, Record<OrigemKey, number>>;
   custoFixo: { total: number; items: CostItem[] };
   custoVariavel: { total: number; items: CostItem[] };
+  aReceber?: ReceberBucket;
 }
-interface YearlyReport { year: number; months: MonthReport[] }
+interface YearlyReport { year: number; months: MonthReport[]; atrasadasAnteriores?: ReceberBucket }
 
 // Filtro de origem da tela: "todas" soma produto+serviço+misto (comportamento
 // de antes), "produtos"/"servicos" mostram só a origem escolhida (venda mista
@@ -427,6 +430,43 @@ function CustoCards({ custoVariavel, custoFixo }: { custoVariavel: { total: numb
   );
 }
 
+function ReceberCards({ month, anteriores, allMonths }: { month: ReceberBucket; anteriores?: ReceberBucket; allMonths: (ReceberBucket | undefined)[] }) {
+  // Atrasadas: tudo que já venceu e não foi recebido (qualquer mês do ano + anos anteriores),
+  // para uma conta vencida nunca "sumir" só porque o mês selecionado é outro.
+  const atrasadas = [
+    ...(anteriores?.items ?? []),
+    ...allMonths.flatMap((b) => (b?.items ?? []).filter((it) => it.overdue)),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+  const atrasadasTotal = atrasadas.reduce((sum, it) => sum + it.amount, 0);
+
+  const Row = ({ it }: { it: ReceivableItem }) => (
+    <div className={cn("flex items-center justify-between gap-3 px-3 py-2 transition-colors", it.overdue ? "hover:bg-red-50" : "hover:bg-emerald-50")}>
+      <div className="min-w-0">
+        <p className="truncate text-xs font-medium text-slate-700">{it.customer ? `${it.customer} · ` : ""}{it.description}</p>
+        <p className={cn("mt-0.5 text-[11px]", it.overdue ? "font-semibold text-red-600" : "text-slate-500")}>
+          Vence {fmtDateBR(it.date)}{it.overdue ? " · atrasada" : ""} · Contas a Receber
+        </p>
+      </div>
+      <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-700">R$ {fmt(it.amount)}</span>
+    </div>
+  );
+
+  return (
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <PanelCard title="A receber neste mês (em aberto)" contentClassName="p-0" action={<Badge color="success" size="md">R$ {fmt(month.total)}</Badge>}>
+        <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
+          {month.items.length === 0 ? <div className="p-3"><EmptyState title="Nada a receber neste mês" /></div> : month.items.map((it, i) => <Row key={i} it={it} />)}
+        </div>
+      </PanelCard>
+      <PanelCard title="Contas a receber atrasadas" contentClassName="p-0" action={<Badge color="danger" size="md">R$ {fmt(atrasadasTotal)}</Badge>}>
+        <div className="max-h-72 divide-y divide-slate-100 overflow-y-auto">
+          {atrasadas.length === 0 ? <div className="p-3"><EmptyState title="Nenhuma conta atrasada" /></div> : atrasadas.map((it, i) => <Row key={i} it={it} />)}
+        </div>
+      </PanelCard>
+    </div>
+  );
+}
+
 function ResumoCards({ entradasLabel, custosLabel, resultadoLabel, entradas, custos, resultado, cmv }: { entradasLabel: string; custosLabel: string; resultadoLabel: string; entradas: number; custos: number; resultado: number; cmv: number }) {
   const lucroLiquido = resultado - cmv;
   return (
@@ -757,6 +797,7 @@ export default function RelatorioFinanceiro() {
                 <div data-tour="relatorio-custo-cards">
                   <CustoCards custoVariavel={m!.custoVariavel} custoFixo={m!.custoFixo} />
                 </div>
+                <ReceberCards month={m!.aReceber ?? { total: 0, overdueTotal: 0, items: [] }} anteriores={report!.atrasadasAnteriores} allMonths={report!.months.map((mo) => mo.aReceber)} />
               </div>
             ) : view === "day" ? (
               <div className="space-y-3">
@@ -863,6 +904,8 @@ export default function RelatorioFinanceiro() {
                             ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total, "text-violet-700"],
                             ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total, "text-amber-700"],
                             ["Resultado", (mo: MonthReport) => pickBucket(mo.entradas, mo.entradasByOrigem, origemFiltro).total - mo.custoFixo.total - mo.custoVariavel.total, "bg-slate-50 font-semibold"],
+                            ["A receber (em aberto)", (mo: MonthReport) => mo.aReceber?.total ?? 0, "text-emerald-700"],
+                            ["A receber atrasadas", (mo: MonthReport) => mo.aReceber?.overdueTotal ?? 0, "text-red-600"],
                           ] as const).map(([label, getter, rowClass]) => {
                             const values = report.months.map(getter);
                             const total = values.reduce((a, b) => a + b, 0);

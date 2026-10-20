@@ -24,6 +24,17 @@ interface CostItem {
   unclassified?: boolean;
 }
 
+interface ReceivableItem {
+  description: string;
+  customer: string | null;
+  amount: number;
+  date: string; // vencimento, YYYY-MM-DD
+  /** Vencimento anterior a hoje e ainda não recebida. */
+  overdue: boolean;
+}
+
+interface ReceberBucket { total: number; overdueTotal: number; items: ReceivableItem[] }
+
 interface EntradasBucket {
   byOperator: Record<string, Record<PmKey, number>>;
   totalByMethod: Record<PmKey, number>;
@@ -51,6 +62,8 @@ interface MonthReport {
   cmvByDayByOrigem: Record<number, Record<OrigemKey, number>>;
   custoFixo: { total: number; items: CostItem[] };
   custoVariavel: { total: number; items: CostItem[] };
+  // Contas a Receber ainda não recebidas, no mês do vencimento. Não entram no Resultado (não é dinheiro recebido).
+  aReceber: ReceberBucket;
 }
 
 function emptyPmTotals(): Record<PmKey, number> {
@@ -77,6 +90,7 @@ function emptyMonth(year: number, month: number): MonthReport {
     cmvByDayByOrigem: {},
     custoFixo: { total: 0, items: [] },
     custoVariavel: { total: 0, items: [] },
+    aReceber: { total: 0, overdueTotal: 0, items: [] },
   };
 }
 
@@ -105,7 +119,7 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
 
     const months: MonthReport[] = Array.from({ length: 12 }, (_, m) => emptyMonth(year, m));
 
-    const [incomeEntries, expenseEntries, payables] = await Promise.all([
+    const [incomeEntries, expenseEntries, payables, receivables] = await Promise.all([
       prisma.finance.findMany({
         where: { tenant_id: tenantId, type: "income", date: { gte: from, lt: to } },
         select: { amount: true, payment_method: true, order_id: true, date: true },
@@ -126,7 +140,33 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
         },
         select: { description: true, amount: true, cost_type: true, paid_date: true, due_date: true, status: true },
       }),
+      // Contas a Receber não recebidas até o fim do ano consultado: as do ano entram no mês do
+      // vencimento; as de anos anteriores ainda em aberto aparecem como "atrasadas anteriores".
+      prisma.accountReceivable.findMany({
+        where: { tenant_id: tenantId, status: { notIn: ["received", "cancelled"] }, due_date: { lt: to } },
+        select: { description: true, customer_name: true, amount: true, due_date: true },
+        orderBy: { due_date: "asc" },
+      }),
     ]);
+
+    // "Hoje" no fuso de Brasília, para decidir o que está atrasado.
+    const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+    const atrasadasAnteriores: ReceberBucket = { total: 0, overdueTotal: 0, items: [] };
+    for (const r of receivables) {
+      const date = new Date(r.due_date).toISOString().substring(0, 10);
+      const amount = Number(r.amount);
+      const item: ReceivableItem = { description: r.description, customer: r.customer_name, amount, date, overdue: date < todayKey };
+      if (new Date(r.due_date) < from) {
+        atrasadasAnteriores.total += amount;
+        atrasadasAnteriores.overdueTotal += amount;
+        atrasadasAnteriores.items.push({ ...item, overdue: true });
+        continue;
+      }
+      const bucket = months[new Date(r.due_date).getUTCMonth()].aReceber;
+      bucket.total += amount;
+      if (item.overdue) bucket.overdueTotal += amount;
+      bucket.items.push(item);
+    }
 
     // Nome do operador: prioriza Order.seller_name (vendedor escolhido manualmente
     // na venda, campo opcional) e cai para quem tinha o caixa aberto no momento da
@@ -202,7 +242,7 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
       target.items.push({ description: p.description, amount, date: new Date(when).toISOString().substring(0, 10), source: "contas_pagar", pending, ...(p.cost_type ? {} : { unclassified: true }) });
     }
 
-    res.json({ year, months });
+    res.json({ year, months, atrasadasAnteriores });
   } catch (err) {
     console.error("[getYearlyFinancialReport]", err);
     res.status(500).json({ error: "Failed to build financial report" });
