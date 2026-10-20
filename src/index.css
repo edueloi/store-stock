@@ -378,23 +378,7 @@ body {
    carrinho e rodapé em toda a navegação pública. */
 /* Tecnologia Pro define a identidade em themes/tech/styles.css. */
 
-.store-theme-nexus_tech {
-  background: #f7f8fc;
-  color: #0d1b42;
-}
-
-.store-theme-nexus_tech > header {
-  background: rgba(255, 255, 255, .9) !important;
-  border-color: #d7def2 !important;
-  box-shadow: 0 12px 40px rgba(29, 55, 110, .07) !important;
-}
-
-.store-theme-nexus_tech > footer { background: #101b3d !important; border-color: #243765 !important; }
-.store-theme-nexus_tech .tech-shell { background-image: radial-gradient(circle at 8% 6%, rgba(255, 176, 57, .16), transparent 22%), radial-gradient(circle at 90% 17%, rgba(34, 79, 196, .12), transparent 24%), linear-gradient(180deg, #f9fafc, #eef2fb 46%, #fff); }
-.store-theme-nexus_tech .tech-panel { box-shadow: 0 20px 54px rgba(22, 45, 105, .09); }
-.store-theme-nexus_tech .tech-grid { background-image: linear-gradient(rgba(33, 61, 137, .075) 1px, transparent 1px), linear-gradient(90deg, rgba(33, 61, 137, .075) 1px, transparent 1px); }
-.store-theme-nexus_tech .store-kicker { letter-spacing: .2em; text-transform: uppercase; }
-.store-theme-nexus_tech article { border-radius: 18px !important; }
+/* Nexus Tech define menu, cards e rodapé no próprio tema. */
 
 .store-theme-cyber {
   background: #020605;
@@ -502,7 +486,7 @@ body {
 
 @media (max-width: 767px) {
   .store-theme-cyber > header, .store-theme-luxury > header { backdrop-filter: blur(18px); }
-  .store-theme-nexus_tech article, .store-theme-organic article { border-radius: 14px !important; }
+  .store-theme-organic article { border-radius: 14px !important; }
   .store-search-input input { height: 44px; font-size: 16px; }
 }
 

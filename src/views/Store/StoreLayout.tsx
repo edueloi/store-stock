@@ -287,12 +287,12 @@ const templates: Record<string, StoreStyle> = {
     radius: "rounded-none",
   },
   nexus_tech: {
-    bg: "tech-shell bg-[#f4f8ff]",
-    card: "bg-white/90 border-[#d7e4ff]",
-    accent: "#2563eb",
-    text: "text-[#071426]",
+    bg: "bg-[#f3f6f8]",
+    card: "bg-white border-[#dfe6ec]",
+    accent: "#087a6f",
+    text: "text-[#0d1b2a]",
     font: "font-tech",
-    radius: "rounded-[2rem]",
+    radius: "rounded-xl",
   },
   atelier: {
     bg: "fashion-shell bg-[#fffaf5]",
@@ -580,7 +580,7 @@ function StoreLayoutInner() {
       }
     }
     const variationImages = getVariationImages(product, options || {});
-    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books', 'agro', 'feed', 'garden', 'electric', 'toys', 'variety', 'aura', 'coffee'].includes(templateId || '');
+    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books', 'agro', 'feed', 'garden', 'electric', 'toys', 'variety', 'aura', 'coffee', 'nexus_tech'].includes(templateId || '');
     const usesDiscountPrice = isSegment(templateId || '') || editorialTheme;
     const storefrontPrice = editorialTheme && Number(product.discount_price) <= 0
       ? product.price

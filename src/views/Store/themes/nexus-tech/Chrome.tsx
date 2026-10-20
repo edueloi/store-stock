@@ -15,7 +15,7 @@ export function Header() {
   const [pop, setPop] = useState(false);
   const [query, setQuery] = useState("");
   const count = cart.reduce((s, i) => s + i.quantity, 0);
-  const cats = categories.filter((c) => products.some((p) => p.is_active && p.category_id === c.id));
+  const cats = categories.filter((c) => products.some((p) => p.is_active && p.type !== "internal" && p.category_id === c.id));
   const current = pathname.replace(/\/$/, "");
 
   useEffect(() => {
@@ -64,6 +64,10 @@ export function Header() {
           <button type="button" className="nx-ico nx-burger" aria-label="Abrir menu" aria-expanded={menu} onClick={() => setMenu(true)}>
             <Menu size={22} />
           </button>
+          <Link to={path()} className="nx-brand" aria-label={`${tenant.name} - início`}>
+            {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="nx-brand-dot" aria-hidden="true" />}
+            <span>{tenant.name}</span>
+          </Link>
           <nav className="nx-nav" aria-label="Principal">
             {links.slice(0, 2).map((l) => (
               <Link key={l.name} to={l.to} aria-current={isActive(l.match) ? "page" : undefined}>
@@ -78,11 +82,11 @@ export function Header() {
                 <>
                   <button type="button" className="nx-scrim" aria-label="Fechar" onClick={() => setPop(false)} />
                   <div className="nx-pop">
-                    <p>Explore por categoria</p>
+                    <p>Categorias</p>
                     <ul>
                       {cats.map((c) => (
                         <li key={c.id}>
-                          <Link to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link>
+                          <Link to={path(`/catalogo?cat=${c.id}`)} onClick={() => setPop(false)}>{c.name}</Link>
                         </li>
                       ))}
                       {cats.length === 0 && <li className="nx-pop-empty">Nenhuma categoria cadastrada.</li>}
@@ -95,10 +99,7 @@ export function Header() {
               Sobre
             </Link>
           </nav>
-          <Link to={path()} className="nx-brand" aria-label={`${tenant.name} - início`}>
-            {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="nx-brand-dot" aria-hidden="true" />}
-            <span>{tenant.name}</span>
-          </Link>
+
           <div className="nx-tools">
             <button type="button" className="nx-ico" aria-label="Buscar produtos" aria-expanded={search} onClick={() => setSearch((v) => !v)}>
               {search ? <X size={20} /> : <Search size={20} />}
@@ -161,86 +162,39 @@ export function Header() {
 }
 
 export function Footer() {
-  const { tenant, categories, products } = useStore();
+  const { tenant } = useStore();
   const { path } = useTheme();
   const hours = hoursRows(tenant);
-  const cats = categories.filter((c) => products.some((p) => p.is_active && p.category_id === c.id)).slice(0, 6);
   return (
     <footer className="nx-footer">
       <div className="nx-wrap">
-        <div className="nx-foot-hero">
-          <div>
-            <p className="nx-foot-kicker">{tenant.name}</p>
-            <h2>{tenant.hero_tagline || "Tecnologia escolhida com cuidado, do catálogo à sua casa."}</h2>
-          </div>
-          <Link to={path("/catalogo")} className="nx-btn nx-btn-lg">
-            Explorar catálogo <ArrowUpRight size={18} aria-hidden="true" />
-          </Link>
-        </div>
         <div className="nx-foot-grid">
-          <section className="nx-foot-card">
-            <h3>A loja</h3>
-            <p>{tenant.footer_text || tenant.about_text || "Produtos selecionados, atendimento próximo e compra segura."}</p>
+          <section className="nx-foot-card nx-foot-about">
+            <Link className="nx-foot-brand" to={path()}>{tenant.logo_url && <img src={tenant.logo_url} alt="" />}<span>{tenant.name}</span></Link>
+            <p>{tenant.footer_text || tenant.about_text || "Tecnologia para o seu dia, com escolhas práticas e atendimento próximo."}</p>
             <div className="nx-foot-social">
-              {tenant.instagram_url && (
-                <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram">
-                  <Instagram size={18} />
-                </a>
-              )}
-              {tenant.facebook_url && (
-                <a href={tenant.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook">
-                  <Facebook size={18} />
-                </a>
-              )}
+              {tenant.instagram_url && <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={18} /></a>}
+              {tenant.facebook_url && <a href={tenant.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={18} /></a>}
             </div>
           </section>
           <section className="nx-foot-card">
-            <h3>Categorias</h3>
-            {cats.map((c) => (
-              <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)}>
-                {c.name}
-              </Link>
-            ))}
-            <Link to={path("/catalogo")} className="nx-foot-more">
-              Ver tudo
-            </Link>
-          </section>
-          <section className="nx-foot-card">
-            <h3>Contato</h3>
+            <h2>Navegação</h2>
+            <Link to={path()}>Início</Link>
+            <Link to={path("/catalogo")}>Todos os produtos</Link>
             <Link to={path("/sobre")}>Sobre a loja</Link>
-            {tenant.whatsapp && (
-              <a href={waLink(tenant)} target="_blank" rel="noreferrer">
-                <MessageCircle size={14} aria-hidden="true" /> {tenant.whatsapp}
-              </a>
-            )}
-            {tenant.show_address && tenant.address && (
-              <p className="nx-foot-addr">
-                <MapPin size={14} aria-hidden="true" /> {tenant.address}
-              </p>
-            )}
           </section>
           <section className="nx-foot-card">
-            <h3>
-              <Clock size={14} aria-hidden="true" /> Horários
-            </h3>
-            {hours.length ? (
-              hours.map((h) => (
-                <p key={h.day} className="nx-foot-hour">
-                  <span>{h.day}</span>
-                  <span>{h.text}</span>
-                </p>
-              ))
-            ) : (
-              <p>Consulte nossos horários pelo WhatsApp.</p>
-            )}
+            <h2>Fale com a gente</h2>
+            {tenant.whatsapp && <a href={waLink(tenant)} target="_blank" rel="noreferrer"><MessageCircle size={16} />{tenant.whatsapp}</a>}
+            {tenant.show_address && tenant.address && <p className="nx-foot-addr"><MapPin size={16} />{tenant.address}</p>}
+            <Link to={path("/sobre")}>Atendimento e informações</Link>
+          </section>
+          <section className="nx-foot-card nx-foot-hours">
+            <h2><Clock size={15} /> Horários</h2>
+            {hours.length ? <dl>{hours.map(hour => <div key={hour.day}><dt>{hour.day}</dt><dd>{hour.text}</dd></div>)}</dl> : <p>Consulte os horários com a equipe.</p>}
           </section>
         </div>
-        <div className="nx-foot-bottom">
-          <span>
-            © {new Date().getFullYear()} {tenant.name}
-          </span>
-          <span>Desenvolvido por BoxSys</span>
-        </div>
+        <div className="nx-foot-bottom"><span>© {new Date().getFullYear()} {tenant.name}</span><span>Desenvolvido por <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a></span></div>
       </div>
     </footer>
   );

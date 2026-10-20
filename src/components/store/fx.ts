@@ -19,7 +19,7 @@ const REVEAL = "article, h2, [data-fx]";
 export function useStoreFx(scope: RefObject<HTMLElement | null>, templateId: string, routeKey: string) {
   useEffect(() => {
     const root = scope.current;
-    if (!root || ["urban", "fragrance", "beauty", "street", "streetwear", "tech", "books", "agro", "feed", "garden", "electric", "toys", "variety", "aura", "coffee"].includes(templateId) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!root || ["urban", "fragrance", "beauty", "street", "streetwear", "tech", "books", "agro", "feed", "garden", "electric", "toys", "variety", "aura", "coffee", "nexus_tech"].includes(templateId) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const pop = POP_THEMES.has(templateId);
     const from = pop ? { opacity: 0, y: 30, scale: 0.85 } : { opacity: 0, y: 24 };
     const ease = pop ? "back.out(1.7)" : "power3.out";

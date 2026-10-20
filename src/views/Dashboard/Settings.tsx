@@ -3147,13 +3147,13 @@ export default function Settings({
                         {
                           id: "nexus_tech",
                           name: "Nexus Tech",
-                          tag: "Vibrante & Premium",
-                          desc: "Tema claro e sofisticado com tipografia forte para qualquer nicho.",
-                          color: "#2563eb",
-                          bg: "#eef4ff",
+                          tag: "Tecnologia & Design",
+                          desc: "Campanha bento, navegação limpa, lançamentos em carrossel automático e rodapé em grafite.",
+                          color: "#087a6f",
+                          bg: "#f3f6f8",
                           cardBg: "#fff",
                           textColor: "#071426",
-                          badge: { bg: "#dbeafe", text: "#1d4ed8" },
+                          badge: { bg: "#d9f6f0", text: "#087a6f" },
                         },
                         {
                           id: "atelier",

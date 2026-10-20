@@ -1,14 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, MessageCircle, Package, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUpRight, MessageCircle, Package, Sparkles } from "lucide-react";
 import { gsap } from "gsap";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import HeroSlider from "../../../../components/store/HeroSlider";
 import { StoreButton } from "../../../../components/store/StoreButton";
 import { useStore } from "../../StoreLayout";
 import { productRouteSegment } from "../../store-routing";
-import { Card, PERKS, Price } from "./parts";
-import { groups, imageOf, money, pricesHidden, unitPrice, useTheme, waLink } from "./lib";
+import { PERKS, Price } from "./parts";
+import LaunchCarousel from "./LaunchCarousel";
+import { imageOf, useTheme, waLink } from "./lib";
 import "./styles.css";
 
 export default function StoreFront() {
@@ -16,9 +17,6 @@ export default function StoreFront() {
   const { path } = useTheme();
   const sf = tenant.policies?.storefront || {};
   const root = useRef<HTMLElement>(null);
-  const rail = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState<number | null>(null);
-  const hidden = pricesHidden(tenant);
 
   const active = useMemo(() => products.filter((p) => p.is_active && p.type !== "internal"), [products]);
   const featured = useMemo(() => {
@@ -27,7 +25,6 @@ export default function StoreFront() {
   }, [active]);
   const hero = featured.find((p) => imageOf(p)) || featured[0];
   const launches = useMemo(() => [...active].sort((a, b) => b.id - a.id).slice(0, 10), [active]);
-  const compare = useMemo(() => featured.filter((p) => imageOf(p)).slice(0, 3), [featured]);
   const cats = useMemo(
     () =>
       categories
@@ -35,7 +32,6 @@ export default function StoreFront() {
         .filter((c) => c.items.length > 0),
     [categories, active],
   );
-  const currentTab = cats.find((c) => c.id === tab) || cats[0];
   const title = tenant.hero_tagline || "Tecnologia que combina com o seu ritmo.";
   const marquee = [...cats.map((c) => c.name), "Garantia", "Suporte especializado", "Entrega"].slice(0, 10);
 
@@ -49,7 +45,6 @@ export default function StoreFront() {
     return () => ctx.revert();
   }, [marquee.length]);
 
-  const scrollRail = (dir: number) => rail.current?.scrollBy({ left: dir * (rail.current.clientWidth * 0.8), behavior: "smooth" });
 
   const fallback = (
     <section className="nx-herofb">
@@ -58,7 +53,7 @@ export default function StoreFront() {
           <Sparkles size={14} aria-hidden="true" /> {sf.segment_label || tenant.name}
         </p>
         <h1>{title}</h1>
-        <p className="nx-hero-sub">{tenant.about_text ? tenant.about_text.slice(0, 150) : "Lançamentos, comparativos e uma seleção cuidadosa de produtos, com atendimento próximo."}</p>
+        <p className="nx-hero-sub">{tenant.about_text ? tenant.about_text.slice(0, 150) : "Novidades, boas escolhas e tecnologia para acompanhar o seu dia. Tudo com atendimento próximo."}</p>
         <div className="nx-hero-cta">
           <StoreButton asChild size="lg" className="nx-btn nx-btn-lg">
             <Link to={path("/catalogo")}>
@@ -147,91 +142,8 @@ export default function StoreFront() {
               <p className="nx-kicker nx-kicker-dark">Lançamentos</p>
               <h2>{sf.home_featured_title || "Acabou de chegar"}</h2>
             </div>
-            <div className="nx-rail-ctl">
-              <button type="button" aria-label="Anterior" onClick={() => scrollRail(-1)}>
-                <ChevronLeft size={20} />
-              </button>
-              <button type="button" aria-label="Próximo" onClick={() => scrollRail(1)}>
-                <ChevronRight size={20} />
-              </button>
-            </div>
           </header>
-          <div className="nx-rail" ref={rail} data-no-fx>
-            {launches.map((p) => (
-              <div key={p.id} className="nx-rail-item">
-                <Card product={p} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {compare.length >= 2 && (
-        <section className="nx-wrap nx-sec">
-          <header className="nx-sec-h">
-            <p className="nx-kicker nx-kicker-dark">Comparativo</p>
-            <h2>Compare os destaques lado a lado</h2>
-          </header>
-          <div className="nx-cmp-wrap">
-            <table className="nx-cmp">
-              <thead>
-                <tr>
-                  <td />
-                  {compare.map((p) => (
-                    <th key={p.id} scope="col">
-                      <Link to={path(`/produto/${productRouteSegment(p)}`)}>
-                        <span className="nx-cmp-img">
-                          <img src={imageOf(p)} alt="" loading="lazy" />
-                        </span>
-                        {p.name}
-                      </Link>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {!hidden && (
-                  <tr>
-                    <th scope="row">Preço</th>
-                    {compare.map((p) => (
-                      <td key={p.id}>
-                        <strong>{money(unitPrice(p))}</strong>
-                      </td>
-                    ))}
-                  </tr>
-                )}
-                <tr>
-                  <th scope="row">Categoria</th>
-                  {compare.map((p) => (
-                    <td key={p.id}>{categories.find((c) => c.id === p.category_id)?.name || "—"}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <th scope="row">Opções</th>
-                  {compare.map((p) => {
-                    const g = groups(p);
-                    return <td key={p.id}>{g.length ? g.map((x) => `${x.name} (${x.values.length})`).join(", ") : "Modelo único"}</td>;
-                  })}
-                </tr>
-                <tr>
-                  <th scope="row">Referência</th>
-                  {compare.map((p) => (
-                    <td key={p.id}>{p.sku || "—"}</td>
-                  ))}
-                </tr>
-                <tr>
-                  <th scope="row" />
-                  {compare.map((p) => (
-                    <td key={p.id}>
-                      <Link className="nx-btn nx-btn-sm" to={path(`/produto/${productRouteSegment(p)}`)}>
-                        Ver produto <ArrowUpRight size={15} aria-hidden="true" />
-                      </Link>
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <LaunchCarousel products={launches} />
         </section>
       )}
 
@@ -248,32 +160,6 @@ export default function StoreFront() {
           </div>
         ))}
       </section>
-
-      {cats.length > 0 && currentTab && (
-        <section className="nx-wrap nx-sec">
-          <header className="nx-sec-h nx-sec-h-row">
-            <div>
-              <p className="nx-kicker nx-kicker-dark">Departamentos</p>
-              <h2>{sf.home_categories_title || "Explore por categoria"}</h2>
-            </div>
-            <Link to={path(`/catalogo?cat=${currentTab.id}`)} className="nx-link">
-              Ver categoria <ArrowRight size={16} aria-hidden="true" />
-            </Link>
-          </header>
-          <div className="nx-tabs" role="tablist" aria-label="Categorias" data-no-fx>
-            {cats.map((c) => (
-              <button key={c.id} type="button" role="tab" aria-selected={currentTab.id === c.id} className={currentTab.id === c.id ? "is-on" : ""} onClick={() => setTab(c.id)}>
-                {c.name} <small>{c.items.length}</small>
-              </button>
-            ))}
-          </div>
-          <div className="nx-grid" role="tabpanel">
-            {currentTab.items.slice(0, 8).map((p) => (
-              <Card key={p.id} product={p} />
-            ))}
-          </div>
-        </section>
-      )}
 
       {active.length === 0 && <p className="nx-wrap nx-empty">Em breve, novos produtos na vitrine.</p>}
 

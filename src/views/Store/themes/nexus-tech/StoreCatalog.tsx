@@ -4,7 +4,7 @@ import { PackageSearch, Search, SlidersHorizontal, X } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { useStore } from "../../StoreLayout";
 import { Card } from "./parts";
-import { groups, unitPrice, useTheme } from "./lib";
+import { groups, hasOffer, unitPrice, useTheme } from "./lib";
 import "./styles.css";
 
 const PAGE = 12;
@@ -36,7 +36,7 @@ export default function StoreCatalog() {
     const term = q.trim().toLowerCase();
     const out = active.filter((p) => {
       if (cat && p.category_id !== cat) return false;
-      if (onlyOffers && p.discount_price == null) return false;
+      if (onlyOffers && !hasOffer(p)) return false;
       if (!term) return true;
       const hay = [p.name, p.sku, p.description, ...groups(p).flatMap((g) => g.values)].join(" ").toLowerCase();
       return hay.includes(term);

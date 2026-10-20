@@ -6,7 +6,7 @@ import { productRouteSegment } from "../../store-routing";
 import type { Product } from "../../../../types";
 import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
 import { StoreButton } from "../../../../components/store/StoreButton";
-import { groups, imageOf, money, pricesHidden, unitPrice, useTheme } from "./lib";
+import { groups, hasOffer, imageOf, money, pricesHidden, unitPrice, useTheme } from "./lib";
 
 export const PERKS = [
   { icon: ShieldCheck, title: "Garantia", text: "Compre com a segurança de produtos conferidos e garantia conforme a política da loja." },
@@ -20,7 +20,7 @@ export function Price({ product, large = false }: { product: Product; large?: bo
   return (
     <div className={`nx-price ${large ? "nx-price-lg" : ""}`}>
       <strong>{money(unitPrice(product))}</strong>
-      {product.discount_price != null && <s>{money(Number(product.price))}</s>}
+      {hasOffer(product) && <s>{money(Number(product.price))}</s>}
     </div>
   );
 }
@@ -46,7 +46,7 @@ export function Card({ product }: { product: Product }) {
         <Link to={to} aria-label={product.name} tabIndex={-1}>
           {img ? <img src={img} alt="" loading="lazy" /> : <Package size={48} aria-hidden="true" />}
         </Link>
-        {product.discount_price != null && <span className="nx-badge">Oferta</span>}
+        {hasOffer(product) && <span className="nx-badge">Oferta</span>}
         {soldOut && <span className="nx-badge nx-badge-off">Esgotado</span>}
         <button type="button" className={`nx-heart ${fav ? "is-on" : ""}`} aria-label={fav ? "Remover dos favoritos" : "Adicionar aos favoritos"} aria-pressed={fav} onClick={() => toggleWishlist(product.id)}>
           <Heart size={18} fill={fav ? "currentColor" : "none"} />
