@@ -43,12 +43,16 @@ import {
   HelpCircle,
   Store,
   Send,
+  Link2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { ToastProvider, useToast } from "../../components/ui/Toast";
 import { Button, IconButton, PageWrapper } from "../../components/ui";
 import { getStoredUser } from "../../lib/session";
+import MenuCustomizer from "./MenuCustomizer";
+import { MENU_LAYOUT_PREF_KEY, isInternalUrl, isValidLayout, resolveMenu, type MenuGroupDef, type MenuItemDef, type MenuLayout } from "./menuLayout";
 import { listHeldSales, type HeldSale } from "../../lib/heldSales";
 import OnboardingTour, { maybeAutoStartTour, type OnboardingTourHandle } from "../../components/onboarding/OnboardingTour";
 
@@ -130,9 +134,12 @@ function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement
 
 // ── Item de nav com tooltip quando a sidebar está recolhida ──────────────────
 function SidebarNavItem({
-  to, icon: Icon, label, isActive, isSidebarOpen, badge, badgeLabel, badgeTone, dataTour,
+  to, href, onClick, icon: Icon, label, isActive, isSidebarOpen, badge, badgeLabel, badgeTone, dataTour,
 }: {
-  to: string;
+  /** Rota interna; sem `to`/`href` o item vira um botão de ação (ex.: Tour guiado). */
+  to?: string;
+  href?: string;
+  onClick?: () => void;
   icon: ComponentType<{ size?: number; className?: string }>;
   label: string;
   isActive: boolean;
@@ -142,38 +149,43 @@ function SidebarNavItem({
   badgeTone?: "gold";
   dataTour?: string;
 }) {
-  const ref = useRef<HTMLAnchorElement>(null);
+  const ref = useRef<HTMLElement>(null);
   const hasBadge = Boolean(badge);
   const badgeClass = badgeTone === "gold" ? "bg-[#d3a21a] text-slate-950" : "bg-red-500 text-white";
-  return (
+  const className = cn(
+    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] font-medium transition-all duration-200 relative",
+    isActive
+      ? "bg-[#297ed1] text-white before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r-full before:bg-[#f7920c]"
+      : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+  );
+  const content = (
     <>
-      <Link
-        ref={ref}
-        to={to}
-        data-tour={dataTour}
-        className={cn(
-          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-200 relative",
-          isActive
-            ? "bg-[#297ed1] text-white before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r-full before:bg-[#f7920c]"
-            : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
-        )}
-      >
-        <span className="relative shrink-0">
-          <Icon size={16} />
-          {hasBadge && !isSidebarOpen && (
-            <span className={cn("absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full text-[11px] font-semibold flex items-center justify-center leading-none", badgeClass)}>
-              {badge > 9 ? "9+" : badge}
-            </span>
-          )}
-        </span>
-        {isSidebarOpen && <span className="truncate flex-1">{label}</span>}
-        {hasBadge && isSidebarOpen && (
-          <span className={cn("shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold flex items-center justify-center leading-none", badgeClass)}>
-            {badge > 99 ? "99+" : badge}
+      <span className="relative shrink-0">
+        <Icon size={16} />
+        {hasBadge && !isSidebarOpen && (
+          <span className={cn("absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full text-[11px] font-semibold flex items-center justify-center leading-none", badgeClass)}>
+            {badge! > 9 ? "9+" : badge}
           </span>
         )}
-      </Link>
-      {!isSidebarOpen && <SidebarTooltip anchorRef={ref} label={hasBadge ? `${label} (${badge} ${badgeLabel ?? "em atraso"})` : label} />}
+      </span>
+      {isSidebarOpen && <span className="truncate flex-1">{label}</span>}
+      {hasBadge && isSidebarOpen && (
+        <span className={cn("shrink-0 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-semibold flex items-center justify-center leading-none", badgeClass)}>
+          {badge! > 99 ? "99+" : badge}
+        </span>
+      )}
+    </>
+  );
+  return (
+    <>
+      {to ? (
+        <Link ref={ref as RefObject<HTMLAnchorElement>} to={to} data-tour={dataTour} className={className}>{content}</Link>
+      ) : href ? (
+        <a ref={ref as RefObject<HTMLAnchorElement>} href={href} target="_blank" rel="noreferrer" data-tour={dataTour} className={className}>{content}</a>
+      ) : (
+        <button ref={ref as RefObject<HTMLButtonElement>} type="button" onClick={onClick} data-tour={dataTour} className={className}>{content}</button>
+      )}
+      {!isSidebarOpen && <SidebarTooltip anchorRef={ref as RefObject<HTMLElement>} label={hasBadge ? `${label} (${badge} ${badgeLabel ?? "em atraso"})` : label} />}
     </>
   );
 }
@@ -205,6 +217,23 @@ function SidebarFooterButton({
       {!isSidebarOpen && <SidebarTooltip anchorRef={ref} label={label} />}
     </>
   );
+}
+
+// Item do drawer mobile: rota interna, link externo (atalho) ou ação (Tour guiado).
+function MobileItemTag({
+  item, target, onClose, onTour, className, children, ...rest
+}: {
+  item: MenuItemDef;
+  target: { to?: string; href?: string };
+  onClose: () => void;
+  onTour: () => void;
+  className: string;
+  children: React.ReactNode;
+  "data-tour"?: string;
+}) {
+  if (target.to) return <Link to={target.to} onClick={onClose} className={className} {...rest}>{children}</Link>;
+  if (target.href) return <a href={target.href} target="_blank" rel="noreferrer" onClick={onClose} className={className} {...rest}>{children}</a>;
+  return <button type="button" onClick={() => { onClose(); if (item.action === "tour") onTour(); }} className={cn(className, "w-full text-left")} {...rest}>{children}</button>;
 }
 
 const SIDEBAR_PREF_KEY = "sidebar_open";
@@ -546,6 +575,8 @@ export default function AdminDashboard() {
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [tenantPublicUrl, setTenantPublicUrl] = useState<string>("");
   const [tenantName, setTenantName] = useState<string>("Nexus ERP");
+  const [menuLayout, setMenuLayout] = useState<MenuLayout | null>(null);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
   const [overdueConsignments, setOverdueConsignments] = useState(0);
   const [lowStockProducts, setLowStockProducts] = useState<{ id: number; name: string; stock_quantity: number }[]>([]);
   const lowStockCount = lowStockProducts.length;
@@ -751,6 +782,13 @@ export default function AdminDashboard() {
     maybeAutoStartTour(() => onboardingTourRef.current?.start());
   }, []);
 
+  // Layout do menu lateral escolhido pelo usuário (ordem, grupos, ocultos e atalhos).
+  useEffect(() => {
+    getPreference<unknown>(MENU_LAYOUT_PREF_KEY, null).then((value) => {
+      if (isValidLayout(value)) setMenuLayout(value);
+    });
+  }, []);
+
   const allMenuGroups = [
     {
       label: "Operação",
@@ -822,6 +860,8 @@ export default function AdminDashboard() {
       items: [
         { icon: Receipt,      label: "Assinatura",    path: "/admin/assinatura", key: "assinatura" },
         { icon: SettingsIcon, label: "Configurações", path: "/admin/settings", key: "settings" },
+        { icon: HelpCircle,   label: "Tour guiado",   path: "action:tour",       key: "tour", action: "tour" as const },
+        { icon: UserCircle,   label: "Meu Perfil",    path: "/admin/meu-perfil", key: "meu_perfil" },
       ],
     },
   ];
@@ -831,10 +871,10 @@ export default function AdminDashboard() {
   const currentUser = getStoredUser();
   const allowedMenus = currentUser?.menus ?? [];
   const planFeatures = currentUser?.plan_features;
-  const alwaysAvailable = ["dashboard", "settings", "my_store"];
+  const alwaysAvailable = ["dashboard", "settings", "my_store", "tour", "meu_perfil"];
   const canSeeMenu = (key: string) => {
     const isIncludedInPlan = !Array.isArray(planFeatures) || alwaysAvailable.includes(key) || planFeatures.includes(key);
-    return isIncludedInPlan && (currentUser?.role === "admin" || allowedMenus.includes(key));
+    return isIncludedInPlan && (currentUser?.role === "admin" || allowedMenus.includes(key) || key === "tour" || key === "meu_perfil");
   };
 
   // Módulos liberados pelo Super Admin por tenant (feature flag da loja inteira,
@@ -844,9 +884,28 @@ export default function AdminDashboard() {
   };
   const isTenantModuleEnabled = (key: string) => tenantModuleGate[key] ?? true;
 
-  const menuGroups = allMenuGroups
-    .map((g) => ({ ...g, items: g.items.filter((item) => canSeeMenu(item.key) && isTenantModuleEnabled(item.key)) }))
-    .filter((g) => g.items.length > 0);
+  const slugify = (label: string) => label.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  // Grupos já filtrados por permissão/plano; o layout do usuário só reorganiza o que sobra daqui.
+  const permittedGroups: MenuGroupDef[] = allMenuGroups.map((g) => ({
+    id: slugify(g.label),
+    label: g.label,
+    items: g.items.filter((item) => canSeeMenu(item.key) && isTenantModuleEnabled(item.key)),
+  }));
+  const menuGroups = resolveMenu(permittedGroups, menuLayout, Link2).groups;
+  const editorMenu = resolveMenu(permittedGroups, menuLayout, Link2, true);
+
+  const saveMenuLayout = (layout: MenuLayout | null) => {
+    setMenuLayout(layout);
+    setCustomizeOpen(false);
+    void setPreference(MENU_LAYOUT_PREF_KEY, layout);
+  };
+
+  // Renderiza um item de menu do usuário: rota interna, link externo ou ação (tour).
+  const startTour = () => onboardingTourRef.current?.start();
+  const itemTarget = (item: MenuItemDef) => {
+    if (item.href) return { to: isInternalUrl(item.href) ? item.href : undefined, href: isInternalUrl(item.href) ? undefined : item.href };
+    return { to: item.action ? undefined : item.path, href: undefined };
+  };
 
   // flat list for header label lookup and mobile nav
   const menuItems = menuGroups.flatMap((g) => g.items);
@@ -922,6 +981,16 @@ export default function AdminDashboard() {
       isMobile={window.innerWidth <= 1024}
       navigate={navigate}
     />
+    {customizeOpen && (
+      <MenuCustomizer
+        initial={editorMenu}
+        customItems={menuLayout?.customItems ?? []}
+        linkIcon={Link2}
+        onSave={saveMenuLayout}
+        onReset={() => saveMenuLayout(null)}
+        onClose={() => setCustomizeOpen(false)}
+      />
+    )}
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
 
       {/* ── SIDEBAR DESKTOP ─────────────────────────────────────────────── */}
@@ -963,7 +1032,8 @@ export default function AdminDashboard() {
                   return (
                     <SidebarNavItem
                       key={item.path}
-                      to={item.path}
+                      {...itemTarget(item)}
+                      onClick={item.action === "tour" ? startTour : undefined}
                       icon={item.icon}
                       label={item.label}
                       isActive={isActive}
@@ -1000,8 +1070,7 @@ export default function AdminDashboard() {
 
         {/* Footer */}
         <div className="border-t border-white/10 p-2.5 space-y-0.5">
-          <SidebarFooterButton onClick={() => onboardingTourRef.current?.start()} icon={HelpCircle} label="Tour guiado" isSidebarOpen={isSidebarOpen} />
-          <SidebarFooterButton onClick={() => navigate("/admin/meu-perfil")} icon={UserCircle} label="Meu Perfil" isSidebarOpen={isSidebarOpen} />
+          <SidebarFooterButton onClick={() => setCustomizeOpen(true)} icon={SlidersHorizontal} label="Personalizar menu" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={viewPublicStore} icon={Package} label="Ver Loja" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={handleLogout} icon={LogOut} label="Sair" isSidebarOpen={isSidebarOpen} danger />
         </div>
@@ -1066,7 +1135,7 @@ export default function AdminDashboard() {
                           : item.path === "/admin/atendimento/finalizados" ? whatsappCounts.closed
                           : 0;
                       return (
-                        <Link key={item.path} to={item.path} onClick={() => setIsSidebarOpen(false)}
+                        <MobileItemTag key={item.path} item={item} target={itemTarget(item)} onClose={() => setIsSidebarOpen(false)} onTour={startTour}
                           data-tour={tourDataAttr[item.key]}
                           className={cn(
                             "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-medium transition-all duration-200",
@@ -1081,7 +1150,7 @@ export default function AdminDashboard() {
                               {badge > 99 ? "99+" : badge}
                             </span>
                           )}
-                        </Link>
+                        </MobileItemTag>
                       );
                     })}
                   </div>
@@ -1090,13 +1159,9 @@ export default function AdminDashboard() {
             </nav>
 
             <div className="border-t border-white/10 p-2.5 space-y-0.5">
-              <button onClick={() => onboardingTourRef.current?.start()}
+              <button onClick={() => { setIsSidebarOpen(false); setCustomizeOpen(true); }}
                 className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-white">
-                <HelpCircle size={16} /><span>Tour guiado</span>
-              </button>
-              <button onClick={() => { setIsSidebarOpen(false); navigate("/admin/meu-perfil"); }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-white">
-                <UserCircle size={16} /><span>Meu Perfil</span>
+                <SlidersHorizontal size={16} /><span>Personalizar menu</span>
               </button>
               <button onClick={() => { setIsSidebarOpen(false); viewPublicStore(); }}
                 className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-white">
