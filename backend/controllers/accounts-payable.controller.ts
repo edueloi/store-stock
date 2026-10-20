@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { emitToTenant } from "../services/realtime.service";
-import { AccountValidationError, saveFinanceAccount, settleFinanceAccounts } from "../services/finance-accounts.service";
+import { AccountValidationError, saveFinanceAccount, settleFinanceAccounts, deleteFinanceAccount, backfillRecurring } from "../services/finance-accounts.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -34,6 +34,7 @@ export async function getDueSoonCount(req: Request, res: Response) {
 
 export async function listAccountsPayable(req: Request, res: Response) {
   try {
+    await backfillRecurring("payable", getTenantId(req)).catch((error) => console.error("backfillRecurring payable:", error));
     const items = await prisma.accountPayable.findMany({
       where: { tenant_id: getTenantId(req) },
       include: { series: true },
@@ -199,16 +200,14 @@ export async function updateAccountPayable(req: Request, res: Response) {
 
 export async function deleteAccountPayable(req: Request, res: Response) {
   try {
-    const id = Number(req.params.id);
     const tenantId = getTenantId(req);
-    const existing = await prisma.accountPayable.findFirst({ where: { id, tenant_id: tenantId } });
-    if (!existing) return res.status(404).json({ error: "Not found" });
-
-    await prisma.accountPayable.delete({ where: { id } });
-    emitToTenant(tenantId, "finance:changed", { id });
-    res.json({ ok: true });
-  } catch {
-    res.status(500).json({ error: "Failed to delete account payable" });
+    const scope = req.query.scope === "following" ? "following" : "this";
+    const count = await deleteFinanceAccount("payable", tenantId, Number(req.params.id), scope);
+    emitToTenant(tenantId, "finance:changed", { id: Number(req.params.id), count });
+    res.json({ ok: true, count });
+  } catch (error) {
+    if (error instanceof AccountValidationError) { res.status(error.status).json({ error: error.message }); return; }
+    res.status(500).json({ error: "Failed to delete account" });
   }
 }
 

@@ -483,6 +483,8 @@ export default function ContasReceber() {
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selected, setSelected] = useState<AccountReceivable | null>(null);
+  // Ao excluir uma parcela/recorrência: só esta conta ou esta e as próximas pendentes.
+  const [deleteScope, setDeleteScope] = useState<"this" | "following">("this");
   // Painel de detalhes/ações no mobile — mesmo padrão de ContasPagar.tsx: o card da
   // lista mobile só mostrava dados, sem nenhum jeito de abrir editar/receber/excluir.
   const [detailItem, setDetailItem] = useState<AccountReceivable | null>(null);
@@ -844,7 +846,7 @@ export default function ContasReceber() {
     setModalMode("delete");
   };
 
-  const closeModal = () => { setModalMode(null); setSelected(null); };
+  const closeModal = () => { setModalMode(null); setSelected(null); setDeleteScope("this"); };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -942,12 +944,12 @@ export default function ContasReceber() {
   const handleDelete = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/accounts-receivable/${selected!.id}`, {
+      const res = await fetch(`/api/accounts-receivable/${selected!.id}?scope=${deleteScope}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token()}` },
       });
       if (res.ok) {
-        success("Conta excluída.");
+        success(deleteScope === "following" ? "Conta e próximas pendentes excluídas." : "Conta excluída.");
         closeModal();
         fetchItems();
       } else {
@@ -1919,6 +1921,26 @@ export default function ContasReceber() {
           <>
             <span className="block">{selected.description}</span>
             <span className="mt-1 block font-semibold tabular-nums text-rose-600">R$ {fmt(Number(selected.amount))}</span>
+            {(() => {
+              const day = selected.due_date.slice(0, 10);
+              const upcoming = items.filter((i) => i.id !== selected.id && i.status === "pending" && i.due_date.slice(0, 10) >= day && (
+                selected.series_id ? i.series_id === selected.series_id : !!selected.is_recurring && !!i.is_recurring && i.description === selected.description && (i.customer_name ?? null) === (selected.customer_name ?? null)
+              ));
+              if (!upcoming.length) return null;
+              return (
+                <fieldset className="mt-4 space-y-2 text-left text-sm text-slate-700">
+                  <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Esta conta se repete. O que excluir?</legend>
+                  <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 p-2.5 has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                    <input type="radio" name="delete-scope" className="mt-0.5" checked={deleteScope === "this"} onChange={() => setDeleteScope("this")} />
+                    <span>Somente esta conta</span>
+                  </label>
+                  <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 p-2.5 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50">
+                    <input type="radio" name="delete-scope" className="mt-0.5" checked={deleteScope === "following"} onChange={() => setDeleteScope("following")} />
+                    <span>Esta e as próximas {upcoming.length} pendentes <span className="text-slate-500">(cancela daqui para frente)</span></span>
+                  </label>
+                </fieldset>
+              );
+            })()}
           </>
         ) : ""}
       />

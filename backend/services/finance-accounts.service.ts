@@ -40,15 +40,16 @@ const optionalText = (value: unknown, max = 191) => {
   if (typeof value !== "string" || value.trim().length > max) fail(`Texto inválido ou maior que ${max} caracteres.`);
   return (value as string).trim() || null;
 };
-function accountData(body: Data, kind: Kind): Data {
+function accountData(body: Data, kind: Kind, requireCostType = true): Data {
   const description = optionalText(body.description, 191);
   if (!description) fail("Informe a descrição da conta.");
   const data: Data = { description, amount: money(body.amount), due_date: accountDate(body.due_date) };
   for (const field of ["category", kind === "payable" ? "supplier_name" : "customer_name", "payment_method", "document_number", "cost_center"]) data[field] = optionalText(body[field]);
   for (const field of ["notes", "payment_details"]) data[field] = optionalText(body[field], 10000);
   if (kind === "payable") {
-    if (!["fixed", "variable"].includes(String(body.cost_type))) fail("Informe se a conta é Custo Fixo ou Variável.");
-    data.cost_type = body.cost_type;
+    const classified = ["fixed", "variable"].includes(String(body.cost_type));
+    if (!classified && requireCostType) fail("Informe se a conta é Custo Fixo ou Variável.");
+    data.cost_type = classified ? body.cost_type : null;
   }
   data.is_recurring = body.is_recurring === true;
   if (data.is_recurring) {
@@ -83,6 +84,77 @@ async function atomic<T>(database: typeof prisma, action: (tx: Prisma.Transactio
 }
 
 /** Um lançamento, conversão para parcelas ou revisão explícita das parcelas ainda pendentes. */
+const RECURRENCE_AHEAD_MONTHS = 12;
+const RECURRENCE_MAX_ROWS = 120;
+const partyField = (kind: Kind) => (kind === "payable" ? "supplier_name" : "customer_name");
+const chainWhere = (kind: Kind, tenantId: number, seed: Row) => ({
+  tenant_id: tenantId, is_recurring: true, description: seed.description,
+  [partyField(kind)]: (seed[partyField(kind)] as string | null) ?? null,
+  recurrence_interval_unit: seed.recurrence_interval_unit, recurrence_interval_count: seed.recurrence_interval_count,
+});
+
+/**
+ * Mantém as próximas ocorrências de uma conta recorrente já lançadas (12 meses à frente), para que
+ * o valor fixo apareça nos meses futuros, nos relatórios e no calendário. Idempotente: só cria o que falta.
+ */
+async function extendRecurring(accounts: Ledger, kind: Kind, tenantId: number, seed: Row, amount = Number(seed.amount)) {
+  if (!seed.is_recurring || !seed.recurrence_interval_unit) return 0;
+  const unit = seed.recurrence_interval_unit as IntervalUnit;
+  const step = Number(seed.recurrence_interval_count) || 1;
+  const chain = await accounts.findMany({ where: chainWhere(kind, tenantId, seed) });
+  const existing = new Set(chain.map(row => new Date(row.due_date).toISOString().slice(0, 10)));
+  const horizon = advanceDate(new Date(), "month", RECURRENCE_AHEAD_MONTHS);
+  const base = accountData(seed, kind, false);
+  let created = 0;
+  for (let k = 1; k <= 400 && created < RECURRENCE_MAX_ROWS; k++) {
+    const due = advanceDate(new Date(seed.due_date), unit, k * step);
+    if (due > horizon) break;
+    if (existing.has(due.toISOString().slice(0, 10))) continue;
+    await accounts.create({ data: { ...base, amount: money(amount), due_date: due, tenant_id: tenantId } });
+    created++;
+  }
+  return created;
+}
+
+/** Completa, uma vez por consulta, as recorrências antigas que ainda não têm os meses à frente. */
+export async function backfillRecurring(kind: Kind, tenantId: number, database = prisma) {
+  const pending = await (repo(database as unknown as Prisma.TransactionClient, kind)).findMany({ where: { tenant_id: tenantId, is_recurring: true, status: "pending" }, orderBy: { due_date: "desc" } });
+  const seen = new Set<string>();
+  for (const seed of pending) {
+    const key = JSON.stringify([seed.description, seed[partyField(kind)], seed.recurrence_interval_unit, seed.recurrence_interval_count]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    await atomic(database, async tx => extendRecurring(repo(tx, kind), kind, tenantId, seed, Number(seed.amount) - Number(seed.interest_amount || 0)));
+  }
+}
+
+/** Exclui a conta; com scope "following" leva junto as próximas pendentes do mesmo parcelamento/recorrência. */
+export async function deleteFinanceAccount(kind: Kind, tenantId: number, id: number, scope: "this" | "following", database = prisma) {
+  return atomic(database, async tx => {
+    const accounts = repo(tx, kind);
+    const existing = await accounts.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!existing) throw new AccountValidationError("Conta não encontrada.", 404);
+    let ids = [existing.id];
+    if (scope === "following") {
+      const dueFrom = new Date(existing.due_date);
+      if (existing.series_id) {
+        const rows = await accounts.findMany({ where: { tenant_id: tenantId, series_id: existing.series_id, status: "pending", due_date: { gte: dueFrom } } });
+        ids = [...new Set([existing.id, ...rows.map(row => row.id)])];
+      } else if (existing.is_recurring) {
+        const rows = await accounts.findMany({ where: { ...chainWhere(kind, tenantId, existing), status: "pending", due_date: { gte: dueFrom } } });
+        ids = [...new Set([existing.id, ...rows.map(row => row.id)])];
+      }
+    }
+    const removed = await accounts.deleteMany({ where: { tenant_id: tenantId, id: { in: ids } } });
+    if (existing.series_id) {
+      const left = await accounts.findMany({ where: { tenant_id: tenantId, series_id: existing.series_id } });
+      if (!left.length) await tx.financeSeries.deleteMany({ where: { id: existing.series_id, tenant_id: tenantId } });
+      else await tx.financeSeries.update({ where: { id: existing.series_id }, data: { installments_count: left.length, total_amount: left.reduce((sum, row) => sum + Math.round(Number(row.amount) * 100), 0) / 100 } });
+    }
+    return removed.count;
+  });
+}
+
 export async function saveFinanceAccount(kind: Kind, tenantId: number, input: Data, id?: number, database = prisma) {
   if (id !== undefined) integer(id, 1, 2147483647, "Conta");
   return atomic(database, async tx => {
@@ -95,6 +167,7 @@ export async function saveFinanceAccount(kind: Kind, tenantId: number, input: Da
     if (!recurrence) {
       if (existing?.series_id && input.is_recurring === true) fail("Revise o parcelamento antes de alterar o tipo de uma parcela.");
       const saved = existing ? await accounts.update({ where: { id: existing.id }, data }) : await accounts.create({ data: { ...data, tenant_id: tenantId } });
+      if (data.is_recurring && saved.status === "pending") await extendRecurring(accounts, kind, tenantId, saved);
       if (existing?.series_id) {
         const rows = await accounts.findMany({ where: { tenant_id: tenantId, series_id: existing.series_id } });
         await tx.financeSeries.update({ where: { id: existing.series_id }, data: { total_amount: rows.reduce((sum, row) => sum + Math.round(Number(row.amount) * 100), 0) / 100 } });
@@ -170,10 +243,7 @@ export async function settleFinanceAccounts(kind: Kind, tenantId: number, inputI
       if (!update.count) continue;
       count++;
       if (existing.is_recurring && existing.recurrence_interval_unit && input.continue_recurring !== false) {
-        const next = accountData(existing, kind);
-        next.amount = money(Math.max(.01, (Math.round(amount * 100) - Math.round(Number(existing.interest_amount || 0) * 100)) / 100));
-        next.due_date = advanceDate(new Date(existing.due_date), existing.recurrence_interval_unit as IntervalUnit, Number(existing.recurrence_interval_count) || 1);
-        await accounts.create({ data: { ...next, ...payment, tenant_id: tenantId } });
+        await extendRecurring(accounts, kind, tenantId, existing, Math.max(.01, (Math.round(amount * 100) - Math.round(Number(existing.interest_amount || 0) * 100)) / 100));
       }
     }
     return { count, items: await accounts.findMany({ where: { tenant_id: tenantId, id: { in: ids } } }) };
