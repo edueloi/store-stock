@@ -108,3 +108,30 @@ export function toLayout(resolved: ResolvedMenu, customItems: CustomMenuItem[]):
     customItems: customItems.filter((c) => resolved.groups.some((g) => g.items.some((i) => i.path === customPath(c.id))) || resolved.hidden.some((i) => i.path === customPath(c.id))),
   };
 }
+
+// ── Perfis de menu ──────────────────────────────────────────────────────────
+// O perfil "Padrão" é do sistema: nunca é salvo, editado nem removido. O usuário cria quantos
+// perfis quiser (cada um com seu layout) e escolhe qual usar.
+
+export const DEFAULT_PROFILE_ID = "default";
+export const MENU_PROFILES_PREF_KEY = "menu_profiles";
+
+export type MenuProfile = { id: string; name: string; layout: MenuLayout };
+export type MenuProfiles = { version: 2; activeId: string; profiles: MenuProfile[] };
+
+export const emptyProfiles = (): MenuProfiles => ({ version: 2, activeId: DEFAULT_PROFILE_ID, profiles: [] });
+
+export function isValidProfiles(value: unknown): value is MenuProfiles {
+  const v = value as MenuProfiles | null;
+  return !!v && v.version === 2 && typeof v.activeId === "string" && Array.isArray(v.profiles) && v.profiles.every((p) => p && typeof p.id === "string" && isValidLayout(p.layout));
+}
+
+/** Aproveita o layout único salvo antes dos perfis existirem (preferência `menu_layout`). */
+export function profilesFromLegacy(layout: MenuLayout): MenuProfiles {
+  return { version: 2, activeId: "legacy", profiles: [{ id: "legacy", name: "Meu menu", layout }] };
+}
+
+/** Layout em uso (null = padrão do sistema). */
+export function activeLayout(store: MenuProfiles): MenuLayout | null {
+  return store.profiles.find((p) => p.id === store.activeId)?.layout ?? null;
+}

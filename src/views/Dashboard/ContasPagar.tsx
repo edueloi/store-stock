@@ -718,6 +718,10 @@ export default function ContasPagar() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!costType) {
+      toastError("Escolha se a conta é Custo Fixo ou Variável.");
+      return;
+    }
     if (canPlan && recurrenceEnabled && valueMode === "variable" && variableMismatch) {
       toastError("A soma dos valores das parcelas precisa bater com o valor total.");
       return;
@@ -1591,11 +1595,11 @@ export default function ContasPagar() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="ds-label">Custo Fixo ou Variável (opcional — usado nos relatórios)</label>
+                <label className="ds-label">Custo Fixo ou Variável (obrigatório — alimenta o Relatório Financeiro)</label>
                 <FilterLineSegmented<string>
                   value={costType}
                   onChange={(v) => setCostType(v as typeof costType)}
-                  options={[{ value: "", label: "Não classificar" }, { value: "fixed", label: "Fixo" }, { value: "variable", label: "Variável" }]}
+                  options={[{ value: "fixed", label: "Fixo" }, { value: "variable", label: "Variável" }]}
                 />
               </div>
 

@@ -51,8 +51,8 @@ import { cn } from "../../lib/utils";
 import { ToastProvider, useToast } from "../../components/ui/Toast";
 import { Button, IconButton, PageWrapper } from "../../components/ui";
 import { getStoredUser } from "../../lib/session";
-import MenuCustomizer from "./MenuCustomizer";
-import { MENU_LAYOUT_PREF_KEY, isInternalUrl, isValidLayout, resolveMenu, type MenuGroupDef, type MenuItemDef, type MenuLayout } from "./menuLayout";
+import MenuSettingsPage from "./MenuSettingsPage";
+import { MENU_LAYOUT_PREF_KEY, MENU_PROFILES_PREF_KEY, activeLayout, emptyProfiles, isInternalUrl, isValidLayout, isValidProfiles, profilesFromLegacy, resolveMenu, type MenuGroupDef, type MenuItemDef, type MenuProfiles } from "./menuLayout";
 import { listHeldSales, type HeldSale } from "../../lib/heldSales";
 import OnboardingTour, { maybeAutoStartTour, type OnboardingTourHandle } from "../../components/onboarding/OnboardingTour";
 
@@ -575,8 +575,7 @@ export default function AdminDashboard() {
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [tenantPublicUrl, setTenantPublicUrl] = useState<string>("");
   const [tenantName, setTenantName] = useState<string>("Nexus ERP");
-  const [menuLayout, setMenuLayout] = useState<MenuLayout | null>(null);
-  const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [menuProfiles, setMenuProfiles] = useState<MenuProfiles>(emptyProfiles);
   const [overdueConsignments, setOverdueConsignments] = useState(0);
   const [lowStockProducts, setLowStockProducts] = useState<{ id: number; name: string; stock_quantity: number }[]>([]);
   const lowStockCount = lowStockProducts.length;
@@ -784,8 +783,11 @@ export default function AdminDashboard() {
 
   // Layout do menu lateral escolhido pelo usuário (ordem, grupos, ocultos e atalhos).
   useEffect(() => {
-    getPreference<unknown>(MENU_LAYOUT_PREF_KEY, null).then((value) => {
-      if (isValidLayout(value)) setMenuLayout(value);
+    getPreference<unknown>(MENU_PROFILES_PREF_KEY, null).then(async (value) => {
+      if (isValidProfiles(value)) return setMenuProfiles(value);
+      // Migração: layout único salvo antes dos perfis de menu.
+      const legacy = await getPreference<unknown>(MENU_LAYOUT_PREF_KEY, null);
+      if (isValidLayout(legacy)) setMenuProfiles(profilesFromLegacy(legacy));
     });
   }, []);
 
@@ -891,13 +893,11 @@ export default function AdminDashboard() {
     label: g.label,
     items: g.items.filter((item) => canSeeMenu(item.key) && isTenantModuleEnabled(item.key)),
   }));
-  const menuGroups = resolveMenu(permittedGroups, menuLayout, Link2).groups;
-  const editorMenu = resolveMenu(permittedGroups, menuLayout, Link2, true);
+  const menuGroups = resolveMenu(permittedGroups, activeLayout(menuProfiles), Link2).groups;
 
-  const saveMenuLayout = (layout: MenuLayout | null) => {
-    setMenuLayout(layout);
-    setCustomizeOpen(false);
-    void setPreference(MENU_LAYOUT_PREF_KEY, layout);
+  const saveMenuProfiles = (next: MenuProfiles) => {
+    setMenuProfiles(next);
+    void setPreference(MENU_PROFILES_PREF_KEY, next);
   };
 
   // Renderiza um item de menu do usuário: rota interna, link externo ou ação (tour).
@@ -981,16 +981,6 @@ export default function AdminDashboard() {
       isMobile={window.innerWidth <= 1024}
       navigate={navigate}
     />
-    {customizeOpen && (
-      <MenuCustomizer
-        initial={editorMenu}
-        customItems={menuLayout?.customItems ?? []}
-        linkIcon={Link2}
-        onSave={saveMenuLayout}
-        onReset={() => saveMenuLayout(null)}
-        onClose={() => setCustomizeOpen(false)}
-      />
-    )}
     <div className="flex h-screen bg-[#f8fafc] overflow-hidden font-sans text-slate-800 relative">
 
       {/* ── SIDEBAR DESKTOP ─────────────────────────────────────────────── */}
@@ -1070,7 +1060,7 @@ export default function AdminDashboard() {
 
         {/* Footer */}
         <div className="border-t border-white/10 p-2.5 space-y-0.5">
-          <SidebarFooterButton onClick={() => setCustomizeOpen(true)} icon={SlidersHorizontal} label="Personalizar menu" isSidebarOpen={isSidebarOpen} />
+          <SidebarFooterButton onClick={() => navigate("/admin/personalizar-menu")} icon={SlidersHorizontal} label="Personalizar menu" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={viewPublicStore} icon={Package} label="Ver Loja" isSidebarOpen={isSidebarOpen} />
           <SidebarFooterButton onClick={handleLogout} icon={LogOut} label="Sair" isSidebarOpen={isSidebarOpen} danger />
         </div>
@@ -1159,7 +1149,7 @@ export default function AdminDashboard() {
             </nav>
 
             <div className="border-t border-white/10 p-2.5 space-y-0.5">
-              <button onClick={() => { setIsSidebarOpen(false); setCustomizeOpen(true); }}
+              <button onClick={() => { setIsSidebarOpen(false); navigate("/admin/personalizar-menu"); }}
                 className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-slate-400 transition-all hover:bg-white/5 hover:text-white">
                 <SlidersHorizontal size={16} /><span>Personalizar menu</span>
               </button>
@@ -1193,7 +1183,7 @@ export default function AdminDashboard() {
               <Menu size={16} />
             </IconButton>
             <h1 className="truncate text-sm font-medium leading-none text-slate-900">
-              {menuItems.find(m => m.path === location.pathname)?.label || "Dashboard"}
+              {menuItems.find(m => m.path === location.pathname)?.label || (location.pathname === "/admin/personalizar-menu" ? "Personalizar menu" : "Dashboard")}
             </h1>
             <span className="hidden items-center gap-1.5 text-[11px] font-medium leading-none text-blue-600 sm:flex">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
@@ -1243,6 +1233,7 @@ export default function AdminDashboard() {
               <Route path="historico-caixa" element={<CashSessionHistory />} />
               <Route path="relatorio-financeiro" element={<RelatorioFinanceiro />} />
               <Route path="meu-perfil" element={<MeuPerfil />} />
+              <Route path="personalizar-menu" element={<MenuSettingsPage permittedGroups={permittedGroups} linkIcon={Link2} store={menuProfiles} onChange={saveMenuProfiles} />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="orcamentos" element={<Quotes />} />
               <Route path="orcamentos/novo" element={<QuoteNew />} />

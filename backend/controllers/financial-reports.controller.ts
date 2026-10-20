@@ -18,6 +18,8 @@ interface CostItem {
   amount: number;
   date: string; // YYYY-MM-DD
   source: "financeiro" | "contas_pagar";
+  /** Conta a pagar ainda não paga: entra no mês do vencimento. */
+  pending?: boolean;
 }
 
 interface EntradasBucket {
@@ -101,7 +103,7 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
 
     const months: MonthReport[] = Array.from({ length: 12 }, (_, m) => emptyMonth(year, m));
 
-    const [incomeEntries, expenseEntries, paidPayables] = await Promise.all([
+    const [incomeEntries, expenseEntries, payables] = await Promise.all([
       prisma.finance.findMany({
         where: { tenant_id: tenantId, type: "income", date: { gte: from, lt: to } },
         select: { amount: true, payment_method: true, order_id: true, date: true },
@@ -110,9 +112,18 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
         where: { tenant_id: tenantId, type: "expense", cost_type: { not: null }, date: { gte: from, lt: to } },
         select: { description: true, amount: true, cost_type: true, date: true },
       }),
+      // Contas pagas entram no mês do pagamento; as ainda em aberto, no mês do vencimento —
+      // assim o custo fixo/variável lançado em Contas a Pagar aparece no relatório antes da baixa.
       prisma.accountPayable.findMany({
-        where: { tenant_id: tenantId, status: "paid", cost_type: { not: null }, paid_date: { gte: from, lt: to } },
-        select: { description: true, amount: true, cost_type: true, paid_date: true },
+        where: {
+          tenant_id: tenantId,
+          cost_type: { not: null },
+          OR: [
+            { status: "paid", paid_date: { gte: from, lt: to } },
+            { status: { not: "paid" }, due_date: { gte: from, lt: to } },
+          ],
+        },
+        select: { description: true, amount: true, cost_type: true, paid_date: true, due_date: true, status: true },
       }),
     ]);
 
@@ -179,13 +190,15 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
       target.items.push({ description: e.description, amount, date: new Date(e.date).toISOString().substring(0, 10), source: "financeiro" });
     }
 
-    for (const p of paidPayables) {
-      if (!p.paid_date) continue;
-      const m = new Date(p.paid_date).getUTCMonth();
+    for (const p of payables) {
+      const pending = p.status !== "paid";
+      const when = pending ? p.due_date : p.paid_date;
+      if (!when) continue;
+      const m = new Date(when).getUTCMonth();
       const target = p.cost_type === "fixed" ? months[m].custoFixo : months[m].custoVariavel;
       const amount = Number(p.amount);
       target.total += amount;
-      target.items.push({ description: p.description, amount, date: new Date(p.paid_date).toISOString().substring(0, 10), source: "contas_pagar" });
+      target.items.push({ description: p.description, amount, date: new Date(when).toISOString().substring(0, 10), source: "contas_pagar", pending });
     }
 
     res.json({ year, months });

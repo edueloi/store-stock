@@ -1,6 +1,7 @@
 import { useRef, useState, type DragEvent } from "react";
-import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, Link2, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, GripVertical, Link2, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import MenuPreview from "./MenuPreview";
 import {
   HIDDEN_GROUP_ID,
   PROTECTED_PATHS,
@@ -18,11 +19,11 @@ import {
 type Props = {
   /** Estado atual do menu (com grupos vazios e itens ocultos), já filtrado por permissão. */
   initial: ResolvedMenu;
+  /** Menu padrão do sistema, usado por "Restaurar padrão" e como referência. */
+  defaults: ResolvedMenu;
   customItems: CustomMenuItem[];
   linkIcon: MenuItemDef["icon"];
   onSave: (layout: MenuLayout) => void;
-  onReset: () => void;
-  onClose: () => void;
 };
 
 type Drag = { kind: "item"; path: string } | { kind: "group"; id: string } | null;
@@ -31,7 +32,7 @@ type Drag = { kind: "item"; path: string } | { kind: "group"; id: string } | nul
  * Editor do menu lateral: arrastar para reordenar itens e grupos, mover itens entre grupos,
  * ocultar/mostrar, renomear/criar grupos e criar atalhos. Só mostra o que o usuário tem permissão de ver.
  */
-export default function MenuCustomizer({ initial, customItems, linkIcon, onSave, onReset, onClose }: Props) {
+export default function MenuCustomizer({ initial, defaults, customItems, linkIcon, onSave }: Props) {
   const [groups, setGroups] = useState<MenuGroupDef[]>(initial.groups);
   const [hidden, setHidden] = useState<MenuItemDef[]>(initial.hidden);
   const [custom, setCustom] = useState<CustomMenuItem[]>(customItems);
@@ -151,6 +152,12 @@ export default function MenuCustomizer({ initial, customItems, linkIcon, onSave,
     setOver(key);
   };
 
+  const restoreDefaults = () => {
+    setGroups(defaults.groups);
+    setHidden([]);
+    setCustom([]);
+  };
+
   const save = () => {
     const clean = groups.map((g) => ({ ...g, label: g.label.trim() || "Sem nome" }));
     onSave(toLayout({ groups: clean, hidden }, custom));
@@ -214,17 +221,9 @@ export default function MenuCustomizer({ initial, customItems, linkIcon, onSave,
   const inputClass = "h-9 rounded-lg border border-slate-200 bg-white px-3 text-[13px] text-slate-800 outline-none focus:border-blue-500";
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-end justify-center bg-slate-900/60 p-0 backdrop-blur-sm sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Personalizar menu">
-      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-2xl bg-slate-50 shadow-2xl sm:rounded-2xl">
-        <header className="flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">Personalizar menu</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Arraste para reordenar, mova itens entre grupos, oculte o que não usa e crie grupos e atalhos. Só aparecem os itens que o seu usuário tem permissão de acessar.</p>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Fechar" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><X size={18} /></button>
-        </header>
-
-        <div className="grid flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[1fr_300px]">
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+      <div className="flex flex-col">
+        <div className="grid gap-4 p-4 sm:p-5 lg:grid-cols-[1fr_300px] 2xl:grid-cols-[1fr_300px_260px]">
           <div className="space-y-3">
             {groups.map((group, gi) => (
               <section
@@ -298,14 +297,13 @@ export default function MenuCustomizer({ initial, customItems, linkIcon, onSave,
               </div>
             </section>
           </aside>
+
+          <MenuPreview groups={groups} className="lg:col-span-2 2xl:col-span-1" />
         </div>
 
-        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white px-5 py-3">
-          <button type="button" onClick={onReset} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-slate-600 hover:bg-slate-100"><RotateCcw size={14} /> Restaurar padrão</button>
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="h-9 rounded-lg border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancelar</button>
-            <button type="button" onClick={save} className="h-9 rounded-lg bg-blue-600 px-5 text-xs font-semibold text-white hover:bg-blue-700">Salvar menu</button>
-          </div>
+        <footer className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 bg-white px-5 py-3">
+          <button type="button" onClick={restoreDefaults} className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-slate-600 hover:bg-slate-100"><RotateCcw size={14} /> Copiar o padrão do sistema</button>
+          <button type="button" onClick={save} className="h-9 rounded-lg bg-blue-600 px-5 text-xs font-semibold text-white hover:bg-blue-700">Salvar alterações</button>
         </footer>
       </div>
     </div>

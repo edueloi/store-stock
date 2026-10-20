@@ -47,8 +47,8 @@ function accountData(body: Data, kind: Kind): Data {
   for (const field of ["category", kind === "payable" ? "supplier_name" : "customer_name", "payment_method", "document_number", "cost_center"]) data[field] = optionalText(body[field]);
   for (const field of ["notes", "payment_details"]) data[field] = optionalText(body[field], 10000);
   if (kind === "payable") {
-    if (body.cost_type != null && body.cost_type !== "" && !["fixed", "variable"].includes(String(body.cost_type))) fail("Classificação do custo inválida.");
-    data.cost_type = body.cost_type || null;
+    if (!["fixed", "variable"].includes(String(body.cost_type))) fail("Informe se a conta é Custo Fixo ou Variável.");
+    data.cost_type = body.cost_type;
   }
   data.is_recurring = body.is_recurring === true;
   if (data.is_recurring) {
