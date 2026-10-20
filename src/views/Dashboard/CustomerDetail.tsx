@@ -262,6 +262,7 @@ export default function CustomerDetail() {
 
   // Juros de crediário (configurado em Settings, aplicado manualmente por parcela)
   const [sendingDebtEmailKey, setSendingDebtEmailKey] = useState<string | null>(null);
+  const [sendingDebtWhatsappKey, setSendingDebtWhatsappKey] = useState<string | null>(null);
   // Extrato do cliente (PDF + resumo do que pagou e do que falta) pelo WhatsApp da loja
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [sendingStatementWhatsapp, setSendingStatementWhatsapp] = useState(false);
@@ -707,6 +708,37 @@ export default function CustomerDetail() {
       toast.error("Erro de conexão ao enviar o e-mail.");
     } finally {
       setSendingDebtEmailKey(null);
+    }
+  }
+
+  // Envia o comprovante em PDF de um pagamento do crediário, com a mensagem de "pagamento
+  // recebido", pelo WhatsApp da loja. Pede confirmação (é uma mensagem real para o cliente).
+  async function sendDebtPaymentWhatsapp(debt: Debt, payment: DebtPayment) {
+    if (!detail) return;
+    let number: string | undefined;
+    if (!detail.phone?.trim()) {
+      const typed = window.prompt("Este cliente não tem telefone cadastrado. Informe o WhatsApp com DDD para enviar:");
+      if (!typed) return;
+      number = typed.trim();
+    }
+    const target = number || detail.phone;
+    if (!window.confirm(`Enviar o comprovante do pagamento de ${fmt(Number(payment.amount))} para ${detail.name} (${target}) no WhatsApp?`)) return;
+
+    const key = `p${payment.id}`;
+    setSendingDebtWhatsappKey(key);
+    try {
+      const res = await fetch(`/api/customers/${detail.id}/debts/${debt.id}/send-whatsapp`, {
+        method: "POST",
+        headers: authH(),
+        body: JSON.stringify({ payment_id: payment.id, number }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data?.error || "Não foi possível enviar pelo WhatsApp."); return; }
+      toast.success(`Comprovante enviado para ${detail.name} pelo WhatsApp.`);
+    } catch {
+      toast.error("Erro de conexão ao enviar pelo WhatsApp.");
+    } finally {
+      setSendingDebtWhatsappKey(null);
     }
   }
 
@@ -1365,6 +1397,9 @@ export default function CustomerDetail() {
                                     </Button>
                                     <Button variant="outline" size="xs" title="Enviar comprovante por e-mail" iconLeft={<Mail size={11} />} loading={sendingDebtEmailKey === `p${p.id}`} onClick={() => sendDebtEmail(d, p)}>
                                       Enviar por e-mail
+                                    </Button>
+                                    <Button variant="outline" size="xs" title={whatsappConnected ? "Enviar comprovante pelo WhatsApp" : "Conecte o WhatsApp da loja para enviar"} iconLeft={<MessageCircle size={11} />} loading={sendingDebtWhatsappKey === `p${p.id}`} disabled={!whatsappConnected || sendingDebtWhatsappKey === `p${p.id}`} onClick={() => sendDebtPaymentWhatsapp(d, p)}>
+                                      Enviar por WhatsApp
                                     </Button>
                                   </>
                                 )}

@@ -25,6 +25,7 @@ import {
   importCustomers,
 } from "../controllers/customers.controller";
 import { sendCrediarioEmail } from "../controllers/document-email.controller";
+import { sendCrediarioPaymentWhatsapp } from "../controllers/crediario-whatsapp.controller";
 import { downloadCustomerStatementPdf, sendCustomerStatementWhatsapp } from "../controllers/customer-statement.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -90,6 +91,7 @@ router.post("/:id/debts/:debtId/pay-multi", payDebtMulti);
 router.post("/:id/debts/:debtId/payments/:paymentId/reverse", reverseDebtPayment);
 router.post("/:id/debts/:debtId/installments/:instId/apply-interest", applyInstallmentInterest);
 router.post("/:id/debts/:debtId/send-email", sendCrediarioEmail);
+router.post("/:id/debts/:debtId/send-whatsapp", sendCrediarioPaymentWhatsapp);
 router.delete("/:id/debts/:debtId", deleteDebt);
 router.get("/:id/debts/:debtId/installments", listDebtInstallments);
 router.put("/:id/debts/:debtId/installments", updateDebtInstallments);
