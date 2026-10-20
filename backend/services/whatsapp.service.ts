@@ -2812,7 +2812,10 @@ export async function processWhatsappWebhook(
     return { ok: true, ignored: true, reason: "unsupported-chat" };
   }
 
-  const phone = normalizePhone(remoteJid);
+  // Telefone real: o serviço resolve o ID interno (@lid) e manda em resolvedPhone; sem isso, usa o
+  // endereço alternativo da mensagem e, por último, o próprio remoteJid (que pode ser um @lid).
+  const altJid = typeof key.remoteJidAlt === "string" && key.remoteJidAlt.endsWith("@s.whatsapp.net") ? key.remoteJidAlt : "";
+  const phone = normalizePhone(typeof data.resolvedPhone === "string" && data.resolvedPhone ? data.resolvedPhone : altJid || remoteJid);
   const customerName = typeof data.pushName === "string" ? data.pushName : null;
   const messageId = typeof key.id === "string" ? key.id : null;
   const incoming = extractIncomingMessageContent(data);

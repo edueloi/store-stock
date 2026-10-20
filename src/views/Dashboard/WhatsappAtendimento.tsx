@@ -1,3 +1,4 @@
+import { formatContactPhone } from "../../lib/whatsappPhone";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -319,7 +320,7 @@ export default function WhatsappAtendimento({ view }: { view: AtendimentoView })
               <div className="flex gap-3">
                 <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-semibold", view === "bot" ? "bg-violet-100 text-violet-700" : "bg-slate-100 text-slate-600")}>{view === "bot" ? <Bot size={18} /> : initials(conversation.customer_name)}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center justify-between gap-2"><strong className="truncate text-[13px] text-slate-800">{conversation.customer_name || conversation.phone}</strong><small className="shrink-0 text-[11px] font-semibold text-slate-400">{formatTime(conversation.last_inbound_at || conversation.updated_at)}</small></span>
+                  <span className="flex items-center justify-between gap-2"><strong className="truncate text-[13px] text-slate-800">{conversation.customer_name || formatContactPhone(conversation.phone)}</strong><small className="shrink-0 text-[11px] font-semibold text-slate-400">{formatTime(conversation.last_inbound_at || conversation.updated_at)}</small></span>
                   <span className="mt-1 block truncate text-[11px] text-slate-500">{conversation.last_message_preview || "Sem mensagens registradas"}</span>
                   <span className="mt-2 flex flex-wrap items-center gap-1.5">
                     {conversation.queue_position && <Badge size="sm" color="warning">#{conversation.queue_position} na fila</Badge>}
@@ -344,7 +345,7 @@ export default function WhatsappAtendimento({ view }: { view: AtendimentoView })
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4">
                 <div className="min-w-0">
                   <h3 className="truncate text-base font-semibold text-slate-900">{selected.customer_name || "Cliente sem nome"}</h3>
-                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><Phone size={12} /> {selected.phone}</p>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><Phone size={12} /> {formatContactPhone(selected.phone)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {selected.status !== "closed" && <Button variant="danger" size="sm" disabled={saving} onClick={() => void close()} iconLeft={<XCircle size={14} />}>Encerrar conversa</Button>}                </div>

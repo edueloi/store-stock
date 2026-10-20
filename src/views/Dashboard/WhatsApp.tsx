@@ -1,3 +1,4 @@
+import { formatContactPhone } from "../../lib/whatsappPhone";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Bot,
@@ -1434,7 +1435,7 @@ export default function WhatsApp() {
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-500 mt-1">
-                          {conversation.phone} • {conversation.department_label}
+                          {formatContactPhone(conversation.phone)} • {conversation.department_label}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
@@ -1558,7 +1559,7 @@ export default function WhatsApp() {
                 </h3>
                 <p className="text-[12px] text-slate-500 mt-1 flex items-center gap-2">
                   <Phone size={13} />
-                  {conversationDetail?.conversation.phone}
+                  {formatContactPhone(conversationDetail?.conversation.phone)}
                 </p>
               </div>
               <IconButton

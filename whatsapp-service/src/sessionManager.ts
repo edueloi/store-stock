@@ -87,6 +87,25 @@ async function forwardMessageToWebhook(tenantSlug: string, webhookSecret: string
   }
 }
 
+// Telefone real de quem escreveu. O WhatsApp pode identificar o contato por um ID interno (@lid,
+// 14+ dígitos) que NÃO é telefone; tenta o endereço alternativo da mensagem e o mapeamento da lib.
+async function resolvePhone(sock: WASocket, key: { remoteJid?: string | null; remoteJidAlt?: string | null }): Promise<string | null> {
+  const toDigits = (jid: string) => jid.replace(/@.*/, "").replace(/:\d+$/, "").replace(/\D/g, "");
+  const alt = key.remoteJidAlt;
+  if (alt && alt.endsWith("@s.whatsapp.net")) return toDigits(alt);
+  const raw = key.remoteJid ?? "";
+  if (raw.endsWith("@s.whatsapp.net")) return toDigits(raw);
+  if (raw.endsWith("@lid")) {
+    try {
+      const pn = await sock.signalRepository.lidMapping.getPNForLID(raw);
+      if (pn) return toDigits(String(pn));
+    } catch (err) {
+      logger.warn({ raw, err }, "failed to resolve @lid to phone");
+    }
+  }
+  return null;
+}
+
 async function startSocket(tenantId: number, tenantSlug: string, webhookSecret: string, reconnectAttempt = 0): Promise<SessionEntry> {
   if (tenantSlug && webhookSecret) {
     saveMeta(tenantId, tenantSlug, webhookSecret);
@@ -177,11 +196,15 @@ async function startSocket(tenantId: number, tenantSlug: string, webhookSecret: 
 
     for (const message of upsert.messages) {
       if (message.key.fromMe) continue;
-      void forwardMessageToWebhook(current.tenantSlug, current.webhookSecret, {
-        key: message.key,
-        message: message.message,
-        pushName: message.pushName,
-      });
+      void (async () => {
+        const resolvedPhone = await resolvePhone(sock, message.key as { remoteJid?: string | null; remoteJidAlt?: string | null }).catch(() => null);
+        await forwardMessageToWebhook(current.tenantSlug, current.webhookSecret, {
+          key: message.key,
+          message: message.message,
+          pushName: message.pushName,
+          resolvedPhone,
+        });
+      })();
     }
   });
 
@@ -234,7 +257,9 @@ export async function sendMessage(
     throw new Error("WhatsApp não está conectado para este tenant.");
   }
 
-  let jid = number.includes("@") ? number : `${number}@s.whatsapp.net`;
+  // Telefones (DDI+DDD+número) têm até 13 dígitos; mais que isso é ID interno do WhatsApp (@lid).
+  const onlyDigits = number.replace(/\D/g, "");
+  let jid = number.includes("@") ? number : onlyDigits.length > 13 ? `${onlyDigits}@lid` : `${onlyDigits}@s.whatsapp.net`;
 
   // O WhatsApp vem migrando contatos para um identificador "@lid" (Linked ID) no lugar
   // do JID por telefone em algumas conversas — a mensagem chega certinho (conseguimos
