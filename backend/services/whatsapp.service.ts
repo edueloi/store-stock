@@ -1645,7 +1645,9 @@ function extractAiText(payload: unknown, provider: WhatsappWorkspaceSettings["ai
 
 // Modelo fixo: o lojista não escolhe. Aliases "-latest" acompanham o modelo atual do Google;
 // um valor digitado errado (ou preenchido pelo navegador) derrubaria o atendimento.
-const AI_GEMINI_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"];
+// Ordem por velocidade medida (2-3s) com os aliases "-latest" por último: eles acompanham o modelo atual
+// do Google, mas nem sempre o mais rápido. Modelo descontinuado (404) ou lento passa ao seguinte.
+const AI_GEMINI_MODELS = ["gemini-3.5-flash", "gemini-3-flash-preview", "gemini-flash-lite-latest", "gemini-flash-latest"];
 
 function aiErrorReason(error: unknown): string {
   if (axios.isAxiosError(error)) {
