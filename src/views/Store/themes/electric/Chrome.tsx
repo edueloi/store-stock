@@ -1,217 +1,39 @@
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, Clock, Cable, Facebook, Heart, Instagram, LayoutGrid, MapPin, Menu, MessageCircle, Phone, Search, ShoppingCart, X, Zap } from "lucide-react";
-import { useStore } from "../../StoreLayout";
-import { hoursRows, useTheme, waLink } from "./lib";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { Menu, Search, ShoppingBag, X } from "lucide-react";
+import SiteFooter from "../street/SiteFooter";
+import { useHeaderState } from "../street/shared";
 import "./styles.css";
 
 export function Header() {
-  const { tenant, categories, products, cart, openCart, wishlist } = useStore();
-  const { path } = useTheme();
-  const { pathname } = useLocation();
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [cat, setCat] = useState("");
-  const count = cart.reduce((s, i) => s + i.quantity, 0);
-  const cats = categories.filter((c) => products.some((p) => p.is_active && p.category_id === c.id));
-
-  useEffect(() => setOpen(false), [pathname]);
+  const h = useHeaderState();
+  const { search } = useLocation();
+  const [searching, setSearching] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => setSearching(false), [h.pathname, search]);
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = query.trim();
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (cat) params.set("cat", cat);
-    const qs = params.toString();
-    navigate(path(`/catalogo${qs ? `?${qs}` : ""}`));
-    setQuery("");
-    setOpen(false);
-  };
-
-  return (
-    <header className="ep-header">
-      <div className="ep-wrap">
-        <div className="ep-bar">
-          <button type="button" className="ep-icon ep-burger" aria-label={open ? "Fechar menu" : "Abrir menu"} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-            {open ? <X size={22} /> : <Menu size={22} />}
-          </button>
-          <Link to={path()} className="ep-brand" aria-label={`${tenant.name} - início`}>
-            {tenant.logo_url ? (
-              <img src={tenant.logo_url} alt="" />
-            ) : (
-              <span className="ep-brand-mark">
-                <Zap size={20} />
-              </span>
-            )}
-            <span className="ep-brand-name">{tenant.name}</span>
-          </Link>
-          <button type="button" className="ep-mega-btn" aria-expanded={open} aria-controls="ep-mega" onClick={() => setOpen((v) => !v)}>
-            <LayoutGrid size={18} /> Materiais <ChevronDown size={15} className="ep-chev" />
-          </button>
-          <form onSubmit={submit} className="ep-search" role="search">
-            <label className="ep-sr" htmlFor="ep-hcat">
-              Tipo de material
-            </label>
-            <select id="ep-hcat" value={cat} onChange={(e) => setCat(e.target.value)}>
-              <option value="">Todos</option>
-              {cats.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <Search size={17} aria-hidden="true" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Nome ou código do material" aria-label="Buscar material" />
-            <button type="submit" className="ep-search-go">
-              Buscar
-            </button>
-          </form>
-          <div className="ep-actions">
-            {tenant.whatsapp && (
-              <a className="ep-quote" href={waLink(tenant, "Olá! Preciso de um orçamento.")} target="_blank" rel="noreferrer">
-                <Phone size={16} aria-hidden="true" /> <span>Orçamento</span>
-              </a>
-            )}
-            <Link to={path("/catalogo")} className="ep-icon ep-fav" aria-label={`Favoritos: ${wishlist.length}`}>
-              <Heart size={20} />
-              {wishlist.length > 0 && <b>{wishlist.length}</b>}
-            </Link>
-            <button type="button" className="ep-cart" aria-label={`Abrir carrinho, ${count} itens`} onClick={openCart}>
-              <ShoppingCart size={20} />
-              <span className="ep-cart-txt">Carrinho</span>
-              <b>{count}</b>
-            </button>
-          </div>
-        </div>
-
-        {open && (
-          <>
-            <button type="button" className="ep-scrim" aria-label="Fechar menu" onClick={() => setOpen(false)} />
-            <div className="ep-mega" id="ep-mega">
-              <div className="ep-mega-links">
-                <Link to={path()}>Início</Link>
-                <Link to={path("/catalogo")}>Catálogo completo</Link>
-                <Link to={path("/sobre")}>Sobre a loja</Link>
-              </div>
-              <p className="ep-mega-h">Por tipo de material</p>
-              <ol className="ep-mega-grid">
-                {cats.map((c, i) => (
-                  <li key={c.id}>
-                    <Link to={path(`/catalogo?cat=${c.id}`)}>
-                      <span className="ep-mega-n">{String(i + 1).padStart(2, "0")}</span>
-                      {c.name}
-                    </Link>
-                  </li>
-                ))}
-                {cats.length === 0 && <li className="ep-mega-empty">Nenhum tipo cadastrado.</li>}
-              </ol>
-            </div>
-          </>
-        )}
-      </div>
-    </header>
-  );
+    if (searching) input.current?.focus();
+    const close = (e: KeyboardEvent) => { if (e.key === "Escape") { setSearching(false); h.setMenu(false); } };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [searching, h.setMenu]);
+  const nav = [
+    { name: "Início", to: h.path(), on: !/catalogo|sobre|produto/.test(h.pathname) },
+    { name: "Produtos", to: h.path("/catalogo"), on: /catalogo|produto/.test(h.pathname) },
+    { name: "Sobre a loja", to: h.path("/sobre"), on: /sobre/.test(h.pathname) },
+  ];
+  return <header className="ep-header">
+    <div className="ep-top">
+      <button type="button" className="ep-iconbtn ep-burger" aria-label={h.menu ? "Fechar menu" : "Abrir menu"} aria-expanded={h.menu} onClick={() => h.setMenu(!h.menu)}>{h.menu ? <X size={21} /> : <Menu size={21} />}</button>
+      <Link className="ep-brand" to={h.path()} aria-label={`${h.tenant.name} - página inicial`}>{h.tenant.logo_url && <img src={h.tenant.logo_url} alt="" />}<span>{h.tenant.name}</span></Link>
+      <nav className="ep-nav" aria-label="Navegação principal">{nav.map(l => <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>)}</nav>
+      <div className="ep-header-actions"><button type="button" className="ep-iconbtn" aria-label="Buscar produtos" aria-expanded={searching} onClick={() => setSearching(!searching)}>{searching ? <X size={20} /> : <Search size={20} />}</button><button type="button" className="ep-cart" aria-label={`Abrir sacola, ${h.cartCount} ${h.cartCount === 1 ? "item" : "itens"}`} onClick={h.openCart}><ShoppingBag size={20} /><span className="ep-cart-label">Sacola</span><span className="ep-cart-count">{h.cartCount}</span></button></div>
+    </div>
+    {searching && <form className="ep-search" role="search" onSubmit={h.submit}><Search size={19} aria-hidden="true" /><input ref={input} type="search" value={h.term} onChange={e => h.setTerm(e.target.value)} placeholder="O que você procura?" aria-label="Buscar produtos" /><button type="submit">Buscar</button></form>}
+    {h.menu && <div className="ep-drawer" role="dialog" aria-label="Menu da loja" aria-modal="true"><button type="button" className="ep-drawer-bg" aria-label="Fechar menu" onClick={() => h.setMenu(false)} /><div className="ep-drawer-panel"><div className="ep-drawer-top"><strong>{h.tenant.name}</strong><button type="button" className="ep-iconbtn" aria-label="Fechar menu" onClick={() => h.setMenu(false)}><X size={21} /></button></div><nav className="ep-drawer-nav" aria-label="Menu móvel">{nav.map(l => <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>)}</nav></div></div>}
+  </header>;
 }
 
 export function Footer() {
-  const { tenant, categories, products } = useStore();
-  const { path } = useTheme();
-  const hours = hoursRows(tenant);
-  const cats = categories.filter((c) => products.some((p) => p.is_active && p.category_id === c.id)).slice(0, 6);
-  return (
-    <footer className="ep-footer">
-      <div className="ep-wrap">
-        <div className="ep-foot-quote">
-          <span className="ep-foot-ico">
-            <Cable size={26} aria-hidden="true" />
-          </span>
-          <div>
-            <strong>Tem uma lista de materiais?</strong>
-            <span>Envie para a loja e receba o orçamento.</span>
-          </div>
-          {tenant.whatsapp ? (
-            <a className="ep-btn" href={waLink(tenant, "Olá! Preciso de um orçamento de materiais.")} target="_blank" rel="noreferrer">
-              <MessageCircle size={16} aria-hidden="true" /> Pedir orçamento
-            </a>
-          ) : (
-            <Link className="ep-btn" to={path("/sobre")}>
-              Falar com a loja
-            </Link>
-          )}
-        </div>
-        <div className="ep-foot-grid">
-          <section className="ep-foot-card">
-            <p className="ep-foot-brand">{tenant.name}</p>
-            <p className="ep-foot-txt">{tenant.footer_text || tenant.about_text || "Materiais e atendimento técnico para a sua obra, reforma ou instalação."}</p>
-            <div className="ep-foot-social">
-              {tenant.instagram_url && (
-                <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram">
-                  <Instagram size={18} />
-                </a>
-              )}
-              {tenant.facebook_url && (
-                <a href={tenant.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook">
-                  <Facebook size={18} />
-                </a>
-              )}
-            </div>
-          </section>
-          <section className="ep-foot-card">
-            <h3>Materiais</h3>
-            {cats.map((c) => (
-              <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)}>
-                {c.name}
-              </Link>
-            ))}
-            <Link to={path("/catalogo")} className="ep-foot-more">
-              Ver tudo
-            </Link>
-          </section>
-          <section className="ep-foot-card">
-            <h3>Atendimento</h3>
-            <Link to={path("/sobre")}>Sobre a loja</Link>
-            {tenant.whatsapp && (
-              <a href={waLink(tenant)} target="_blank" rel="noreferrer">
-                <MessageCircle size={14} aria-hidden="true" /> {tenant.whatsapp}
-              </a>
-            )}
-            {tenant.show_address && tenant.address && (
-              <p>
-                <MapPin size={14} aria-hidden="true" /> {tenant.address}
-              </p>
-            )}
-          </section>
-          <section className="ep-foot-card">
-            <h3>
-              <Clock size={14} aria-hidden="true" /> Horários
-            </h3>
-            {hours.length ? (
-              hours.map((h) => (
-                <p key={h.day} className="ep-foot-hour">
-                  <span>{h.day}</span>
-                  <span>{h.text}</span>
-                </p>
-              ))
-            ) : (
-              <p>Consulte o horário pelo WhatsApp.</p>
-            )}
-          </section>
-        </div>
-        <div className="ep-foot-bottom">
-          <span>
-            © {new Date().getFullYear()} {tenant.name}
-          </span>
-          <span>Desenvolvido por BoxSys</span>
-        </div>
-      </div>
-    </footer>
-  );
+  return <SiteFooter t="ep" showCategories={false} catalogLabel="Todos os produtos" aboutLabel="Sobre a loja" tagline="Materiais elétricos, acessórios e iluminação em um catálogo para consultar com atenção. Confira medidas, tensão e as informações técnicas de cada item antes de escolher." />;
 }

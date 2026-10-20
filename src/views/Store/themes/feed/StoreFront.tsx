@@ -1,100 +1,28 @@
-import { useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, CreditCard, PawPrint, Repeat, Search, Truck } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, ArrowUpRight, MessageCircle, Leaf, Tractor, Wheat, Sprout } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import HeroSlider from "../../../../components/store/HeroSlider";
-import { StoreButton } from "../../../../components/store/StoreButton";
-import { productImage, useKit } from "./kit";
-import { useShelves } from "./extras";
-import { useHeroMotion } from "./motion";
-import { Shelf } from "./parts";
-
-const TRUST = [
-  { icon: Truck, title: "Entrega combinada", text: "Receba onde for melhor" },
-  { icon: CreditCard, title: "Pagamento seguro", text: "Formas pensadas para você" },
-  { icon: Repeat, title: "Troca facilitada", text: "Fale com a loja" },
-];
+import { useKit } from "./kit";
+import { whatsappLink } from "./extras";
+import { Card } from "./parts";
+import "./styles.css";
 
 export default function StoreFront() {
-  const { tenant, active, config, path } = useKit();
-  const shelves = useShelves();
-  const navigate = useNavigate();
-  const heroRef = useRef<HTMLDivElement>(null);
-  useHeroMotion(heroRef);
-  const [species, setSpecies] = useState("");
-  const [term, setTerm] = useState("");
-  const featured = active.filter((p) => p.is_featured);
-  const first = (featured.length ? featured : active).find((p) => productImage(p));
-  const hero = tenant.banner_url || productImage(first);
-  const go = (e: React.FormEvent) => {
-    e.preventDefault();
-    const query: Record<string, string> = {};
-    if (species) query.cat = species;
-    if (term.trim()) query.q = term.trim();
-    navigate(path("/catalogo", query));
-  };
-  const fallback = (
-    <section className="feed-hero">
-      <div className="feed-hero-copy">
-        <span className="feed-eyebrow"><PawPrint size={15} aria-hidden="true" /> {config.segment_label || "Rações e nutrição"}</span>
-        <h1>{tenant.hero_tagline || "A comida certa para cada fase da vida."}</h1>
-        <p>{tenant.about_text || "Rações, petiscos e suplementos selecionados para cães, gatos, aves e muito mais."}</p>
-        <form className="feed-finder" onSubmit={go} role="search" aria-label="Encontrar produto por animal">
-          <label>
-            <span className="feed-sr">Para qual animal?</span>
-            <select value={species} onChange={(e) => setSpecies(e.target.value)}>
-              <option value="">Todos os animais</option>
-              {shelves.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className="feed-sr">Palavra-chave</span>
-            <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="Ex.: filhote, adulto, castrado" />
-          </label>
-          <StoreButton type="submit" className="feed-cta"><Search size={17} aria-hidden="true" /> Buscar</StoreButton>
-        </form>
-      </div>
-      <div className="feed-hero-art">
-        <span className="feed-hero-orb" aria-hidden="true" />
-        <div className="feed-hero-pic">{hero ? <img src={hero} alt="" /> : <PawPrint size={90} aria-hidden="true" />}</div>
-        <span className="feed-hero-chip">Seleção da loja</span>
-      </div>
-    </section>
-  );
-  return (
-    <div className="feed-page">
-      <StoreSEO title={tenant.name} description={tenant.hero_tagline || "Rações e nutrição para o seu animal."} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
-      <div className="feed-wrap feed-hero-wrap" ref={heroRef}>
-        <HeroSlider
-          slides={config.hero_slides}
-          autoplaySeconds={config.hero_autoplay_seconds ?? 6}
-          resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
-          layout="split"
-          className="feed-slider"
-          fallback={fallback}
-        />
-      </div>
-      <div className="feed-wrap">
-        <ul className="feed-trust" aria-label="Vantagens">
-          {TRUST.map((t) => (
-            <li key={t.title}>
-              <t.icon size={22} aria-hidden="true" />
-              <span><strong>{t.title}</strong><small>{t.text}</small></span>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="feed-wrap feed-shelves">
-        {shelves.slice(0, 4).map((c) => <Shelf key={c.id} id={c.id} name={c.name} count={c.count} items={c.items} />)}
-        {!shelves.length && active.length > 0 && (
-          <Shelf id={0} name="Nossos produtos" count={active.length} items={active} />
-        )}
-      </div>
-      <div className="feed-wrap feed-more">
-        <StoreButton asChild variant="outline" className="feed-ghost">
-          <Link to={path("/catalogo")}>Ver todos os produtos <ArrowRight size={17} aria-hidden="true" /></Link>
-        </StoreButton>
-      </div>
-    </div>
-  );
+  const { tenant, active, path, config: sf } = useKit();
+  const picks = [...active.filter(p => p.is_featured), ...active.filter(p => !p.is_featured)].slice(0, tenant.featured_limit || 8);
+  const resolve = (url: string) => { if (!url.startsWith("/")) return url; const [part, query] = url.split("?"); return path(part, Object.fromEntries(new URLSearchParams(query))); };
+
+  const image = tenant.banner_url || "/store-assets/feed-editorial-hero-v1.jpg";
+  const campaign = <section className="feed-hero"><div className="feed-hero-copy"><span className="feed-kicker">{sf.segment_label || "NUTRIÇÃO, ROTINA & COMPANHIA"}</span><h1>{tenant.hero_tagline || "Cuidar bem.\nEm cada porção."}</h1><p>Alimentação e cuidados para os animais que fazem parte da sua vida.</p><Link className="feed-hero-link" to={path("/catalogo")}>{sf.hero_button_label || "Explorar os cuidados"}<ArrowRight size={18} /></Link></div><div className="feed-campaign-photo"><img className="feed-hero-image" src={image} alt="Ração e grãos em bancada de madeira com cavalo ao fundo" fetchPriority="high" /><span className="feed-photo-label">DO RANCHO. PARA A SUA ROTINA.</span></div></section>;
+  return <div className="feed-page feed-home">
+    <StoreSEO title={tenant.name} description={tenant.about_text || "Alimentação e cuidado para pets e animais de criação."} image={image} siteName={tenant.name} />
+    <HeroSlider slides={sf.hero_slides} autoplaySeconds={sf.hero_autoplay_seconds ?? 0} animate={false} resolveUrl={resolve} layout="banner" className="feed-slider" fallback={campaign} />
+    <section className="feed-home-selection"><header className="feed-section-heading"><span className="feed-kicker">A DESPENSA DOS SEUS ANIMAIS</span><h2>{sf.home_featured_title || "Nutrição que faz parte do dia."}</h2><Link className="feed-text-link" to={path("/catalogo")}>Ver todos os produtos <ArrowRight size={16} /></Link></header>
+    {picks.length ? <div className="feed-grid">{picks.map(p => <Card key={p.id} product={p} />)}</div> : <div className="feed-empty"><h2>Novos produtos estão chegando.</h2><p>Estamos preparando o catálogo. Volte em breve.</p></div>}</section>
+    <section className="feed-choice-guide"><header><span className="feed-kicker">CUIDADO COMEÇA NA ESCOLHA</span><h2>O que olhar<br />antes de levar?</h2><Link className="feed-text-link" to={path("/sobre")}>Converse com a loja <ArrowUpRight size={18} /></Link></header><div className="feed-guide-steps">{[
+      ["01", "Para qual animal?", "Confira a espécie e a fase de vida indicadas na embalagem."],
+      ["02", "Na medida da sua rotina.", "Compare as apresentações e a quantidade de cada produto."],
+      ["03", "Informação vem primeiro.", "Leia o rótulo e confirme os detalhes com a equipe antes de comprar."],
+    ].map(([number,title,text]) => <article key={number}><span>{number}</span><div><h3>{title}</h3><p>{text}</p></div></article>)}</div></section>
+  </div>;
 }

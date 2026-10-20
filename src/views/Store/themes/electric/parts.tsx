@@ -13,7 +13,7 @@ export function PriceBlock({ product, big = false }: { product: Product; big?: b
   if (pricesHidden(tenant)) return <div className={`ep-price ${big ? "ep-price-big" : ""}`}><strong className="ep-consult">Sob consulta</strong></div>;
   return (
     <div className={`ep-price ${big ? "ep-price-big" : ""}`}>
-      {product.discount_price != null && <s>{money(Number(product.price))}</s>}
+      {Number(product.discount_price) > 0 && <s>{money(Number(product.price))}</s>}
       <strong>{money(unitPrice(product))}</strong>
     </div>
   );

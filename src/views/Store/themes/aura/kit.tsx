@@ -11,9 +11,9 @@ export const money = (value: number) =>
 export const imageOf = (p?: Product) => p?.images?.[0] || p?.image_url || "";
 export const norm = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-export const priceOf = (p: Product) => Number(p.discount_price ?? p.price);
+export const priceOf = (p: Product) => Number(p.discount_price) > 0 ? Number(p.discount_price) : Number(p.price);
 export const hasDiscount = (p: Product) =>
-  p.discount_price != null && Number(p.discount_price) >= 0 && Number(p.discount_price) < Number(p.price);
+  p.discount_price != null && Number(p.discount_price) > 0 && Number(p.discount_price) < Number(p.price);
 export const groupsOf = (p: Product): { name: string; values: string[]; colors?: Record<string, string> }[] =>
   Array.isArray(p.attributes) && p.attributes.length
     ? p.attributes.map((a) => ({ name: a.name, values: a.values, colors: a.colors }))

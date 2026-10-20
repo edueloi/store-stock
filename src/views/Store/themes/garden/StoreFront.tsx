@@ -1,94 +1,24 @@
-import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, Droplets, Leaf, Sprout, Sun } from "lucide-react";
+import { ArrowRight, ArrowUpRight, MessageCircle, Leaf, Tractor, Wheat, Sprout } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import HeroSlider from "../../../../components/store/HeroSlider";
-import { StoreButton } from "../../../../components/store/StoreButton";
-import { productImage, useKit } from "./kit";
-import { useShelves } from "./extras";
-import { useHeroMotion } from "./motion";
-import { Card, LeafArt, SectionTitle } from "./parts";
-
-const CARE = [
-  { icon: Sun, title: "Luz certa", text: "Plantas para sol e sombra" },
-  { icon: Droplets, title: "Rega fácil", text: "Do regador ao substrato" },
-  { icon: Sprout, title: "Para começar", text: "Mudas e sementes" },
-];
+import { useKit } from "./kit";
+import { whatsappLink } from "./extras";
+import { Card } from "./parts";
+import "./styles.css";
 
 export default function StoreFront() {
-  const { tenant, active, config, path } = useKit();
-  const shelves = useShelves();
-  const heroRef = useRef<HTMLDivElement>(null);
-  useHeroMotion(heroRef);
-  const featured = active.filter((p) => p.is_featured);
-  const picks = (featured.length ? featured : active).slice(0, 8);
-  const withImg = picks.filter((p) => productImage(p));
-  const imgs = [tenant.banner_url || productImage(withImg[0]), productImage(withImg[1]), productImage(withImg[2])];
-  const fallback = (
-    <section className="garden-hero">
-      <LeafArt className="garden-leaf-float garden-leaf-1" />
-      <LeafArt className="garden-leaf-float garden-leaf-2" />
-      <div className="garden-hero-copy">
-        <span className="garden-eyebrow"><Leaf size={14} aria-hidden="true" /> {config.segment_label || "Jardinagem"}</span>
-        <h1>{tenant.hero_tagline || "Faça o seu cantinho florescer."}</h1>
-        <p>{tenant.about_text || "Plantas, vasos, substratos e ferramentas escolhidos com carinho para o seu jardim."}</p>
-        <StoreButton asChild size="lg" className="garden-cta">
-          <Link to={path("/catalogo")}>{config.hero_button_label || "Explorar o jardim"} <ArrowRight size={18} aria-hidden="true" /></Link>
-        </StoreButton>
-      </div>
-      <div className="garden-mosaic" aria-hidden="true">
-        {imgs.map((src, i) => (
-          <span key={i} className={`garden-blob garden-blob-${"abc"[i]}`}>{src ? <img src={src} alt="" /> : <Sprout size={44} />}</span>
-        ))}
-      </div>
-    </section>
-  );
-  return (
-    <div className="garden-page">
-      <StoreSEO title={tenant.name} description={tenant.hero_tagline || "Plantas e jardinagem."} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
-      <div className="garden-wrap garden-hero-wrap" ref={heroRef}>
-        <HeroSlider
-          slides={config.hero_slides}
-          autoplaySeconds={config.hero_autoplay_seconds ?? 6}
-          resolveUrl={(u) => (u.startsWith("/") ? path(u) : u)}
-          layout="banner"
-          className="garden-slider"
-          fallback={fallback}
-        />
-      </div>
+  const { tenant, active, path, config: sf } = useKit();
+  const picks = [...active.filter(p => p.is_featured), ...active.filter(p => !p.is_featured)].slice(0, tenant.featured_limit || 8);
+  const resolve = (url: string) => { if (!url.startsWith("/")) return url; const [part, query] = url.split("?"); return path(part, Object.fromEntries(new URLSearchParams(query))); };
 
-      <div className="garden-wrap">
-        <ul className="garden-care" aria-label="Dicas de cultivo">
-          {CARE.map((c) => (
-            <li key={c.title}><span><c.icon size={22} aria-hidden="true" /></span><div><strong>{c.title}</strong><small>{c.text}</small></div></li>
-          ))}
-        </ul>
-      </div>
-
-      {shelves.length > 0 && (
-        <section className="garden-wrap garden-section">
-          <SectionTitle eyebrow="Categorias" title="Explore o jardim" text="Escolha um canto e comece a cultivar." />
-          <div className="garden-circles" role="list">
-            {shelves.slice(0, 10).map((c) => (
-              <Link key={c.id} role="listitem" className="garden-circle" to={path("/catalogo", { cat: String(c.id) })}>
-                <span>{c.cover ? <img src={c.cover} alt="" loading="lazy" /> : <Leaf size={32} aria-hidden="true" />}</span>
-                <strong>{c.name}</strong>
-                <small>{c.count} {c.count === 1 ? "item" : "itens"}</small>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {picks.length > 0 && (
-        <section className="garden-wrap garden-section">
-          <SectionTitle eyebrow={featured.length ? "Em destaque" : "Do nosso viveiro"} title="Para levar para casa" />
-          <div className="garden-grid">{picks.map((p) => <Card key={p.id} product={p} />)}</div>
-          <div className="garden-center">
-            <StoreButton asChild variant="outline" className="garden-ghost"><Link to={path("/catalogo")}>Ver o catálogo completo</Link></StoreButton>
-          </div>
-        </section>
-      )}
-    </div>
-  );
+  const image = tenant.banner_url || "/store-assets/garden-editorial-hero-v1.jpg";
+  const campaign = <section className="garden-hero"><img className="garden-hero-image" src={image} alt="Ervas e mudas em vasos de terracota sobre bancada de cultivo" fetchPriority="high" /><div className="garden-hero-copy"><span className="garden-kicker">{sf.segment_label || "A VIDA PEDE MAIS VERDE"}</span><h1>{tenant.hero_tagline || "Para cultivar.\nPara viver."}</h1><p>Pequenos começos, novas folhas. Descubra o que faz o seu jardim crescer.</p><Link className="garden-hero-link" to={path("/catalogo")}>{sf.hero_button_label || "Explorar o jardim"}<ArrowUpRight size={18} /></Link></div><span className="garden-hero-caption">HORTA / CASA / JARDIM</span></section>;
+  return <div className="garden-page garden-home">
+    <StoreSEO title={tenant.name} description={tenant.about_text || "Plantas, sementes e ferramentas para cultivar os seus espaços."} image={image} siteName={tenant.name} />
+    <HeroSlider slides={sf.hero_slides} autoplaySeconds={sf.hero_autoplay_seconds ?? 0} animate={false} resolveUrl={resolve} layout="banner" className="garden-slider" fallback={campaign} />
+    <section className="garden-home-selection"><header className="garden-section-heading"><span className="garden-kicker"><Sprout size={17} /> DA NOSSA SELEÇÃO PARA O SEU ESPAÇO</span><div><h2>{sf.home_featured_title || "Deixe a vida florescer."}</h2><Link className="garden-text-link" to={path("/catalogo")}>Ver todos os produtos <ArrowRight size={16} /></Link></div></header>
+    {picks.length ? <div className="garden-grid">{picks.map(p => <Card key={p.id} product={p} />)}</div> : <div className="garden-empty"><h2>Novos produtos estão chegando.</h2><p>Estamos preparando o catálogo. Volte em breve.</p></div>}</section>
+    <section className="garden-journal"><div className="garden-journal-photo"><img src={image} alt="Detalhes de uma bancada de cultivo" loading="lazy" /><span>O PRAZER DE CULTIVAR</span></div><div className="garden-journal-copy"><Leaf size={30} strokeWidth={1} /><span className="garden-kicker">MAIS TEMPO PERTO DO VERDE.</span><h2>Um jardim começa<br />nos detalhes.</h2><p>Uma muda, um vaso, um novo canto da casa. Encontre ferramentas e cuidados para fazer parte desse começo.</p><Link className="garden-text-link" to={path("/sobre")}>Conheça nossa história <ArrowUpRight size={18} /></Link></div></section>
+  </div>;
 }

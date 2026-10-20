@@ -1,40 +1,21 @@
 import { Link } from "react-router-dom";
-import { Clock, Leaf, MapPin, MessageCircle, Sprout } from "lucide-react";
+import { ArrowRight, MapPin, MessageCircle } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { StoreButton } from "../../../../components/store/StoreButton";
-import { hoursLines, useKit } from "./kit";
+import { useKit } from "./kit";
 import { whatsappLink } from "./extras";
-import { LeafArt } from "./parts";
+import "./styles.css";
 
 export default function StoreAbout() {
-  const { tenant, categories, active, config, path } = useKit();
-  const hours = hoursLines(tenant.business_hours);
+  const { tenant, path, config: sf } = useKit();
+  const about = tenant.about_text || "Acreditamos no prazer de acompanhar a vida crescer. Reunimos plantas, sementes, vasos e ferramentas para a horta e o jardim, com uma seleção para quem está começando e para quem já cultiva todos os dias.";
   const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
-  return (
-    <div className="garden-page">
-      <StoreSEO title={`${config.about_title || "Nossa história"} - ${tenant.name}`} description={tenant.about_text || `Conheça a ${tenant.name}.`} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
-      <div className="garden-wrap">
-        <section className="garden-about">
-          <div className="garden-about-copy">
-            <span className="garden-eyebrow"><Leaf size={14} aria-hidden="true" /> {config.segment_label || "Jardinagem"}</span>
-            <h1>{config.about_title || `Quem é a ${tenant.name}`}</h1>
-            <p>{tenant.about_text || `${tenant.name} nasceu do gosto por plantas e por quem cultiva. Aqui você encontra tudo para o seu jardim, com atendimento de quem entende.`}</p>
-            <div className="garden-about-actions">
-              <StoreButton asChild className="garden-cta"><Link to={path("/catalogo")}>Ver catálogo</Link></StoreButton>
-              {wa && <StoreButton asChild variant="outline" className="garden-ghost"><a href={wa} target="_blank" rel="noreferrer"><MessageCircle size={18} aria-hidden="true" /> WhatsApp</a></StoreButton>}
-            </div>
-          </div>
-          <div className="garden-about-art">
-            <LeafArt className="garden-leaf-float garden-leaf-1" />
-            <span className="garden-blob garden-blob-a">{tenant.banner_url ? <img src={tenant.banner_url} alt="" /> : <Sprout size={64} aria-hidden="true" />}</span>
-          </div>
-        </section>
-        <div className="garden-about-cards">
-          <section className="garden-box"><h2>A loja em números</h2><ul><li><span>Produtos</span><b>{active.length}</b></li><li><span>Categorias</span><b>{categories.length}</b></li></ul></section>
-          {hours.length > 0 && <section className="garden-box"><h2><Clock size={18} aria-hidden="true" /> Horário</h2><ul>{hours.map((h) => <li key={h.label}><span>{h.label}</span><b>{h.text}</b></li>)}</ul></section>}
-          {tenant.show_address && tenant.address && <section className="garden-box"><h2><MapPin size={18} aria-hidden="true" /> Onde estamos</h2><p>{tenant.address}</p></section>}
-        </div>
-      </div>
+  const image = tenant.banner_url || "/store-assets/garden-editorial-hero-v1.jpg";
+  return <div className="garden-page garden-about">
+    <StoreSEO title={`${sf.about_title || "Sobre a loja"} | ${tenant.name}`} description={about} image={image} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
+    <div className="garden-about-grid">
+      <div className="garden-about-image"><img className={tenant.banner_url ? "" : "garden-hero-default"} src={image} alt={`Campanha da ${tenant.name}`} /></div>
+      <article className="garden-about-copy"><span className="garden-kicker">SOBRE A LOJA</span><h1>{sf.about_title || "Cultivar começa com cuidado."}</h1><p>{about}</p><div className="garden-about-actions"><Link className="garden-btn garden-btn-solid garden-btn-lg" to={path("/catalogo")}>Explorar o jardim <ArrowRight size={17} /></Link>{wa && <a className="garden-btn garden-btn-line garden-btn-lg" href={wa} target="_blank" rel="noreferrer"><MessageCircle size={17} /> Fale com a loja</a>}</div>{tenant.show_address && tenant.address && <p className="garden-about-addr"><MapPin size={17} />{tenant.address}</p>}</article>
     </div>
-  );
+    <section className="garden-policies">{[["Entrega", tenant.policies?.shipping], ["Trocas e devoluções", tenant.policies?.returns], ["Trocas", tenant.policies?.exchange]].filter(([, text]) => text).map(([title, text]) => <article key={title}><h2>{title}</h2><p>{text}</p></article>)}</section>
+  </div>;
 }

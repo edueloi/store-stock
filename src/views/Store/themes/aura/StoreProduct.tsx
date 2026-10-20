@@ -18,7 +18,7 @@ export default function StoreProduct() {
 
   if (!product)
     return (
-      <div className="au-scope au-page">
+      <div className="au-scope au-page au-product">
         <div className="au-wrap" style={{ padding: "60px 0" }}>
           <div className="au-empty" role="status">
             <ImageIcon size={34} aria-hidden="true" />
@@ -37,7 +37,7 @@ export default function StoreProduct() {
   const label = buy.soldOut ? "Indisponível" : !ready ? "Escolha as opções" : hidden ? "Incluir no pedido" : "Adicionar à sacola";
 
   return (
-    <div className="au-scope au-page au-product-page">
+    <div className="au-scope au-page au-product au-product-page">
       <StoreSEO title={`${product.name} | ${tenant.name}`} description={product.description || product.name} image={gallery[0]} type="product" price={hidden ? undefined : String(priceOf(product))} siteName={tenant.name} url={typeof window !== "undefined" ? window.location.href : ""} />
       <div className="au-wrap">
         <nav className="au-crumbs" aria-label="Você está em">

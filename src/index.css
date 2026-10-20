@@ -498,38 +498,7 @@ body {
 .sport-fitness .border-black\/20 { border-color: #9eaa92 !important; }
 @media (max-width: 639px) { .sport-fitness .grid.gap-x-5 > article:first-child { grid-column: span 1 / span 1; } .sport-fitness .grid.gap-x-5 > article:first-child > a { aspect-ratio: 4 / 5; } }
 
-/* Elétrica Pro: linguagem industrial própria, com sinalização laranja e base azul-naval. */
-.store-theme-electric { background: #f6f8fb; color: #102033; }
-.store-theme-electric > header { background: rgba(7, 20, 38, .97) !important; border-color: #2e4359 !important; box-shadow: 0 10px 30px rgba(7, 20, 38, .28) !important; }
-.store-theme-electric > header p,
-.store-theme-electric > header span:not(.bg-white),
-.store-theme-electric > header a { color: #f8fafc !important; }
-.store-theme-electric > header nav a:not([style]) { color: #dbe6ef !important; }
-.store-theme-electric > header nav a:hover { color: #fff !important; }
-.store-theme-electric > header button[style] { background: linear-gradient(135deg, #22c55e, #00a86b) !important; color: #06130e !important; }
-.store-theme-electric > header nav a[style] { background: linear-gradient(135deg, #22c55e, #00a86b) !important; color: #06130e !important; border-color: #86efac !important; }
-.store-theme-electric > footer { background: #071426 !important; border-color: #2e4359 !important; }
-.store-theme-electric > footer h4,
-.store-theme-electric > footer p,
-.store-theme-electric > footer a { color: #dbe6ef !important; }
-.store-theme-electric main { overflow-x: clip; }
-.store-theme-electric .electric-storefront { background-image: linear-gradient(rgba(19, 47, 75, .035) 1px, transparent 1px), linear-gradient(90deg, rgba(19, 47, 75, .035) 1px, transparent 1px); background-size: 24px 24px; }
-.store-theme-electric article { border-radius: .85rem; }
-.store-theme-electric .store-search-input input { border-color: #42586e; background: #0d1724; color: #fff; }
-.store-theme-electric .store-search-input input::placeholder { color: #94a3b8; }
-.store-theme-electric .ui-button:focus-visible { ring-color: #fb923c; }
-.store-theme-electric .bg-blue-600 { background-color: #16a34a !important; }
-.store-theme-electric .text-blue-600, .store-theme-electric .text-blue-700 { color: #15803d !important; }
-.store-theme-electric .border-blue-500, .store-theme-electric .border-blue-600 { border-color: #22c55e !important; }
-.store-theme-electric .text-blue-200, .store-theme-electric .text-blue-300 { color: #86efac !important; }
-.store-theme-electric main button[style] { background: linear-gradient(135deg, #22c55e, #00a86b) !important; color: #06130e !important; }
-
-@media (max-width: 767px) {
-  .store-theme-electric > header { box-shadow: 0 6px 18px rgba(7, 20, 38, .22) !important; }
-  .store-theme-electric main [class*="max-w-7xl"] { min-width: 0; }
-  .store-theme-electric main .grid-cols-2 > article { min-width: 0; }
-  .store-theme-electric .electric-storefront h1 { font-size: clamp(2.2rem, 10vw, 3.4rem); }
-}
+/* Elétrica Pro define sua identidade no tema. */
 
 @media (max-width: 767px) {
   .store-theme-cyber > header, .store-theme-luxury > header { backdrop-filter: blur(18px); }

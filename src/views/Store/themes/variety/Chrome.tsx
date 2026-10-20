@@ -1,169 +1,39 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ChevronDown, Grid2x2, Instagram, Menu, MessageCircle, Search, ShoppingBag, Store, X } from "lucide-react";
-import { useVariety } from "./ThemeParts";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { Menu, Search, ShoppingBag, X } from "lucide-react";
+import SiteFooter from "../street/SiteFooter";
+import { useHeaderState } from "../street/shared";
 import "./styles.css";
 
 export function Header() {
-  const { tenant, usedCategories, cartCount, openCart, path } = useVariety();
-  const { pathname, search } = useLocation();
-  const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  const [drawer, setDrawer] = useState(false);
-  const [mega, setMega] = useState(false);
-
+  const h = useHeaderState();
+  const { search } = useLocation();
+  const [searching, setSearching] = useState(true);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => setSearching(false), [h.pathname, search]);
   useEffect(() => {
-    setDrawer(false);
-    setMega(false);
-  }, [pathname, search]);
-
-  useEffect(() => {
-    if (!mega) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMega(false);
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [mega]);
-
-  const links = [
-    { label: "Início", to: path(), on: !/catalogo|sobre|produto/.test(pathname) },
-    { label: "Catálogo", to: path("/catalogo"), on: /catalogo|produto/.test(pathname) },
-    { label: "Nossa loja", to: path("/sobre"), on: /sobre/.test(pathname) },
+    if (searching) input.current?.focus();
+    const close = (e: KeyboardEvent) => { if (e.key === "Escape") { setSearching(false); h.setMenu(false); } };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [searching, h.setMenu]);
+  const nav = [
+    { name: "Início", to: h.path(), on: !/catalogo|sobre|produto/.test(h.pathname) },
+    { name: "Produtos", to: h.path("/catalogo"), on: /catalogo|produto/.test(h.pathname) },
+    { name: "Sobre a loja", to: h.path("/sobre"), on: /sobre/.test(h.pathname) },
   ];
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const term = query.trim();
-    setDrawer(false);
-    navigate(path(term ? `/catalogo?q=${encodeURIComponent(term)}` : "/catalogo"));
-  };
-
-  return (
-    <header className="variety-header">
-      <div className="variety-wrap variety-mainbar">
-        <button type="button" className="variety-icon-btn variety-burger" aria-label={drawer ? "Fechar menu" : "Abrir menu"} aria-expanded={drawer} onClick={() => setDrawer((v) => !v)}>
-          {drawer ? <X size={22} /> : <Menu size={22} />}
-        </button>
-        <Link to={path()} className="variety-brand" aria-label={`${tenant.name} - início`}>
-          {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="variety-brand-mark"><Store size={21} /></span>}
-          <span>{tenant.name}</span>
-        </Link>
-        <form className="variety-search" role="search" onSubmit={submit}>
-          <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="O que você está procurando?" aria-label="Buscar produtos" />
-          <button type="submit" aria-label="Buscar"><Search size={18} /></button>
-        </form>
-        <button type="button" className="variety-cart" onClick={openCart} aria-label={`Abrir pedido, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`}>
-          <ShoppingBag size={20} />
-          <span className="variety-cart-label">Meu pedido</span>
-          <b>{cartCount}</b>
-        </button>
-      </div>
-
-      <div className="variety-wrap variety-navwrap">
-        <nav className="variety-nav" aria-label="Principal">
-          {usedCategories.length > 0 && (
-            <button type="button" className="variety-mega-btn" aria-expanded={mega} aria-controls="variety-mega" onClick={() => setMega((v) => !v)}>
-              <Grid2x2 size={17} /> Departamentos <ChevronDown size={15} className={mega ? "is-flip" : ""} />
-            </button>
-          )}
-          {links.map((l) => (
-            <Link key={l.label} to={l.to} aria-current={l.on ? "page" : undefined}>
-              {l.label}
-            </Link>
-          ))}
-        </nav>
-        {mega && (
-          <div id="variety-mega" className="variety-mega">
-            <p className="variety-mega-title">Compre por departamento</p>
-            <div className="variety-mega-grid">
-              {usedCategories.slice(0, 15).map((c, i) => (
-                <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className={`variety-mega-item variety-c${i % 6}`}>
-                  {c.name}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {drawer && (
-        <div className="variety-drawer">
-          <form className="variety-search" role="search" onSubmit={submit}>
-            <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produtos" aria-label="Buscar produtos" />
-            <button type="submit" aria-label="Buscar"><Search size={18} /></button>
-          </form>
-          <nav aria-label="Menu">
-            {links.map((l) => (
-              <Link key={l.label} to={l.to} aria-current={l.on ? "page" : undefined}>
-                {l.label}
-              </Link>
-            ))}
-          </nav>
-          {usedCategories.length > 0 && (
-            <>
-              <p className="variety-mega-title">Departamentos</p>
-              <div className="variety-mega-grid">
-                {usedCategories.slice(0, 12).map((c, i) => (
-                  <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} className={`variety-mega-item variety-c${i % 6}`}>
-                    {c.name}
-                  </Link>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-    </header>
-  );
+  return <header className="variety-header">
+    <div className="variety-top">
+      <button type="button" className="variety-iconbtn variety-burger" aria-label={h.menu ? "Fechar menu" : "Abrir menu"} aria-expanded={h.menu} onClick={() => h.setMenu(!h.menu)}>{h.menu ? <X size={21} /> : <Menu size={21} />}</button>
+      <Link className="variety-brand" to={h.path()} aria-label={`${h.tenant.name} - página inicial`}>{h.tenant.logo_url && <img src={h.tenant.logo_url} alt="" />}<span>{h.tenant.name}</span></Link>
+      <nav className="variety-nav" aria-label="Navegação principal">{nav.map(l => <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>)}</nav>
+      <div className="variety-header-actions"><button type="button" className="variety-iconbtn" aria-label="Buscar produtos" aria-expanded={searching} onClick={() => setSearching(!searching)}>{searching ? <X size={20} /> : <Search size={20} />}</button><button type="button" className="variety-cart" aria-label={`Abrir sacola, ${h.cartCount} ${h.cartCount === 1 ? "item" : "itens"}`} onClick={h.openCart}><ShoppingBag size={20} /><span className="variety-cart-label">Sacola</span><span className="variety-cart-count">{h.cartCount}</span></button></div>
+    </div>
+    {searching && <form className="variety-search" role="search" onSubmit={h.submit}><Search size={19} aria-hidden="true" /><input ref={input} type="search" value={h.term} onChange={e => h.setTerm(e.target.value)} placeholder="O que você procura?" aria-label="Buscar produtos" /><button type="submit">Buscar</button></form>}
+    {h.menu && <div className="variety-drawer" role="dialog" aria-label="Menu da loja" aria-modal="true"><button type="button" className="variety-drawer-bg" aria-label="Fechar menu" onClick={() => h.setMenu(false)} /><div className="variety-drawer-panel"><div className="variety-drawer-top"><strong>{h.tenant.name}</strong><button type="button" className="variety-iconbtn" aria-label="Fechar menu" onClick={() => h.setMenu(false)}><X size={21} /></button></div><nav className="variety-drawer-nav" aria-label="Menu móvel">{nav.map(l => <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>)}</nav></div></div>}
+  </header>;
 }
 
 export function Footer() {
-  const { tenant, usedCategories, path, whatsapp } = useVariety();
-  return (
-    <footer className="variety-footer">
-      <div className="variety-wrap">
-        <div className="variety-footer-grid">
-          <section className="variety-foot-card variety-foot-about">
-            <Link to={path()} className="variety-brand">
-              {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="variety-brand-mark"><Store size={21} /></span>}
-              <span>{tenant.name}</span>
-            </Link>
-            <p>{tenant.footer_text || tenant.about_text || "Utilidades, presentes e produtos para deixar o dia a dia mais fácil."}</p>
-            <div className="variety-socials">
-              {tenant.instagram_url && (
-                <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={18} /></a>
-              )}
-              {whatsapp && (
-                <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer" aria-label="WhatsApp"><MessageCircle size={18} /></a>
-              )}
-            </div>
-          </section>
-          <section className="variety-foot-card">
-            <h3>Explore</h3>
-            <Link to={path()}>Início</Link>
-            <Link to={path("/catalogo")}>Todos os produtos</Link>
-            <Link to={path("/sobre")}>Nossa loja</Link>
-          </section>
-          {usedCategories.length > 0 && (
-            <section className="variety-foot-card">
-              <h3>Departamentos</h3>
-              {usedCategories.slice(0, 6).map((c) => (
-                <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link>
-              ))}
-            </section>
-          )}
-          <section className="variety-foot-card">
-            <h3>Fale com a loja</h3>
-            {tenant.show_address && tenant.address && <p>{tenant.address}</p>}
-            {whatsapp && (
-              <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer">Atendimento pelo WhatsApp</a>
-            )}
-          </section>
-        </div>
-        <p className="variety-credit">
-          © {new Date().getFullYear()} {tenant.name} · Powered by{" "}
-          <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">BoxSys</a>
-        </p>
-      </div>
-    </footer>
-  );
+  return <SiteFooter t="variety" showCategories={false} catalogLabel="Todos os produtos" aboutLabel="Sobre a loja" tagline="Uma seleção de utilidades, presentes e objetos para o dia a dia. A Vitrine Mix reúne pequenas descobertas para organizar a rotina, cuidar da casa e encontrar algo especial." />;
 }

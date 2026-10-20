@@ -13,7 +13,7 @@ export const pricesHidden = (tenant: Tenant) => {
   return c?.hide_prices === true || c?.checkout_mode === "order_request";
 };
 
-export const unitPrice = (p: Product) => Number(p.discount_price ?? p.price);
+export const unitPrice = (p: Product) => Number(p.discount_price) > 0 ? Number(p.discount_price) : Number(p.price);
 
 export const waLink = (tenant: Tenant, text?: string) =>
   `https://wa.me/${(tenant.whatsapp || "").replace(/\D/g, "")}${text ? `?text=${encodeURIComponent(text)}` : ""}`;

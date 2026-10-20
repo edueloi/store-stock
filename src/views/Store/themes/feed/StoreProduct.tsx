@@ -14,7 +14,7 @@ export default function StoreProduct() {
   const buy = useBuy(product);
   if (!product)
     return (
-      <div className="feed-page">
+      <div className="feed-page feed-product">
         <div className="feed-wrap feed-pad">
           <Empty title="Produto não encontrado" text="Ele pode ter saído do catálogo." action={<StoreButton asChild className="feed-cta"><Link to={path("/catalogo")}>Voltar aos produtos</Link></StoreButton>} />
         </div>
@@ -25,7 +25,7 @@ export default function StoreProduct() {
   const related = active.filter((p) => p.id !== product.id && p.category_id === product.category_id).slice(0, 4);
   const missing = buy.choices.filter((c) => !buy.selected[c.name]).map((c) => c.name);
   return (
-    <div className="feed-page">
+    <div className="feed-page feed-product">
       <StoreSEO title={`${product.name} - ${tenant.name}`} description={product.description || product.name} image={buy.gallery[0]} url={typeof window !== "undefined" ? window.location.href : ""} type="product" price={hidden ? undefined : String(priceOf(product))} siteName={tenant.name} />
       <div className="feed-wrap">
         <nav className="feed-crumbs" aria-label="Você está em">

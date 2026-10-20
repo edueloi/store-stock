@@ -1,63 +1,68 @@
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { StoreButton } from "../../../../components/store/StoreButton";
 import { useCatalog, useKit } from "./kit";
-import { useShelves } from "./extras";
-import { Card, Empty } from "./parts";
+import { Empty, Card } from "./parts";
+
+import "./styles.css";
 
 export default function StoreCatalog() {
-  const { tenant, active, config, hidden } = useKit();
-  const shelves = useShelves();
-  const { q, cat, sort, setParam, list, shown, hasMore, more, clear } = useCatalog(12);
-  const current = shelves.find((c) => String(c.id) === cat);
+  const c = { ...useKit(), ...useCatalog(12) };
+  const { tenant, config: sf, categories, active, hidden } = c;
+  const title = sf.catalog_title || "Produtos";
+  const desc = sf.catalog_description || "Alimentação, acessórios e cuidados para cada fase dos seus animais.";
+  const current = categories.find((x) => String(x.id) === c.cat);
+  const used = categories.filter((x) => active.some((p) => p.category_id === x.id));
   return (
-    <div className="feed-page">
-      <StoreSEO title={`${config.catalog_title || "Produtos"} - ${tenant.name}`} description={config.catalog_description || "Rações e nutrição"} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
-      <div className="feed-wrap">
-        <header className="feed-cat-head">
-          <h1>{current ? current.name : config.catalog_title || "Todos os produtos"}</h1>
-          <p>{config.catalog_description || "Escolha por animal, fase ou tipo de alimento."}</p>
-        </header>
-        <section className="feed-filters" aria-label="Filtros">
-          <div className="feed-filters-top">
-            <label className="feed-input">
-              <Search size={17} aria-hidden="true" />
-              <input value={q} onChange={(e) => setParam("q", e.target.value)} placeholder="Buscar produto ou marca" aria-label="Buscar no catálogo" />
-              {q && <button type="button" aria-label="Limpar busca" onClick={() => setParam("q", "")}><X size={15} /></button>}
-            </label>
-            <label className="feed-input feed-select">
-              <span className="feed-sr">Ordenar por</span>
-              <select value={sort} onChange={(e) => setParam("sort", e.target.value)}>
-                <option value="featured">Destaques</option>
-                <option value="name">Nome (A-Z)</option>
-                {!hidden && <option value="price_up">Menor preço</option>}
-                {!hidden && <option value="price_down">Maior preço</option>}
-              </select>
-            </label>
-          </div>
-          <div className="feed-chips" role="group" aria-label="Animal ou linha">
-            <button type="button" aria-pressed={!cat} onClick={() => setParam("cat", "")}>Todos <b>{active.length}</b></button>
-            {shelves.map((c) => (
-              <button key={c.id} type="button" aria-pressed={String(c.id) === cat} onClick={() => setParam("cat", String(c.id))}>
-                {c.name} <b>{c.count}</b>
-              </button>
+    <div className="feed-page feed-catalog">
+      <StoreSEO
+        title={`${current ? `${current.name} | ` : ""}${title} | ${tenant.name}`}
+        description={desc}
+        image={tenant.banner_url || tenant.logo_url}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+      <header className="feed-cat-head">
+        <div>
+          <span className="feed-mono">{String(c.list.length).padStart(2, "0")} itens</span>
+          <h1>{current ? current.name : title}</h1>
+          <p>{desc}</p>
+        </div>
+        <div className="feed-tools">
+          <label className="feed-find">
+            <Search size={18} aria-hidden="true" />
+            <input type="search" value={c.q} onChange={(e) => c.setParam("q", e.target.value)} placeholder="Buscar no catálogo" aria-label="Buscar no catálogo" />
+          </label>
+          <label className="feed-select"><span className="feed-sr">Ordenar por</span><select value={c.sort} onChange={e => c.setParam("sort", e.target.value)}><option value="featured">Destaques</option><option value="name">Nome (A a Z)</option>{!hidden && <><option value="price_up">Menor preço</option><option value="price_down">Maior preço</option></>}</select></label>
+        </div>
+      </header>
+
+      <div className="feed-catalog-filters">
+        <label className="feed-category-filter"><span>Categoria</span><select aria-label="Filtrar por categoria" value={c.cat || ""} onChange={e => c.setParam("cat", e.target.value)}><option value="">Todos os produtos</option>{used.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></label>
+        <span>{c.list.length} {c.list.length === 1 ? "produto" : "produtos"}</span>
+        {(c.q || c.cat || c.sort !== "featured") && <button type="button" onClick={c.clear}>Limpar filtros</button>}
+      </div>
+
+      {c.list.length ? (
+        <>
+          <div className="feed-grid" role="status" aria-live="polite">
+            {c.shown.map((p) => (
+              <Card key={p.id} product={p} />
             ))}
           </div>
-        </section>
-        <p className="feed-count" role="status">{list.length} {list.length === 1 ? "produto" : "produtos"}</p>
-        {shown.length ? (
-          <>
-            <div className="feed-grid">{shown.map((p) => <Card key={p.id} product={p} />)}</div>
-            {hasMore && (
-              <div className="feed-more">
-                <StoreButton variant="outline" className="feed-ghost" onClick={more}>Mostrar mais</StoreButton>
-              </div>
-            )}
-          </>
-        ) : (
-          <Empty title="Nenhum produto encontrado" text="Tente outra palavra ou escolha outra linha." action={<StoreButton className="feed-cta" onClick={clear}>Limpar filtros</StoreButton>} />
-        )}
-      </div>
+          {c.hasMore && (
+            <div className="feed-more">
+              <button type="button" className="feed-btn feed-btn-solid feed-btn-lg" onClick={c.more}>
+                Carregar mais
+              </button>
+              <span>
+                {c.shown.length} de {c.list.length}
+              </span>
+            </div>
+          )}
+        </>
+      ) : (
+        <Empty title={active.length ? "Nada encontrado" : "Em breve"} text={active.length ? "Tente outro termo ou outra categoria." : "Estamos montando o catálogo."}  />
+      )}
     </div>
   );
 }

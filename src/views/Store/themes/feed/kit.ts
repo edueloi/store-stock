@@ -11,7 +11,7 @@ export const money = (value: number) =>
   Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export const productImage = (p?: Product) => (p?.images && p.images[0]) || p?.image_url || "";
-export const priceOf = (p: Product) => Number(p.discount_price ?? p.price);
+export const priceOf = (p: Product) => Number(p.discount_price) > 0 ? Number(p.discount_price) : Number(p.price);
 export const onSale = (p: Product) => p.discount_price != null && Number(p.discount_price) > 0 && Number(p.discount_price) < Number(p.price);
 export const normalize = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -94,7 +94,7 @@ export function useCatalog(pageSize = 12) {
   useEffect(() => setLimit(pageSize), [q, cat, sort, pageSize]);
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(params);
-    next.delete("categoria");
+    if (key === "cat") next.delete("categoria");
     if (value) next.set(key, value); else next.delete(key);
     setParams(next, { replace: key === "q" });
   };

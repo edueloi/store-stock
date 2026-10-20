@@ -342,10 +342,10 @@ const templates: Record<string, StoreStyle> = {
     radius: "rounded-none",
   },
   aura: {
-    bg: "bg-[#FAF9F6]",
+    bg: "bg-[#faf8f4]",
     card: "bg-white border-[#E5DBD0]",
-    accent: "#D4AF37",
-    text: "text-[#111111]",
+    accent: "#403b35",
+    text: "text-[#403b35]",
     font: "font-sans",
     radius: "rounded-2xl",
   },
@@ -364,18 +364,18 @@ const templates: Record<string, StoreStyle> = {
   home: { bg: "bg-[#f5f2ec]", card: "bg-[#fffdf9] border-[#d9d4ca]", accent: "#b68b5e", text: "text-[#28362c]", font: "font-serif", radius: "rounded-none" },
   paper: { bg: "bg-[#faf8ff]", card: "bg-white border-[#ded8ff]", accent: "#6d5dfc", text: "text-[#352b66]", font: "font-sans", radius: "rounded-2xl" },
   variety: {
-    bg: "bg-[#f4f8ff]",
+    bg: "bg-[#f7f7f3]",
     card: "bg-white border-[#dbe5f6]",
-    accent: "#1761c2",
-    text: "text-[#142d5a]",
+    accent: "#2f3b36",
+    text: "text-[#2f3b36]",
     font: "font-sans",
     radius: "rounded-xl",
   },
   toys: {
-    bg: "bg-[#f7f3ff]",
+    bg: "bg-[#faf7f0]",
     card: "bg-white border-[#ded4fb]",
-    accent: "#7148d5",
-    text: "text-[#43306f]",
+    accent: "#4d5143",
+    text: "text-[#4d5143]",
     font: "font-sans",
     radius: "rounded-2xl",
   },
@@ -404,10 +404,10 @@ const templates: Record<string, StoreStyle> = {
     radius: "rounded-2xl",
   },
   electric: {
-    bg: "bg-[#f8fafc]",
+    bg: "bg-[#f5f6f5]",
     card: "bg-white border-slate-200",
-    accent: "#f97316",
-    text: "text-slate-900",
+    accent: "#252d31",
+    text: "text-[#252d31]",
     font: "font-sans",
     radius: "rounded-xl",
   },
@@ -579,7 +579,7 @@ function StoreLayoutInner() {
       }
     }
     const variationImages = getVariationImages(product, options || {});
-    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books'].includes(templateId || '');
+    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books', 'agro', 'feed', 'garden', 'electric', 'toys', 'variety', 'aura'].includes(templateId || '');
     const usesDiscountPrice = isSegment(templateId || '') || editorialTheme;
     const storefrontPrice = editorialTheme && Number(product.discount_price) <= 0
       ? product.price
