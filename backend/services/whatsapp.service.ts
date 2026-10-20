@@ -1642,6 +1642,8 @@ function extractAiText(payload: unknown, provider: WhatsappWorkspaceSettings["ai
     .trim();
 }
 
+// Modelo fixo: o lojista não escolhe. Aliases "-latest" acompanham o modelo atual do Google;
+// um valor digitado errado (ou preenchido pelo navegador) derrubaria o atendimento.
 const AI_DEFAULT_MODEL = { gemini: "gemini-flash-latest", openai: "gpt-4o-mini" } as const;
 
 async function generateZeAiReply(
@@ -1699,7 +1701,7 @@ async function generateZeAiReply(
       const response = await axios.post(
         "https://api.openai.com/v1/responses",
         {
-          model: settings.ai_model || AI_DEFAULT_MODEL.openai,
+          model: AI_DEFAULT_MODEL.openai,
           instructions,
           input: [
             ...history.map((h) => ({ role: h.role === "customer" ? "user" : "assistant", content: h.text })),
@@ -1716,7 +1718,7 @@ async function generateZeAiReply(
       return extractAiText(response.data, "openai").slice(0, 1_200) || null;
     }
 
-    const model = encodeURIComponent(settings.ai_model || AI_DEFAULT_MODEL.gemini);
+    const model = encodeURIComponent(AI_DEFAULT_MODEL.gemini);
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
@@ -1740,40 +1742,6 @@ async function generateZeAiReply(
       : error instanceof Error ? error.message : "erro desconhecido";
     console.error(`[whatsapp] IA do Zé indisponível: ${reason}`);
     return null;
-  }
-}
-
-/** Modelos de texto disponíveis para a chave informada (ou a salva), para o lojista escolher sem digitar. */
-export async function listWhatsappAiModels(tenantId: number, provider: string, apiKey?: string) {
-  const workspace = await ensureWorkspace(tenantId);
-  const settings = parseSettings(workspace.settings);
-  const key = (apiKey || "").trim() || settings.ai_api_key;
-  if (!key) throw new Error("Informe a chave da API para carregar os modelos.");
-
-  try {
-    if (provider === "openai") {
-      const { data } = await axios.get("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${key}` }, timeout: 15_000 });
-      const ids: string[] = (isRecord(data) && Array.isArray(data.data) ? data.data : [])
-        .map((m: unknown) => (isRecord(m) ? String(m.id) : ""))
-        .filter((id: string) => /^(gpt-|o\d)/.test(id) && !/(audio|realtime|image|tts|transcribe|embedding|search|moderation)/.test(id));
-      return ids.sort().map((id) => ({ id, label: id }));
-    }
-    const { data } = await axios.get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=100", {
-      headers: { "x-goog-api-key": key }, timeout: 15_000,
-    });
-    const models = (isRecord(data) && Array.isArray(data.models) ? data.models : [])
-      .filter((m: unknown): m is Record<string, unknown> => isRecord(m)
-        && String(m.name).startsWith("models/gemini")
-        && Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent")
-        && !/(embedding|aqa|image|tts|live|audio|robotics|computer)/.test(String(m.name)))
-      .map((m) => ({ id: String(m.name).replace("models/", ""), label: String(m.displayName || m.name).trim() }));
-    // aliases "-latest" primeiro: acompanham o modelo atual do Google sem precisar trocar depois
-    return models.sort((a, b) => Number(b.id.endsWith("-latest")) - Number(a.id.endsWith("-latest")) || a.id.localeCompare(b.id));
-  } catch (error) {
-    const reason = axios.isAxiosError(error)
-      ? String(isRecord(error.response?.data) && isRecord((error.response?.data as Record<string, unknown>).error) ? ((error.response?.data as Record<string, any>).error.message) : error.message)
-      : "falha na consulta";
-    throw new Error(`Não foi possível carregar os modelos. Confira a chave da API. (${reason})`);
   }
 }
 

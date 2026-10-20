@@ -14,7 +14,6 @@ import {
   getWhatsappModuleOverview,
   pingWhatsappProvider,
   testWhatsappAiHandler,
-  listWhatsappAiModelsHandler,
   transferWhatsappConversationHandler,
   saveWhatsappWorkspace,
   sendWhatsappConversationMessageHandler,
@@ -38,7 +37,6 @@ router.get("/overview", getWhatsappModuleOverview);
 router.put("/workspace", saveWhatsappWorkspace);
 router.post("/ping", pingWhatsappProvider);
 router.post("/test-ai", testWhatsappAiHandler);
-router.post("/ai-models", listWhatsappAiModelsHandler);
 router.get("/connection-status", getWhatsappConnectionStatusHandler);
 router.post("/connect", connectWhatsappHandler);
 router.post("/disconnect", disconnectWhatsappHandler);

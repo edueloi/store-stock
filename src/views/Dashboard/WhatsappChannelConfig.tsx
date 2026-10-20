@@ -53,8 +53,6 @@ export default function WhatsappChannelConfig() {
   const [sectorForm, setSectorForm] = useState({ name: "", description: "" });
   const [agentForm, setAgentForm] = useState({ name: "", department: "sales", phone: "", email: "", max_concurrent_chats: "3" });
   const [startForm, setStartForm] = useState({ customer_name: "", phone: "" });
-  const [aiModels, setAiModels] = useState<Array<{ id: string; label: string }>>([]);
-  const [loadingModels, setLoadingModels] = useState(false);
   const [testingAi, setTestingAi] = useState(false);
   const [aiTestReply, setAiTestReply] = useState("");
 
@@ -123,19 +121,6 @@ export default function WhatsappChannelConfig() {
       await load();
     } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao salvar."); }
     finally { setSaving(false); }
-  }
-
-  async function loadAiModels() {
-    if (!settings) return;
-    setLoadingModels(true);
-    try {
-      const response = await fetch("/api/whatsapp/ai-models", { method: "POST", headers: headers(), body: JSON.stringify({ provider: settings.ai_provider, api_key: settings.ai_api_key || undefined }) });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Não foi possível carregar os modelos.");
-      setAiModels(result.models ?? []);
-      if (!(result.models ?? []).length) toast.error("Nenhum modelo disponível para essa chave.");
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao carregar modelos."); }
-    finally { setLoadingModels(false); }
   }
 
   async function testAssistant() {
@@ -229,23 +214,7 @@ export default function WhatsappChannelConfig() {
             <Input label="Nome do assistente" value={settings.bot_name} maxLength={40} onChange={(e) => setSettings({ bot_name: e.target.value })}  showCount={false} />
             <Select label="Inteligência artificial" value={settings.ai_provider} onChange={(e) => setSettings({ ai_provider: e.target.value as Settings["ai_provider"] })}><option value="rules">Regras do sistema</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option></Select>
             {settings.ai_provider !== "rules" && <>
-              <div>
-                <div className="flex items-end gap-2">
-                  <div className="min-w-0 flex-1">
-                    {aiModels.length > 0 ? (
-                      <Select label="Modelo" value={settings.ai_model} onChange={(e) => setSettings({ ai_model: e.target.value })}>
-                        <option value="">Automático (recomendado)</option>
-                        {settings.ai_model && !aiModels.some((m) => m.id === settings.ai_model) && <option value={settings.ai_model}>{settings.ai_model}</option>}
-                        {aiModels.map((m) => <option key={m.id} value={m.id}>{m.label === m.id ? m.id : `${m.label} (${m.id})`}</option>)}
-                      </Select>
-                    ) : (
-                      <Input label="Modelo" name="ai-model-name" autoComplete="off" placeholder={settings.ai_provider === "gemini" ? "Deixe em branco para o automático" : "gpt-4o-mini"} value={settings.ai_model} onChange={(e) => setSettings({ ai_model: e.target.value })} showCount={false} />
-                    )}
-                  </div>
-                  <Button type="button" variant="outline" size="md" onClick={() => void loadAiModels()} loading={loadingModels} disabled={!settings.ai_api_key && !settings.ai_api_key_configured}>Carregar modelos</Button>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">Em branco, o sistema usa o modelo mais recente e rápido ({settings.ai_provider === "gemini" ? "gemini-flash-latest" : "gpt-4o-mini"}). Cole a chave e clique em Carregar modelos para escolher outro.</p>
-              </div>
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">O modelo de IA é escolhido automaticamente pelo sistema (sempre o mais recente e rápido). Você só precisa colar a chave.</p>
               <Input label={settings.ai_api_key_configured ? "Nova chave da IA (uma chave já está guardada)" : "Chave da IA (API key)"} name="ai-api-key-field" type="password" autoComplete="new-password" value={settings.ai_api_key} onChange={(e) => setSettings({ ai_api_key: e.target.value })} showCount={false} />
               <div className="flex flex-wrap items-center gap-3">
                 <Button type="button" variant="outline" size="sm" onClick={() => void testAssistant()} loading={testingAi} disabled={!settings.ai_api_key_configured}>Testar assistente</Button>
