@@ -28,6 +28,7 @@ import { htmlToPdfBase64 } from "../../lib/pdf";
 import { buildWarrantyDocumentHtml, type WarrantyPolicy } from "../../lib/warrantyDocument";
 import OpenCashSessionScreen from "../../components/pdv/OpenCashSessionScreen";
 import CloseCashSessionModal from "../../components/pdv/CloseCashSessionModal";
+import PaymentLinkModal from "../../components/pdv/PaymentLinkModal";
 import HeldSalesDrawer from "../../components/pdv/HeldSalesDrawer";
 import SaleHistoryDrawer from "../../components/pdv/SaleHistoryDrawer";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, type HeldSale } from "../../lib/heldSales";
@@ -299,6 +300,9 @@ export default function PDV() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [customerName, setCustomerName]             = useState("");
   const [customerDocument, setCustomerDocument]     = useState("");
+  // Gateways da loja prontos para cobrar — habilita "Gerar link" só com Asaas ou Mercado Pago conectado.
+  const [gatewayState, setGatewayState]               = useState<{ asaas: boolean; mercadopago: boolean }>({ asaas: false, mercadopago: false });
+  const [showPaymentLink, setShowPaymentLink]         = useState(false);
   const [customerPoints, setCustomerPoints]         = useState(0);
   const [loyaltyProgram, setLoyaltyProgram]         = useState<{ spend_per_point: number; is_active: boolean } | null>(null);
   const [loyaltyRewards, setLoyaltyRewards]         = useState<{ id: number; name: string; points_cost: number; type: string; discount_value?: number; discount_type?: string }[]>([]);
@@ -1082,6 +1086,17 @@ export default function PDV() {
   // Segura a venda atual (comanda): reserva o estoque no servidor e libera o PDV pra
   // atender outro cliente, sem descartar o carrinho. Só disponível na etapa "cart" —
   // ver corte de escopo do plano da feature.
+  useEffect(() => {
+    fetch("/api/tenant/payment-gateways", { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: Array<{ provider: string; enabled: boolean; connected: boolean }>) => {
+        const ready = (p: string) => Array.isArray(rows) && rows.some((g) => g.provider === p && g.enabled && g.connected);
+        setGatewayState({ asaas: ready("asaas"), mercadopago: ready("mercadopago") });
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const holdSale = async () => {
     if (holdingSale || (cart.length === 0 && cartServices.length === 0)) return;
     setHoldingSale(true);
@@ -2600,6 +2615,13 @@ export default function PDV() {
                   title="Segurar Venda" aria-label="Segurar Venda" iconLeft={<Clock size={14} />}
                   className="h-11 shrink-0 border-amber-200 text-amber-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700">
                   <span className="hidden sm:inline">Segurar</span>
+                </Button>
+              )}
+              {(cart.length > 0 || cartServices.length > 0) && (gatewayState.asaas || gatewayState.mercadopago) && (
+                <Button variant="outline" size="lg" onClick={() => setShowPaymentLink(true)}
+                  title="Gerar link de pagamento" aria-label="Gerar link de pagamento" iconLeft={<ExternalLink size={14} />}
+                  className="h-11 shrink-0 border-sky-200 text-sky-600 hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700">
+                  <span className="hidden sm:inline">Link</span>
                 </Button>
               )}
               <Button variant="primary" size="lg" onClick={goToPayment} disabled={!canFinish}
@@ -4425,6 +4447,17 @@ export default function PDV() {
       </AnimatePresence>
 
       {/* ── VENDAS ABERTAS (segurar/retomar/cancelar) ───────────────────────── */}
+      <PaymentLinkModal
+        open={showPaymentLink}
+        onClose={() => setShowPaymentLink(false)}
+        asaasReady={gatewayState.asaas}
+        initial={{
+          value: total,
+          name: customerName,
+          document: customerDocument || customers.find((c) => c.id === selectedCustomerId)?.document || "",
+          phone: customers.find((c) => c.id === selectedCustomerId)?.phone || "",
+        }}
+      />
       <HeldSalesDrawer
         open={showHeldSalesDrawer}
         onClose={() => setShowHeldSalesDrawer(false)}

@@ -175,6 +175,7 @@ model Tenant {
   plan                   SubscriptionPlan?     @relation(fields: [plan_id], references: [id], onDelete: SetNull)
   platform_subscription  PlatformSubscription?
   store_payment_gateways StorePaymentGateway[]
+  store_charges          StoreCharge[]
 
   @@map("tenants")
 }
@@ -189,6 +190,13 @@ model StorePaymentGateway {
   enabled     Boolean  @default(false)
   environment String   @default("sandbox") // sandbox | production
   credentials Json?
+  // Subconta Asaas criada pela plataforma (white label): o lojista recebe na própria
+  // conta e a plataforma fica com fee_percent via split. Definido só pelo servidor/super
+  // admin — nunca aceito do corpo da requisição do lojista.
+  wallet_id   String?
+  fee_percent Decimal  @default(2) @db.Decimal(5, 2)
+  // Regras padrão das cobranças: { discount:{value,type,days}, interest:{percent}, fine:{percent} }
+  rules       Json?
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
 
@@ -2089,4 +2097,31 @@ model AutomatedMessageLog {
 
   @@index([tenant_id, created_at])
   @@map("automated_message_logs")
+}
+
+// Cobrança/link de pagamento emitido pela loja via Asaas (subconta do lojista, com split
+// da taxa da plataforma). order_id preenchido quando vem do checkout da vitrine.
+model StoreCharge {
+  id               Int       @id @default(autoincrement())
+  tenant_id        Int
+  order_id         Int?
+  asaas_payment_id String    @unique
+  description      String?
+  customer_name    String?
+  value            Decimal   @db.Decimal(10, 2)
+  fee_percent      Decimal   @db.Decimal(5, 2)
+  fee_amount       Decimal   @db.Decimal(10, 2)
+  billing_type     String    @default("UNDEFINED")
+  status           String    @default("pending") // pending | received | overdue | refunded | cancelled
+  due_date         DateTime  @db.Date
+  invoice_url      String?
+  paid_at          DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id, status])
+  @@index([order_id])
+  @@map("store_charges")
 }

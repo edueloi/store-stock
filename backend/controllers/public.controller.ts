@@ -1,3 +1,4 @@
+import { createStoreCharge } from "../services/billing/store-charges.service";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -548,12 +549,18 @@ export async function checkout(req: Request, res: Response) {
       return;
     }
     const paymentMethods = { pix: true, cash_on_delivery: false, card_on_delivery: false, ...(settings.checkout_payment_methods || {}) };
-    const manualPaymentAllowed = customerInfo.paymentMethod === "pix" ? paymentMethods.pix
+    const asaasAllowed = customerInfo.paymentMethod === "asaas" && Boolean((paymentMethods as { asaas?: boolean }).asaas);
+    const manualPaymentAllowed = asaasAllowed ? true
+      : customerInfo.paymentMethod === "pix" ? paymentMethods.pix
       : customerInfo.paymentMethod === "cash_on_delivery" ? paymentMethods.cash_on_delivery
         : customerInfo.paymentMethod === "card_on_delivery" ? paymentMethods.card_on_delivery
           : false;
     if (!manualPaymentAllowed) {
       res.status(422).json({ error: "Escolha uma forma de pagamento disponível para esta loja." });
+      return;
+    }
+    if (asaasAllowed && ![11, 14].includes(digits(customerInfo.document).length)) {
+      res.status(422).json({ error: "Informe um CPF ou CNPJ válido para pagar online." });
       return;
     }
     const delivery = resolveDelivery(settings, customerInfo.cep);
@@ -612,6 +619,26 @@ export async function checkout(req: Request, res: Response) {
       },
     });
 
+    let paymentUrl: string | undefined;
+    if (asaasAllowed) {
+      try {
+        const charge = await createStoreCharge({
+          tenantId: tenant.id,
+          value: total,
+          customerName: customerInfo.name,
+          customerCpfCnpj: digits(customerInfo.document),
+          customerPhone: customerInfo.phone,
+          description: `Pedido #${order.id}`,
+          orderId: order.id,
+        });
+        paymentUrl = charge.invoice_url ?? undefined;
+      } catch (error) {
+        await prisma.order.delete({ where: { id: order.id } });
+        res.status(422).json({ error: error instanceof Error ? error.message : "Não foi possível gerar o pagamento." });
+        return;
+      }
+    }
+
     for (const item of orderItems) {
       await prisma.product.update({
         where: { id: item.product_id },
@@ -623,7 +650,7 @@ export async function checkout(req: Request, res: Response) {
       });
     }
 
-    res.json({ success: true, orderId: order.id });
+    res.json({ success: true, orderId: order.id, paymentUrl });
   } catch {
     res.status(500).json({ error: "Checkout failed" });
   }
