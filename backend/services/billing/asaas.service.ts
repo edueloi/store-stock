@@ -243,3 +243,55 @@ export async function cancelAsaasSubaccountCharge(apiKey: string, paymentId: str
     throw new Error(`Falha ao cancelar cobrança no Asaas: ${asaasErrorMessage(error)}`);
   }
 }
+
+// --- Conta do lojista: saldo, situação cadastral e saque ----------------------------
+
+export async function getAsaasSubaccountBalance(apiKey: string): Promise<number> {
+  try {
+    const { data } = await clientWithKey(apiKey).get("/finance/balance");
+    return Number(data?.balance ?? 0);
+  } catch (error) {
+    throw new Error(`Falha ao consultar saldo no Asaas: ${asaasErrorMessage(error)}`);
+  }
+}
+
+export interface AsaasAccountStatus {
+  general?: string;
+  commercialInfo?: string;
+  bankAccountInfo?: string;
+  documentation?: string;
+}
+
+export async function getAsaasSubaccountStatus(apiKey: string): Promise<AsaasAccountStatus> {
+  try {
+    const { data } = await clientWithKey(apiKey).get("/myAccount/status");
+    return data ?? {};
+  } catch (error) {
+    throw new Error(`Falha ao consultar situação da conta no Asaas: ${asaasErrorMessage(error)}`);
+  }
+}
+
+/** Link (onboardingUrl) para o lojista enviar os documentos pendentes, quando houver. */
+export async function getAsaasSubaccountDocumentsLink(apiKey: string): Promise<string | null> {
+  try {
+    const { data } = await clientWithKey(apiKey).get("/myAccount/documents");
+    const pending = (data?.data ?? []).find((d: { onboardingUrl?: string; status?: string }) => d.onboardingUrl && d.status !== "APPROVED");
+    return pending?.onboardingUrl ?? null;
+  } catch {
+    return null; // informativo: a ausência do link não deve derrubar a tela
+  }
+}
+
+export type AsaasPixKeyType = "CPF" | "CNPJ" | "EMAIL" | "PHONE" | "EVP";
+
+export async function createAsaasSubaccountPixTransfer(
+  apiKey: string,
+  input: { value: number; pixAddressKey: string; pixAddressKeyType: AsaasPixKeyType; description?: string },
+): Promise<{ id: string; status: string }> {
+  try {
+    const { data } = await clientWithKey(apiKey).post("/transfers", { ...input, operationType: "PIX" });
+    return { id: data.id, status: data.status };
+  } catch (error) {
+    throw new Error(`Falha ao solicitar saque no Asaas: ${asaasErrorMessage(error)}`);
+  }
+}

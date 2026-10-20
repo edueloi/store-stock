@@ -152,3 +152,10 @@ export async function processStoreAsaasWebhook(tenantId: number, token: unknown,
   }
   return true;
 }
+
+/** apiKey (decifrada) da subconta da loja — nunca devolvida ao navegador. */
+export async function getStoreAsaasKey(tenantId: number): Promise<string> {
+  const { gateway, apiKey } = await loadGateway(tenantId);
+  if (!gateway?.wallet_id || !apiKey) throw new Error("A conta de recebimento Asaas desta loja ainda não foi criada.");
+  return apiKey;
+}

@@ -1,7 +1,8 @@
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
-import { createStoreCharge, onboardStoreAsaas, processStoreAsaasWebhook, type StoreChargeRules } from "../services/billing/store-charges.service";
+import { createAsaasSubaccountPixTransfer, getAsaasSubaccountBalance, getAsaasSubaccountDocumentsLink, getAsaasSubaccountStatus } from "../services/billing/asaas.service";
+import { createStoreCharge, getStoreAsaasKey, onboardStoreAsaas, processStoreAsaasWebhook, type StoreChargeRules } from "../services/billing/store-charges.service";
 import type { AuthenticatedRequest } from "../types/auth";
 
 const tenantIdOf = (req: Request) => (req as AuthenticatedRequest).user.tenantId;
@@ -86,5 +87,47 @@ export async function storeAsaasWebhookHandler(req: Request, res: Response) {
   } catch (error) {
     console.error("storeAsaasWebhookHandler error:", error);
     res.sendStatus(500);
+  }
+}
+
+/** Situação do cadastro, saldo e link de documentos da conta de recebimento do lojista. */
+export async function getAsaasAccountOverview(req: Request, res: Response) {
+  try {
+    const apiKey = await getStoreAsaasKey(tenantIdOf(req));
+    const [status, balance, documentsUrl] = await Promise.all([
+      getAsaasSubaccountStatus(apiKey).catch(() => null),
+      getAsaasSubaccountBalance(apiKey).catch(() => null),
+      getAsaasSubaccountDocumentsLink(apiKey),
+    ]);
+    res.json({ status, balance, documentsUrl });
+  } catch (error) {
+    res.status(404).json({ error: error instanceof Error ? error.message : "Conta de recebimento indisponível." });
+  }
+}
+
+const PIX_KEY_TYPES = ["CPF", "CNPJ", "EMAIL", "PHONE", "EVP"] as const;
+
+/** Saque do saldo Asaas para uma chave Pix. Só o administrador da loja pode sacar. */
+export async function withdrawAsaasBalance(req: Request, res: Response) {
+  if ((req as AuthenticatedRequest).user.role !== "admin") {
+    res.status(403).json({ error: "Somente o administrador da loja pode sacar." });
+    return;
+  }
+  const b = req.body ?? {};
+  const value = num(b.value);
+  const type = PIX_KEY_TYPES.find((t) => t === b.pixKeyType);
+  const key = typeof b.pixKey === "string" ? b.pixKey.trim() : "";
+  if (!(value > 0) || !type || !key) {
+    res.status(422).json({ error: "Informe o valor, o tipo e a chave Pix." });
+    return;
+  }
+  try {
+    const apiKey = await getStoreAsaasKey(tenantIdOf(req));
+    const out = await createAsaasSubaccountPixTransfer(apiKey, {
+      value: Math.round(value * 100) / 100, pixAddressKey: key, pixAddressKeyType: type, description: "Saque Box Sys",
+    });
+    res.json({ success: true, ...out });
+  } catch (error) {
+    res.status(422).json({ error: error instanceof Error ? error.message : "Não foi possível sacar." });
   }
 }

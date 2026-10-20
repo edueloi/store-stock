@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Button } from "../ui/Button";
 import { Input, Select } from "../ui/Input";
 import { Alert } from "../ui/Alert";
+import AsaasReceivingPanel from "./AsaasReceivingPanel";
 
 export interface AsaasGatewayInfo {
   connected: boolean;
@@ -107,6 +108,7 @@ export default function AsaasAccountSetup({ gateway, headers, onChanged, onMessa
         <Alert variant="success">
           Conta de recebimento ativa. Você recebe direto na sua conta Asaas; a plataforma retém {gateway.fee_percent ?? 2}% de cada venda online.
         </Alert>
+        <AsaasReceivingPanel headers={headers} onMessage={onMessage} />
         <p className="text-[11px] font-semibold text-slate-700">Regras das cobranças (valem para links e checkout)</p>
         <div className="grid gap-2 sm:grid-cols-3">
           <Input label="Desconto" inputMode="decimal" value={rules.discountValue} onChange={(e) => setRules({ ...rules, discountValue: e.target.value })} />
