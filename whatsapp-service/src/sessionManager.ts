@@ -27,8 +27,24 @@ interface SessionEntry {
 
 const sessions = new Map<number, SessionEntry>();
 
+// Sessão que nunca foi pareada (ninguém escaneou o QR) não deve pedir QR novo para sempre:
+// cada tentativa é uma nova conexão ao WhatsApp a partir do mesmo servidor, e centenas delas
+// por dia fazem o WhatsApp travar as conexões novas — o QR das outras lojas deixa de aparecer.
+const MAX_UNPAIRED_RETRIES = 4;
+
 function sessionFolder(tenantId: number) {
   return path.join(SESSIONS_DIR, String(tenantId));
+}
+
+/** true quando a sessão em disco já foi pareada com um celular. Usa creds.me (preenchido ao parear);
+ * creds.registered NÃO serve: o Baileys o mantém false em dispositivos vinculados por QR. */
+function isRegistered(tenantId: number) {
+  try {
+    const raw = readFileSync(path.join(sessionFolder(tenantId), "creds.json"), "utf8");
+    return Boolean(JSON.parse(raw)?.me?.id);
+  } catch {
+    return false;
+  }
 }
 
 function metaFile(tenantId: number) {
@@ -140,6 +156,12 @@ async function startSocket(tenantId: number, tenantSlug: string, webhookSecret: 
         // Sem backoff aqui, isso reconectava em loop apertado (às vezes múltiplas
         // vezes por segundo) sem nunca dar tempo do lado do WhatsApp — mantém um
         // atraso crescente, com teto, entre tentativas.
+        if (!state.creds.me && reconnectAttempt >= MAX_UNPAIRED_RETRIES) {
+          logger.warn({ tenantId, statusCode, reconnectAttempt }, "QR never scanned, giving up until the user asks to connect again");
+          sessions.delete(tenantId);
+          rmSync(sessionFolder(tenantId), { recursive: true, force: true });
+          return;
+        }
         const delayMs = Math.min(2000 * (reconnectAttempt + 1), 30_000);
         logger.warn({ tenantId, statusCode, reconnectAttempt, delayMs }, "connection dropped, reconnecting");
         sessions.delete(tenantId);
@@ -266,6 +288,12 @@ export async function hydrateFromDisk() {
   for (const dirEntry of entries) {
     const tenantId = Number(dirEntry.name);
     if (!Number.isFinite(tenantId)) continue;
+
+    if (!isRegistered(tenantId)) {
+      // restos de um QR que ninguém escaneou: reidratar só recomeçaria o ciclo de QR infinito
+      rmSync(sessionFolder(tenantId), { recursive: true, force: true });
+      continue;
+    }
 
     const meta = loadMeta(tenantId);
     if (!meta) {
