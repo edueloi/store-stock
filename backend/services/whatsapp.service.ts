@@ -1747,26 +1747,28 @@ async function generateZeAiReply(
       return extractAiText(response.data, "openai").slice(0, 1_200) || null;
     }
 
-    // O Google às vezes responde "alto volume de uso" (503/429) em um modelo por alguns segundos:
-    // tenta de novo uma vez e, se continuar, cai para o modelo leve antes de desistir.
+    // Velocidade importa no WhatsApp: o cliente está esperando. Por isso: "thinking" desligado (o modelo
+    // raciocina por vários segundos antes de responder), tempo curto por tentativa e, se um modelo
+    // estiver lento ou sobrecarregado (503/429), passa logo para o modelo leve em vez de insistir.
     const body = {
       systemInstruction: { parts: [{ text: instructions }] },
       contents: [
         ...history.map((h) => ({ role: h.role === "customer" ? "user" : "model", parts: [{ text: h.text }] })),
         { role: "user", parts: [{ text: input }] },
       ],
-      // modelos "thinking" gastam parte do limite pensando; folga para a resposta não vir vazia
-      generationConfig: { temperature: 0.5, maxOutputTokens: 1_500 },
+      generationConfig: { temperature: 0.5, maxOutputTokens: 1_200 },
     };
+    const callGemini = (modelName: string, thinkingOff: boolean) => axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
+      thinkingOff ? { ...body, generationConfig: { ...body.generationConfig, thinkingConfig: { thinkingBudget: 0 } } } : body,
+      { headers: { "x-goog-api-key": settings.ai_api_key, "Content-Type": "application/json" }, timeout: 12_000 },
+    );
     let lastReason = "";
     for (const modelName of AI_GEMINI_MODELS) {
-      for (let attempt = 0; attempt < 2; attempt++) {
+      let thinkingOff = !modelName.includes("lite"); // o modelo leve já responde sem pensar
+      for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          const response = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
-            body,
-            { headers: { "x-goog-api-key": settings.ai_api_key, "Content-Type": "application/json" }, timeout: 25_000 },
-          );
+          const response = await callGemini(modelName, thinkingOff);
           const text = extractAiText(response.data, "gemini").slice(0, 1_200);
           if (text) return text;
           lastReason = "a IA devolveu uma resposta vazia";
@@ -1775,8 +1777,11 @@ async function generateZeAiReply(
           lastReason = aiErrorReason(error);
           const status = axios.isAxiosError(error) ? error.response?.status : undefined;
           console.error(`[whatsapp] IA do Zé (${modelName}, tentativa ${attempt + 1}): ${lastReason}`);
-          if (status && [429, 500, 502, 503, 504].includes(status) && attempt === 0) {
-            await new Promise((resolve) => setTimeout(resolve, 1_500));
+          // modelo que não aceita desligar o "thinking": repete sem essa opção
+          if (status === 400 && thinkingOff && /think/i.test(lastReason)) { thinkingOff = false; continue; }
+          // sobrecarga momentânea: uma nova tentativa rápida; lentidão (timeout) vai direto ao próximo modelo
+          if (status && [429, 503].includes(status) && attempt < 2) {
+            await new Promise((resolve) => setTimeout(resolve, 800));
             continue;
           }
           break;

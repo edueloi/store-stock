@@ -385,15 +385,12 @@ export async function sendWhatsappConversationMessageHandler(req: Request, res: 
 export async function whatsappWebhookHandler(req: Request, res: Response) {
   const tenantSlug = String(req.params.tenantSlug ?? "");
 
-  try {
-    const result = await processWhatsappWebhook(
-      tenantSlug,
-      (req.body ?? {}) as Record<string, unknown>,
-      req.headers,
-    );
-    res.json(result);
-  } catch (error) {
-    console.error("whatsappWebhookHandler error:", error);
-    res.status(500).json({ error: getErrorMessage(error) });
-  }
+  // Responde na hora e processa em segundo plano: a IA pode levar vários segundos e o serviço do
+  // WhatsApp desiste do webhook em 10s (o que gerava erro de timeout mesmo com a resposta saindo).
+  void processWhatsappWebhook(
+    tenantSlug,
+    (req.body ?? {}) as Record<string, unknown>,
+    req.headers,
+  ).catch((error) => console.error("whatsappWebhookHandler error:", error));
+  res.json({ ok: true, accepted: true });
 }
