@@ -128,12 +128,12 @@ function variationLines(product: { skus: unknown; variations: unknown; attribute
   if (Array.isArray(product.skus) && product.skus.length) {
     return (product.skus as Array<{ combo?: Record<string, string>; stock?: number }>)
       .filter((s) => s.combo)
-      .map((s) => ({ label: Object.entries(s.combo!).map(([k, v]) => `${k} ${v}`).join(" / "), stock: Number(s.stock ?? 0) }))
+      .map((s) => ({ label: Object.entries(s.combo!).map(([k, v]) => `${k}: ${v}`).join(" / "), stock: Number(s.stock ?? 0) }))
       .slice(0, 40);
   }
   if (Array.isArray(product.variations) && product.variations.length) {
     return (product.variations as Array<{ name?: string; options?: Array<{ value: string; stock?: number }> }>)
-      .flatMap((v) => (v.options ?? []).map((o) => ({ label: `${v.name} ${o.value}`, stock: Number(o.stock ?? 0) })))
+      .flatMap((v) => (v.options ?? []).map((o) => ({ label: `${v.name}: ${o.value}`, stock: Number(o.stock ?? 0) })))
       .slice(0, 40);
   }
   return [];
@@ -163,17 +163,18 @@ function formatProduct(p: any): string {
     ? ` | opções: ${vars.map((v) => `${v.label} (${availability(v.stock)})`).join("; ")}`
     : "";
   const desc = p.description ? ` | ${String(p.description).replace(/\s+/g, " ").slice(0, 160)}` : "";
-  return `- ${p.name}${p.sku ? ` [${p.sku}]` : ""}: ${price}${stockText}${varText}${desc}`;
+  const store = p.is_active ? "" : " | SÓ NA LOJA FÍSICA (não está no site: não envie link dele)";
+  return `- ${p.name} (id ${p.id})${p.sku ? ` [${p.sku}]` : ""}: ${price}${stockText}${varText}${store}${desc}`;
 }
 
 /** Produtos relacionados à pergunta (e ao que já foi conversado). Vazio se nada casar. */
 export async function buildCatalogContext(tenantId: number, message: string, history: string[]): Promise<string> {
   const terms = keywordsOf([message, ...history.slice(-3)].join(" "));
-  const base = { tenant_id: tenantId, is_active: true } as const;
+  const base = { tenant_id: tenantId } as const; // PDV inteiro: "is_active" significa só "ativo no site"
   const select = {
-    name: true, sku: true, description: true, price: true, discount_price: true, stock_quantity: true,
+    id: true, name: true, sku: true, description: true, price: true, discount_price: true, stock_quantity: true,
     skus: true, variations: true, attributes: true, sale_unit: true, price_per_measure: true,
-    measure_stock_quantity: true, measure_unit: true, is_featured: true, category: { select: { name: true } },
+    measure_stock_quantity: true, measure_unit: true, is_featured: true, is_active: true, category: { select: { name: true } },
   } as const;
 
   let products: any[] = [];
@@ -218,4 +219,14 @@ export async function loadConversationHistory(conversationId: number, limit = 8)
     role: r.direction === "customer" ? "customer" as const : "assistant" as const,
     text: String(r.body).slice(0, 500),
   }));
+}
+
+/** Setores de atendimento ativos da loja (chave usada em [[TRANSFERIR:chave]]). */
+export async function loadActiveSectors(tenantId: number): Promise<Array<{ key: string; name: string; description: string | null }>> {
+  const sectors = await prisma.whatsappSector.findMany({
+    where: { is_active: true, workspace: { tenant_id: tenantId } },
+    orderBy: [{ sort_order: "asc" }, { id: "asc" }],
+    select: { key: true, name: true, description: true },
+  });
+  return sectors;
 }

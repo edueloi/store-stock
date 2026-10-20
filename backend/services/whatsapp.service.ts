@@ -1,4 +1,5 @@
-import { buildCatalogContext, buildStoreContext, loadConversationHistory } from "./whatsapp-ai-context.service";
+import { createHeldSaleFromWhatsapp, HoldRejected, type WhatsappHoldItemInput } from "./whatsapp-held-sale.service";
+import { buildCatalogContext, buildStoreContext, loadActiveSectors, loadConversationHistory } from "./whatsapp-ai-context.service";
 import axios from "axios";
 import { randomBytes } from "crypto";
 import { Prisma } from "@prisma/client";
@@ -1682,12 +1683,15 @@ async function generateZeAiReply(
   // Dados reais da loja + produtos ligados à pergunta. Sem isso a IA só conseguiria "conversar".
   let storeContext = "";
   let catalogContext = "";
+  let sectorsText = "sales (Vendas), support (Suporte), finance (Financeiro)";
   let history: Array<{ role: "customer" | "assistant"; text: string }> = [];
   if (context) {
     try {
       history = context.conversationId ? await loadConversationHistory(context.conversationId) : [];
       // a mensagem atual já foi gravada no log; evita repeti-la no histórico
       if (history.length && history[history.length - 1].role === "customer" && history[history.length - 1].text === message.slice(0, 500)) history.pop();
+      const sectors = await loadActiveSectors(context.tenantId).catch(() => []);
+      if (sectors.length) sectorsText = sectors.map((sec) => `${sec.key} (${sec.name}${sec.description ? `: ${sec.description}` : ""})`).join("; ");
       [storeContext, catalogContext] = await Promise.all([
         buildStoreContext(context.tenantId),
         buildCatalogContext(context.tenantId, message, history.filter((h) => h.role === "customer").map((h) => h.text)),
@@ -1711,7 +1715,9 @@ async function generateZeAiReply(
     "Serviços: se perguntarem o que a loja presta, responda com os serviços listados nos dados e seus valores.",
     "Pedidos: você não fecha pedido sozinha. Quando o cliente decidir comprar, passe o link filtrado para ele finalizar no site ou ofereça chamar a equipe de vendas ([[TRANSFERIR:sales]]) para fechar com ele.",
     "Não peça senha, dados de cartão ou códigos de confirmação. Pagamentos online acontecem no site da loja, nunca por mensagem.",
-    "Quando o cliente pedir para falar com uma pessoa ou o assunto fugir do que você pode resolver, responda somente com [[TRANSFERIR:sales]], [[TRANSFERIR:support]] ou [[TRANSFERIR:finance]].",
+    `Setores de atendimento disponíveis: ${sectorsText}. Quando o cliente pedir para falar com uma pessoa ou o assunto fugir do que você pode resolver (reclamação, troca, problema com pedido, cobrança, negociação), responda SOMENTE com [[TRANSFERIR:chave_do_setor]] escolhendo o setor mais adequado (ex.: [[TRANSFERIR:sales]]).`,
+    "Segurar pedido: se o cliente quiser reservar/comprar, primeiro CONFIRME com ele, em uma mensagem, os itens (nome, opção como tamanho/cor, quantidade) e o total, e pergunte se pode segurar no nome dele para a equipe confirmar. SOMENTE depois de ele confirmar com clareza (ex.: 'sim', 'pode segurar'), responda exclusivamente com [[SEGURAR:{\"items\":[{\"id\":123,\"qty\":1,\"options\":{\"Tamanho\":\"M\"}}]}]]. Use o id do produto dos dados e, se o produto tiver opções, informe exatamente a opção escolhida em options (sem opções, deixe options vazio). Nunca segure produto sem estoque, sem opção definida ou que o cliente não confirmou.",
+    "Produtos marcados como SÓ NA LOJA FÍSICA existem no PDV da loja mas não estão no site: informe preço e disponibilidade normalmente, diga que é para retirar/comprar na loja e NÃO envie link do site para eles.",
     "Responda em português do Brasil, em no máximo 900 caracteres.",
     storeContext ? `\n=== DADOS DA LOJA ===\n${storeContext}` : "",
     catalogContext ? `\n=== PRODUTOS ===\n${catalogContext}` : "",
@@ -1800,9 +1806,38 @@ async function tryHandleZeAiMessage(
   const reply = await generateZeAiReply(settings, tenantName, message, registeredCustomer, { tenantId: workspace.tenant_id, conversationId: conversation.id });
   if (!reply) return false;
 
-  const transfer = reply.match(/^\s*\[\[TRANSFERIR:(sales|support|finance)\]\]\s*$/i);
+  const transfer = reply.match(/^\s*\[\[TRANSFERIR:([a-z0-9_-]+)\]\]\s*$/i);
   if (transfer) {
-    await handleDepartmentRequest(workspace, tenantName, conversation, transfer[1].toLowerCase());
+    // só setores ativos da loja; chave desconhecida cai em vendas
+    const sectors = await loadActiveSectors(workspace.tenant_id).catch(() => []);
+    const requested = transfer[1].toLowerCase();
+    const department = sectors.some((sec) => sec.key === requested) || ["sales", "support", "finance"].includes(requested) ? requested : "sales";
+    await handleDepartmentRequest(workspace, tenantName, conversation, department);
+    return true;
+  }
+
+  const hold = reply.match(/^\s*\[\[SEGURAR:(\{[\s\S]*\})\]\]\s*$/);
+  if (hold) {
+    const say = (text: string) => sendMessageAndTrack(workspace.id, conversation.id, conversation.phone, "text", { text }, text);
+    const money = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    let items: WhatsappHoldItemInput[] = [];
+    try { items = (JSON.parse(hold[1]) as { items?: WhatsappHoldItemInput[] }).items ?? []; } catch { /* cai no aviso abaixo */ }
+    try {
+      const result = await createHeldSaleFromWhatsapp({
+        tenantId: workspace.tenant_id,
+        customerName: registeredCustomer?.name || conversation.customer_name || "Cliente WhatsApp",
+        customerPhone: conversation.phone,
+        customerId: registeredCustomer?.id ?? null,
+        items,
+      });
+      const lines = result.items.map((i) => `• ${i.quantity}x ${i.name}${i.selected_options ? ` (${Object.values(i.selected_options).join(", ")})` : ""} — ${money(i.unit_price * i.quantity)}`);
+      await say([`Pronto! Segurei para você (reserva nº ${result.number}):`, ...lines, `Total: ${money(result.total)}`, "", "Vou chamar alguém da nossa equipe para confirmar com você. 😊"].join("\n"));
+    } catch (error) {
+      const why = error instanceof HoldRejected ? error.message : "Não consegui segurar agora.";
+      console.error("[whatsapp] reserva pela IA não concluída:", error instanceof Error ? error.message : error);
+      await say(`${why} Vou chamar alguém da equipe para te ajudar.`);
+    }
+    await handleDepartmentRequest(workspace, tenantName, conversation, "sales");
     return true;
   }
 
