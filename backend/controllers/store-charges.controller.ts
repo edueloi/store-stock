@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
 import { createAsaasSubaccountPixTransfer, getAsaasSubaccountBalance, getAsaasSubaccountDocumentsLink, getAsaasSubaccountStatus } from "../services/billing/asaas.service";
-import { createStoreCharge, getStoreAsaasKey, onboardStoreAsaas, processStoreAsaasWebhook, type StoreChargeRules } from "../services/billing/store-charges.service";
+import { createStoreCharge, ensureStoreWebhook, getStoreAsaasKey, onboardStoreAsaas, processStoreAsaasWebhook, type StoreChargeRules } from "../services/billing/store-charges.service";
 import type { AuthenticatedRequest } from "../types/auth";
 
 const tenantIdOf = (req: Request) => (req as AuthenticatedRequest).user.tenantId;
@@ -94,6 +94,7 @@ export async function storeAsaasWebhookHandler(req: Request, res: Response) {
 export async function getAsaasAccountOverview(req: Request, res: Response) {
   try {
     const apiKey = await getStoreAsaasKey(tenantIdOf(req));
+    await ensureStoreWebhook(tenantIdOf(req)).catch(() => {}); // tenta de novo se o webhook ficou pendente
     const [status, balance, documentsUrl] = await Promise.all([
       getAsaasSubaccountStatus(apiKey).catch(() => null),
       getAsaasSubaccountBalance(apiKey).catch(() => null),

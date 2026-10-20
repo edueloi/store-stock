@@ -39,22 +39,44 @@ async function loadGateway(tenantId: number) {
   return { gateway, apiKey, credentials };
 }
 
-/** Cria a subconta Asaas do lojista e já a deixa pronta para cobrar (webhook incluso). */
+const webhookUrl = (tenantId: number) => `${env.appBaseUrl}/api/billing/webhook/store-asaas/${tenantId}`;
+
+/** Cria a subconta Asaas do lojista. A chave só é devolvida uma vez, por isso é gravada ANTES de qualquer passo que possa falhar. */
 export async function onboardStoreAsaas(tenantId: number, input: AsaasSubaccountInput) {
   const existing = await loadGateway(tenantId);
   if (existing.gateway?.wallet_id) throw new Error("Esta loja já possui uma conta de recebimento Asaas.");
 
   const sub = await createAsaasSubaccount(input);
   const webhookToken = crypto.randomBytes(24).toString("hex"); // 48 chars (Asaas exige >= 32)
-  await configureSubaccountWebhook(sub.apiKey, `${env.appBaseUrl}/api/billing/webhook/store-asaas/${tenantId}`, webhookToken);
-
-  const credentials = { access_token: encryptSecret(sub.apiKey), webhook_token: encryptSecret(webhookToken) };
+  const credentials = {
+    access_token: encryptSecret(sub.apiKey),
+    webhook_token: encryptSecret(webhookToken),
+    owner_email: input.email,
+    webhook_ok: false,
+  };
   await prisma.storePaymentGateway.upsert({
     where: { tenant_id_provider: { tenant_id: tenantId, provider: "asaas" } },
     create: { tenant_id: tenantId, provider: "asaas", enabled: true, environment: env.asaasEnvironment, credentials, wallet_id: sub.walletId },
     update: { enabled: true, environment: env.asaasEnvironment, credentials, wallet_id: sub.walletId },
   });
+
+  // Webhook é complementar: se falhar, a conta já existe e a tentativa se repete em ensureStoreWebhook.
+  await ensureStoreWebhook(tenantId).catch((error) => console.error("Webhook da subconta pendente:", error instanceof Error ? error.message : error));
   return { walletId: sub.walletId };
+}
+
+/** Registra o webhook da subconta se ainda não estiver registrado. Idempotente. */
+export async function ensureStoreWebhook(tenantId: number): Promise<void> {
+  const { gateway, apiKey, credentials } = await loadGateway(tenantId);
+  if (!gateway?.wallet_id || !apiKey || credentials.webhook_ok === true) return;
+  const token = decryptSecret(credentials.webhook_token as string | undefined);
+  const email = String(credentials.owner_email || "");
+  if (!token || !email) return;
+  await configureSubaccountWebhook(apiKey, webhookUrl(tenantId), token, email);
+  await prisma.storePaymentGateway.update({
+    where: { id: gateway.id },
+    data: { credentials: { ...credentials, webhook_ok: true } },
+  });
 }
 
 export interface CreateStoreChargeInput {

@@ -188,11 +188,12 @@ export async function getPlatformWalletId(): Promise<string> {
   }
 }
 
-export async function configureSubaccountWebhook(apiKey: string, url: string, authToken: string): Promise<void> {
+export async function configureSubaccountWebhook(apiKey: string, url: string, authToken: string, email: string): Promise<void> {
   try {
     await clientWithKey(apiKey).post("/webhooks", {
       name: "Box Sys - cobranças da loja",
       url,
+      email, // o Asaas avisa por e-mail se a fila de webhooks for pausada
       enabled: true,
       interrupted: false,
       apiVersion: 3,
