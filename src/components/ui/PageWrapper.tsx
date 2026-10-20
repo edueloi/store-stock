@@ -36,8 +36,8 @@ export function PageWrapper({
         // Ocupa toda a largura útil do painel
         "w-full max-w-none min-w-0",
         // Padding horizontal mais equilibrado para admin
-        // Sem padding horizontal no mobile para "cara de app", recupera respiro no desktop
-        "px-0 sm:px-4 lg:px-5 xl:px-6",
+        // Respiro lateral também no celular: sem ele cards e listas ficam colados na borda da tela
+        "px-3 sm:px-4 lg:px-5 xl:px-6",
         // Padding vertical menor para reduzir o "vazio" no topo
         "pt-3 sm:pt-4",
         // Bottom spacing

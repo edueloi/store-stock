@@ -71,7 +71,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       {/* Container */}
-      <div className="pointer-events-none fixed left-4 right-4 top-4 z-[200] flex flex-col items-end gap-2">
+      <div className="pointer-events-none fixed left-3 right-3 top-[calc(env(safe-area-inset-top,0px)_+_3.5rem)] z-[200] flex flex-col items-end gap-2 lg:left-4 lg:right-4 lg:top-4">
         <AnimatePresence initial={false}>
           {toasts.map((t) => {
             const { icon } = variantConfig[t.variant];
