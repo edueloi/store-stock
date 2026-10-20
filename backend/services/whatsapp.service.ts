@@ -1700,7 +1700,10 @@ async function generateZeAiReply(
   const instructions = [
     `Você é ${settings.bot_name}, assistente virtual da loja ${tenantName}, atendendo clientes pelo WhatsApp.`,
     settings.ai_system_prompt,
-    "Converse de forma natural e simpática, como uma atendente de loja: frases curtas, sem listas longas, sem parecer robô e sem repetir saudações a cada mensagem. Use no máximo um emoji quando combinar.",
+    "Converse de forma natural e simpática, como uma atendente de loja no WhatsApp: frases curtas, sem parecer robô e sem repetir saudações a cada mensagem. Use no máximo um emoji quando combinar.",
+    "Responda SOMENTE o que o cliente perguntou, sem despejar informações da loja que ele não pediu (horário, endereço, formas de pagamento só quando perguntarem). Se ele apenas cumprimentar, cumprimente de volta pelo nome (se souber) e pergunte em uma frase como pode ajudar.",
+    "Organização: no máximo 3 produtos por resposta, cada um em uma linha no formato '• Nome — R$ preço (disponibilidade)'. Use *negrito* só para nomes de produto e preços. Faça uma pergunta por vez. Termine com o link filtrado quando falar de produto.",
+    "Horário e agora: use a linha 'Horário de hoje' dos dados para dizer se está aberto. Se o horário não estiver cadastrado nos dados, diga que não tem essa informação e ofereça chamar a equipe — nunca invente horário.",
     "Use SOMENTE os dados das seções DADOS DA LOJA e PRODUTOS abaixo para falar de produtos, preços, estoque, variações (tamanho, cor etc.), horário, endereço, pagamento e prazos. Informe o preço exatamente como está nos dados; se houver promoção, cite o valor promocional e o original.",
     "Se o produto tiver opções (variações), diga quais estão disponíveis e quais estão sem estoque. Se faltar informação para responder (ex.: o cliente não disse o tamanho), pergunte de forma curta.",
     "Se o produto não aparecer nos dados, diga que não encontrou esse item no catálogo e ofereça chamar a equipe. Nunca invente produto, preço, estoque, prazo de entrega, frete, desconto ou política.",
@@ -1887,7 +1890,7 @@ async function tryHandleZeMessage(
     return true;
   }
 
-  if (/^(oi|ola|olá|bom dia|boa tarde|boa noite|tudo bem|obrigado|obrigada|valeu)/.test(text)) {
+  if (!aiReady && /^(oi|ola|olá|bom dia|boa tarde|boa noite|tudo bem|obrigado|obrigada|valeu)/.test(text)) {
     const name = registeredCustomer?.name || conversation.customer_name || "";
     await say(`${name ? `${name}, ` : ""}como posso ajudar? Você pode escrever do seu jeito ou escolher uma opção do menu.`);
     await sendMenuToConversation(workspace, tenantName, conversation);
@@ -2827,7 +2830,11 @@ export async function processWhatsappWebhook(
     return { ok: true, handled: true, action: "closed" };
   }
 
-  if (isMenuCommand(normalizedCommand) || !conversation.last_outbound_at) {
+  // Com IA configurada, "oi" e o primeiro contato são respondidos pela IA (com o nome e o contexto
+  // da loja), não pelo texto de boas-vindas + menu. O menu só sai quando o cliente pede (MENU/0/voltar).
+  const aiAnswers = settings.smart_bot_enabled && settings.ai_provider !== "rules" && Boolean(settings.ai_api_key);
+  const asksMenu = isMenuCommand(normalizedCommand) && !(aiAnswers && normalizedCommand.trim().toLowerCase() === "oi");
+  if (asksMenu || (!conversation.last_outbound_at && !aiAnswers)) {
     const templates = parseTemplates(workspaceRecord.templates);
     const welcome = settings.smart_bot_enabled
       ? buildZeWelcome(settings, tenantName, conversation.customer_name, registeredCustomer)
@@ -2884,6 +2891,13 @@ export async function processWhatsappWebhook(
     registeredCustomer,
   )) {
     return { ok: true, handled: true, action: "ze-ai-reply" };
+  }
+
+  if (!resolvedChoice && aiAnswers) {
+    const apology = "Desculpe, não consegui responder agora. Vou te mostrar as opções para continuar, ou é só tentar de novo em instantes.";
+    await sendMessageAndTrack(workspaceRecord.id, conversation.id, conversation.phone, "text", { text: apology }, apology);
+    await sendMenuToConversation(workspaceRecord, tenantName, conversation);
+    return { ok: true, handled: true, action: "ze-ai-failed" };
   }
 
   await handleMenuSelection(workspaceRecord, tenantName, conversation, selection);

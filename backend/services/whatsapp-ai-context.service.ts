@@ -38,14 +38,14 @@ function keywordsOf(text: string): string[] {
 
 type HoursEntry = { open?: string; close?: string; closed?: boolean };
 
-function describeHours(hours: unknown): { text: string; openNow: boolean | null } {
-  if (!hours || typeof hours !== "object") return { text: "não informado", openNow: null };
+function describeHours(hours: unknown): { text: string; openNow: boolean | null; today: string | null } {
+  if (!hours || typeof hours !== "object") return { text: "não cadastrado", openNow: null, today: null };
   const map = hours as Record<string, HoursEntry>;
   const lines = DAY_ORDER.filter((d) => map[d]).map((d) => {
     const h = map[d];
     return `${DAY_LABELS[d]}: ${h.closed || !h.open || !h.close ? "fechado" : `${h.open} às ${h.close}`}`;
   });
-  if (!lines.length) return { text: "não informado", openNow: null };
+  if (!lines.length) return { text: "não cadastrado", openNow: null, today: null };
 
   // "agora" no fuso de Brasília, independente do fuso do servidor
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -63,7 +63,11 @@ function describeHours(hours: unknown): { text: string; openNow: boolean | null 
       openNow = nowMin >= toMin(today.open) && nowMin < toMin(today.close);
     }
   }
-  return { text: lines.join("; "), openNow };
+  const todayLabel = DAY_LABELS[dayKey] ?? "";
+  const todayText = today
+    ? `${todayLabel}: ${today.closed || !today.open || !today.close ? "fechado hoje" : `${today.open} às ${today.close}`}`
+    : null;
+  return { text: lines.join("; "), openNow, today: todayText };
 }
 
 export async function buildStoreContext(tenantId: number): Promise<string> {
@@ -108,6 +112,7 @@ export async function buildStoreContext(tenantId: number): Promise<string> {
     t.whatsapp ? `WhatsApp da loja: ${t.whatsapp}` : "",
     address ? `Endereço: ${address}` : "",
     `Horário de funcionamento: ${hours.text}`,
+    hours.today ? `Horário de hoje (${hours.today})` : "",
     hours.openNow === null ? "" : `Agora a loja está: ${hours.openNow ? "ABERTA" : "FECHADA"} (horário de Brasília)`,
     payments.length ? `Formas de pagamento aceitas: ${payments.join(", ")}` : "",
     ...policyLines,
