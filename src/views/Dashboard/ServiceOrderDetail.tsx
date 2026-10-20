@@ -62,6 +62,7 @@ import {
   downloadServiceOrderPdf,
   NfseInvoice,
 } from "./serviceOrders.shared";
+import ProductVariationModal, { productHasVariations, type VariationOptions } from "../../components/pdv/ProductVariationModal";
 import SalePaymentForm, { SalePaymentFormState, newSalePaymentFormState, parseSalePaymentSettings, computeSalePayment, buildSalePayload } from "../../components/SalePaymentForm";
 import { ContentCard, Button, IconButton, Input, Textarea, Badge, Tabs, EmptyState } from "../../components/ui";
 
@@ -167,6 +168,9 @@ export default function ServiceOrderDetail() {
   const [addPartTab, setAddPartTab] = useState<"catalog" | "services" | "free">("catalog");
   const [partSearch, setPartSearch] = useState("");
   const [partSelectedProduct, setPartSelectedProduct] = useState<Product | null>(null);
+  // Produto com variações (tamanho, cor...): escolhida no seletor antes de entrar na OS.
+  const [variationPending, setVariationPending] = useState<Product | null>(null);
+  const [partOptions, setPartOptions] = useState<{ options: VariationOptions; label: string } | null>(null);
   const [partSelectedService, setPartSelectedService] = useState<CatalogService | null>(null);
   const [partQty, setPartQty] = useState(1);
   const [partNoCharge, setPartNoCharge] = useState(false);
@@ -452,6 +456,7 @@ export default function ServiceOrderDetail() {
     setAddPartTab("catalog");
     setPartSearch("");
     setPartSelectedProduct(null);
+    setPartOptions(null);
     setPartSelectedService(null);
     setPartQty(1);
     setPartNoCharge(false);
@@ -534,7 +539,7 @@ export default function ServiceOrderDetail() {
         ...commonDiscount,
       };
     } else if (partSelectedProduct) {
-      body = { product_id: partSelectedProduct.id, quantity: partQty, no_charge: partNoCharge, ...commonDiscount };
+      body = { product_id: partSelectedProduct.id, quantity: partQty, no_charge: partNoCharge, selected_options: partOptions?.options, ...commonDiscount };
     } else {
       return;
     }
@@ -1674,6 +1679,18 @@ export default function ServiceOrderDetail() {
         </div>
       </Modal>
 
+      <ProductVariationModal
+        product={variationPending}
+        onClose={() => setVariationPending(null)}
+        onConfirm={(options, label) => {
+          if (!variationPending) return;
+          setPartSelectedProduct(variationPending);
+          setPartOptions({ options, label });
+          setVariationPending(null);
+        }}
+        confirmLabel="Usar esta variação"
+      />
+
       {/* ── ADD PART MODAL (catálogo / medida / item livre + desconto) ─────── */}
       <Modal
         open={showAddPartModal}
@@ -1795,13 +1812,27 @@ export default function ServiceOrderDetail() {
               value={partSelectedProduct ? String(partSelectedProduct.id) : ""}
               onChange={(v) => {
                 const product = products.find((p) => String(p.id) === v);
-                setPartSelectedProduct(product ?? null);
                 setMeasureHeight("");
                 setMeasureWidth("");
+                setPartOptions(null);
+                // produto com variações só entra depois de escolher tamanho/cor etc.
+                if (product && productHasVariations(product) && !(product.sale_unit && product.sale_unit !== "unidade")) {
+                  setPartSelectedProduct(null);
+                  setVariationPending(product);
+                  return;
+                }
+                setPartSelectedProduct(product ?? null);
               }}
               options={filteredParts.length > 0 ? filteredParts.map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
                 : products.filter((p) => p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade")).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}`:`${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
             />
+
+            {partSelectedProduct && partOptions && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                <span className="min-w-0 truncate text-xs font-medium text-blue-700">Variação: {partOptions.label}</span>
+                <button type="button" className="shrink-0 text-xs font-semibold text-blue-700 underline" onClick={() => setVariationPending(partSelectedProduct)}>Trocar</button>
+              </div>
+            )}
 
             {partSelectedProduct && isMeasuredProduct && (
               partSelectedProduct.sale_unit === "m2" ? (

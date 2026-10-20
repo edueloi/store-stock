@@ -44,6 +44,7 @@ import { cn } from "../../lib/utils";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { generateQuotePDF } from "../../lib/quotePdf";
 import { getStoredUser } from "../../lib/session";
+import ProductVariationModal, { productHasVariations, type VariationOptions } from "../../components/pdv/ProductVariationModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,8 @@ interface QuoteItem {
   unit_price: number;
   total: number;
   dimensions_label?: string | null;
+  /** Variação escolhida (ex.: {"Tamanho":"M"}). */
+  selected_options?: Record<string, string> | null;
 }
 
 interface QuoteServiceRow {
@@ -125,6 +128,9 @@ interface Product {
   sale_unit?: "unidade" | "m2" | "linear";
   price_per_measure?: number;
   min_billable_quantity?: number;
+  attributes?: { name: string; values: string[] }[];
+  variations?: { name: string; options: { value: string; stock: number }[] }[];
+  skus?: { combo: Record<string, string>; stock: number }[];
 }
 
 interface ServiceCatalog {
@@ -476,14 +482,35 @@ export default function QuoteDetail() {
   const autosaveItems = useCallback((items: QuoteItem[], svcs: typeof formServices) => {
     autosaveField({
       items: items.map((i) => ({
-        product_id: i.product_id, name: i.name, quantity: i.quantity, unit_price: i.unit_price, dimensions_label: i.dimensions_label ?? null,
+        product_id: i.product_id, name: i.name, quantity: i.quantity, unit_price: i.unit_price, dimensions_label: i.dimensions_label ?? null, selected_options: i.selected_options ?? null,
       })),
       services: svcs.map((s) => ({ id: s.service_id, name: s.name, price: s.price, quantity: s.quantity, dimensions_label: s.dimensions_label ?? null })),
     }, "items");
   }, [autosaveField]);
 
   // ── Add product to cart ──────────────────────────────────────────────────
+  const [variationProduct, setVariationProduct] = useState<Product | null>(null);
+
+  // Produto com variações: cada combinação (tamanho, cor...) é uma linha própria do orçamento.
+  const addProductWithOptions = (p: Product, options: VariationOptions, label: string) => {
+    setFormItems((prev) => {
+      const same = (i: QuoteItem) => i.product_id === p.id && (i.dimensions_label ?? "") === label;
+      const price = Number(p.discount_price ?? p.price);
+      const next = prev.some(same)
+        ? prev.map((i) => same(i) ? { ...i, quantity: i.quantity + 1, total: (i.quantity + 1) * i.unit_price } : i)
+        : [...prev, { product_id: p.id, name: p.name, quantity: 1, unit_price: price, total: price, dimensions_label: label, selected_options: options }];
+      autosaveItems(next, formServices);
+      return next;
+    });
+    setVariationProduct(null);
+    setProductSearch("");
+  };
+
   const addProduct = (p: Product) => {
+    if (productHasVariations(p) && !(p.sale_unit && p.sale_unit !== "unidade")) {
+      setVariationProduct(p);
+      return;
+    }
     if (p.sale_unit && p.sale_unit !== "unidade") {
       setMeasureProduct(p);
       setMeasureHeight("");
@@ -1272,6 +1299,13 @@ export default function QuoteDetail() {
           </PanelCard>
         </div>
       </div>
+
+      <ProductVariationModal
+        product={variationProduct}
+        onClose={() => setVariationProduct(null)}
+        onConfirm={(options, label) => variationProduct && addProductWithOptions(variationProduct, options, label)}
+        confirmLabel="Adicionar ao orçamento"
+      />
 
       {/* ── Medida (m²/linear) — Produto ─────────────────────────────────────── */}
       <Modal

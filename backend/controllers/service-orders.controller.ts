@@ -4,6 +4,8 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
 import { computeMeasuredPrice } from "../utils/measurePricing";
+import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
+import { resolveVariationSelection, VariationError } from "../utils/variation-selection";
 import { advanceServiceOrderToNotaEmitida, canMoveToStage, syncLinkedStatus } from "../utils/stage-permissions";
 import { getWorkflowStagesForTenant } from "../utils/workflow-stages";
 import { cancelarNfce } from "../services/nfce/cancelar";
@@ -56,7 +58,7 @@ async function logAction(
 // (ver syncLinkedStatus em utils/stage-permissions.ts), sem duplicar a lógica.
 export async function applyServiceOrderCancellation(
   tenantId: number,
-  order: { id: number; invoiced_order_id: number | null; parts: { product_id: number | null; quantity: number }[] },
+  order: { id: number; invoiced_order_id: number | null; parts: { product_id: number | null; quantity: number; selected_options?: unknown }[] },
   actor: string,
   cancelReason?: string | null,
 ): Promise<{ data: Record<string, any>; warnings: string[] }> {
@@ -74,10 +76,8 @@ export async function applyServiceOrderCancellation(
 
     if (linkedOrder && linkedOrder.status !== "cancelled") {
       for (const item of linkedOrder.items) {
-        await prisma.product.update({
-          where: { id: item.product_id },
-          data: { stock_quantity: { increment: item.quantity } },
-        });
+        if (!item.product_id) continue;
+        await returnProductStock(item.product_id, item.quantity, item.selected_options as Record<string, string> | null);
       }
 
       await prisma.order.update({
@@ -119,10 +119,7 @@ export async function applyServiceOrderCancellation(
     // Ainda não faturada: reverte estoque das peças anexadas normalmente.
     for (const p of order.parts) {
       if (p.product_id) {
-        await prisma.product.update({
-          where: { id: p.product_id },
-          data: { stock_quantity: { increment: p.quantity } },
-        });
+        await returnProductStock(p.product_id, p.quantity, p.selected_options as Record<string, string> | null);
       }
     }
   }
@@ -607,10 +604,11 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const id = Number(req.params.id);
     const {
-      product_id, service_id, quantity, height, width, no_charge,
+      product_id, service_id, quantity, height, width, no_charge, selected_options: selectedOptionsRaw,
       name: freeName, unit: freeUnit, unit_price: freeUnitPrice,
       discount_type: discountType, discount_value: discountValueRaw,
     } = req.body as {
+      selected_options?: Record<string, string>;
       product_id?: number; service_id?: number; quantity?: number; height?: number; width?: number; no_charge?: boolean;
       name?: string; unit?: string; unit_price?: number;
       discount_type?: string; discount_value?: number;
@@ -749,6 +747,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     let totalBeforeDiscount: number;
     let dimensionsLabel: string | null = null;
     let measuredQuantity: number | null = null;
+    let variation: ReturnType<typeof resolveVariationSelection> | null = null;
 
     if (isMeasured) {
       // Nunca confia em preço mandado pelo cliente — recalcula a partir das
@@ -770,8 +769,18 @@ export async function addServiceOrderPart(req: Request, res: Response) {
         return res.status(400).json({ error: `Estoque insuficiente para "${product.name}". Disponível: ${available.toFixed(3)} ${product.sale_unit === "m2" ? "m²" : "m"}.` });
       }
     } else {
-      if (product.stock_quantity < qty) {
-        return res.status(400).json({ error: `Estoque insuficiente para "${product.name}"` });
+      // Produto com variações (tamanho, cor...): exige a escolha e confere o estoque da combinação.
+      try {
+        variation = resolveVariationSelection(product, selectedOptionsRaw);
+      } catch (err) {
+        if (err instanceof VariationError) return res.status(400).json({ error: err.message });
+        throw err;
+      }
+      const available = variation.available;
+      if (available < qty) {
+        return res.status(400).json({ error: available > 0
+          ? `Estoque insuficiente para "${product.name}"${variation.label ? ` (${variation.label})` : ""}. Disponível: ${available}.`
+          : `"${product.name}"${variation.label ? ` (${variation.label})` : ""} está sem estoque.` });
       }
       totalBeforeDiscount = Math.round(unitPrice * qty * 100) / 100;
     }
@@ -800,7 +809,8 @@ export async function addServiceOrderPart(req: Request, res: Response) {
         discount_value: itemDiscountValue,
         total,
         no_charge: !!no_charge,
-        dimensions_label: dimensionsLabel,
+        dimensions_label: dimensionsLabel ?? variation?.label ?? null,
+        selected_options: variation?.options ?? undefined,
       },
     });
 
@@ -811,10 +821,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
         data: { measure_stock_quantity: { decrement: measuredQuantity } },
       });
     } else {
-      await prisma.product.update({
-        where: { id: product.id },
-        data: { stock_quantity: { decrement: qty } },
-      });
+      await decrementProductStock(product.id, qty, variation?.options);
     }
 
     await recomputeTotals(id);
@@ -894,12 +901,14 @@ export async function removeServiceOrderPart(req: Request, res: Response) {
     if (!part) return res.status(404).json({ error: "Peça não encontrada" });
 
     if (part.product_id) {
-      await prisma.product.update({
-        where: { id: part.product_id },
-        data: part.measured_quantity !== null
-          ? { measure_stock_quantity: { increment: part.measured_quantity } }
-          : { stock_quantity: { increment: part.quantity } },
-      });
+      if (part.measured_quantity !== null) {
+        await prisma.product.update({
+          where: { id: part.product_id },
+          data: { measure_stock_quantity: { increment: part.measured_quantity } },
+        });
+      } else {
+        await returnProductStock(part.product_id, part.quantity, part.selected_options as Record<string, string> | null);
+      }
     }
 
     await prisma.serviceOrderPart.delete({ where: { id: partId } });
@@ -1210,6 +1219,7 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
             quantity: p.quantity,
             unit_price: p.unit_price,
             dimensions_label: p.dimensions_label,
+            selected_options: (p.selected_options as Record<string, string> | null) ?? undefined,
           })),
         },
         ...(servicesToCreate.length > 0 ? { services: { create: servicesToCreate } } : {}),

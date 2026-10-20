@@ -32,6 +32,7 @@ import Combobox from "../../components/ui/Combobox";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
 import { getStoredUser } from "../../lib/session";
+import ProductVariationModal, { productHasVariations, type VariationOptions } from "../../components/pdv/ProductVariationModal";
 import ConsignmentsPageTour, { CONSIGNMENTS_PAGE_TOUR_EVENTS, type ConsignmentsPageTourHandle } from "../../components/onboarding/ConsignmentsPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -90,6 +91,9 @@ interface Product {
   stock_quantity: number;
   is_active?: boolean;
   sale_unit?: "unidade" | "m2" | "linear";
+  attributes?: { name: string; values: string[] }[];
+  variations?: { name: string; options: { value: string; stock: number }[] }[];
+  skus?: { combo: Record<string, string>; stock: number }[];
 }
 
 interface Customer {
@@ -269,7 +273,8 @@ export default function Consignments() {
   const [ncPhone, setNcPhone] = useState("");
   const [savingNC, setSavingNC] = useState(false);
 
-  const [draftItems, setDraftItems] = useState<{ product: Product; quantity: number }[]>([]);
+  const [draftItems, setDraftItems] = useState<{ product: Product; quantity: number; options?: VariationOptions; label?: string }[]>([]);
+  const [variationProduct, setVariationProduct] = useState<Product | null>(null);
   const [productSearch, setProductSearch] = useState("");
 
   const [selected, setSelected] = useState<Consignment | null>(null);
@@ -357,23 +362,32 @@ export default function Consignments() {
   };
 
   // ── Draft items (nova sacola) ───────────────────────────────────────────
-  const addDraftItem = (product: Product) => {
+  // Cada combinação (tamanho, cor...) do mesmo produto é uma linha própria da sacola.
+  const draftKey = (d: { product: Product; label?: string }) => `${d.product.id}|${d.label ?? ""}`;
+
+  const addDraftItem = (product: Product, options?: VariationOptions, label?: string) => {
+    if (!options && productHasVariations(product)) {
+      setVariationProduct(product);
+      return;
+    }
     setDraftItems((prev) => {
-      const existing = prev.find((d) => d.product.id === product.id);
+      const key = `${product.id}|${label ?? ""}`;
+      const existing = prev.find((d) => draftKey(d) === key);
       if (existing) {
-        return prev.map((d) => (d.product.id === product.id ? { ...d, quantity: d.quantity + 1 } : d));
+        return prev.map((d) => (draftKey(d) === key ? { ...d, quantity: d.quantity + 1 } : d));
       }
-      return [...prev, { product, quantity: 1 }];
+      return [...prev, { product, quantity: 1, options, label }];
     });
+    setVariationProduct(null);
     setProductSearch("");
   };
 
-  const updateDraftQty = (productId: number, quantity: number) => {
-    setDraftItems((prev) => prev.map((d) => (d.product.id === productId ? { ...d, quantity: Math.max(1, quantity) } : d)));
+  const updateDraftQty = (key: string, quantity: number) => {
+    setDraftItems((prev) => prev.map((d) => (draftKey(d) === key ? { ...d, quantity: Math.max(1, quantity) } : d)));
   };
 
-  const removeDraftItem = (productId: number) => {
-    setDraftItems((prev) => prev.filter((d) => d.product.id !== productId));
+  const removeDraftItem = (key: string) => {
+    setDraftItems((prev) => prev.filter((d) => draftKey(d) !== key));
   };
 
   const filteredProducts = products.filter(
@@ -438,7 +452,7 @@ export default function Consignments() {
           seller_id: form.seller_id || undefined,
           due_days: Number(form.due_days) || 7,
           notes: form.notes || undefined,
-          items: draftItems.map((d) => ({ product_id: d.product.id, quantity: d.quantity })),
+          items: draftItems.map((d) => ({ product_id: d.product.id, quantity: d.quantity, selectedOptions: d.options ?? undefined })),
         }),
       });
       if (res.ok) {
@@ -921,22 +935,25 @@ export default function Consignments() {
               ) : (
                 <div className="space-y-2">
                   {draftItems.map((d) => (
-                    <div key={d.product.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div key={draftKey(d)} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                       <Package size={14} className="shrink-0 text-slate-400" />
-                      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700">{d.product.name}</span>
+                      <span className="min-w-0 flex-1 text-xs font-medium text-slate-700">
+                        <span className="block truncate">{d.product.name}</span>
+                        {d.label && <span className="block truncate text-[11px] text-blue-600">{d.label}</span>}
+                      </span>
                       <Input
                         size="sm"
                         aria-label={`Quantidade de ${d.product.name}`}
                         wrapperClassName="w-16"
                         className="text-center"
-                        type="number" min="1" max={d.product.stock_quantity}
+                        type="number" min="1" max={d.label ? undefined : d.product.stock_quantity}
                         value={d.quantity}
-                        onChange={(e) => updateDraftQty(d.product.id, Number(e.target.value) || 1)}
+                        onChange={(e) => updateDraftQty(draftKey(d), Number(e.target.value) || 1)}
                       />
                       <span className="w-20 text-right text-[11px] tabular-nums text-slate-500">
                         {fmt(Number(d.product.discount_price ?? d.product.price) * d.quantity)}
                       </span>
-                      <IconButton size="xs" variant="danger" aria-label={`Remover ${d.product.name}`} onClick={() => removeDraftItem(d.product.id)}>
+                      <IconButton size="xs" variant="danger" aria-label={`Remover ${d.product.name}`} onClick={() => removeDraftItem(draftKey(d))}>
                         <Trash2 size={14} />
                       </IconButton>
                     </div>
@@ -948,6 +965,13 @@ export default function Consignments() {
           )}
         </Tabs>
       </Modal>
+
+      <ProductVariationModal
+        product={variationProduct}
+        onClose={() => setVariationProduct(null)}
+        onConfirm={(options, label) => variationProduct && addDraftItem(variationProduct, options, label)}
+        confirmLabel="Adicionar à sacola"
+      />
 
       {/* ── NEW CUSTOMER MODAL ───────────────────────────────────────────── */}
       <Modal

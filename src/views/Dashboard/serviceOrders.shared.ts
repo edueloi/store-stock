@@ -138,6 +138,9 @@ export interface Product {
   sale_unit?: "unidade" | "m2" | "linear";
   price_per_measure?: number;
   min_billable_quantity?: number;
+  attributes?: { name: string; values: string[] }[];
+  variations?: { name: string; options: { value: string; stock: number }[] }[];
+  skus?: { combo: Record<string, string>; stock: number }[];
 }
 
 // Serviço do catálogo (tela Serviços) — usado na 3ª aba "Serviços" do modal de

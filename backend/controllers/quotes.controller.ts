@@ -1,3 +1,4 @@
+import { decrementProductStock } from "../utils/stock-adjust";
 import crypto from "crypto";
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
@@ -156,7 +157,7 @@ export async function createQuote(req: Request, res: Response) {
       discount_value?: number;
       validity_days?: number;
       notes?: string;
-      items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label?: string | null }>;
+      items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label?: string | null; selected_options?: Record<string, string> | null }>;
       services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null }>;
     };
 
@@ -172,6 +173,7 @@ export async function createQuote(req: Request, res: Response) {
       unit_price: i.unit_price,
       total: Math.round(i.unit_price * i.quantity * 100) / 100,
       dimensions_label: i.dimensions_label || null,
+      selected_options: i.selected_options && Object.keys(i.selected_options).length ? i.selected_options : undefined,
     }));
     const serviceRows = (services ?? []).map((s) => ({
       service_id: s.id,
@@ -406,7 +408,7 @@ export async function updateQuote(req: Request, res: Response) {
       discount_value?: number;
       validity_days?: number;
       notes?: string;
-      items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; dimensions_label?: string | null }>;
+      items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; dimensions_label?: string | null; selected_options?: Record<string, string> | null }>;
       services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null }>;
     };
 
@@ -462,6 +464,7 @@ export async function updateQuote(req: Request, res: Response) {
               unit_price: i.unit_price,
               total: Math.round(i.unit_price * i.quantity * 100) / 100,
               dimensions_label: i.dimensions_label || null,
+              selected_options: i.selected_options && Object.keys(i.selected_options).length ? i.selected_options : undefined,
             })),
           },
         }),
@@ -707,6 +710,7 @@ export async function convertToOrder(req: Request, res: Response) {
             quantity:   i.quantity,
             unit_price: i.unit_price,
             dimensions_label: i.dimensions_label,
+            selected_options: (i.selected_options as Record<string, string> | null) ?? undefined,
           })),
         },
         ...(quote.services.length > 0 ? {
@@ -730,10 +734,7 @@ export async function convertToOrder(req: Request, res: Response) {
         });
         // Produtos por medida (m²/linear) não têm controle de estoque.
         if (product?.sale_unit && product.sale_unit !== "unidade") continue;
-        await prisma.product.update({
-          where: { id: item.product_id },
-          data: { stock_quantity: { decrement: item.quantity } },
-        });
+        await decrementProductStock(item.product_id, item.quantity, item.selected_options as Record<string, string> | null);
       }
     }
 

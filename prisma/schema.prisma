@@ -1452,6 +1452,8 @@ model QuoteItem {
   unit_price       Decimal @db.Decimal(10, 2)
   total            Decimal @db.Decimal(10, 2)
   dimensions_label String?
+  // Variação escolhida (ex.: {"Tamanho":"M"}) — vira OrderItem.selected_options ao converter em venda
+  selected_options Json?
 
   quote Quote @relation(fields: [quote_id], references: [id], onDelete: Cascade)
 
@@ -1571,6 +1573,8 @@ model ServiceOrderPart {
   total                 Decimal  @db.Decimal(10, 2) // total_before_discount - desconto do item
   no_charge             Boolean  @default(false)
   dimensions_label      String?
+  // Variação escolhida da peça (ex.: {"Cor":"Azul"}) — baixa/devolve o estoque da variação certa
+  selected_options      Json?
   created_at            DateTime @default(now())
 
   service_order ServiceOrder @relation(fields: [service_order_id], references: [id], onDelete: Cascade)
