@@ -1211,9 +1211,9 @@ export default function Finance() {
         {/* ── FILTROS ───────────────────────────────────────────────────── */}
         <div className="space-y-3">
           <FilterLine data-tour="finance-period-nav">
-            <FilterLineSection wrap>
+            <FilterLineSection wrap className="!gap-2 w-full sm:w-auto sm:!gap-3">
               {/* ← Mês/Ano → navigator */}
-              <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5">
+              <div className="flex w-full items-center gap-1 rounded-lg border border-slate-200 bg-white p-0.5 sm:w-auto">
                 <IconButton size="sm" aria-label="Período anterior" onClick={() => (preset === "year" ? navigateYear(-1) : navigateMonth(-1))}>
                   <ChevronLeft size={14} />
                 </IconButton>
@@ -1221,7 +1221,7 @@ export default function Finance() {
                   type="button"
                   onClick={() => applyPreset(preset === "year" ? "year" : "month")}
                   className={cn(
-                    "h-8 min-w-[160px] rounded-lg px-3 text-center text-xs font-medium transition-colors",
+                    "h-8 flex-1 rounded-lg px-3 text-center text-xs font-medium transition-colors sm:min-w-[160px] sm:flex-none",
                     preset === "month" || preset === "year" ? "bg-blue-50 text-blue-700" : "text-slate-600 hover:bg-slate-50"
                   )}
                 >
@@ -1233,11 +1233,13 @@ export default function Finance() {
               </div>
 
               {/* Mês / Ano */}
-              <FilterLineSegmented<string>
-                value={preset === "custom" ? "" : preset}
-                onChange={(v) => applyPreset(v as Preset)}
-                options={[{ value: "month", label: "Mês" }, { value: "year", label: "Ano" }]}
-              />
+              <div className="min-w-0 flex-1 sm:flex-none">
+                <FilterLineSegmented<string>
+                  value={preset === "custom" ? "" : preset}
+                  onChange={(v) => applyPreset(v as Preset)}
+                  options={[{ value: "month", label: "Mês" }, { value: "year", label: "Ano" }]}
+                />
+              </div>
 
               {/* Custom range toggle */}
               <Button
@@ -1245,20 +1247,21 @@ export default function Finance() {
                 variant={preset === "custom" ? "primary" : "outline"}
                 onClick={() => setPreset(preset === "custom" ? "month" : "custom")}
                 iconLeft={<Calendar size={14} />}
+                className="flex-1 sm:flex-none"
               >
                 Período Livre
               </Button>
 
               {preset === "custom" && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input type="date" aria-label="Data inicial" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} wrapperClassName="w-[148px]" />
-                  <span className="text-xs text-slate-500">até</span>
-                  <Input type="date" aria-label="Data final" value={dateTo} onChange={(e) => setDateTo(e.target.value)} wrapperClassName="w-[148px]" />
+                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+                  <Input type="date" aria-label="Data inicial" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} wrapperClassName="w-full sm:w-[148px]" />
+                  <span className="hidden text-xs text-slate-500 sm:inline">até</span>
+                  <Input type="date" aria-label="Data final" value={dateTo} onChange={(e) => setDateTo(e.target.value)} wrapperClassName="w-full sm:w-[148px]" />
                 </div>
               )}
             </FilterLineSection>
 
-            <FilterLineSection align="right" wrap>
+            <FilterLineSection align="right" wrap className="grid w-full grid-cols-2 !gap-2 sm:flex sm:w-auto sm:!gap-3">
 
               {/* Filter toggle */}
               <div className="relative">
@@ -1268,8 +1271,9 @@ export default function Finance() {
                   variant={showFilters || activeFilterCount > 0 ? "primary" : "outline"}
                   onClick={() => setShowFilters(!showFilters)}
                   iconLeft={<SlidersHorizontal size={14} />}
+                  fullWidth
                 >
-                  <span className="hidden sm:block">Filtros</span>
+                  Filtros
                 </Button>
                 {activeFilterCount > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-medium text-white">
@@ -1287,8 +1291,9 @@ export default function Finance() {
                   onClick={() => setShowExport(!showExport)}
                   iconLeft={<Download size={14} />}
                   iconRight={<ChevronDown size={12} />}
+                  fullWidth
                 >
-                  <span className="hidden sm:block">Exportar</span>
+                  Exportar
                 </Button>
                 {showExport && (
                   <div className="absolute right-0 top-10 z-50 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white">

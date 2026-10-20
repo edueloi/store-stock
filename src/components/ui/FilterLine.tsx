@@ -125,7 +125,7 @@ export function FilterLineSegmented<T extends string | number = string>({
   value, onChange, options, className = '', size = 'md',
 }: FilterLineSegmentedProps<T>) {
   return (
-    <FilterLineGroup compact={size === 'sm'} className={cx("flex w-full sm:inline-flex sm:w-auto", className)}>
+    <FilterLineGroup compact={size === 'sm'} className={cx("flex w-full flex-wrap sm:inline-flex sm:w-auto sm:flex-nowrap", className)}>
       {options.map((option) => {
         const active = String(option.value) === String(value);
         return (
@@ -134,7 +134,7 @@ export function FilterLineSegmented<T extends string | number = string>({
             type="button"
             onClick={() => onChange(option.value)}
             className={cx(
-              'inline-flex flex-1 sm:flex-initial items-center justify-center gap-2 rounded-lg font-medium transition-all',
+              'inline-flex grow basis-auto sm:flex-initial items-center justify-center gap-2 rounded-lg font-medium transition-all',
               size === 'sm' ? 'px-2 py-1.5 text-[11px]' : 'px-2.5 py-1.5 text-xs',
               active ? 'bg-white text-blue-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-800'
             )}
@@ -198,16 +198,16 @@ export const FilterLineSearch: React.FC<FilterLineSearchProps> = ({
 export const FilterLineDateRange: React.FC<FilterLineDateRangeProps> = ({
   from, to, onFromChange, onToChange, fromLabel = 'De', toLabel = 'Até', className = '',
 }) => (
-  <div className={cx('flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:gap-3', className)}>
-    <div className="flex items-center gap-2">
+  <div className={cx('grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-row sm:items-center sm:gap-3', className)}>
+    <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
       <span className="text-[11px] font-medium tracking-normal text-zinc-400">{fromLabel}</span>
-      <div className="min-w-[140px]">
+      <div className="min-w-0 sm:min-w-[140px]">
         <DatePicker value={from} onChange={onFromChange} />
       </div>
     </div>
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
       <span className="text-[11px] font-medium tracking-normal text-zinc-400">{toLabel}</span>
-      <div className="min-w-[140px]">
+      <div className="min-w-0 sm:min-w-[140px]">
         <DatePicker value={to} onChange={onToChange} />
       </div>
     </div>
