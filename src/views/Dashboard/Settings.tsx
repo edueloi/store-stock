@@ -62,6 +62,7 @@ import DesktopTerminalsSection from "./DesktopTerminalsSection";
 import HeroSlidesEditor from "./HeroSlidesEditor";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
+import AsaasAccountSetup from "../../components/settings/AsaasAccountSetup";
 import {
   Alert,
   Badge,
@@ -1227,6 +1228,9 @@ export default function Settings({
       enabled: boolean;
       environment: "sandbox" | "production";
       connected: boolean;
+      managed?: boolean;
+      fee_percent?: number | null;
+      rules?: { discount?: { value: number; type: "FIXED" | "PERCENTAGE"; days: number }; interest?: { percent: number }; fine?: { percent: number } } | null;
     }>
   >([]);
   const [gatewayTokens, setGatewayTokens] = useState<Record<string, string>>(
@@ -1555,6 +1559,15 @@ export default function Settings({
     } finally {
       setSaving(false);
     }
+  };
+
+  const reloadStorePaymentGateways = () => {
+    fetch("/api/tenant/payment-gateways", { headers: API_HEADERS() })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((gateways) => {
+        if (Array.isArray(gateways)) setStorePaymentGateways(gateways);
+      })
+      .catch(() => {});
   };
 
   const saveStorePaymentGateway = async (
@@ -4270,6 +4283,15 @@ export default function Settings({
                                       : "Conectar"}
                                 </Button>
                               </div>
+                              {provider === "asaas" && (
+                                <AsaasAccountSetup
+                                  key={gateway?.managed ? "managed" : "new"}
+                                  gateway={gateway}
+                                  headers={API_HEADERS}
+                                  onChanged={reloadStorePaymentGateways}
+                                  onMessage={(type, text) => toast[type](text)}
+                                />
+                              )}
                             </div>
                           );
                         })}

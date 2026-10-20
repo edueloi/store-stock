@@ -148,7 +148,7 @@ export async function getStorePaymentGateways(req: Request, res: Response) {
     const gateways = await (prisma as any).storePaymentGateway.findMany({
       where: { tenant_id: getTenantId(req) },
       orderBy: { provider: "asc" },
-      select: { provider: true, enabled: true, environment: true, credentials: true, updated_at: true },
+      select: { provider: true, enabled: true, environment: true, credentials: true, wallet_id: true, fee_percent: true, rules: true, updated_at: true },
     });
 
     res.json(gateways.map((gateway: any) => {
@@ -160,6 +160,10 @@ export async function getStorePaymentGateways(req: Request, res: Response) {
         enabled: gateway.enabled,
         environment: gateway.environment,
         connected: Boolean(credentials.access_token),
+        // Subconta criada pela plataforma (recebe com split); false = chave própria colada pelo lojista.
+        managed: Boolean(gateway.wallet_id),
+        fee_percent: gateway.wallet_id ? Number(gateway.fee_percent) : null,
+        rules: gateway.rules ?? null,
         updated_at: gateway.updated_at,
       };
     }));
