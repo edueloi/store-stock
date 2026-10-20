@@ -1924,7 +1924,8 @@ export default function PDV() {
     <div className="h-full flex flex-col overflow-hidden bg-slate-100 font-sans [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
 
       {/* ── TOP BAR ─────────────────────────────────────────────────────────── */}
-      <header className="h-14 flex items-center justify-between px-5 shrink-0 bg-white border-b border-slate-200 shadow-sm">
+      <header className="flex items-center justify-between px-5 shrink-0 bg-white border-b border-slate-200 shadow-sm"
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)", height: "calc(3.5rem + env(safe-area-inset-top, 0px))" }}>
 
         {/* Logo + nome */}
         <div className="flex items-center gap-3">

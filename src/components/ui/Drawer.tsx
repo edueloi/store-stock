@@ -80,6 +80,10 @@ export default function Drawer({
               side !== "bottom" && width,
               sv.classes
             )}
+            style={{
+              paddingTop: side === "bottom" ? undefined : "env(safe-area-inset-top, 0px)",
+              paddingBottom: "env(safe-area-inset-bottom, 0px)",
+            }}
           >
             {/* Header */}
             {(title || subtitle) && (

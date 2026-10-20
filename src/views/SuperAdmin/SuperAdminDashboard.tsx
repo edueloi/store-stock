@@ -406,7 +406,7 @@ export default function SuperAdminDashboard() {
       </AnimatePresence>
 
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-30 flex h-screen w-[280px] shrink-0 flex-col overflow-y-auto bg-[#0b1324] shadow-sm transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-30 flex h-screen w-[280px] shrink-0 flex-col overflow-y-auto bg-[#0b1324] shadow-sm transition-transform duration-300 lg:static lg:translate-x-0 lg:shadow-none ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`} style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
         {/* Logo */}
         <div className="flex h-[88px] items-center justify-between border-b border-white/8 px-6">
           <img src="/system/logo-boxsys-vazado.png" alt="BoxSys" className="h-9 w-auto object-contain" />
@@ -473,7 +473,8 @@ export default function SuperAdminDashboard() {
       {/* Main */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Topbar */}
-        <header className="relative z-10 flex h-[72px] shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
+        <header className="relative z-10 flex shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8"
+          style={{ paddingTop: "env(safe-area-inset-top, 0px)", height: "calc(72px + env(safe-area-inset-top, 0px))" }}>
           <div className="flex items-center gap-3">
             <button onClick={() => setSidebarOpen(true)} className="lg:hidden rounded-lg p-2 text-slate-500 hover:bg-slate-100">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>

@@ -989,6 +989,7 @@ function StoreLayoutInner() {
                     ? "bg-[#f7fbff]/88 backdrop-blur-xl border-[#d7e4ff]"
                     : "bg-white/95 backdrop-blur-md border-slate-200",
           )}
+          style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
         >
           <div
             className={cn(

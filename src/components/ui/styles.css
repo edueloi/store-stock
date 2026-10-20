@@ -65,7 +65,7 @@
   .ui-modal-header, .ui-modal-actions { padding: 10px 12px; }
   .ui-modal-body { padding: 12px; }
   .ui-modal-overlay--right { padding: 0; }
-  .ui-modal--right, .ui-modal--fullscreen { width: 100%; height: 100dvh; max-height: 100dvh; }
+  .ui-modal--right, .ui-modal--fullscreen { width: 100%; height: 100dvh; max-height: 100dvh; padding-top: env(safe-area-inset-top, 0px); }
   .ui-modal-actions { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
   .ui-modal-footer > button { flex: 1 1 auto; min-height: 38px; }
   .ui-button, .ui-icon-button { min-height: 36px; }
