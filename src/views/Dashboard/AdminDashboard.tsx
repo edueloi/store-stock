@@ -1118,6 +1118,7 @@ export default function AdminDashboard() {
             initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
             transition={{ type: "spring", damping: 28, stiffness: 220 }}
             className="fixed inset-y-0 left-0 w-[280px] bg-[#0b1327] text-slate-300 flex flex-col z-[101] lg:hidden border-r border-white/10"
+            style={{ paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
           >
             {/* Logo mobile */}
             <div className="flex items-center justify-between border-b border-white/10 px-4 h-[72px] shrink-0">
@@ -1203,7 +1204,9 @@ export default function AdminDashboard() {
       <main className="flex-1 flex flex-col overflow-hidden w-full min-w-0">
 
         {/* Header */}
-        <header className="z-10 flex h-12 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-4">
+        {/* No iPhone (tela cheia/PWA) o conteúdo vai até a borda: reserva o espaço do entalhe e da barra de status. */}
+        <header className="z-10 flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-4"
+          style={{ paddingTop: "env(safe-area-inset-top, 0px)", height: "calc(3rem + env(safe-area-inset-top, 0px))" }}>
           <div className="flex min-w-0 items-center gap-3">
             {/* Toggle sidebar desktop */}
             <IconButton variant="outline" size="sm" aria-label="Alternar menu lateral" onClick={() => toggleSidebar(!isSidebarOpen)}
