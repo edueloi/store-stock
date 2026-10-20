@@ -1,3 +1,4 @@
+import { buildCatalogContext, buildStoreContext, loadConversationHistory } from "./whatsapp-ai-context.service";
 import axios from "axios";
 import { randomBytes } from "crypto";
 import { Prisma } from "@prisma/client";
@@ -1641,24 +1642,56 @@ function extractAiText(payload: unknown, provider: WhatsappWorkspaceSettings["ai
     .trim();
 }
 
+const AI_DEFAULT_MODEL = { gemini: "gemini-flash-latest", openai: "gpt-4o-mini" } as const;
+
 async function generateZeAiReply(
   settings: WhatsappWorkspaceSettings,
   tenantName: string,
   message: string,
   registeredCustomer: RegisteredCustomer | null,
+  context?: { tenantId: number; conversationId?: number },
 ) {
   if (settings.ai_provider === "rules" || !settings.ai_api_key) return null;
 
   const customerContext = registeredCustomer
     ? `O telefone pertence ao cliente cadastrado ${registeredCustomer.name}.`
     : "Não há cliente cadastrado confirmado por este telefone.";
+
+  // Dados reais da loja + produtos ligados à pergunta. Sem isso a IA só conseguiria "conversar".
+  let storeContext = "";
+  let catalogContext = "";
+  let history: Array<{ role: "customer" | "assistant"; text: string }> = [];
+  if (context) {
+    try {
+      history = context.conversationId ? await loadConversationHistory(context.conversationId) : [];
+      // a mensagem atual já foi gravada no log; evita repeti-la no histórico
+      if (history.length && history[history.length - 1].role === "customer" && history[history.length - 1].text === message.slice(0, 500)) history.pop();
+      [storeContext, catalogContext] = await Promise.all([
+        buildStoreContext(context.tenantId),
+        buildCatalogContext(context.tenantId, message, history.filter((h) => h.role === "customer").map((h) => h.text)),
+      ]);
+    } catch (error) {
+      console.error("[whatsapp] contexto da IA indisponível:", error instanceof Error ? error.message : error);
+    }
+  }
+
   const instructions = [
-    `Você é ${settings.bot_name}, assistente virtual da loja ${tenantName}.`,
+    `Você é ${settings.bot_name}, assistente virtual da loja ${tenantName}, atendendo clientes pelo WhatsApp.`,
     settings.ai_system_prompt,
-    "Nunca invente dados do sistema, preços, estoque, pedidos, pagamentos ou prazos. Não peça senha, dados de cartão ou códigos de confirmação.",
-    "Quando o cliente precisar de uma pessoa, responda somente com [[TRANSFERIR:sales]], [[TRANSFERIR:support]] ou [[TRANSFERIR:finance]].",
-    "Responda em português do Brasil, de forma breve e útil, em no máximo 700 caracteres.",
-  ].join("\n");
+    "Converse de forma natural e simpática, como uma atendente de loja: frases curtas, sem listas longas, sem parecer robô e sem repetir saudações a cada mensagem. Use no máximo um emoji quando combinar.",
+    "Use SOMENTE os dados das seções DADOS DA LOJA e PRODUTOS abaixo para falar de produtos, preços, estoque, variações (tamanho, cor etc.), horário, endereço, pagamento e prazos. Informe o preço exatamente como está nos dados; se houver promoção, cite o valor promocional e o original.",
+    "Se o produto tiver opções (variações), diga quais estão disponíveis e quais estão sem estoque. Se faltar informação para responder (ex.: o cliente não disse o tamanho), pergunte de forma curta.",
+    "Se o produto não aparecer nos dados, diga que não encontrou esse item no catálogo e ofereça chamar a equipe. Nunca invente produto, preço, estoque, prazo de entrega, frete, desconto ou política.",
+    "Depois de responder sobre um produto, envie também o link filtrado da loja para o cliente ver e comprar, montado com o padrão de links dos dados (ex.: .../catalogo?q=bolo+de+chocolate). Se o cliente falar de uma categoria, pode usar o link da categoria. Se pedir o site, envie o link da loja.",
+    "Serviços: se perguntarem o que a loja presta, responda com os serviços listados nos dados e seus valores.",
+    "Pedidos: você não fecha pedido sozinha. Quando o cliente decidir comprar, passe o link filtrado para ele finalizar no site ou ofereça chamar a equipe de vendas ([[TRANSFERIR:sales]]) para fechar com ele.",
+    "Não peça senha, dados de cartão ou códigos de confirmação. Pagamentos online acontecem no site da loja, nunca por mensagem.",
+    "Quando o cliente pedir para falar com uma pessoa ou o assunto fugir do que você pode resolver, responda somente com [[TRANSFERIR:sales]], [[TRANSFERIR:support]] ou [[TRANSFERIR:finance]].",
+    "Responda em português do Brasil, em no máximo 900 caracteres.",
+    storeContext ? `\n=== DADOS DA LOJA ===\n${storeContext}` : "",
+    catalogContext ? `\n=== PRODUTOS ===\n${catalogContext}` : "",
+  ].filter(Boolean).join("\n");
+
   const input = `${customerContext}\n\nMensagem do cliente: ${message}`;
 
   try {
@@ -1666,40 +1699,81 @@ async function generateZeAiReply(
       const response = await axios.post(
         "https://api.openai.com/v1/responses",
         {
-          model: settings.ai_model || "gpt-4o-mini",
+          model: settings.ai_model || AI_DEFAULT_MODEL.openai,
           instructions,
-          input,
-          max_output_tokens: 250,
+          input: [
+            ...history.map((h) => ({ role: h.role === "customer" ? "user" : "assistant", content: h.text })),
+            { role: "user", content: input },
+          ],
+          max_output_tokens: 600,
           store: false,
         },
         {
           headers: { Authorization: `Bearer ${settings.ai_api_key}`, "Content-Type": "application/json" },
-          timeout: 20_000,
+          timeout: 25_000,
         },
       );
-      return extractAiText(response.data, "openai").slice(0, 700) || null;
+      return extractAiText(response.data, "openai").slice(0, 1_200) || null;
     }
 
-    const model = encodeURIComponent(settings.ai_model || "gemini-2.0-flash");
+    const model = encodeURIComponent(settings.ai_model || AI_DEFAULT_MODEL.gemini);
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         systemInstruction: { parts: [{ text: instructions }] },
-        contents: [{ role: "user", parts: [{ text: input }] }],
-        generationConfig: { temperature: 0.35, maxOutputTokens: 250 },
+        contents: [
+          ...history.map((h) => ({ role: h.role === "customer" ? "user" : "model", parts: [{ text: h.text }] })),
+          { role: "user", parts: [{ text: input }] },
+        ],
+        // modelos "thinking" gastam parte do limite pensando; folga para a resposta não vir vazia
+        generationConfig: { temperature: 0.5, maxOutputTokens: 1_500 },
       },
       {
         headers: { "x-goog-api-key": settings.ai_api_key, "Content-Type": "application/json" },
-        timeout: 20_000,
+        timeout: 25_000,
       },
     );
-    return extractAiText(response.data, "gemini").slice(0, 700) || null;
+    return extractAiText(response.data, "gemini").slice(0, 1_200) || null;
   } catch (error) {
     const reason = axios.isAxiosError(error)
       ? String(error.response?.data && isRecord(error.response.data) ? error.response.data.error?.message ?? error.message : error.message)
       : error instanceof Error ? error.message : "erro desconhecido";
     console.error(`[whatsapp] IA do Zé indisponível: ${reason}`);
     return null;
+  }
+}
+
+/** Modelos de texto disponíveis para a chave informada (ou a salva), para o lojista escolher sem digitar. */
+export async function listWhatsappAiModels(tenantId: number, provider: string, apiKey?: string) {
+  const workspace = await ensureWorkspace(tenantId);
+  const settings = parseSettings(workspace.settings);
+  const key = (apiKey || "").trim() || settings.ai_api_key;
+  if (!key) throw new Error("Informe a chave da API para carregar os modelos.");
+
+  try {
+    if (provider === "openai") {
+      const { data } = await axios.get("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${key}` }, timeout: 15_000 });
+      const ids: string[] = (isRecord(data) && Array.isArray(data.data) ? data.data : [])
+        .map((m: unknown) => (isRecord(m) ? String(m.id) : ""))
+        .filter((id: string) => /^(gpt-|o\d)/.test(id) && !/(audio|realtime|image|tts|transcribe|embedding|search|moderation)/.test(id));
+      return ids.sort().map((id) => ({ id, label: id }));
+    }
+    const { data } = await axios.get("https://generativelanguage.googleapis.com/v1beta/models?pageSize=100", {
+      headers: { "x-goog-api-key": key }, timeout: 15_000,
+    });
+    const models = (isRecord(data) && Array.isArray(data.models) ? data.models : [])
+      .filter((m: unknown): m is Record<string, unknown> => isRecord(m)
+        && String(m.name).startsWith("models/gemini")
+        && Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent")
+        && !/(embedding|aqa|image|tts|live|audio|robotics|computer)/.test(String(m.name)))
+      .map((m) => ({ id: String(m.name).replace("models/", ""), label: String(m.displayName || m.name).trim() }));
+    // aliases "-latest" primeiro: acompanham o modelo atual do Google sem precisar trocar depois
+    return models.sort((a, b) => Number(b.id.endsWith("-latest")) - Number(a.id.endsWith("-latest")) || a.id.localeCompare(b.id));
+  } catch (error) {
+    const reason = axios.isAxiosError(error)
+      ? String(isRecord(error.response?.data) && isRecord((error.response?.data as Record<string, unknown>).error) ? ((error.response?.data as Record<string, any>).error.message) : error.message)
+      : "falha na consulta";
+    throw new Error(`Não foi possível carregar os modelos. Confira a chave da API. (${reason})`);
   }
 }
 
@@ -1713,7 +1787,7 @@ async function tryHandleZeAiMessage(
   const settings = parseSettings(workspace.settings);
   if (!settings.smart_bot_enabled) return false;
 
-  const reply = await generateZeAiReply(settings, tenantName, message, registeredCustomer);
+  const reply = await generateZeAiReply(settings, tenantName, message, registeredCustomer, { tenantId: workspace.tenant_id, conversationId: conversation.id });
   if (!reply) return false;
 
   const transfer = reply.match(/^\s*\[\[TRANSFERIR:(sales|support|finance)\]\]\s*$/i);
@@ -1733,7 +1807,7 @@ export async function testWhatsappAi(tenantId: number) {
     throw new Error("Escolha Gemini ou OpenAI e informe a chave da API antes de testar.");
   }
   const { tenant } = await getWorkspaceWithTenantByTenantId(tenantId);
-  const reply = await generateZeAiReply(settings, tenant.name, "Responda apenas: integração pronta.", null);
+  const reply = await generateZeAiReply(settings, tenant.name, "Responda apenas: integração pronta.", null, { tenantId });
   if (!reply) throw new Error("A API não retornou uma resposta. Confira a chave, o modelo e o acesso à API.");
   return { ok: true, reply };
 }
@@ -1753,23 +1827,28 @@ async function tryHandleZeMessage(
     await sendMessageAndTrack(workspace.id, conversation.id, conversation.phone, "text", { text: body }, body);
   };
   const isAny = (...terms: string[]) => terms.some((term) => text.includes(term));
+  // Com IA configurada, perguntas abertas (preço, entrega, pagamento) vão para ela, que tem o
+  // catálogo e a loja; as regras abaixo só ficam com pedidos/orçamentos/notas explícitos.
+  const aiReady = settings.ai_provider !== "rules" && Boolean(settings.ai_api_key);
 
   if (isAny("quem e voce", "quem e vc", "seu nome", "voce e robo", "voce e bot")) {
     await say(`Eu sou ${settings.bot_name}, o assistente virtual da ${tenantName}. Posso resolver consultas rápidas e, quando precisar, encaminhar você para uma pessoa da equipe.`);
     return true;
   }
 
-  if (isAny("pedido", "entrega", "rastreio", "rastrear", "minha compra", "minhas compras")) {
+  if (aiReady
+    ? isAny("meu pedido", "meus pedidos", "status do pedido", "rastreio", "rastrear", "minha compra", "minhas compras")
+    : isAny("pedido", "entrega", "rastreio", "rastrear", "minha compra", "minhas compras")) {
     await sendOrdersSummary(workspace, conversation);
     return true;
   }
 
-  if (isAny("orcamento", "cotacao", "preco", "valor", "proposta")) {
+  if (aiReady ? isAny("orcamento", "cotacao", "proposta") : isAny("orcamento", "cotacao", "preco", "valor", "proposta")) {
     await sendQuotesSummary(workspace, conversation);
     return true;
   }
 
-  if (isAny("nota", "nfce", "boleto", "pagamento", "pagar", "cobranca", "financeiro")) {
+  if (aiReady ? isAny("nota fiscal", "nfce", "meu boleto", "segunda via", "cobranca", "financeiro") : isAny("nota", "nfce", "boleto", "pagamento", "pagar", "cobranca", "financeiro")) {
     await sendInvoicesSummary(workspace, conversation);
     return true;
   }

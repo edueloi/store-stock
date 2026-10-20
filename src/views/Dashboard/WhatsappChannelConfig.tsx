@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Bot, CircleDot, LogOut, MessageCirclePlus, Plus, RefreshCw, Save, Send, Sparkles, UsersRound } from "lucide-react";
+import { Bot, CircleDot, ExternalLink, LogOut, MessageCirclePlus, Plus, RefreshCw, Save, Send, Sparkles, UsersRound } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { useToast } from "../../components/ui/Toast";
 import { cn } from "../../lib/utils";
@@ -53,6 +53,10 @@ export default function WhatsappChannelConfig() {
   const [sectorForm, setSectorForm] = useState({ name: "", description: "" });
   const [agentForm, setAgentForm] = useState({ name: "", department: "sales", phone: "", email: "", max_concurrent_chats: "3" });
   const [startForm, setStartForm] = useState({ customer_name: "", phone: "" });
+  const [aiModels, setAiModels] = useState<Array<{ id: string; label: string }>>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [testingAi, setTestingAi] = useState(false);
+  const [aiTestReply, setAiTestReply] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -119,6 +123,32 @@ export default function WhatsappChannelConfig() {
       await load();
     } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao salvar."); }
     finally { setSaving(false); }
+  }
+
+  async function loadAiModels() {
+    if (!settings) return;
+    setLoadingModels(true);
+    try {
+      const response = await fetch("/api/whatsapp/ai-models", { method: "POST", headers: headers(), body: JSON.stringify({ provider: settings.ai_provider, api_key: settings.ai_api_key || undefined }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Não foi possível carregar os modelos.");
+      setAiModels(result.models ?? []);
+      if (!(result.models ?? []).length) toast.error("Nenhum modelo disponível para essa chave.");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Falha ao carregar modelos."); }
+    finally { setLoadingModels(false); }
+  }
+
+  async function testAssistant() {
+    setTestingAi(true);
+    setAiTestReply("");
+    try {
+      const response = await fetch("/api/whatsapp/test-ai", { method: "POST", headers: headers() });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "O teste falhou.");
+      setAiTestReply(String(result.reply || "Integração pronta."));
+      toast.success("A IA respondeu. Integração funcionando.");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "O teste falhou."); }
+    finally { setTestingAi(false); }
   }
 
   async function openLogs() {
@@ -199,8 +229,40 @@ export default function WhatsappChannelConfig() {
             <Input label="Nome do assistente" value={settings.bot_name} maxLength={40} onChange={(e) => setSettings({ bot_name: e.target.value })}  showCount={false} />
             <Select label="Inteligência artificial" value={settings.ai_provider} onChange={(e) => setSettings({ ai_provider: e.target.value as Settings["ai_provider"] })}><option value="rules">Regras do sistema</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option></Select>
             {settings.ai_provider !== "rules" && <>
-              <Input label="Modelo" placeholder={settings.ai_provider === "gemini" ? "gemini-2.0-flash" : "gpt-4o-mini"} value={settings.ai_model} onChange={(e) => setSettings({ ai_model: e.target.value })}  showCount={false} />
-              <Input label={settings.ai_api_key_configured ? "Nova chave da IA (uma chave já está guardada)" : "Chave da IA"} type="password" value={settings.ai_api_key} onChange={(e) => setSettings({ ai_api_key: e.target.value })}  showCount={false} />
+              <div>
+                <div className="flex items-end gap-2">
+                  <div className="min-w-0 flex-1">
+                    {aiModels.length > 0 ? (
+                      <Select label="Modelo" value={settings.ai_model} onChange={(e) => setSettings({ ai_model: e.target.value })}>
+                        <option value="">Automático (recomendado)</option>
+                        {settings.ai_model && !aiModels.some((m) => m.id === settings.ai_model) && <option value={settings.ai_model}>{settings.ai_model}</option>}
+                        {aiModels.map((m) => <option key={m.id} value={m.id}>{m.label === m.id ? m.id : `${m.label} (${m.id})`}</option>)}
+                      </Select>
+                    ) : (
+                      <Input label="Modelo" name="ai-model-name" autoComplete="off" placeholder={settings.ai_provider === "gemini" ? "Deixe em branco para o automático" : "gpt-4o-mini"} value={settings.ai_model} onChange={(e) => setSettings({ ai_model: e.target.value })} showCount={false} />
+                    )}
+                  </div>
+                  <Button type="button" variant="outline" size="md" onClick={() => void loadAiModels()} loading={loadingModels} disabled={!settings.ai_api_key && !settings.ai_api_key_configured}>Carregar modelos</Button>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Em branco, o sistema usa o modelo mais recente e rápido ({settings.ai_provider === "gemini" ? "gemini-flash-latest" : "gpt-4o-mini"}). Cole a chave e clique em Carregar modelos para escolher outro.</p>
+              </div>
+              <Input label={settings.ai_api_key_configured ? "Nova chave da IA (uma chave já está guardada)" : "Chave da IA (API key)"} name="ai-api-key-field" type="password" autoComplete="new-password" value={settings.ai_api_key} onChange={(e) => setSettings({ ai_api_key: e.target.value })} showCount={false} />
+              <div className="flex flex-wrap items-center gap-3">
+                <Button type="button" variant="outline" size="sm" onClick={() => void testAssistant()} loading={testingAi} disabled={!settings.ai_api_key_configured}>Testar assistente</Button>
+                <span className="text-xs text-slate-500">{settings.ai_api_key_configured ? "Usa a chave já salva." : "Salve a chave primeiro para poder testar."}</span>
+              </div>
+              {aiTestReply && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Resposta da IA: {aiTestReply}</p>}
+              {settings.ai_provider === "gemini" && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                  <p className="font-semibold text-slate-900">Como conseguir a chave do Gemini (grátis)</p>
+                  <ol className="mt-2 list-decimal space-y-1 pl-5">
+                    <li>Abra o <a className="inline-flex items-center gap-1 font-semibold text-blue-700 underline" href="https://aistudio.google.com/api-keys" target="_blank" rel="noreferrer">Google AI Studio <ExternalLink size={12} /></a> e entre com sua conta Google.</li>
+                    <li>Clique em <b>Criar chave de API</b>, dê um nome (ex.: "Minha loja") e escolha o projeto.</li>
+                    <li>Copie a chave gerada e cole no campo acima. Depois clique em <b>Salvar</b> e em <b>Testar assistente</b>.</li>
+                  </ol>
+                  <p className="mt-2 text-xs text-slate-500">O plano gratuito tem limite de mensagens por minuto/dia e pode usar as conversas para melhorar os modelos do Google. Para uso em volume ou mais privacidade, ative o faturamento no AI Studio (pago por uso). A chave é sua e fica guardada só no servidor.</p>
+                </div>
+              )}
             </>}
           </div>
         </section>

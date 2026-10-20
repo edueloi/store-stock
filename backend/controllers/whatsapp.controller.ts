@@ -20,6 +20,7 @@ import {
   sendWhatsappTestMenu,
   sendFinanceAlertsNow,
   testWhatsappAi,
+  listWhatsappAiModels,
   transferWhatsappConversation,
   updateWhatsappAgent,
   updateWhatsappSector,
@@ -82,6 +83,21 @@ export async function pingWhatsappProvider(req: Request, res: Response) {
     res.json({ ok: true, data });
   } catch (error) {
     res.status(400).json({ ok: false, error: getErrorMessage(error) });
+  }
+}
+
+export async function listWhatsappAiModelsHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  if (!tenantId) {
+    res.sendStatus(403);
+    return;
+  }
+
+  try {
+    const { provider, api_key } = (req.body ?? {}) as { provider?: string; api_key?: string };
+    res.json({ models: await listWhatsappAiModels(tenantId, provider === "openai" ? "openai" : "gemini", api_key) });
+  } catch (error) {
+    res.status(400).json({ error: getErrorMessage(error) });
   }
 }
 
