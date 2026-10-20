@@ -226,6 +226,9 @@
 .store-theme-coffee .fragrance-cart-item p.uppercase { text-transform: none; letter-spacing: 0; line-height: 1.7; font-size: 11px; font-weight: 400; }
 .store-theme-coffee .fragrance-cart-item button[aria-label*="quantidade"] { min-width: 32px; min-height: 32px; }
 
+.store-theme-coffee .cf-empty-basket + p { color: var(--cf-muted); font: 400 25px var(--cf-display); text-transform: none; letter-spacing: -.02em; }
+.store-theme-coffee .cf-empty-basket ~ button { border-radius: 3px !important; font: 500 13px var(--cf-font); text-transform: none; letter-spacing: 0; }
+
 /* Responsivo */
 @media (max-width: 1200px) {
   .cf-bar { gap: 16px; padding-inline: 32px; }.cf-brand span { max-width: 190px; }.cf-menu-section { gap: 28px; grid-template-columns: 230px minmax(0,1fr); padding-inline: 32px; }.cf-menu-section-full { grid-template-columns: minmax(0,1fr); }.cf-list,.cf-list-one { grid-template-columns: minmax(0,1fr); }.cf-house-menu { padding: 28px 22px; }.cf-hero-card { padding: 48px 40px; }.cf-hero-card h1 { font-size: 68px; }
