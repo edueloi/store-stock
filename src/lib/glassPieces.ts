@@ -14,6 +14,10 @@ export interface PieceSpec {
   thickness_mm?: number;    // 6, 8, 10...
   finish?: string;          // cor da ferragem/perfil
   notes?: string;
+  /** Sangria: folga descontada de CADA lado da medida do vão para chegar à medida de corte (mm). */
+  gap_mm?: number;
+  /** Margem de segurança sobre a área (perda de corte/quebra), em %. Entra na área cobrada. */
+  waste_pct?: number;
 }
 
 export const PIECE_KINDS: { value: PieceKind; label: string; leaves: boolean }[] = [
@@ -44,6 +48,11 @@ export function pieceSummary(spec: PieceSpec | null | undefined): string {
   if (spec.leaves && spec.leaves > 1) parts.push(`${spec.leaves} folhas`);
   const glass = [spec.glass, spec.thickness_mm ? `${spec.thickness_mm} mm` : ""].filter(Boolean).join(" ");
   if (glass) parts.push(glass);
+  if (num(spec.gap_mm) > 0) {
+    const cut = pieceCut(spec);
+    parts.push(`corte ${cut.cutW} × ${cut.cutH} mm (sangria ${num(spec.gap_mm)} mm/lado)`);
+  }
+  if (num(spec.waste_pct) > 0) parts.push(`margem ${num(spec.waste_pct)}%`);
   if (spec.finish) parts.push(`perfil ${spec.finish.toLowerCase()}`);
   return parts.join(" · ");
 }
@@ -58,6 +67,8 @@ export function sanitizePieceSpec(raw: any): PieceSpec | null {
   const str = (v: unknown, max = 60) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
   const leaves = Math.min(6, Math.max(1, Math.round(num(raw.leaves)) || 1));
   const thickness = Math.round(num(raw.thickness_mm));
+  const gap = Math.min(50, Math.max(0, num(raw.gap_mm)));
+  const waste = Math.min(50, Math.max(0, num(raw.waste_pct)));
   return {
     kind, width_mm, height_mm,
     ...(leaves > 1 ? { leaves } : {}),
@@ -65,8 +76,27 @@ export function sanitizePieceSpec(raw: any): PieceSpec | null {
     ...(thickness > 0 && thickness <= 30 ? { thickness_mm: thickness } : {}),
     ...(str(raw.finish) ? { finish: str(raw.finish) } : {}),
     ...(str(raw.notes, 300) ? { notes: str(raw.notes, 300) } : {}),
+    ...(gap > 0 ? { gap_mm: Math.round(gap * 10) / 10 } : {}),
+    ...(waste > 0 ? { waste_pct: Math.round(waste * 10) / 10 } : {}),
   };
 }
+
+/**
+ * Medida de corte da peça: vão menos a sangria dos dois lados. A área cobrada é a área de corte
+ * acrescida da margem de segurança. Sem sangria nem margem, tudo coincide com o vão informado.
+ */
+export function pieceCut(spec: Pick<PieceSpec, "width_mm" | "height_mm" | "leaves" | "gap_mm" | "waste_pct">) {
+  const gap = Math.max(0, num(spec.gap_mm));
+  const cutW = Math.max(0, Math.round(num(spec.width_mm) - 2 * gap));
+  const cutH = Math.max(0, Math.round(num(spec.height_mm) - 2 * gap));
+  const leaves = Math.max(1, Math.round(num(spec.leaves)) || 1);
+  const areaCut = (cutW / 1000) * (cutH / 1000);
+  const waste = Math.max(0, num(spec.waste_pct));
+  return { cutW, cutH, leaves, leafW: Math.round(cutW / leaves), areaCut, areaBilled: areaCut * (1 + waste / 100) };
+}
+
+/** Área cobrada em m² considerando sangria e margem de segurança. */
+export const pieceBilledAreaM2 = (spec: Pick<PieceSpec, "width_mm" | "height_mm" | "leaves" | "gap_mm" | "waste_pct">) => pieceCut(spec).areaBilled;
 
 /** Área cobrada em m² (largura × altura). */
 export const pieceAreaM2 = (spec: Pick<PieceSpec, "width_mm" | "height_mm">) => (num(spec.width_mm) / 1000) * (num(spec.height_mm) / 1000);

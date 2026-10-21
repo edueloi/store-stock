@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import GlassDrawing from "../../components/GlassDrawing";
-import GlassPieceFields, { draftToSpec, emptyPieceDraft, type PieceDraft } from "../../components/GlassPieceFields";
-import { pieceAreaM2, pieceSummary, type PieceSpec } from "../../lib/glassPieces";
+import GlassPieceFields, { draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, specToDraft, type PieceDraft } from "../../components/GlassPieceFields";
+import { pieceBilledAreaM2, pieceCut, pieceLabel, pieceSummary, type PieceSpec } from "../../lib/glassPieces";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   Trash2,
   Link2,
+  Pencil,
   Palette,
   PenTool,
   Mail,
@@ -307,6 +308,8 @@ export default function QuoteDetail() {
   const [measureServiceHeight, setMeasureServiceHeight] = useState("");
   const [measureServiceWidth, setMeasureServiceWidth] = useState("");
   const [pieceMode, setPieceMode] = useState(false);
+  // Índice do serviço (peça) que está sendo editado; null = adicionando uma peça nova.
+  const [editingPieceIdx, setEditingPieceIdx] = useState<number | null>(null);
   const [pieceDraft, setPieceDraft] = useState<PieceDraft>(emptyPieceDraft());
   const [serviceSearch, setServiceSearch] = useState("");
   const [formItems, setFormItems] = useState<QuoteItem[]>([]);
@@ -607,32 +610,53 @@ export default function QuoteDetail() {
   };
 
   const pieceSpec = draftToSpec(pieceDraft);
+  const pieceCutInfo = pieceCut(pieceSpec);
   // Mesmo mecanismo de venda por medida do Produto, aplicado a Serviço.
   const measureServicePreview = measureService
     ? computeMeasuredPrice(
         (measureService.sale_unit as "m2" | "linear") ?? "m2",
         Number(measureService.price_per_measure) || 0,
         measureService.min_billable_quantity ?? null,
-        pieceMode ? pieceSpec.height_mm / 1000 : Number(measureServiceHeight) || 0,
-        pieceMode ? pieceSpec.width_mm / 1000 : Number(measureServiceWidth) || 0,
+        pieceMode ? pieceCutInfo.cutH / 1000 : Number(measureServiceHeight) || 0,
+        // a margem de segurança aumenta a área cobrada; escalar a largura mantém o cálculo por m² exato
+        pieceMode ? (pieceCutInfo.cutW / 1000) * (1 + (pieceSpec.waste_pct ?? 0) / 100) : Number(measureServiceWidth) || 0,
       )
     : null;
 
   const addMeasuredService = () => {
     if (!measureService || !measureServicePreview) return;
-    const next = [...formServices, {
-      service_id: measureService.id,
-      name: measureService.name,
-      price: measureServicePreview.total,
-      quantity: 1,
-      dimensions_label: pieceMode ? `${pieceSummary(pieceSpec)} · ${pieceAreaM2(pieceSpec).toFixed(2)}m²` : measureServicePreview.label,
-      piece_spec: pieceMode ? pieceSpec : null,
-    }];
+    const dimensionsLabel = pieceMode ? `${pieceSummary(pieceSpec)} · ${pieceBilledAreaM2(pieceSpec).toFixed(2)}m²` : measureServicePreview.label;
+    const next = editingPieceIdx !== null
+      // edição: mantém a quantidade e recalcula o valor pela nova medida
+      ? formServices.map((s, i) => i === editingPieceIdx
+        ? { ...s, price: measureServicePreview.total, dimensions_label: dimensionsLabel, piece_spec: pieceMode ? pieceSpec : null }
+        : s)
+      : [...formServices, {
+        service_id: measureService.id,
+        name: measureService.name,
+        price: measureServicePreview.total,
+        quantity: 1,
+        dimensions_label: dimensionsLabel,
+        piece_spec: pieceMode ? pieceSpec : null,
+      }];
+    if (pieceMode) rememberTechnicalDefaults(pieceDraft);
     setFormServices(next);
     autosaveItems(formItems, next);
+    setEditingPieceIdx(null);
     setMeasureService(null);
     setMeasureServiceHeight("");
     setMeasureServiceWidth("");
+  };
+
+  // Reabre o formulário da peça já lançada, com as medidas atuais, para corrigir tamanho, vidro ou sangria.
+  const openEditPiece = (idx: number) => {
+    const row = formServices[idx];
+    const catalogService = services.find((s) => s.id === row?.service_id);
+    if (!row?.piece_spec || !catalogService) return;
+    setMeasureService(catalogService);
+    setPieceMode(true);
+    setPieceDraft(specToDraft(row.piece_spec));
+    setEditingPieceIdx(idx);
   };
 
   const updateServiceQty = (idx: number, qty: number) => {
@@ -1109,6 +1133,53 @@ export default function QuoteDetail() {
                   </PanelCard>
                 )}
 
+                {(() => {
+                  // Projeto: todas as peças do orçamento (serviços por m² e produtos de vidro vindos da vitrine).
+                  const pieces = [
+                    ...formServices.filter((s) => s.piece_spec).map((s) => ({ name: s.name, spec: s.piece_spec as PieceSpec, qty: s.quantity })),
+                    ...formItems.map((i) => ({ name: i.name, spec: glassSpecFromOptions(i.selected_options), qty: i.quantity })).filter((p): p is { name: string; spec: PieceSpec; qty: number } => !!p.spec),
+                  ];
+                  if (pieces.length === 0) return null;
+                  const totalPieces = pieces.reduce((sum, p) => sum + p.qty, 0);
+                  const totalM2 = pieces.reduce((sum, p) => sum + pieceBilledAreaM2(p.spec) * p.qty, 0);
+                  return (
+                    <PanelCard title="Projeto — peças e medidas" icon={PenTool}>
+                      <div className="overflow-x-auto p-3">
+                        <table className="w-full min-w-[560px] text-left text-[11px]">
+                          <thead>
+                            <tr className="border-b border-slate-200 text-slate-500">
+                              <th className="py-1.5 pr-2 font-medium">Peça</th>
+                              <th className="px-2 py-1.5 font-medium">Vão (mm)</th>
+                              <th className="px-2 py-1.5 font-medium">Sangria</th>
+                              <th className="px-2 py-1.5 font-medium">Corte (mm)</th>
+                              <th className="px-2 py-1.5 font-medium">Vidro</th>
+                              <th className="px-2 py-1.5 text-right font-medium">Qtd.</th>
+                              <th className="py-1.5 pl-2 text-right font-medium">m² cobrados</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pieces.map((p, i) => {
+                              const cut = pieceCut(p.spec);
+                              return (
+                                <tr key={i} className="border-b border-slate-100 text-slate-700">
+                                  <td className="py-1.5 pr-2 font-medium">{pieceLabel(p.spec.kind)}<span className="block font-normal text-slate-400">{p.name}</span></td>
+                                  <td className="px-2 py-1.5 font-mono">{p.spec.width_mm} × {p.spec.height_mm}</td>
+                                  <td className="px-2 py-1.5 font-mono">{p.spec.gap_mm ? `${p.spec.gap_mm} mm/lado` : "—"}</td>
+                                  <td className="px-2 py-1.5 font-mono">{cut.cutW} × {cut.cutH}{cut.leaves > 1 ? <span className="block font-sans text-slate-400">{cut.leaves} folhas ≈ {cut.leafW} mm</span> : null}</td>
+                                  <td className="px-2 py-1.5">{[p.spec.glass, p.spec.thickness_mm ? `${p.spec.thickness_mm} mm` : ""].filter(Boolean).join(" ") || "—"}</td>
+                                  <td className="px-2 py-1.5 text-right tabular-nums">{p.qty}</td>
+                                  <td className="py-1.5 pl-2 text-right font-mono tabular-nums">{(cut.areaBilled * p.qty).toFixed(2)}{p.spec.waste_pct ? <span className="block font-sans text-slate-400">+{p.spec.waste_pct}% margem</span> : null}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        <p className="mt-2 text-right text-xs font-semibold text-slate-800">{totalPieces} {totalPieces === 1 ? "peça" : "peças"} · {totalM2.toFixed(2)} m² cobrados</p>
+                      </div>
+                    </PanelCard>
+                  );
+                })()}
+
                 {formServices.length > 0 && (
                   <PanelCard title="Serviços" icon={Wrench}>
                     <div className="space-y-2 p-3">
@@ -1140,6 +1211,9 @@ export default function QuoteDetail() {
                             onChange={(e) => updateServicePrice(svcIdx, parseMaskedPrice(applyMoneyMask(e.target.value)))}
                           />
                           <span className="w-20 shrink-0 self-center text-right text-xs font-semibold tabular-nums text-blue-700">{fmt(svc.price * svc.quantity)}</span>
+                          {isEditable && svc.piece_spec && (
+                            <IconButton size="xs" variant="ghost" aria-label="Editar peça" title="Editar medidas da peça" onClick={() => openEditPiece(svcIdx)}><Pencil size={14} /></IconButton>
+                          )}
                           {isEditable && (
                             <IconButton size="xs" variant="ghost" aria-label="Remover serviço" onClick={() => removeService(svcIdx)}><X size={14} /></IconButton>
                           )}
@@ -1369,14 +1443,14 @@ export default function QuoteDetail() {
       {/* ── Medida (m²/linear) — Serviço ─────────────────────────────────────── */}
       <Modal
         open={!!measureService}
-        onClose={() => setMeasureService(null)}
+        onClose={() => { setMeasureService(null); setEditingPieceIdx(null); }}
         size={pieceMode ? "lg" : "sm"}
-        title={measureService?.name}
+        title={editingPieceIdx !== null ? `Editar peça · ${measureService?.name ?? ""}` : measureService?.name}
         subtitle={measureService ? `Serviço por ${measureService.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
         footer={
           <ModalFooter>
-            <Button variant="outline" onClick={() => setMeasureService(null)}>Cancelar</Button>
-            <Button onClick={addMeasuredService} disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0 || (pieceMode && (pieceSpec.width_mm < 50 || pieceSpec.height_mm < 50))} iconLeft={<PlusCircle size={14} />}>Adicionar</Button>
+            <Button variant="outline" onClick={() => { setMeasureService(null); setEditingPieceIdx(null); }}>Cancelar</Button>
+            <Button onClick={addMeasuredService} disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0 || (pieceMode && (pieceSpec.width_mm < 50 || pieceSpec.height_mm < 50 || pieceCutInfo.cutW < 50 || pieceCutInfo.cutH < 50))} iconLeft={<PlusCircle size={14} />}>{editingPieceIdx !== null ? "Salvar peça" : "Adicionar"}</Button>
           </ModalFooter>
         }
       >
@@ -1389,7 +1463,7 @@ export default function QuoteDetail() {
               </label>
             )}
             {pieceMode ? (
-              <GlassPieceFields draft={pieceDraft} onChange={setPieceDraft} />
+              <GlassPieceFields draft={pieceDraft} onChange={setPieceDraft} showTechnical />
             ) : measureService.sale_unit === "m2" ? (
               <div className="grid grid-cols-2 gap-3">
                 <Input label="Altura (m)" type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
@@ -1402,7 +1476,7 @@ export default function QuoteDetail() {
               <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
                 <div className="flex justify-between text-slate-500">
                   <span>{measureService.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
-                  <span className="font-mono text-slate-800">{measureServicePreview.label}</span>
+                  <span className="font-mono text-slate-800">{pieceMode ? `${pieceBilledAreaM2(pieceSpec).toFixed(2)} m² cobrados` : measureServicePreview.label}</span>
                 </div>
                 {measureServicePreview.minimumApplied && (
                   <p className="text-[11px] text-amber-700">

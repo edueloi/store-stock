@@ -1,5 +1,5 @@
 import GlassDrawing from "./GlassDrawing";
-import { FINISHES, GLASS_THICKNESS, GLASS_TYPES, PIECE_KINDS, type PieceKind, type PieceSpec } from "../lib/glassPieces";
+import { FINISHES, GLASS_THICKNESS, GLASS_TYPES, PIECE_KINDS, pieceCut, type PieceKind, type PieceSpec } from "../lib/glassPieces";
 
 // Formulário da peça de vidro + desenho ao vivo. Usado no orçamento do painel e na
 // solicitação de orçamento da vitrine (por isso só Tailwind básico, sem componentes do painel).
@@ -13,11 +13,35 @@ export interface PieceDraft {
   thickness_mm: number;
   finish: string;
   notes: string;
+  gap_mm: string;     // sangria por lado (mm)
+  waste_pct: string;  // margem de segurança (%)
+}
+
+// Sangria e margem costumam ser as mesmas em todo o trabalho: lembra os últimos valores usados neste navegador.
+const TECH_KEY = "vidra:tecnico";
+export function readTechnicalDefaults(): { gap_mm: string; waste_pct: string } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(TECH_KEY) || "{}");
+    return { gap_mm: String(saved.gap_mm ?? ""), waste_pct: String(saved.waste_pct ?? "") };
+  } catch { return { gap_mm: "", waste_pct: "" }; }
+}
+export function rememberTechnicalDefaults(d: Pick<PieceDraft, "gap_mm" | "waste_pct">) {
+  try { localStorage.setItem(TECH_KEY, JSON.stringify({ gap_mm: d.gap_mm, waste_pct: d.waste_pct })); } catch { /* sem armazenamento */ }
 }
 
 export const emptyPieceDraft = (): PieceDraft => ({
   kind: "janela_correr", width_mm: "", height_mm: "", leaves: 2, glass: "Incolor", thickness_mm: 8, finish: "Branco", notes: "",
+  ...readTechnicalDefaults(),
 });
+
+/** Preenche o formulário a partir de uma peça já lançada (edição). */
+export function specToDraft(spec: PieceSpec): PieceDraft {
+  return {
+    kind: spec.kind, width_mm: String(spec.width_mm), height_mm: String(spec.height_mm), leaves: spec.leaves ?? 1,
+    glass: spec.glass ?? "Incolor", thickness_mm: spec.thickness_mm ?? 8, finish: spec.finish ?? "Branco", notes: spec.notes ?? "",
+    gap_mm: spec.gap_mm ? String(spec.gap_mm) : "", waste_pct: spec.waste_pct ? String(spec.waste_pct) : "",
+  };
+}
 
 export function draftToSpec(d: PieceDraft): PieceSpec {
   const hasLeaves = PIECE_KINDS.find((k) => k.value === d.kind)?.leaves;
@@ -28,13 +52,16 @@ export function draftToSpec(d: PieceDraft): PieceSpec {
     ...(hasLeaves ? { leaves: d.leaves } : {}),
     glass: d.glass, thickness_mm: d.thickness_mm, finish: d.finish,
     ...(d.notes.trim() ? { notes: d.notes.trim() } : {}),
+    ...(Number(d.gap_mm.replace(",", ".")) > 0 ? { gap_mm: Number(d.gap_mm.replace(",", ".")) } : {}),
+    ...(Number(d.waste_pct.replace(",", ".")) > 0 ? { waste_pct: Number(d.waste_pct.replace(",", ".")) } : {}),
   };
 }
 
 const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200";
 const label = "mb-1 block text-xs font-semibold text-slate-600";
 
-export default function GlassPieceFields({ draft, onChange }: { draft: PieceDraft; onChange: (d: PieceDraft) => void }) {
+/** showTechnical: sangria e margem de segurança só aparecem para a equipe (nunca na solicitação do cliente). */
+export default function GlassPieceFields({ draft, onChange, showTechnical = false }: { draft: PieceDraft; onChange: (d: PieceDraft) => void; showTechnical?: boolean }) {
   const set = <K extends keyof PieceDraft>(k: K, v: PieceDraft[K]) => onChange({ ...draft, [k]: v });
   const spec = draftToSpec(draft);
   const hasLeaves = PIECE_KINDS.find((k) => k.value === draft.kind)?.leaves;
@@ -91,6 +118,31 @@ export default function GlassPieceFields({ draft, onChange }: { draft: PieceDraf
             {FINISHES.map((f) => <option key={f}>{f}</option>)}
           </select>
         </div>
+        {showTechnical && (
+          <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p className="text-xs font-semibold text-amber-800">Corte do vidro</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={label}>Sangria (mm por lado)</label>
+                <input className={field} inputMode="decimal" placeholder="Ex.: 3" value={draft.gap_mm} onChange={(e) => set("gap_mm", e.target.value.replace(/[^\d.,]/g, ""))} />
+              </div>
+              <div>
+                <label className={label}>Margem de segurança (%)</label>
+                <input className={field} inputMode="decimal" placeholder="Ex.: 5" value={draft.waste_pct} onChange={(e) => set("waste_pct", e.target.value.replace(/[^\d.,]/g, ""))} />
+              </div>
+            </div>
+            {ready && (() => {
+              const cut = pieceCut(spec);
+              return (
+                <div className="space-y-0.5 text-[11px] text-amber-900">
+                  <p>Medida do vão: <b>{spec.width_mm} × {spec.height_mm} mm</b></p>
+                  <p>Medida de corte: <b>{cut.cutW} × {cut.cutH} mm</b>{cut.leaves > 1 ? <> · cada folha ≈ <b>{cut.leafW} mm</b> de largura</> : null}</p>
+                  <p>Área de corte: <b>{cut.areaCut.toFixed(2)} m²</b>{(spec.waste_pct ?? 0) > 0 ? <> · com margem: <b>{cut.areaBilled.toFixed(2)} m²</b></> : null}</p>
+                </div>
+              );
+            })()}
+          </div>
+        )}
         <div>
           <label className={label}>Observações</label>
           <textarea className={field} rows={2} maxLength={300} value={draft.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Ex.: instalação no 2º andar, com fechadura" />
