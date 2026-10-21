@@ -26,6 +26,7 @@ import {
   Info,
   Phone,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -1899,13 +1900,16 @@ function StoreLayoutInner() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setIsCartOpen(false)}
-                className={cn("fixed inset-0 backdrop-blur-sm z-[100]", isFragrance ? "bg-[#071426]/70" : "bg-slate-900/60")}
+                className={cn("store-cart-backdrop fixed inset-0 backdrop-blur-sm z-[100]", isFragrance ? "bg-[#071426]/70" : "bg-slate-900/60")}
               />
               <motion.div
                 initial={{ x: "100%" }}
                 animate={{ x: 0 }}
                 exit={{ x: "100%" }}
                 transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                role={templateId === "vidracaria" ? "dialog" : undefined}
+                aria-modal={templateId === "vidracaria" ? true : undefined}
+                aria-label={templateId === "vidracaria" ? "Seu carrinho" : undefined}
                 className={cn(
                   "fragrance-cart-drawer fixed top-0 right-0 h-full w-full max-w-md z-[101] shadow-2xl flex flex-col border-l",
                   isElectronics
@@ -1940,7 +1944,7 @@ function StoreLayoutInner() {
                         isElectronics || isFragrance ? "text-white" : "text-slate-900",
                       )}
                     >
-                      {storefront.cart_title || (segment ? segment.cart : isUrban ? "Seu carrinho" : isFragrance ? "Sua sacola" : "Carrinho")}
+                      {storefront.cart_title || (segment ? segment.cart : templateId === "vidracaria" || isUrban ? "Seu carrinho" : isFragrance ? "Sua sacola" : "Carrinho")}
                     </h3>
                     <p
                       className={cn(
@@ -2023,7 +2027,7 @@ function StoreLayoutInner() {
                       >
                         <div
                           className={cn(
-                            "w-20 h-20 rounded-xl overflow-hidden border shrink-0 flex items-center justify-center",
+                            "fragrance-cart-image w-20 h-20 rounded-xl overflow-hidden border shrink-0 flex items-center justify-center",
                             isElectronics
                               ? "bg-[#070b12] border-[#1e2d4a]"
                               : isFragrance
@@ -2046,7 +2050,7 @@ function StoreLayoutInner() {
                             />
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="fragrance-cart-item-info flex-1 min-w-0">
                           <h4
                             className={cn(
                               "text-xs font-bold leading-snug line-clamp-2",
@@ -2058,7 +2062,7 @@ function StoreLayoutInner() {
                           {item.sku && !isOrderRequest && (
                             <p
                               className={cn(
-                                "text-[9px] mt-0.5 font-mono uppercase tracking-widest",
+                                "fragrance-cart-sku text-[9px] mt-0.5 font-mono uppercase tracking-widest",
                                 isElectronics
                                   ? "text-blue-400/60"
                                   : "text-slate-400",
@@ -2081,7 +2085,7 @@ function StoreLayoutInner() {
                           )}
                           {hideStorePrices ? (
                             <p className="mt-1 text-[9px] font-extrabold uppercase tracking-wide text-[#bd3437]">Valor a confirmar com a loja</p>
-                          ) : <div className="flex items-center gap-2 mt-1">
+                          ) : <div className="fragrance-cart-prices flex items-center gap-2 mt-1">
                             <p
                               className={cn(
                                 "text-[10px] font-mono",
@@ -2112,10 +2116,10 @@ function StoreLayoutInner() {
                               {(Number(item.price) * item.quantity).toLocaleString('pt-BR', { style:'currency', currency:'BRL' })}
                             </p>
                           </div>}
-                          <div className="flex items-center gap-2 mt-2">
+                          <div className="fragrance-cart-item-actions flex items-center gap-2 mt-2">
                             <div
                               className={cn(
-                                "flex items-center gap-2 border rounded-lg px-2 py-1",
+                                "fragrance-cart-stepper flex items-center gap-2 border rounded-lg px-2 py-1",
                                 isElectronics
                                   ? "bg-[#070b12] border-[#1e2d4a]"
                                   : isDoceria
@@ -2165,9 +2169,9 @@ function StoreLayoutInner() {
                             <button
                               aria-label={`Remover ${item.name} do carrinho`}
                               onClick={() => removeFromCart(item.cartItemId)}
-                              className={isDoceria ? "text-[#a56e1e] hover:text-red-600 transition-colors" : "text-slate-500 hover:text-red-500 transition-colors"}
+                              className={cn("fragrance-cart-remove", isDoceria ? "text-[#a56e1e] hover:text-red-600 transition-colors" : "text-slate-500 hover:text-red-500 transition-colors")}
                             >
-                              <X size={14} />
+                              {templateId === "vidracaria" ? <><Trash2 size={14}/><span>Remover</span></> : <X size={14} />}
                             </button>
                           </div>
                         </div>
@@ -2330,6 +2334,7 @@ function StoreLayoutInner() {
                           ? "Reservar itens agora"
                           : checkoutMode === "online" ? "Continuar para checkout" : isOrderRequest ? "Enviar solicitação" : "Fechar pedido via WhatsApp"}
                     </button>
+                    {templateId === "vidracaria" && <button type="button" className="vitra-cart-continue" onClick={() => setIsCartOpen(false)}>Continuar comprando</button>}
                     <p
                       className={cn(
                         "text-center text-[9px] font-medium",

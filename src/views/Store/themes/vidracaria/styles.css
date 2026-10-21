@@ -493,3 +493,100 @@
   .vitra-project-summary { padding: 23px; }
   .vitra-project-success h1 { font-size: 37px; }
 }
+
+/* Marca à esquerda, navegação no centro e ações à direita. */
+.vitra-header.vitra-root { padding: 0 24px; background: #fff !important; border-bottom: 1px solid var(--vitra-line); box-shadow: 0 5px 24px #17313b05; }
+.vitra-header .vitra-bar { min-height: 88px; height: auto; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); gap: 25px; padding: 12px 0; border: 0; border-radius: 0; background: transparent; backdrop-filter: none; box-shadow: none; }
+.vitra-header .vitra-header-brand { grid-column: 1; grid-row: 1; display: flex; flex-direction: row; gap: 13px; align-items: center; justify-self: start; text-align: left; max-width: 370px; min-width: 0; }
+.vitra-header .vitra-logo { width: 48px; height: 48px; flex-shrink: 0; object-fit: contain; }
+.vitra-header-brand-copy { min-width: 0; display: grid; gap: 5px; }
+.vitra-header-brand-name { font: 700 16px/1.35 "Manrope",sans-serif; letter-spacing: -.4px; color: var(--vitra-ink); overflow-wrap: anywhere; }
+.vitra-header-brand-tagline { font-size: 8px; text-transform: uppercase; letter-spacing: .14em; color: var(--vitra-muted); line-height: 1.5; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; }
+.vitra-header .vitra-nav { grid-column: 2; grid-row: 1; justify-content: center; gap: 28px; }
+.vitra-header .vitra-nav a { border-radius: 0; padding: 12px 0; min-height: 48px; background: transparent; position: relative; font-size: 13px; color: var(--vitra-muted); font-weight: 500; }
+.vitra-header .vitra-nav a::after { content: ""; position: absolute; bottom: 4px; height: 2px; width: 0; left: 50%; transform: translateX(-50%); background: var(--vitra-accent); transition: width .2s; }
+.vitra-header .vitra-nav a:hover, .vitra-header .vitra-nav a.active { background: transparent; color: var(--vitra-ink); }
+.vitra-header .vitra-nav a:hover::after, .vitra-header .vitra-nav a.active::after { width: 100%; }
+.vitra-header .vitra-tools { grid-column: 3; grid-row: 1; gap: 9px; }
+.vitra-header .vitra-icon-btn { border: 1px solid var(--vitra-line); background: transparent; width: 42px; height: 42px; border-radius: 6px; }
+.vitra-header .vitra-icon-btn:hover { background: var(--vitra-bg); color: var(--vitra-ink); transform: none; }
+.vitra-header .vitra-project-link { width: auto; background: var(--vitra-ink); color: #fff; border-color: var(--vitra-ink); }
+.vitra-header .vitra-project-link:hover { background: #254852; color: #fff; }
+.vitra-header .vitra-searchpop, .vitra-header .vitra-mobile-menu { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); width: calc(100% - 32px); max-width: 1250px; margin-top: 8px; border: 1px solid var(--vitra-line); border-radius: 8px; box-shadow: 0 14px 35px #17313b12; }
+.vitra-header .vitra-mobile-menu a { border-radius: 4px; font-size: 14px; font-weight: 500; }
+.vitra-header .vitra-mobile-menu a[aria-current=page] { color: var(--vitra-accent-dark); background: #f8f5f0; }
+.vitra-product-config .vitra-config { padding: 24px; border: 1px solid var(--vitra-line); border-radius: 10px; background: #fbfcfa; gap: 20px; }
+.vitra-purchase-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 22px; padding-top: 4px; }
+.vitra-quantity { display: grid; gap: 10px; }
+.vitra-quantity > label { font-size: 11px; font-weight: 500; color: var(--vitra-muted); }
+.vitra-quantity-stepper { display: flex; align-items: center; border: 1px solid #d2dcd8; background: #fff; border-radius: 6px; height: 48px; overflow: hidden; }
+.vitra-quantity-stepper > button { display: grid; place-items: center; height: 46px; width: 40px; flex-shrink: 0; color: var(--vitra-ink); border: 0; background: transparent; cursor: pointer; }
+.vitra-quantity-stepper > button:hover { background: #edf2ee; }
+.vitra-config .vitra-quantity-stepper > input { width: 46px; padding: 0; text-align: center; height: 46px; border: 0; border-radius: 0; box-shadow: none; font-size: 14px; font-weight: 600; appearance: textfield; }
+.vitra-quantity-stepper input::-webkit-inner-spin-button, .vitra-quantity-stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.vitra-purchase-row .vitra-estimate { text-align: right; gap: 8px; padding: 0; }
+.vitra-purchase-row .vitra-estimate strong { font: 700 25px/1.25 "Manrope",sans-serif; letter-spacing: -.6px; }
+.vitra-root .vitra-add-product { display: flex; justify-content: center; gap: 12px; min-height: 54px; border-radius: 6px; background: var(--vitra-ink); box-shadow: none; font-size: 13px; padding: 14px 18px; }
+.vitra-add-product > span { flex: 1; text-align: left; }
+.vitra-root .vitra-add-product:hover { background: #284c56; transform: none; }
+
+/* Carrinho compacto: cresce com os itens e mantém o resumo visível. */
+.store-theme-vidracaria .store-cart-backdrop { background: #102a3352 !important; backdrop-filter: blur(2px); }
+.store-theme-vidracaria .fragrance-cart-drawer { top: 20px; right: 20px; height: auto !important; max-height: calc(100dvh - 40px); max-width: min(100% - 40px, 500px) !important; background: #fff !important; border: 1px solid #dce5e1 !important; border-radius: 12px !important; overflow: hidden; box-shadow: 0 20px 70px #102a3333; }
+.store-theme-vidracaria .fragrance-cart-head { border-radius: 0 !important; padding: 24px !important; min-height: 90px !important; border-bottom: 1px solid #e1e8e6 !important; box-shadow: none !important; }
+.store-theme-vidracaria .fragrance-cart-head h3 { font-family: "Fraunces",Georgia,serif !important; font-size: 27px !important; font-weight: 500 !important; text-transform: none; letter-spacing: -.6px !important; }
+.store-theme-vidracaria .fragrance-cart-head p { font-size: 11px; color: #74858a !important; margin-top: 4px; }
+.store-theme-vidracaria .fragrance-cart-head > button { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 6px !important; background: transparent !important; border: 1px solid #e1e8e6 !important; }
+.store-theme-vidracaria .fragrance-cart-content { flex: 0 1 auto; min-height: 0; padding: 0 24px !important; background: #fff !important; overscroll-behavior: contain; }
+.store-theme-vidracaria .fragrance-cart-item { padding: 24px 0 !important; border: 0 !important; border-bottom: 1px solid #e1e8e6 !important; border-radius: 0 !important; background: #fff !important; box-shadow: none !important; gap: 18px; margin: 0; }
+.store-theme-vidracaria .fragrance-cart-item:last-child { border-bottom: 0 !important; }
+.store-theme-vidracaria .fragrance-cart-item .fragrance-cart-image { width: 96px; height: 106px; border: 1px solid #e1e8e6 !important; border-radius: 6px !important; background: #f5f7f4 !important; padding: 7px; }
+.store-theme-vidracaria .fragrance-cart-item img { width: 100%; height: 100%; object-fit: contain; border: 0 !important; border-radius: 0 !important; background: transparent !important; }
+.store-theme-vidracaria .fragrance-cart-item h4 { font: 600 14px/1.5 "DM Sans",sans-serif !important; }
+.store-theme-vidracaria .fragrance-cart-item .fragrance-cart-sku { font: 400 9px/1.5 "DM Sans",sans-serif !important; letter-spacing: .04em; color: #86928f !important; margin-top: 5px; }
+.store-theme-vidracaria .fragrance-cart-prices { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin-top: 10px; }
+.store-theme-vidracaria .fragrance-cart-prices > span { display: none; }
+.store-theme-vidracaria .fragrance-cart-prices > p:first-child { font: 400 10px/1.5 "DM Sans",sans-serif !important; color: #71817d !important; }
+.store-theme-vidracaria .fragrance-cart-prices > p:last-child { font: 700 18px/1.5 "Manrope",sans-serif !important; color: #17313b !important; }
+.store-theme-vidracaria .fragrance-cart-item-actions { margin-top: 16px; justify-content: space-between; gap: 12px; }
+.store-theme-vidracaria .fragrance-cart-stepper { padding: 0; gap: 0; border-color: #d5dfda; border-radius: 5px; height: 36px; }
+.store-theme-vidracaria .fragrance-cart-stepper > button { height: 34px; width: 33px; display: grid; place-items: center; color: #17313b; }
+.store-theme-vidracaria .fragrance-cart-stepper > span { width: 30px; font: 600 12px "DM Sans",sans-serif !important; color: #17313b !important; }
+.store-theme-vidracaria .fragrance-cart-remove { display: flex; gap: 5px; align-items: center; font-size: 10px; padding: 8px 0; color: #7a8984; }
+.store-theme-vidracaria .fragrance-cart-remove > span { font-size: 10px !important; }
+.store-theme-vidracaria .fragrance-cart-total { flex-shrink: 0; border-radius: 0 !important; padding: 23px 24px !important; border-top: 1px solid #e1e8e6 !important; background: #f8faf7 !important; box-shadow: none !important; }
+.store-theme-vidracaria .fragrance-cart-total > div:first-child { padding-bottom: 8px; }
+.store-theme-vidracaria .fragrance-cart-total > div:first-child > p:first-child { font-size: 12px; text-transform: none; letter-spacing: 0; font-weight: 500; color: #62767c !important; }
+.store-theme-vidracaria .fragrance-cart-total > button:not(.vitra-cart-continue) { background: #17313b !important; border-radius: 6px !important; box-shadow: none !important; min-height: 52px; font-size: 12px !important; text-transform: none; letter-spacing: 0; font-weight: 600 !important; }
+.store-theme-vidracaria .fragrance-cart-total > button.vitra-cart-continue { background: transparent !important; box-shadow: none !important; color: #526a62 !important; border: 0 !important; padding: 6px 0; width: 100%; font-size: 11px !important; font-weight: 500 !important; }
+@media(min-width: 900px) { .vitra-header .vitra-nav { display: flex; } .vitra-header .vitra-mobile-btn { display: none; } }
+@media(max-width: 899px) {
+  .vitra-header.vitra-root { padding: 0 18px; }
+  .vitra-header .vitra-bar { grid-template-columns: minmax(0,1fr) auto; gap: 16px; min-height: 76px; padding: 12px 0; }
+  .vitra-header .vitra-header-brand { grid-column: 1; max-width: 100%; gap: 10px; }
+  .vitra-header .vitra-logo { width: 40px; height: 40px; }
+  .vitra-header-brand-name { font-size: 14px; }
+  .vitra-header-brand-tagline { display: none; }
+  .vitra-header .vitra-nav { display: none; }
+  .vitra-header .vitra-tools { grid-column: 2; gap: 7px; }
+  .vitra-header .vitra-mobile-btn { display: grid; }
+  .vitra-header .vitra-mobile-menu.open { display: block; }
+  .vitra-header .vitra-icon-btn { height: 36px; width: 36px; padding: 0; }
+  .vitra-header .vitra-project-link-text { display: none; }
+}
+@media(max-width: 520px) {
+  .vitra-header.vitra-root { padding: 0 14px; }
+  .vitra-header .vitra-bar { gap: 10px; }
+  .vitra-header-brand-name { font-size: 12px; line-height: 1.4; letter-spacing: -.2px; }
+  .vitra-header .vitra-logo { width: 34px; height: 38px; }
+  .vitra-header .vitra-tools { gap: 5px; }
+  .vitra-header .vitra-icon-btn { height: 33px; width: 33px; }
+  .vitra-product-config .vitra-config { padding: 20px; }
+  .vitra-purchase-row { gap: 12px; }
+  .vitra-purchase-row .vitra-estimate strong { font-size: 22px; }
+  .store-theme-vidracaria .fragrance-cart-drawer { top: auto; right: 0; bottom: 0; width: 100% !important; max-width: 100% !important; max-height: 92dvh; border-radius: 16px 16px 0 0 !important; }
+  .store-theme-vidracaria .fragrance-cart-head { padding: 20px !important; min-height: 82px !important; }
+  .store-theme-vidracaria .fragrance-cart-content { padding: 0 20px !important; }
+  .store-theme-vidracaria .fragrance-cart-item .fragrance-cart-image { width: 82px; height: 94px; }
+  .store-theme-vidracaria .fragrance-cart-total { padding: 21px 20px max(21px,env(safe-area-inset-bottom)) !important; }
+}

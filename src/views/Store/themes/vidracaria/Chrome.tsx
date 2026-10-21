@@ -43,38 +43,39 @@ export function Header() {
   ];
   const isActive = (to: string) => (to === path() ? pathname === path() || pathname === `${path()}/` : pathname.startsWith(to));
 
-  const brandParts = (tenant.name || "Vitra Vidraçaria").split(" ");
-  const mainName = brandParts[0];
-  const restName = brandParts.slice(1).join(" ") || "Vidraçaria & Design";
   const wa = tenant.whatsapp ? `https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}` : "";
+  useEffect(() => {
+    if (!menuOpen && !searchOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setMenuOpen(false); setSearchOpen(false); } };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [menuOpen, searchOpen]);
 
   return (
     <header className="vitra-header vitra-root">
       <div className="vitra-bar">
+        <Link to={path()} className="vitra-brand vitra-header-brand" aria-label={`${tenant.name} - Início`}>
+          {tenant.logo_url && <img src={tenant.logo_url} alt="" className="vitra-logo" />}
+          <span className="vitra-header-brand-copy">
+            <strong className="vitra-header-brand-name">{tenant.name || "Vitra Vidraçaria"}</strong>
+            {tenant.hero_tagline && <small className="vitra-header-brand-tagline">{tenant.hero_tagline}</small>}
+          </span>
+        </Link>
         <nav className="vitra-nav" aria-label="Navegação principal">
           {navLinks.map((link) => (
-            <Link key={link.label} to={link.to} className={isActive(link.to) ? "active" : ""}>{link.label}</Link>
+            <Link key={link.label} to={link.to} aria-current={isActive(link.to) ? "page" : undefined} className={isActive(link.to) ? "active" : ""}>{link.label}</Link>
           ))}
         </nav>
 
-        <Link to={path()} className="vitra-brand" aria-label={`${tenant.name} - Início`}>
-          {tenant.logo_url ? (
-            <img src={tenant.logo_url} alt="" className="vitra-logo" />
-          ) : (
-            <span className="vitra-brand-name">{mainName}<span>.</span></span>
-          )}
-          <span className="vitra-brand-sub">{tenant.hero_tagline || restName}</span>
-        </Link>
-
         <div className="vitra-tools">
-          <button type="button" className="vitra-icon-btn" onClick={() => setSearchOpen((prev) => !prev)} aria-expanded={searchOpen} aria-label="Pesquisar produtos">
+          <button type="button" className="vitra-icon-btn" onClick={() => { setSearchOpen((prev) => !prev); setMenuOpen(false); }} aria-controls="vitra-header-search" aria-expanded={searchOpen} aria-label="Pesquisar produtos">
             <Search size={18} />
           </button>
           {quoteEnabled ? <Link to={path("/orcamento")} className="vitra-icon-btn vitra-project-link" aria-label={`Meu projeto, ${count} peças`}>
             <ClipboardList size={18} /><span className="vitra-project-link-text">Meu projeto</span>
             {count > 0 && <span className="vitra-cart-badge">{count}</span>}
           </Link> : <button type="button" className="vitra-icon-btn" onClick={openCart} aria-label={`Carrinho, ${count} itens`}><ShoppingBag size={18}/>{count > 0 && <span className="vitra-cart-badge">{count}</span>}</button>}
-          <button type="button" className="vitra-icon-btn vitra-mobile-btn" onClick={() => setMenuOpen((prev) => !prev)} aria-expanded={menuOpen} aria-label={menuOpen ? "Fechar menu" : "Abrir menu"}>
+          <button type="button" className="vitra-icon-btn vitra-mobile-btn" onClick={() => { setMenuOpen((prev) => !prev); setSearchOpen(false); }} aria-controls="vitra-header-menu" aria-expanded={menuOpen} aria-label={menuOpen ? "Fechar menu" : "Abrir menu"}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
@@ -82,15 +83,15 @@ export function Header() {
 
 
       {searchOpen && (
-        <form className="vitra-pop vitra-searchpop" onSubmit={submit} role="search">
+        <form id="vitra-header-search" className="vitra-pop vitra-searchpop" onSubmit={submit} role="search">
           <SearchBar value={query} onChange={setQuery} placeholder="Busque por box, espelhos, portas de vidro, esquadrias..." />
         </form>
       )}
 
-      <div className={`vitra-mobile-menu${menuOpen ? " open" : ""}`}>
+      <div id="vitra-header-menu" className={`vitra-mobile-menu${menuOpen ? " open" : ""}`}>
         {quoteEnabled && <Link to={path("/orcamento")}>Montar meu orçamento</Link>}
         {navLinks.map((link) => (
-          <Link key={link.label} to={link.to} onClick={() => setMenuOpen(false)}>{link.label}</Link>
+          <Link key={link.label} to={link.to} aria-current={isActive(link.to) ? "page" : undefined} onClick={() => setMenuOpen(false)}>{link.label}</Link>
         ))}
         {wa && (
           <a href={wa} target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>

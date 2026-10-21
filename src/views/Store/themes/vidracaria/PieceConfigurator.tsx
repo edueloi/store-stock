@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Ruler } from "lucide-react";
+import { ArrowRight, Minus, Plus, Ruler, ShoppingBag } from "lucide-react";
 import GlassDrawing from "../../../../components/GlassDrawing";
 import { PIECE_KINDS, sanitizePieceSpec } from "../../../../lib/glassPieces";
 import { glassOptions, glassPrice, glassMeasureLabel, glassMeasurements, type GlassCatalogItem } from "../../../../../shared/glassCatalog";
@@ -40,11 +40,11 @@ export default function PieceConfigurator({ item, itemKey, onAdd, initial, label
       {PIECE_KINDS.find(k => k.value === kind)?.leaves && <label>Folhas<select value={leaves} onChange={e => setLeaves(Number(e.target.value))}>{[1,2,3,4,5,6].map(n => <option key={n} value={n}>{n}</option>)}</select></label>}
       <div className="vitra-live-drawing">{spec ? <><GlassDrawing spec={spec}/><span>{(spec.width_mm * spec.height_mm / 1000000).toLocaleString("pt-BR", { maximumFractionDigits: 4 })} m² por peça · desenho ilustrativo</span></> : <p>O desenho aparece aqui conforme você informa as medidas.</p>}</div>
     </>}
-    <div className="vitra-form-grid"><label>Quantidade de peças iguais<input type="number" required min={1} max={99} value={quantity} onChange={e => setQuantity(Number(e.target.value))}/></label><div className="vitra-estimate"><small>{known ? "Estimativa das peças" : "Valor"}</small><strong>{known ? price.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Sob consulta"}</strong><small>{known ? `Preço por ${glassMeasureLabel(item)}` : "A loja prepara o orçamento"}</small></div></div>
+    <div className="vitra-purchase-row"><div className="vitra-quantity"><label htmlFor={`quantity-${itemKey}`}>Quantidade</label><div className="vitra-quantity-stepper"><button type="button" aria-label="Diminuir quantidade de peças" disabled={quantity <= 1} onClick={() => setQuantity(q => Math.max(1, q - 1))}><Minus size={15}/></button><input id={`quantity-${itemKey}`} aria-label="Quantidade de peças iguais" type="number" required min={1} max={99} value={quantity} onChange={e => setQuantity(Number(e.target.value))}/><button type="button" aria-label="Aumentar quantidade de peças" disabled={quantity >= 99} onClick={() => setQuantity(q => Math.min(99, q + 1))}><Plus size={15}/></button></div></div><div className="vitra-estimate"><small>{known ? settings.enabled ? "Estimativa das peças" : "Total dos itens" : "Valor"}</small><strong>{known ? price.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Sob consulta"}</strong>{!known && <small>A loja prepara o orçamento</small>}</div></div>
     {known && price.minimumApplied && <p className="vitra-hint">Mínimo faturável aplicado: {price.billed.toLocaleString("pt-BR")} {glassMeasureLabel(item)} por peça.</p>}
     {allowNotes && <label>Observações (opcional)<textarea rows={2} maxLength={300} value={notes} onChange={e => setNotes(e.target.value)}/></label>}
     {settings.enabled && <p className="vitra-hint">Medidas preliminares, sujeitas à conferência pela loja.</p>}
     {error && <p className="vitra-form-error" role="alert">{error}</p>}
-    <button className="vitra-btn-primary" type="submit"><Plus size={16}/>{label}</button>
+    <button className="vitra-btn-primary vitra-add-product" type="submit">{label === "Adicionar ao carrinho" ? <ShoppingBag size={18}/> : <Plus size={18}/>}<span>{label}</span><ArrowRight size={17}/></button>
   </form>;
 }

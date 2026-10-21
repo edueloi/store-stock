@@ -3857,6 +3857,11 @@ export default function Settings({
                       title="Loja Online & Checkout"
                       subtitle="Defina como cada cliente conclui o pedido no carrinho da sua loja."
                     />
+                    {tenant?.template_id === "vidracaria" && <div id="orcamento-online" className="space-y-4 rounded-lg border border-blue-200 bg-blue-50/50 p-5">
+                      <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm font-semibold text-slate-900">Orçamento online</p><p className="mt-1 max-w-2xl text-xs leading-relaxed text-slate-600">O cliente monta um projeto com produtos e medidas do catálogo. Você recebe a solicitação em Orçamentos → Rascunho para revisar.</p></div><Badge color={storefront.glass_quote_enabled === true ? "success" : "default"}>{storefront.glass_quote_enabled === true ? "Habilitado" : "Desabilitado"}</Badge></div>
+                      <Toggle checked={storefront.glass_quote_enabled === true} onChange={glass_quote_enabled => setStorefront({ glass_quote_enabled })} label="Habilitar solicitação de orçamento online"/>
+                      <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-[11px] text-slate-500">Ative e salve para mostrar “Meu projeto” e “Adicionar ao projeto” na sua loja.</p><Button type="button" onClick={handleSaveTenant} loading={saving} iconLeft={<Save size={13}/>}>Salvar configuração</Button></div>
+                    </div>}
                     <div className="grid gap-3 lg:grid-cols-4">
                       {modes.map((mode) => (
                         <button
@@ -3980,8 +3985,6 @@ export default function Settings({
                     />
                     {tenant?.template_id === "vidracaria" && <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
                       <p className="text-xs font-semibold text-slate-800">Catálogo da vidraçaria</p>
-                      <Toggle checked={storefront.glass_quote_enabled === true} onChange={glass_quote_enabled => setStorefront({ glass_quote_enabled })} label="Habilitar solicitação de orçamento online"/>
-                      <p className="text-xs text-slate-500">Quando habilitado, o cliente monta um projeto com os itens do catálogo e a loja recebe em Orçamentos → Rascunho. Desligado, o menu e os botões de orçamento não aparecem.</p>
                       <Field label="Título do destaque principal"><TextInput value={storefront.glass_hero_title || ""} onChange={glass_hero_title => setStorefront({ glass_hero_title })} placeholder="Novas perspectivas para o seu espaço."/></Field>
                       <Field label="Texto do destaque principal"><Textarea rows={3} maxLength={1000} value={storefront.glass_hero_description || ""} onChange={e => setStorefront({ glass_hero_description: e.target.value })}/></Field>
                       <p className="text-xs text-slate-500">No Catálogo, edite cada produto → Catálogo virtual para definir descrição, especificações, entrega e instalação e se aceita medidas. As fotos ficam na galeria do produto; cores e espessuras ficam em Grades & Variações. As capas das categorias podem ser trocadas em Categorias.</p>
