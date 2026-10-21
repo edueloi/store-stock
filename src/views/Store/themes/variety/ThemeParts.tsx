@@ -6,10 +6,11 @@ import { buildStorePath, productRouteSegment, resolveStoreSlug } from "../../sto
 import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
 import type { Product } from "../../../../types";
 
+import { HIDDEN_PRICE } from "../../../../lib/storePrice";
 export const varietyImage = (product?: { image_url?: string | null; images?: unknown }) =>
   (Array.isArray(product?.images) && typeof product.images[0] === "string" ? product.images[0] : product?.image_url) || null;
 
-export const varietyMoney = (value: number) => Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+export const varietyMoney = (value: number) => value === HIDDEN_PRICE ? "Sob consulta" : Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 /** Grupos de opções obrigatórias do produto (variações legadas ou atributos). */
 export const varietyChoices = (product?: Product) => {

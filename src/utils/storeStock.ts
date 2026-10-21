@@ -9,6 +9,7 @@ export function storeTracksStock(tenant: Pick<Tenant, "sell_without_stock_contro
 
 /** Unidades disponíveis do produto (ou da variação escolhida). `null` quando não é contado em unidades. */
 export function availableUnits(product: Product, selected?: Record<string, string>): number | null {
+  if (product.track_stock === false) return null;
   if (product.sale_unit && product.sale_unit !== "unidade") return null;
   const picked = selected && Object.keys(selected).length ? selected : null;
   const skus = Array.isArray(product.skus) ? product.skus : [];

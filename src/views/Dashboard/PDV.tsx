@@ -724,7 +724,7 @@ export default function PDV() {
   const addMeasuredToCart = () => {
     if (!measureProduct || !measurePreview) return;
     const available = Number(measureProduct.measure_stock_quantity ?? 0);
-    if (!sellWithoutStockControl && measurePreview.rawQuantity > available + 0.0005) {
+    if (!sellWithoutStockControl && measureProduct.track_stock !== false && measurePreview.rawQuantity > available + 0.0005) {
       setSaleError(`Estoque insuficiente: disponível ${available.toFixed(3)} ${measureProduct.sale_unit === "m2" ? "m²" : "m"}.`);
       return;
     }
@@ -2288,7 +2288,7 @@ export default function PDV() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-1.5">
                   {filteredProducts.map((product) => {
                     const qtyInCart   = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
-                    const atLimit     = !sellWithoutStockControl && qtyInCart >= product.stock_quantity;
+                    const atLimit     = !sellWithoutStockControl && product.track_stock !== false && qtyInCart >= product.stock_quantity;
                     const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0);
                     return (
@@ -2354,7 +2354,7 @@ export default function PDV() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                   {filteredProducts.map((product) => {
                     const qtyInCart   = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
-                    const atLimit     = !sellWithoutStockControl && qtyInCart >= product.stock_quantity;
+                    const atLimit     = !sellWithoutStockControl && product.track_stock !== false && qtyInCart >= product.stock_quantity;
                     const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0);
                     return (
@@ -2478,15 +2478,15 @@ export default function PDV() {
                         <input
                           type="number"
                           min={1}
-                          max={item.isAvulso || sellWithoutStockControl ? undefined : item.stock_quantity}
+                          max={item.isAvulso || sellWithoutStockControl || item.track_stock === false ? undefined : item.stock_quantity}
                           value={item.quantity}
-                          onChange={(e) => item.isAvulso || sellWithoutStockControl
+                          onChange={(e) => item.isAvulso || sellWithoutStockControl || item.track_stock === false
                             ? setCart((prev) => prev.map((i) => i.cartItemId === item.cartItemId ? { ...i, quantity: Math.max(1, parseInt(e.target.value) || 1) } : i))
                             : setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.stock_quantity)}
                           onFocus={(e) => e.target.select()}
                           className="w-9 text-center font-mono font-semibold text-xs text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
-                        <IconButton variant="ghost" size="sm" onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} aria-label="Aumentar quantidade" className="border-transparent"><Plus size={12} /></IconButton>
+                        <IconButton variant="ghost" size="sm" onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && item.track_stock !== false && !item.isAvulso && item.quantity >= item.stock_quantity} aria-label="Aumentar quantidade" className="border-transparent"><Plus size={12} /></IconButton>
                       </div>
                       <div className="flex flex-col items-end leading-tight min-w-0">
                         <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">R$ {item.price.toFixed(2)} × {item.quantity}</span>
@@ -2820,7 +2820,7 @@ export default function PDV() {
           <ModalFooter>
             <Button variant="outline" size="lg" onClick={() => setMeasureProduct(null)}>Cancelar</Button>
             <Button variant="primary" size="lg" iconLeft={<Plus size={16} />} onClick={addMeasuredToCart}
-              disabled={!measurePreview || measurePreview.rawQuantity <= 0 || (!sellWithoutStockControl && measurePreview.rawQuantity > Number(measureProduct.measure_stock_quantity ?? 0) + 0.0005)}>
+              disabled={!measurePreview || measurePreview.rawQuantity <= 0 || (!sellWithoutStockControl && measureProduct.track_stock !== false && measurePreview.rawQuantity > Number(measureProduct.measure_stock_quantity ?? 0) + 0.0005)}>
               Adicionar ao Carrinho
             </Button>
           </ModalFooter>
@@ -3049,7 +3049,7 @@ export default function PDV() {
                                 <div className="flex items-center justify-center gap-0.5 bg-slate-100 border border-slate-200 rounded-lg p-0.5 mx-auto w-fit">
                                   <button onClick={() => updateQuantity(item.cartItemId, -1)} className="p-1 hover:bg-white rounded text-slate-500"><Minus size={9} /></button>
                                   <span className="w-5 text-center font-mono font-semibold text-[11px] text-slate-700">{item.quantity}</span>
-                                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
+                                  <button onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && item.track_stock !== false && !item.isAvulso && item.quantity >= item.stock_quantity} className="p-1 hover:bg-white rounded text-slate-500 disabled:opacity-30"><Plus size={9} /></button>
                                 </div>
                               </td>
                               <td className="px-3 py-2 text-[12px] font-mono font-semibold text-slate-800 text-right whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</td>

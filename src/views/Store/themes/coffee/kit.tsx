@@ -6,8 +6,9 @@ import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
 import { getVariationImages } from "../../../../utils/variationImages";
 import type { Category, Product } from "../../../../types";
 
+import { HIDDEN_PRICE } from "../../../../lib/storePrice";
 export const money = (v: number) =>
-  Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  v === HIDDEN_PRICE ? "Sob consulta" : Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export const productImage = (p?: Product) =>
   (Array.isArray(p?.images) && p!.images![0]) || p?.image_url || "";

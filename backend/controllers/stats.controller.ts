@@ -89,7 +89,7 @@ export async function getDashboardStats(req: Request, res: Response) {
       }),
       prisma.product.findMany({
         where: { tenant_id: tenantId },
-        select: { id: true, name: true, sku: true, stock_quantity: true, cost_price: true },
+        select: { id: true, name: true, sku: true, stock_quantity: true, cost_price: true, track_stock: true },
       }),
       prisma.$queryRaw<{ cogs: number }[]>`
         SELECT SUM(oi.quantity * p.cost_price) as cogs
@@ -136,11 +136,11 @@ export async function getDashboardStats(req: Request, res: Response) {
     const outOfStockProducts = sellsWithoutStockControl
       ? []
       : products
-          .filter((p) => p.stock_quantity === 0)
+          .filter((p) => p.track_stock !== false && p.stock_quantity === 0)
           .map((p) => ({ id: p.id, name: p.name, sku: p.sku }));
     const lowStockCount = sellsWithoutStockControl
       ? 0
-      : products.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
+      : products.filter((p) => p.track_stock !== false && p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
 
     // Série diária — busca todos os registros do período e agrupa em JS
     // (evita dependência de timezone do MySQL em queries DATE() raw)

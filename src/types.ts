@@ -212,6 +212,12 @@ export interface Product {
   type: 'sale' | 'internal';
   is_active: boolean;
   is_featured: boolean;
+  /** false = sob encomenda: vende sem estoque, não baixa saldo e não gera alerta de esgotado. */
+  track_stock?: boolean;
+  /** true = preço visível no catálogo/PDV, mas escondido na vitrine (venda por orçamento). */
+  hide_price_on_site?: boolean;
+  /** Só vem da API pública: o preço deste produto não é divulgado (price = -1). */
+  price_hidden?: boolean;
   // attribute groups (ex: [{name:"Tamanho", values:["P","M","G"]}, {name:"Cor", values:["Preto","Branco"]}])
   attributes?: { name: string; values: string[]; colors?: Record<string, string> }[];
   // SKU combinations (ex: [{combo:{"Tamanho":"G","Cor":"Preto"}, stock:3}])

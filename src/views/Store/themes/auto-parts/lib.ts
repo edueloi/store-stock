@@ -5,10 +5,11 @@ import { buildStorePath, resolveStoreSlug } from "../../store-routing";
 import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
 import type { Product, Tenant } from "../../../../types";
 
+import { HIDDEN_PRICE } from "../../../../lib/storePrice";
 export const DEFAULT_ACCENT = "#ff5d36";
 
 export const money = (value: number) =>
-  Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  value === HIDDEN_PRICE ? "Sob consulta" : Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export const productImage = (p?: Product) => (p?.images && p.images[0]) || p?.image_url || "";
 

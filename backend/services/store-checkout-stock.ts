@@ -14,6 +14,7 @@ export async function adjustStoreCheckoutStock(tx:Prisma.TransactionClient,tenan
   for(const change of [...changes.values()].sort((a,b)=>a.productId-b.productId)) {
     if(!change.delta)continue;
     const product=await tx.product.findFirst({where:{id:change.productId,tenant_id:tenantId}});
+    if(product && product.track_stock===false)continue;
     if(!product || product.stock_quantity+change.delta<0)throw new Error("A quantidade solicitada não está disponível no estoque.");
     const data:any={stock_quantity:{increment:change.delta}};
     const skus=Array.isArray(product.skus)?product.skus as any[]:[];

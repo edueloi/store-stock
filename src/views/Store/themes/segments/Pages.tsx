@@ -26,9 +26,10 @@ import { getVariationImages } from "../../../../utils/variationImages";
 import type { Product as ProductType } from "../../../../types";
 import { segmentThemes, type SegmentId } from "./registry";
 
+import { HIDDEN_PRICE } from "../../../../lib/storePrice";
 const image = (p?: ProductType) => p?.images?.[0] || p?.image_url;
 const money = (v: number) =>
-  Number(v || 0).toLocaleString("pt-BR", {
+  v === HIDDEN_PRICE ? "Sob consulta" : Number(v || 0).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });

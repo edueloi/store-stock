@@ -452,6 +452,11 @@ model Product {
   type           String    @default("sale")
   is_active      Boolean   @default(false)
   is_featured    Boolean   @default(false)
+  // false = produto sob encomenda/feito na hora: vende mesmo sem estoque, não baixa saldo e não
+  // entra nos alertas de esgotado. Vale só para este produto (existe também a opção da loja inteira).
+  track_stock    Boolean   @default(true)
+  // true = o preço aparece no catálogo, PDV e relatórios, mas não é enviado à vitrine (orçamento).
+  hide_price_on_site Boolean @default(false)
   variations     Json?
   attributes     Json?
   skus           Json?

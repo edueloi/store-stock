@@ -1,4 +1,6 @@
 interface StockAwareProduct {
+  /** false = produto sob encomenda: sempre disponível para venda. */
+  track_stock?: boolean;
   stock_quantity: number;
   sale_unit?: "unidade" | "m2" | "linear";
   measure_stock_quantity?: number | null;
@@ -7,6 +9,7 @@ interface StockAwareProduct {
 }
 
 export function productHasStock(p: StockAwareProduct): boolean {
+  if (p.track_stock === false) return true;
   if (p.sale_unit && p.sale_unit !== "unidade") {
     return Number(p.measure_stock_quantity ?? 0) > 0;
   }

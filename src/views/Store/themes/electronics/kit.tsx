@@ -5,8 +5,9 @@ import { buildStorePath, productRouteSegment, resolveStoreSlug } from "../../sto
 import type { Category, Product, Tenant } from "../../../../types";
 import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
 
+import { HIDDEN_PRICE } from "../../../../lib/storePrice";
 export const money = (value: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value) || 0);
+  value === HIDDEN_PRICE ? "Sob consulta" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value) || 0);
 
 /** Hook base do tema: loja, caminhos (preservando previewTheme) e flags de preço. */
 export function useKit() {

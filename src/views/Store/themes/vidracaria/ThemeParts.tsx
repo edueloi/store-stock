@@ -2,13 +2,14 @@ import { Link } from "react-router-dom";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 import { productRouteSegment } from "../../store-routing";
 
+import { HIDDEN_PRICE } from "../../../../lib/storePrice";
 export const vitraImage = (product: { image_url?: string | null; images?: unknown }) =>
   (Array.isArray(product.images) && typeof product.images[0] === "string"
     ? product.images[0]
     : product.image_url) || null;
 
 export const vitraMoney = (value: number) =>
-  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  value === HIDDEN_PRICE ? "Sob consulta" : value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export const vitraHidePrices = (tenant: any) =>
   tenant.policies?.storefront?.checkout_mode === "order_request" ||

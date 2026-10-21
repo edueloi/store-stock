@@ -696,6 +696,22 @@ export default function ProductForm({
                       <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
                         onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />
                     </div>
+                    <div className="grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Switch label="Controlar estoque" checked={editingProduct?.track_stock ?? true}
+                          onChange={v => setEditingProduct(prev => ({ ...prev!, track_stock: v }))} accent="blue" />
+                        <p className="text-[11px] leading-snug text-slate-500">
+                          Desligue para produto sob encomenda ou feito na hora: ele vende mesmo sem saldo, não baixa estoque e não aparece como esgotado.
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <Switch label="Ocultar preço no site" checked={editingProduct?.hide_price_on_site ?? false}
+                          onChange={v => setEditingProduct(prev => ({ ...prev!, hide_price_on_site: v }))} accent="amber" />
+                        <p className="text-[11px] leading-snug text-slate-500">
+                          O preço continua no catálogo, no PDV e nos relatórios, mas a loja virtual mostra "Sob consulta" e o cliente pede orçamento.
+                        </p>
+                      </div>
+                    </div>
                   </PanelCard>
 
                   <PanelCard title="Preços" icon={DollarSign} contentClassName="space-y-3">

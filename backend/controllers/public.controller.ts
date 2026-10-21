@@ -124,6 +124,30 @@ export async function releaseExpiredStoreReservations() {
   }
 }
 
+// Produto como a vitrine o enxerga: sem dados internos (custo, desconto máximo, estoque mínimo),
+// com preço oculto quando o lojista marcou "ocultar preço no site" (-1 é o sinal que os temas
+// exibem como "Sob consulta") e com estoque sempre disponível para produto sob encomenda.
+const STORE_ALWAYS_AVAILABLE = 99;
+function toPublicProduct(product: any) {
+  const { cost_price: _cost, max_discount_pct: _maxDiscount, min_stock: _minStock, ...rest } = product;
+  const out: any = { ...rest };
+  if (product.track_stock === false) {
+    out.stock_quantity = STORE_ALWAYS_AVAILABLE;
+    if (product.sale_unit && product.sale_unit !== "unidade") out.measure_stock_quantity = STORE_ALWAYS_AVAILABLE;
+    if (Array.isArray(product.skus)) out.skus = product.skus.map((s: any) => ({ ...s, stock: STORE_ALWAYS_AVAILABLE }));
+    if (Array.isArray(product.variations)) {
+      out.variations = product.variations.map((v: any) => ({ ...v, options: (v.options ?? []).map((o: any) => ({ ...o, stock: STORE_ALWAYS_AVAILABLE })) }));
+    }
+  }
+  if (product.hide_price_on_site) {
+    out.price = -1;
+    out.discount_price = null;
+    if (product.price_per_measure != null) out.price_per_measure = -1;
+    out.price_hidden = true;
+  }
+  return out;
+}
+
 export async function getPublicStore(req: Request, res: Response) {
   try {
     await releaseExpiredStoreReservations();
@@ -164,7 +188,10 @@ export async function getPublicStore(req: Request, res: Response) {
     res.json({
       tenant: publicTenant(tenant),
       categories,
-      products: hideDescription ? products.map((product) => ({ ...product, description: null })) : products,
+      products: products.map((product) => {
+        const publicProduct = toPublicProduct(product);
+        return hideDescription ? { ...publicProduct, description: null } : publicProduct;
+      }),
     });
   } catch {
     res.status(500).json({ error: "Failed to fetch store" });
@@ -351,7 +378,7 @@ export async function reserveStoreCart(req: Request, res: Response) {
       const quantity = Number(item.quantity);
       const product = await prisma.product.findFirst({ where: { id: Number(item.product_id), tenant_id: tenant.id, is_active: true } });
       if (!product || !Number.isInteger(quantity) || quantity < 1) return res.status(409).json({ error: `Um dos itens não está mais disponível.` });
-      if (trackStock && product.stock_quantity < quantity) return res.status(409).json({ error: `Estoque insuficiente para ${product.name}: restam ${Math.max(0, product.stock_quantity)} un.` });
+      if (trackStock && product.track_stock !== false && product.stock_quantity < quantity) return res.status(409).json({ error: `Estoque insuficiente para ${product.name}: restam ${Math.max(0, product.stock_quantity)} un.` });
       const unitPrice = Number(product.discount_price ?? product.price);
       rows.push({ product_id: product.id, name: product.name, quantity, unit_price: unitPrice, selected_options: item.selected_options ?? null });
       const options = item.selected_options ? Object.entries(item.selected_options).map(([k, v]) => `${k}: ${v}`).join(" · ") : "";
@@ -584,7 +611,11 @@ export async function checkout(req: Request, res: Response) {
     for (const item of items) {
       const product = await prisma.product.findFirst({ where: { id: Number(item.id), tenant_id: tenant.id, is_active: true } });
 
-      if (!product || !Number.isInteger(item.quantity) || item.quantity < 1 || product.stock_quantity < item.quantity) {
+      if (product?.hide_price_on_site) {
+        res.status(422).json({ error: `"${product.name}" é vendido sob orçamento. Fale com a loja para combinar o valor.` });
+        return;
+      }
+      if (!product || !Number.isInteger(item.quantity) || item.quantity < 1 || (product.track_stock !== false && product.stock_quantity < item.quantity)) {
         res.status(409).json({ error: "Um dos itens não está mais disponível." });
         return;
       }

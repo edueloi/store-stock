@@ -733,10 +733,11 @@ export async function convertToOrder(req: Request, res: Response) {
       if (item.product_id) {
         const product = await prisma.product.findUnique({
           where: { id: item.product_id },
-          select: { sale_unit: true },
+          select: { sale_unit: true, track_stock: true },
         });
-        // Produtos por medida (m²/linear) não têm controle de estoque.
+        // Produtos por medida (m²/linear) e sob encomenda não têm controle de estoque.
         if (product?.sale_unit && product.sale_unit !== "unidade") continue;
+        if (product?.track_stock === false) continue;
         await decrementProductStock(item.product_id, item.quantity, item.selected_options as Record<string, string> | null);
       }
     }

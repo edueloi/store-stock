@@ -765,7 +765,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       dimensionsLabel = result.label;
       measuredQuantity = result.rawQuantity;
       const available = Number(product.measure_stock_quantity ?? 0);
-      if (measuredQuantity > available + 0.0005) {
+      if (product.track_stock !== false && measuredQuantity > available + 0.0005) {
         return res.status(400).json({ error: `Estoque insuficiente para "${product.name}". Disponível: ${available.toFixed(3)} ${product.sale_unit === "m2" ? "m²" : "m"}.` });
       }
     } else {
@@ -777,7 +777,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
         throw err;
       }
       const available = variation.available;
-      if (available < qty) {
+      if (product.track_stock !== false && available < qty) {
         return res.status(400).json({ error: available > 0
           ? `Estoque insuficiente para "${product.name}"${variation.label ? ` (${variation.label})` : ""}. Disponível: ${available}.`
           : `"${product.name}"${variation.label ? ` (${variation.label})` : ""} está sem estoque.` });
@@ -815,7 +815,9 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     });
 
     // Produtos por medida (m²/linear) não têm controle de estoque.
-    if (isMeasured && measuredQuantity !== null) {
+    if (product.track_stock === false) {
+      // produto sob encomenda: entra na OS sem baixar saldo
+    } else if (isMeasured && measuredQuantity !== null) {
       await prisma.product.update({
         where: { id: product.id },
         data: { measure_stock_quantity: { decrement: measuredQuantity } },

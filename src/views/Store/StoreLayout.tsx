@@ -34,6 +34,7 @@ import SearchBar from "../../components/layout/SearchBar";
 import { buildStorePath, resolveStoreSlug } from "./store-routing";
 import { getVariationImages } from "../../utils/variationImages";
 import { availableUnits, storeTracksStock } from "../../utils/storeStock";
+import { isPriceHidden } from "../../lib/storePrice";
 import { isSegment, segmentThemes } from "./themes/segments/registry";
 import { SegmentHeader, SegmentFooter } from "./themes/segments/Chrome";
 import "./themes/segments/styles.css";
@@ -583,6 +584,10 @@ function StoreLayoutInner() {
   };
 
   const addToCart = (product: Product, options?: Record<string, string>) => {
+    if (isPriceHidden(product)) {
+      showStockNotice("Este produto é vendido sob orçamento. Chame a loja no WhatsApp para combinar o valor.");
+      return;
+    }
     const variationLabel = options
       ? Object.entries(options)
           .map(([k, v]) => `${k}: ${v}`)

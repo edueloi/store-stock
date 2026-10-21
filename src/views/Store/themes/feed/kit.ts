@@ -6,9 +6,10 @@ import { getVariationImages } from "../../../../utils/variationImages";
 import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
 import type { Product } from "../../../../types";
 
+import { HIDDEN_PRICE } from "../../../../lib/storePrice";
 /** Utilitários do tema (sem visual): dados, regras de compra e filtros. */
 export const money = (value: number) =>
-  Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  value === HIDDEN_PRICE ? "Sob consulta" : Number(value || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export const productImage = (p?: Product) => (p?.images && p.images[0]) || p?.image_url || "";
 export const priceOf = (p: Product) => Number(p.discount_price) > 0 ? Number(p.discount_price) : Number(p.price);

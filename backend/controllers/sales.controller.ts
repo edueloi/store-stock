@@ -238,7 +238,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     if (decrementStock && !tenantData?.sell_without_stock_control && productIds.length > 0) {
       const measuredProducts = await prisma.product.findMany({
         where: { id: { in: productIds }, tenant_id: tenantId, sale_unit: { not: "unidade" } },
-        select: { id: true, name: true, sale_unit: true, measure_stock_quantity: true },
+        select: { id: true, name: true, sale_unit: true, measure_stock_quantity: true, track_stock: true },
       });
       const measuredById = new Map(measuredProducts.map((product) => [product.id, product]));
       for (const item of items) {
@@ -249,6 +249,8 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
         if (!Number.isFinite(requested) || requested <= 0) {
           throw new SaleError(422, `Informe uma medida válida para "${product.name}".`);
         }
+        // produto sob encomenda (track_stock = false) vende sem checar saldo
+        if (product.track_stock === false) continue;
         const available = Number(product.measure_stock_quantity ?? 0);
         if (requested > available + 0.0005) {
           throw new SaleError(409, `Estoque insuficiente para "${product.name}". Disponível: ${available.toFixed(3)} ${product.sale_unit === "m2" ? "m²" : "m"}.`);
@@ -361,8 +363,10 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
         // a peça é cortada sob medida, não há como inferir quanto resta em chapa/rolo.
         const productForStock = await prisma.product.findUnique({
           where: { id: item.id as number },
-          select: { name: true, sale_unit: true },
+          select: { name: true, sale_unit: true, track_stock: true },
         });
+        // produto sob encomenda: a venda é registrada, mas nunca baixa saldo
+        if (productForStock?.track_stock === false) continue;
         if (productForStock?.sale_unit && productForStock.sale_unit !== "unidade") {
           const consumed = Math.round(Number(item.measuredQuantity) * 1000) / 1000;
           const updated = await prisma.product.updateMany({

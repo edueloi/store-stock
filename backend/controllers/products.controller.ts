@@ -52,7 +52,7 @@ export async function getLowStockCount(req: Request, res: Response) {
     // o threshold global antigo (preferência por usuário), que fica só como o valor
     // default sugerido no formulário de um produto novo (ver Product model, default 5).
     const active = await prisma.product.findMany({
-      where: { tenant_id: tenantId, is_active: true },
+      where: { tenant_id: tenantId, is_active: true, track_stock: true },
       select: {
         id: true, name: true, stock_quantity: true, min_stock: true,
         sale_unit: true, measure_stock_quantity: true, measure_min_stock: true,

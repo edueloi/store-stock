@@ -64,6 +64,7 @@ export async function createStoreCheckout(input: any, database = prisma) {
         for (const item of items) {
           const product = await tx.product.findFirst({where:{id:item.id,tenant_id:tenantId,is_active:true}});
           if (!product) fail("Um produto foi removido ou está indisponível. Revise sua sacola.",409);
+          if (product.hide_price_on_site) fail(`${product.name} é vendido sob orçamento. Fale com a loja para combinar o valor.`,422);
           if (product.sale_unit && product.sale_unit !== "unidade") fail("Este produto precisa ser combinado diretamente com a loja.");
           const {Observação:note,...selected} = item.selected_options;
           const selection = storeSelectionLabel(product,selected);
@@ -72,7 +73,7 @@ export async function createStoreCheckout(input: any, database = prisma) {
           const unitCents = discounted > 0 ? discounted : base;
           if (!Number.isSafeInteger(unitCents) || unitCents < 0 || unitCents > 9999999999) fail("Um produto está com o preço indisponível.",409);
           const update: any = {};
-          if (!tenant.sell_without_stock_control) {
+          if (!tenant.sell_without_stock_control && product.track_stock !== false) {
             if (Number(product.stock_quantity) < item.quantity) fail(`Estoque insuficiente para ${product.name}.`,409);
             update.stock_quantity = {decrement:item.quantity};
             const skus = Array.isArray(product.skus) ? product.skus as any[] : [];

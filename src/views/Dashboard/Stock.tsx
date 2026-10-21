@@ -191,13 +191,13 @@ export default function Stock() {
   const isExpiringSoon = (p: Product) => !!p.expiry_date && new Date(p.expiry_date) <= expirySoonCutoff;
   // Loja vende por encomenda/sem controle de estoque — nunca marca um produto
   // como "estoque baixo" nos badges/indicadores visuais da linha/card.
-  const isLowStock = (p: Product) => !sellWithoutStockControl && p.stock_quantity <= lowStockThreshold;
+  const isLowStock = (p: Product) => !sellWithoutStockControl && p.track_stock !== false && p.stock_quantity <= lowStockThreshold;
 
   // Loja vende por encomenda/sem controle de estoque — zera os contadores de
   // "esgotado"/"baixo estoque" (ela deliberadamente não controla estoque, não
   // faz sentido alertar sobre isso).
-  const outCount = sellWithoutStockControl ? 0 : searchedProducts.filter(p => p.stock_quantity === 0).length;
-  const lowOnlyCount = sellWithoutStockControl ? 0 : searchedProducts.filter(p => p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
+  const outCount = sellWithoutStockControl ? 0 : searchedProducts.filter(p => p.track_stock !== false && p.stock_quantity === 0).length;
+  const lowOnlyCount = sellWithoutStockControl ? 0 : searchedProducts.filter(p => p.track_stock !== false && p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
   const expiringCount = searchedProducts.filter(isExpiringSoon).length;
   const lowStockCount = outCount + lowOnlyCount;
   const totalItems = searchedProducts.reduce((acc, p) => acc + p.stock_quantity, 0);
@@ -213,8 +213,8 @@ export default function Stock() {
   ];
 
   const filteredProducts = searchedProducts.filter(p => {
-    if (stockFilter === "out") return !sellWithoutStockControl && p.stock_quantity === 0;
-    if (stockFilter === "low") return !sellWithoutStockControl && p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold;
+    if (stockFilter === "out") return !sellWithoutStockControl && p.track_stock !== false && p.stock_quantity === 0;
+    if (stockFilter === "low") return !sellWithoutStockControl && p.track_stock !== false && p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold;
     if (stockFilter === "expiring") return isExpiringSoon(p);
     return true;
   });
