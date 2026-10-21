@@ -37,6 +37,7 @@ export interface StorePolicies {
     /** Fotos de ambientes e projetos da vidraçaria, editadas pela loja. */
     glass_gallery?: HeroSlide[];
     glass_quote_enabled?: boolean;
+    glass_content?: VitraContent;
     segment_label?: string;
     hero_button_label?: string;
     /** Banners do carrossel da home (se vazio, o tema usa o hero padrão). */
@@ -67,6 +68,41 @@ export interface StorePolicies {
       cep_zones?: Array<{ name: string; from: string; to: string; fee?: number }>;
     };
   };
+}
+
+/** Textos e visibilidade das seções do modelo Vitra, salvos por loja. */
+export interface VitraContent {
+  show_hero?: boolean;
+  show_catalog_count?: boolean;
+  hero_eyebrow?: string;
+  hero_catalog_button?: string;
+  hero_project_button?: string;
+  show_intro?: boolean;
+  intro_title?: string;
+  intro_text?: string;
+  intro_button?: string;
+  show_categories?: boolean;
+  categories_eyebrow?: string;
+  show_featured?: boolean;
+  featured_eyebrow?: string;
+  show_process?: boolean;
+  process_eyebrow?: string;
+  process_title?: string;
+  process_steps?: Array<{ title: string; text: string }>;
+  show_gallery?: boolean;
+  gallery_title?: string;
+  gallery_eyebrow?: string;
+  gallery_use_products?: boolean;
+  show_closing?: boolean;
+  closing_eyebrow?: string;
+  closing_title?: string;
+  closing_button?: string;
+  closing_image?: string;
+  footer_tagline?: string;
+  footer_description?: string;
+  footer_note?: string;
+  footer_show_categories?: boolean;
+  footer_show_contact?: boolean;
 }
 
 export interface HeroSlide {

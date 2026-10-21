@@ -272,6 +272,12 @@
 .vitra-footer .vitra-fcard a.link:hover { color: #fff; }
 .vitra-footer .vitra-wa { border-radius: 4px; background: #ffffff12; color: #fff; }
 .vitra-footer-bottom { border-top-color: #ffffff20; padding-top: 22px; font-size: 10px; }
+.vitra-footer .vitra-footer-grid { grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); }
+.vitra-footer .vitra-brand-name { overflow-wrap: anywhere; }
+.vitra-footer .vitra-brand-sub, .vitra-footer p, .vitra-home-intro > span, .vitra-hero-copy > p { white-space: pre-line; }
+.vitra-footer-credit { font-size: 12px; }
+.vitra-footer-credit a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.vitra-footer-credit a:hover { color: #fff; }
 .vitra-catalog-intro { padding-top: 60px; padding-bottom: 35px; border-bottom: 1px solid var(--vitra-line); }
 .vitra-catalog-intro h1 { font-size: clamp(38px,5vw,62px); margin: 20px 0; max-width: 800px; line-height: 1.1; }
 .vitra-catalog-intro-bottom { display: flex; justify-content: space-between; gap: 25px; align-items: center; }

@@ -6,6 +6,7 @@ import { useStore } from "../../StoreLayout";
 import { buildStorePath, resolveStoreSlug } from "../../store-routing";
 import "./styles.css";
 import { useGlassProject } from "./project";
+import { vitraContent } from "./content";
 
 export function Header() {
   const { slug: routeSlug } = useParams();
@@ -84,7 +85,7 @@ export function Header() {
 
       {searchOpen && (
         <form id="vitra-header-search" className="vitra-pop vitra-searchpop" onSubmit={submit} role="search">
-          <SearchBar value={query} onChange={setQuery} placeholder="Busque por box, espelhos, portas de vidro, esquadrias..." />
+          <SearchBar value={query} onChange={setQuery} placeholder="Busque no catálogo da loja..." />
         </form>
       )}
 
@@ -109,16 +110,16 @@ export function Footer() {
   const { tenant, categories } = useStore();
   const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
   const whatsapp = tenant.whatsapp?.replace(/\D/g, "");
-  const mainName = (tenant.name || "Vitra Vidraçaria").split(" ")[0];
+  const content = vitraContent(tenant);
 
   return (
     <footer className="vitra-footer vitra-root">
       <div className="vitra-footer-inner">
         <div className="vitra-footer-grid">
           <div className="vitra-fcard vitra-fcard-brand">
-            <span className="vitra-brand-name">{mainName}<span>.</span></span>
-            <span className="vitra-brand-sub">Vidraçaria & Design</span>
-            <p>{tenant.footer_text || tenant.about_text || "Soluções que refletem seu estilo. Projetos com elegância, segurança e atenção aos detalhes."}</p>
+            <span className="vitra-brand-name">{tenant.name}</span>
+            {content.footer_tagline && <span className="vitra-brand-sub">{content.footer_tagline}</span>}
+            {content.footer_description && <p>{content.footer_description}</p>}
           </div>
           <div className="vitra-fcard">
             <h4>Navegação</h4>
@@ -127,13 +128,13 @@ export function Footer() {
             <Link className="link" to={path("/sobre")}>Sobre nós</Link>
             {tenant.policies?.storefront?.glass_quote_enabled === true && <Link className="link" to={path("/orcamento")}>Solicitar orçamento</Link>}
           </div>
-          <div className="vitra-fcard">
-            <h4>Linhas & produtos</h4>
+          {content.footer_show_categories && categories.length > 0 && <div className="vitra-fcard">
+            <h4>Categorias</h4>
             {categories.slice(0, 5).map((cat) => (
               <Link key={cat.id} className="link" to={path(`/catalogo?cat=${cat.id}`)}>{cat.name}</Link>
             ))}
-          </div>
-          <div className="vitra-fcard">
+          </div>}
+          {content.footer_show_contact && (whatsapp || (tenant.show_address && tenant.address)) && <div className="vitra-fcard">
             <h4>Fale conosco</h4>
             {tenant.show_address && tenant.address && <p className="small">{tenant.address}</p>}
             {tenant.whatsapp && <p className="small">{tenant.whatsapp}</p>}
@@ -142,11 +143,12 @@ export function Footer() {
                 <MessageCircle size={15} /> Atendimento via WhatsApp
               </a>
             )}
-          </div>
+          </div>}
         </div>
         <div className="vitra-footer-bottom">
           <span>© {new Date().getFullYear()} {tenant.name}. Todos os direitos reservados.</span>
-          <span>Da sua ideia ao orçamento, com atenção a cada medida.</span>
+          {content.footer_note && <span>{content.footer_note}</span>}
+          <span className="vitra-footer-credit">Desenvolvido por <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">boxsys.com.br</a></span>
         </div>
       </div>
     </footer>

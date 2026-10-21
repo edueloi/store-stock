@@ -60,6 +60,7 @@ import {
 } from "lucide-react";
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
 import HeroSlidesEditor from "./HeroSlidesEditor";
+import VitraContentEditor from "./VitraContentEditor";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import AsaasAccountSetup from "../../components/settings/AsaasAccountSetup";
@@ -3984,9 +3985,7 @@ export default function Settings({
                       onChange={(patch) => setStorefront(patch)}
                     />
                     {tenant?.template_id === "vidracaria" && <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
-                      <p className="text-xs font-semibold text-slate-800">Catálogo da vidraçaria</p>
-                      <Field label="Título do destaque principal"><TextInput value={storefront.glass_hero_title || ""} onChange={glass_hero_title => setStorefront({ glass_hero_title })} placeholder="Novas perspectivas para o seu espaço."/></Field>
-                      <Field label="Texto do destaque principal"><Textarea rows={3} maxLength={1000} value={storefront.glass_hero_description || ""} onChange={e => setStorefront({ glass_hero_description: e.target.value })}/></Field>
+                      <VitraContentEditor tenant={tenant as Tenant} onChange={setStorefront} onSave={handleSaveTenant} saving={saving}/>
                       <p className="text-xs text-slate-500">No Catálogo, edite cada produto → Catálogo virtual para definir descrição, especificações, entrega e instalação e se aceita medidas. As fotos ficam na galeria do produto; cores e espessuras ficam em Grades & Variações. As capas das categorias podem ser trocadas em Categorias.</p>
                       <HeroSlidesEditor title="Fotos de ambientes e projetos" description="Envie fotos reais da loja. O título e o subtítulo viram legendas na vitrine. Sem fotos aqui, a home destaca imagens dos produtos do catálogo." gallery slides={storefront.glass_gallery || []} autoplaySeconds={0} onChange={patch => setStorefront({ glass_gallery: patch.hero_slides || [] })}/>
                     </div>}
