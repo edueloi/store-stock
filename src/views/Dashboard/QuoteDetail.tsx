@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import GlassDrawing from "../../components/GlassDrawing";
-import GlassPieceFields, { draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, specToDraft, type PieceDraft } from "../../components/GlassPieceFields";
-import { pieceBilledAreaM2, pieceCut, pieceLabel, pieceSummary, type GlassDefaults, type PieceSpec } from "../../lib/glassPieces";
+import GlassPieceFields, { draftForService, draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, specToDraft, type PieceDraft } from "../../components/GlassPieceFields";
+import { pieceBilledAreaM2, pieceCut, pieceLabel, pieceSummary, type GlassDefaults, type GlassOptions, type PieceSpec } from "../../lib/glassPieces";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
 import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
 import { printCutSheet } from "../../lib/cutSheet";
@@ -151,6 +151,9 @@ interface ServiceCatalog {
   sale_unit?: "unidade" | "m2" | "linear";
   price_per_measure?: number | null;
   min_billable_quantity?: number | null;
+  /** Serviço marcado como peça de vidraçaria (Serviços): abre o desenho já com tipo, vidro e perfil. */
+  piece_kind?: string | null;
+  piece_defaults?: { glass?: string; thickness_mm?: number; finish?: string } | null;
 }
 
 interface Customer {
@@ -171,7 +174,7 @@ interface Customer {
 interface Tenant {
   name: string;
   /** Padrões da loja; aqui só importa o corte de vidro (sangria e margem). */
-  policies?: { glass_defaults?: GlassDefaults };
+  policies?: { glass_defaults?: GlassDefaults; glass_options?: GlassOptions };
   document?: string;
   logo_url?: string;
   whatsapp?: string;
@@ -599,8 +602,9 @@ export default function QuoteDetail() {
       setMeasureService(s);
       setMeasureServiceHeight("");
       setMeasureServiceWidth("");
-      setPieceMode(s.sale_unit === "m2");
-      setPieceDraft(emptyPieceDraft(tenant?.policies?.glass_defaults));
+      // serviço marcado como peça de vidraçaria já abre o desenho; os demais por m² usam altura × largura
+      setPieceMode(s.sale_unit === "m2" && !!s.piece_kind);
+      setPieceDraft(draftForService(s, tenant?.policies?.glass_defaults));
       setServiceSearch("");
       return;
     }
@@ -1216,7 +1220,7 @@ export default function QuoteDetail() {
                           <div key={`${svc.service_id}-${svcIdx}`} className="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm sm:flex">
                             <button type="button" onClick={() => setZoomPiece({ name: svc.name, spec })} title="Ampliar desenho"
                               className="group relative block w-full shrink-0 bg-slate-50 p-2 sm:w-56">
-                              <GlassDrawing spec={spec} />
+                              <GlassDrawing spec={spec} showCut />
                               <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-600 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">Ampliar</span>
                             </button>
                             <div className="min-w-0 flex-1 space-y-3 p-3">
@@ -1414,7 +1418,7 @@ export default function QuoteDetail() {
         title={zoomPiece ? pieceLabel(zoomPiece.spec.kind) : ""}
         subtitle={zoomPiece ? pieceSummary(zoomPiece.spec) : undefined}
       >
-        {zoomPiece && <div className="rounded-xl bg-white p-2 ring-1 ring-slate-100"><GlassDrawing spec={zoomPiece.spec} /></div>}
+        {zoomPiece && <div className="rounded-xl bg-white p-2 ring-1 ring-slate-100"><GlassDrawing spec={zoomPiece.spec} showCut /></div>}
       </Modal>
 
       <ProductVariationModal
@@ -1496,6 +1500,7 @@ export default function QuoteDetail() {
                 onChange={setPieceDraft}
                 showTechnical
                 defaults={tenant?.policies?.glass_defaults}
+                options={tenant?.policies?.glass_options}
                 summary={measureServicePreview && measureServicePreview.rawQuantity > 0 ? (
                   <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
                     <div className="flex items-baseline justify-between text-xs text-blue-800">

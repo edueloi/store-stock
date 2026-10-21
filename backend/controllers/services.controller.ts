@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+import { PIECE_KINDS } from "../utils/glassPieces";
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
@@ -24,11 +26,24 @@ export async function listServices(req: Request, res: Response) {
 
 const ALLOWED_SALE_UNITS = ["unidade", "m2", "linear"];
 
+// Peça de vidraçaria: só serviços por m² podem ser peça, e o tipo precisa ser um dos conhecidos.
+function glassPieceFields(saleUnit: string, kind: unknown, defaults: unknown) {
+  const validKind = saleUnit === "m2" && PIECE_KINDS.some((k) => k.value === kind) ? String(kind) : null;
+  if (!validKind) return { piece_kind: null, piece_defaults: Prisma.DbNull };
+  const d = (defaults && typeof defaults === "object" ? defaults : {}) as Record<string, unknown>;
+  const clean: Record<string, string | number> = {};
+  if (typeof d.glass === "string" && d.glass.trim()) clean.glass = d.glass.trim().slice(0, 60);
+  if (typeof d.finish === "string" && d.finish.trim()) clean.finish = d.finish.trim().slice(0, 60);
+  const thickness = Math.round(Number(d.thickness_mm));
+  if (thickness > 0 && thickness <= 30) clean.thickness_mm = thickness;
+  return { piece_kind: validKind, piece_defaults: Object.keys(clean).length ? clean : Prisma.DbNull };
+}
+
 export async function createService(req: Request, res: Response) {
   try {
     const {
       name, description, price, unit, category_id, is_active, image_url,
-      sale_unit, price_per_measure, min_billable_quantity,
+      sale_unit, price_per_measure, min_billable_quantity, piece_kind, piece_defaults,
     } = req.body;
     const saleUnit = ALLOWED_SALE_UNITS.includes(sale_unit) ? sale_unit : "unidade";
     const isMeasured = saleUnit !== "unidade";
@@ -58,6 +73,7 @@ export async function createService(req: Request, res: Response) {
         sale_unit:   saleUnit,
         price_per_measure:     isMeasured ? (Number(price_per_measure) || 0) : null,
         min_billable_quantity: isMeasured && min_billable_quantity ? Number(min_billable_quantity) : null,
+        ...glassPieceFields(saleUnit, piece_kind, piece_defaults),
       },
     });
     res.json(service);
@@ -73,7 +89,7 @@ export async function updateService(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const {
       name, description, price, unit, category_id, is_active, image_url,
-      sale_unit, price_per_measure, min_billable_quantity,
+      sale_unit, price_per_measure, min_billable_quantity, piece_kind, piece_defaults,
     } = req.body;
     const saleUnit = ALLOWED_SALE_UNITS.includes(sale_unit) ? sale_unit : "unidade";
     const isMeasured = saleUnit !== "unidade";
@@ -103,6 +119,7 @@ export async function updateService(req: Request, res: Response) {
         sale_unit:   saleUnit,
         price_per_measure:     isMeasured ? (Number(price_per_measure) || 0) : null,
         min_billable_quantity: isMeasured && min_billable_quantity ? Number(min_billable_quantity) : null,
+        ...glassPieceFields(saleUnit, piece_kind, piece_defaults),
       },
     });
     res.json({ success: true });

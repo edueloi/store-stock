@@ -37,6 +37,14 @@ export const GLASS_TYPES = ["Incolor", "Fumê", "Verde", "Bronze", "Fosco (jatea
 export const GLASS_THICKNESS = [4, 6, 8, 10, 12];
 export const FINISHES = ["Branco", "Preto", "Fosco natural", "Bronze", "Cromado", "Sem perfil"];
 
+/** Listas do formulário da peça configuradas pela loja (Configurações > Vidraçaria). Vazio = padrão do sistema. */
+export interface GlassOptions {
+  glass_types?: string[];
+  thicknesses?: number[];
+  finishes?: string[];
+  kinds?: string[];
+}
+
 /** Padrão de corte da loja (Configurações): vale para todas as peças, com ajuste opcional por tipo. */
 export interface GlassDefaults {
   gap_mm?: number;
@@ -107,3 +115,14 @@ export const pieceBilledAreaM2 = (spec: Pick<PieceSpec, "width_mm" | "height_mm"
 
 /** Área cobrada em m² (largura × altura). */
 export const pieceAreaM2 = (spec: Pick<PieceSpec, "width_mm" | "height_mm">) => (num(spec.width_mm) / 1000) * (num(spec.height_mm) / 1000);
+
+/** Listas finais do formulário: o que a loja configurou ou, se vazio, o padrão do sistema. */
+export function resolveGlassOptions(options?: GlassOptions | null) {
+  const pick = <T,>(list: T[] | undefined, fallback: T[]) => (Array.isArray(list) && list.length ? list : fallback);
+  return {
+    glassTypes: pick(options?.glass_types, GLASS_TYPES),
+    thicknesses: pick(options?.thicknesses, GLASS_THICKNESS),
+    finishes: pick(options?.finishes, FINISHES),
+    kinds: PIECE_KINDS.filter((k) => !options?.kinds?.length || options.kinds.includes(k.value)),
+  };
+}

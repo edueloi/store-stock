@@ -1,8 +1,8 @@
 import GlassDrawing from "./GlassDrawing";
 import type { ReactNode } from "react";
-import { FINISHES, GLASS_THICKNESS, GLASS_TYPES, PIECE_KINDS, pieceCut, pieceLabel, type GlassDefaults, type PieceKind, type PieceSpec } from "../lib/glassPieces";
+import { PIECE_KINDS, pieceCut, pieceLabel, resolveGlassOptions, type GlassDefaults, type GlassOptions, type PieceKind, type PieceSpec } from "../lib/glassPieces";
 
-export type { GlassDefaults };
+export type { GlassDefaults, GlassOptions };
 
 // Formulário da peça de vidro + desenho ao vivo. Usado no orçamento do painel e na
 // solicitação de orçamento da vitrine (por isso só Tailwind básico, sem componentes do painel).
@@ -59,6 +59,26 @@ export const emptyPieceDraft = (store?: GlassDefaults): PieceDraft => ({
   kind: "janela_correr", width_mm: "", height_mm: "", leaves: 2, glass: "Incolor", thickness_mm: 8, finish: "Branco", notes: "",
   ...techDefaultsFor("janela_correr", store),
 });
+
+/** Formulário já preenchido com o que o serviço (marcado como peça de vidraçaria) define: tipo, vidro, espessura e perfil. */
+export function draftForService(
+  service: { piece_kind?: string | null; piece_defaults?: { glass?: string; thickness_mm?: number; finish?: string } | null } | null | undefined,
+  store?: GlassDefaults,
+): PieceDraft {
+  const base = emptyPieceDraft(store);
+  const kindInfo = PIECE_KINDS.find((k) => k.value === service?.piece_kind);
+  if (!kindInfo) return base;
+  const d = service?.piece_defaults ?? {};
+  return {
+    ...base,
+    kind: kindInfo.value,
+    leaves: kindInfo.leaves ? 2 : 1,
+    ...(d.glass ? { glass: d.glass } : {}),
+    ...(d.thickness_mm ? { thickness_mm: d.thickness_mm } : {}),
+    ...(d.finish ? { finish: d.finish } : {}),
+    ...techDefaultsFor(kindInfo.value, store),
+  };
+}
 
 /** Preenche o formulário a partir de uma peça já lançada (edição). */
 export function specToDraft(spec: PieceSpec): PieceDraft {
@@ -122,8 +142,8 @@ function Row({ name, value, strong }: { name: string; value: ReactNode; strong?:
  * showTechnical: sangria e margem de segurança só aparecem para a equipe (nunca na solicitação do cliente).
  * summary: conteúdo extra no quadro da direita (ex.: valor da peça no orçamento).
  */
-export default function GlassPieceFields({ draft, onChange, showTechnical = false, defaults, summary }: {
-  draft: PieceDraft; onChange: (d: PieceDraft) => void; showTechnical?: boolean; defaults?: GlassDefaults; summary?: ReactNode;
+export default function GlassPieceFields({ draft, onChange, showTechnical = false, defaults, options, summary }: {
+  draft: PieceDraft; onChange: (d: PieceDraft) => void; showTechnical?: boolean; defaults?: GlassDefaults; options?: GlassOptions; summary?: ReactNode;
 }) {
   const set = <K extends keyof PieceDraft>(k: K, v: PieceDraft[K]) => onChange({ ...draft, [k]: v });
   const spec = draftToSpec(draft);
@@ -133,6 +153,14 @@ export default function GlassPieceFields({ draft, onChange, showTechnical = fals
   const hasGap = (spec.gap_mm ?? 0) > 0;
   const hasWaste = (spec.waste_pct ?? 0) > 0;
   const glass = [spec.glass, spec.thickness_mm ? `${spec.thickness_mm} mm` : ""].filter(Boolean).join(" ");
+
+  // Listas configuradas pela loja; o valor já escolhido continua aparecendo mesmo que tenha saído da lista.
+  const opts = resolveGlassOptions(options);
+  const withCurrent = <T,>(list: T[], current: T) => (list.includes(current) ? list : [current, ...list]);
+  const kindList = opts.kinds.some((k) => k.value === draft.kind) ? opts.kinds : [PIECE_KINDS.find((k) => k.value === draft.kind)!, ...opts.kinds];
+  const glassList = withCurrent(opts.glassTypes, draft.glass);
+  const thicknessList = withCurrent(opts.thicknesses, draft.thickness_mm);
+  const finishList = withCurrent(opts.finishes, draft.finish);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -148,7 +176,7 @@ export default function GlassPieceFields({ draft, onChange, showTechnical = fals
                 // ao trocar o tipo, traz a sangria/margem do padrão da loja (ou a última usada) para esse tipo
                 onChange({ ...draft, kind, leaves, ...(showTechnical ? techDefaultsFor(kind, defaults) : {}) });
               }}>
-                {PIECE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+                {kindList.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
               </select>
             </div>
             {hasLeaves && (
@@ -180,19 +208,19 @@ export default function GlassPieceFields({ draft, onChange, showTechnical = fals
             <div>
               <label className={label}>Vidro</label>
               <select className={field} value={draft.glass} onChange={(e) => set("glass", e.target.value)}>
-                {GLASS_TYPES.map((g) => <option key={g}>{g}</option>)}
+                {glassList.map((g) => <option key={g}>{g}</option>)}
               </select>
             </div>
             <div>
               <label className={label}>Espessura</label>
               <select className={field} value={draft.thickness_mm} onChange={(e) => set("thickness_mm", Number(e.target.value))}>
-                {GLASS_THICKNESS.map((t) => <option key={t} value={t}>{t} mm</option>)}
+                {thicknessList.map((t) => <option key={t} value={t}>{t} mm</option>)}
               </select>
             </div>
             <div>
               <label className={label}>Perfil</label>
               <select className={field} value={draft.finish} onChange={(e) => set("finish", e.target.value)}>
-                {FINISHES.map((f) => <option key={f}>{f}</option>)}
+                {finishList.map((f) => <option key={f}>{f}</option>)}
               </select>
             </div>
           </div>
@@ -227,7 +255,7 @@ export default function GlassPieceFields({ draft, onChange, showTechnical = fals
           </div>
           <div className="flex min-h-[250px] items-center justify-center rounded-xl bg-white p-2 ring-1 ring-slate-100">
             {ready
-              ? <GlassDrawing spec={spec} />
+              ? <GlassDrawing spec={spec} showCut={showTechnical} />
               : <p className="px-6 text-center text-sm text-slate-400">Informe a largura e a altura para ver o desenho da peça.</p>}
           </div>
         </div>

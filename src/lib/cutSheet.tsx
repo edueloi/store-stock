@@ -32,7 +32,7 @@ export function printCutSheet(input: { heading: string; customer?: string | null
 
   const drawings = pieces.map((p, i) => `<div class="draw">
       <div class="cap">${i + 1}. ${esc(pieceLabel(p.spec.kind))} — corte ${pieceCut(p.spec).cutW} × ${pieceCut(p.spec).cutH} mm · ${p.qty} un.</div>
-      ${renderToStaticMarkup(<GlassDrawing spec={p.spec} />)}
+      ${renderToStaticMarkup(<GlassDrawing spec={p.spec} showCut />)}
     </div>`).join("");
 
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ficha de corte</title>

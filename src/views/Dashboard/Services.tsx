@@ -55,6 +55,7 @@ import {
 } from "../../components/ui";
 import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
 import Combobox from "../../components/ui/Combobox";
+import { PIECE_KINDS, resolveGlassOptions, type GlassOptions } from "../../lib/glassPieces";
 import { onRealtime } from "../../lib/realtime";
 import ServicesPageTour, {
   SERVICES_PAGE_TOUR_EVENTS,
@@ -89,6 +90,9 @@ interface Service {
   sale_unit: "unidade" | "m2" | "linear";
   price_per_measure: number | null;
   min_billable_quantity: number | null;
+  /** Vidraçaria: tipo padrão da peça (serviço por m² marcado como peça). */
+  piece_kind?: string | null;
+  piece_defaults?: { glass?: string; thickness_mm?: number; finish?: string } | null;
   created_at: string;
 }
 
@@ -175,6 +179,10 @@ const EMPTY_FORM = () => ({
   sale_unit: "unidade" as "unidade" | "m2" | "linear",
   price_per_measure: "",
   min_billable_quantity: "",
+  piece_kind: "",
+  piece_glass: "",
+  piece_thickness: "",
+  piece_finish: "",
 });
 
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2 MB
@@ -281,6 +289,15 @@ export default function Services() {
     setCategories(Array.isArray(d) ? d : []);
   }, []);
 
+  // Listas de vidro/espessura/perfil configuradas pela loja (Configurações > Vidraçaria)
+  const [glassOptions, setGlassOptions] = useState<GlassOptions | undefined>();
+  useEffect(() => {
+    fetch("/api/tenant", { headers: authH() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((t) => setGlassOptions(t?.policies?.glass_options))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetchServices();
     fetchCategories();
@@ -326,6 +343,10 @@ export default function Services() {
       price_per_measure: measureMasked,
       min_billable_quantity:
         s.min_billable_quantity != null ? String(s.min_billable_quantity) : "",
+      piece_kind: s.piece_kind ?? "",
+      piece_glass: s.piece_defaults?.glass ?? "",
+      piece_thickness: s.piece_defaults?.thickness_mm ? String(s.piece_defaults.thickness_mm) : "",
+      piece_finish: s.piece_defaults?.finish ?? "",
     });
     setImagePreview(s.image_url ?? "");
     setImgToast("");
@@ -452,6 +473,11 @@ export default function Services() {
             ? Number(form.min_billable_quantity)
             : null,
           image_url: form.image_url || null,
+          // Peça de vidraçaria: só vale para serviço por m²
+          piece_kind: form.sale_unit === "m2" && form.piece_kind ? form.piece_kind : null,
+          piece_defaults: form.sale_unit === "m2" && form.piece_kind
+            ? { glass: form.piece_glass || undefined, thickness_mm: Number(form.piece_thickness) || undefined, finish: form.piece_finish || undefined }
+            : null,
         }),
       });
       closeModal();
@@ -1260,6 +1286,63 @@ export default function Services() {
                 />
               </div>
             )}
+
+            {form.sale_unit === "m2" && (() => {
+              const opts = resolveGlassOptions(glassOptions);
+              const sel = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200";
+              return (
+                <div className="space-y-3 rounded-lg border border-cyan-200 bg-cyan-50/60 p-3">
+                  <label className="flex items-start gap-2 text-xs font-semibold text-slate-800">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 accent-cyan-600"
+                      checked={!!form.piece_kind}
+                      onChange={(e) => setForm((f) => ({ ...f, piece_kind: e.target.checked ? (f.piece_kind || opts.kinds[0]?.value || "janela_correr") : "" }))}
+                    />
+                    <span>
+                      Este serviço é uma peça de vidraçaria
+                      <span className="mt-0.5 block text-[11px] font-normal text-slate-500">
+                        No orçamento e na ordem de serviço abre o desenho da peça, com medidas, sangria e margem de segurança já preenchidas com os dados abaixo.
+                      </span>
+                    </span>
+                  </label>
+                  {form.piece_kind && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">Tipo de peça</label>
+                        <select className={sel} value={form.piece_kind} onChange={(e) => setForm((f) => ({ ...f, piece_kind: e.target.value }))}>
+                          {PIECE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">Vidro padrão</label>
+                        <select className={sel} value={form.piece_glass} onChange={(e) => setForm((f) => ({ ...f, piece_glass: e.target.value }))}>
+                          <option value="">Não definir</option>
+                          {opts.glassTypes.map((g) => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">Espessura padrão</label>
+                        <select className={sel} value={form.piece_thickness} onChange={(e) => setForm((f) => ({ ...f, piece_thickness: e.target.value }))}>
+                          <option value="">Não definir</option>
+                          {opts.thicknesses.map((t) => <option key={t} value={t}>{t} mm</option>)}
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="mb-1 block text-xs font-semibold text-slate-600">Cor do perfil / ferragem padrão</label>
+                        <select className={sel} value={form.piece_finish} onChange={(e) => setForm((f) => ({ ...f, piece_finish: e.target.value }))}>
+                          <option value="">Não definir</option>
+                          {opts.finishes.map((f2) => <option key={f2} value={f2}>{f2}</option>)}
+                        </select>
+                      </div>
+                      <p className="col-span-2 text-[11px] text-slate-500">
+                        Os vidros, espessuras e cores desta lista vêm de Configurações &gt; Vidraçaria, onde você cadastra o que a sua loja trabalha.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {!isMeasuredForm && parseMaskedPrice(form.price) > 0 && (
               <div className="flex items-center gap-2 flex-wrap">

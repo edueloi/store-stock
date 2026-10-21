@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { CheckCircle2, Loader2, Plus, Trash2 } from "lucide-react";
 import GlassDrawing from "../../../components/GlassDrawing";
 import GlassPieceFields, { draftToSpec, emptyPieceDraft, type PieceDraft } from "../../../components/GlassPieceFields";
+import { useStore } from "../StoreLayout";
 import { pieceAreaM2, pieceSummary, type PieceSpec } from "../../../lib/glassPieces";
 import { resolveStoreSlug } from "../store-routing";
 
@@ -19,6 +20,7 @@ const estimate = (p: CartPiece) =>
 export default function StoreQuoteRequest() {
   const { slug: routeSlug } = useParams();
   const slug = resolveStoreSlug(routeSlug);
+  const storeTenant = useStore()?.tenant;
   const [services, setServices] = useState<CatalogService[] | null>(null);
   const [serviceId, setServiceId] = useState<number | null>(null);
   const [draft, setDraft] = useState<PieceDraft>(emptyPieceDraft());
@@ -96,7 +98,7 @@ export default function StoreQuoteRequest() {
         <select className={`${field} mb-4`} value={serviceId ?? ""} onChange={(e) => setServiceId(Number(e.target.value))}>
           {services.map((s) => <option key={s.id} value={s.id}>{s.name} — {brl(s.price_per_measure)}/m²</option>)}
         </select>
-        <GlassPieceFields draft={draft} onChange={setDraft} />
+        <GlassPieceFields draft={draft} onChange={setDraft} options={storeTenant?.policies?.glass_options} />
         <div className="mt-4 flex flex-wrap items-end gap-3">
           <div className="w-28">
             <label className="mb-1 block text-xs font-semibold text-slate-600">Quantidade</label>

@@ -62,7 +62,7 @@ import {
   downloadServiceOrderPdf,
   NfseInvoice,
 } from "./serviceOrders.shared";
-import GlassPieceFields, { draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, type PieceDraft } from "../../components/GlassPieceFields";
+import GlassPieceFields, { draftForService, draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, type PieceDraft } from "../../components/GlassPieceFields";
 import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
 import { pieceCut, type PieceSpec } from "../../lib/glassPieces";
@@ -1784,6 +1784,9 @@ export default function ServiceOrderDetail() {
                 setPartSelectedService(service ?? null);
                 setMeasureHeight("");
                 setMeasureWidth("");
+                // serviço marcado como peça de vidraçaria já abre o desenho com tipo, vidro e perfil
+                setPartPieceMode(!!service && service.sale_unit === "m2" && !!service.piece_kind);
+                setPartPieceDraft(draftForService(service, tenant?.policies?.glass_defaults));
               }}
               options={catalogServices.map((s) => ({
                 value: String(s.id),
@@ -1800,7 +1803,7 @@ export default function ServiceOrderDetail() {
                 Peça sob medida (vidraçaria) — com desenho, sangria e margem de segurança
               </label>
             )}
-            {servicePieceActive && <GlassPieceFields draft={partPieceDraft} onChange={setPartPieceDraft} showTechnical defaults={tenant?.policies?.glass_defaults} />}
+            {servicePieceActive && <GlassPieceFields draft={partPieceDraft} onChange={setPartPieceDraft} showTechnical defaults={tenant?.policies?.glass_defaults} options={tenant?.policies?.glass_options} />}
 
             {partSelectedService && isMeasuredService && !servicePieceActive && (
               partSelectedService.sale_unit === "m2" ? (

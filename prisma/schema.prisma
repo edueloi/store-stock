@@ -531,6 +531,11 @@ model Service {
   price_per_measure     Decimal? @db.Decimal(10, 2)
   min_billable_quantity Decimal? @db.Decimal(10, 2)
 
+  // Vidraçaria: quando preenchido, o serviço (por m²) é uma peça com desenho, sangria e margem no
+  // orçamento e na OS. piece_kind = tipo padrão da peça; piece_defaults = {glass, thickness_mm, finish}.
+  piece_kind     String?
+  piece_defaults Json?
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

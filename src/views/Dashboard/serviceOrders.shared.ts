@@ -156,6 +156,9 @@ export interface CatalogService {
   sale_unit?: "unidade" | "m2" | "linear";
   price_per_measure?: number | null;
   min_billable_quantity?: number | null;
+  /** Serviço marcado como peça de vidraçaria (Serviços). */
+  piece_kind?: string | null;
+  piece_defaults?: { glass?: string; thickness_mm?: number; finish?: string } | null;
 }
 
 export interface Customer {
@@ -186,7 +189,7 @@ export type Tenant = Pick<
   | "grafica_enabled"
 > & {
   card_fees?: Record<string, number[]>;
-  policies?: { service_order_checklists?: Record<string, { label: string }[]>; glass_defaults?: import("../../lib/glassPieces").GlassDefaults };
+  policies?: { service_order_checklists?: Record<string, { label: string }[]>; glass_defaults?: import("../../lib/glassPieces").GlassDefaults; glass_options?: import("../../lib/glassPieces").GlassOptions };
 };
 
 // ─── Payment engine (same as Quotes.tsx / PDV) ───────────────────────────────
