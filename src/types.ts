@@ -23,6 +23,8 @@ export interface StorePolicies {
   warranty_title?: string;
   warranty_clauses?: string[];
   service_order_checklists?: Record<string, { label: string }[]>;
+  /** Vidraçaria: sangria e margem de segurança padrão da loja (e por tipo de peça). */
+  glass_defaults?: { gap_mm?: number; waste_pct?: number; by_kind?: Record<string, { gap_mm?: number; waste_pct?: number }> };
   storefront?: {
     checkout_mode?: "whatsapp" | "reservation" | "online" | "order_request";
     reservation_minutes?: number;

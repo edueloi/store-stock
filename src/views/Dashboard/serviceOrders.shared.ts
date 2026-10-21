@@ -186,7 +186,7 @@ export type Tenant = Pick<
   | "grafica_enabled"
 > & {
   card_fees?: Record<string, number[]>;
-  policies?: { service_order_checklists?: Record<string, { label: string }[]> };
+  policies?: { service_order_checklists?: Record<string, { label: string }[]>; glass_defaults?: import("../../lib/glassPieces").GlassDefaults };
 };
 
 // ─── Payment engine (same as Quotes.tsx / PDV) ───────────────────────────────

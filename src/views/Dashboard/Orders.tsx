@@ -1,3 +1,7 @@
+import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
+import { glassSpecFromOptions } from "../../lib/glassQuote";
+import { printCutSheet } from "../../lib/cutSheet";
+import type { PieceSpec } from "../../lib/glassPieces";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
@@ -79,12 +83,15 @@ interface OrderDetail extends Order {
     quantity: number;
     unit_price: number;
     returned_quantity?: number;
+    selected_options?: Record<string, string> | null;
   }>;
   services?: Array<{
     id: number;
     name: string;
     quantity: number;
     unit_price: number;
+    dimensions_label?: string | null;
+    piece_spec?: PieceSpec | null;
   }>;
 }
 
@@ -2106,6 +2113,24 @@ ${
                     ))}
                   </div>
                 </div>
+
+                {/* Projeto de vidraçaria: peças com medidas do orçamento/OS e ficha de corte */}
+                {(() => {
+                  const pieces: ProjectPiece[] = [
+                    ...(selectedOrder.services ?? []).filter((s) => s.piece_spec).map((s) => ({ name: s.name, spec: s.piece_spec as PieceSpec, qty: s.quantity })),
+                    ...selectedOrder.items.map((i) => ({ name: i.product_name, spec: glassSpecFromOptions(i.selected_options), qty: i.quantity })).filter((p): p is ProjectPiece => !!p.spec),
+                  ];
+                  if (pieces.length === 0) return null;
+                  return (
+                    <div className="rounded-lg border border-slate-200 bg-white">
+                      <p className="border-b border-slate-100 px-3 py-2 text-[10px] font-semibold text-slate-400">Projeto — peças e medidas</p>
+                      <GlassProjectTable
+                        pieces={pieces}
+                        onPrint={() => printCutSheet({ heading: `Pedido #${String(selectedOrder.id).padStart(6, "0")}`, customer: selectedOrder.customer_name, pieces })}
+                      />
+                    </div>
+                  );
+                })()}
 
                 {/* Subtotal / desconto / acréscimo / taxa / total */}
                 {(() => {

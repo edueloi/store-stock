@@ -156,6 +156,8 @@ export async function listOrders(req: Request, res: Response) {
           name: svc.name,
           unit_price: svc.unit_price,
           quantity: svc.quantity,
+          dimensions_label: svc.dimensions_label,
+          piece_spec: svc.piece_spec,
         })),
       })),
     );
@@ -247,6 +249,8 @@ export async function getOrderById(req: Request, res: Response) {
         name: svc.name,
         unit_price: svc.unit_price,
         quantity: svc.quantity,
+        dimensions_label: svc.dimensions_label,
+        piece_spec: svc.piece_spec,
       })),
     });
   } catch {

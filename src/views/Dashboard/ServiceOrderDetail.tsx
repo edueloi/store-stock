@@ -469,7 +469,7 @@ export default function ServiceOrderDetail() {
     setPartSelectedProduct(null);
     setPartOptions(null);
     setPartPieceMode(false);
-    setPartPieceDraft(emptyPieceDraft());
+    setPartPieceDraft(emptyPieceDraft(tenant?.policies?.glass_defaults));
     setPartSelectedService(null);
     setPartQty(1);
     setPartNoCharge(false);
@@ -1800,7 +1800,7 @@ export default function ServiceOrderDetail() {
                 Peça sob medida (vidraçaria) — com desenho, sangria e margem de segurança
               </label>
             )}
-            {servicePieceActive && <GlassPieceFields draft={partPieceDraft} onChange={setPartPieceDraft} showTechnical />}
+            {servicePieceActive && <GlassPieceFields draft={partPieceDraft} onChange={setPartPieceDraft} showTechnical defaults={tenant?.policies?.glass_defaults} />}
 
             {partSelectedService && isMeasuredService && !servicePieceActive && (
               partSelectedService.sale_unit === "m2" ? (

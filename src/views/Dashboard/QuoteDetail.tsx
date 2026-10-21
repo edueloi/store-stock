@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import GlassDrawing from "../../components/GlassDrawing";
 import GlassPieceFields, { draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, specToDraft, type PieceDraft } from "../../components/GlassPieceFields";
-import { pieceBilledAreaM2, pieceCut, pieceLabel, pieceSummary, type PieceSpec } from "../../lib/glassPieces";
+import { pieceBilledAreaM2, pieceCut, pieceLabel, pieceSummary, type GlassDefaults, type PieceSpec } from "../../lib/glassPieces";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
 import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
 import { printCutSheet } from "../../lib/cutSheet";
@@ -170,6 +170,8 @@ interface Customer {
 
 interface Tenant {
   name: string;
+  /** Padrões da loja; aqui só importa o corte de vidro (sangria e margem). */
+  policies?: { glass_defaults?: GlassDefaults };
   document?: string;
   logo_url?: string;
   whatsapp?: string;
@@ -596,7 +598,7 @@ export default function QuoteDetail() {
       setMeasureServiceHeight("");
       setMeasureServiceWidth("");
       setPieceMode(s.sale_unit === "m2");
-      setPieceDraft(emptyPieceDraft());
+      setPieceDraft(emptyPieceDraft(tenant?.policies?.glass_defaults));
       setServiceSearch("");
       return;
     }
@@ -1435,7 +1437,7 @@ export default function QuoteDetail() {
               </label>
             )}
             {pieceMode ? (
-              <GlassPieceFields draft={pieceDraft} onChange={setPieceDraft} showTechnical />
+              <GlassPieceFields draft={pieceDraft} onChange={setPieceDraft} showTechnical defaults={tenant?.policies?.glass_defaults} />
             ) : measureService.sale_unit === "m2" ? (
               <div className="grid grid-cols-2 gap-3">
                 <Input label="Altura (m)" type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />

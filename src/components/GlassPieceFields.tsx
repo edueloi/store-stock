@@ -1,5 +1,7 @@
 import GlassDrawing from "./GlassDrawing";
-import { FINISHES, GLASS_THICKNESS, GLASS_TYPES, PIECE_KINDS, pieceCut, type PieceKind, type PieceSpec } from "../lib/glassPieces";
+import { FINISHES, GLASS_THICKNESS, GLASS_TYPES, PIECE_KINDS, pieceCut, type GlassDefaults, type PieceKind, type PieceSpec } from "../lib/glassPieces";
+
+export type { GlassDefaults };
 
 // Formulário da peça de vidro + desenho ao vivo. Usado no orçamento do painel e na
 // solicitação de orçamento da vitrine (por isso só Tailwind básico, sem componentes do painel).
@@ -40,9 +42,21 @@ export function rememberTechnicalDefaults(d: Pick<PieceDraft, "gap_mm" | "waste_
   } catch { /* sem armazenamento */ }
 }
 
-export const emptyPieceDraft = (): PieceDraft => ({
+/**
+ * Sangria/margem iniciais de um tipo de peça: primeiro o padrão da loja (Configurações),
+ * depois o último valor usado neste navegador.
+ */
+export function techDefaultsFor(kind: string, store?: GlassDefaults): TechValues {
+  const perKind = store?.by_kind?.[kind];
+  const gap = perKind?.gap_mm ?? store?.gap_mm;
+  const waste = perKind?.waste_pct ?? store?.waste_pct;
+  if (gap !== undefined || waste !== undefined) return { gap_mm: gap ? String(gap) : "", waste_pct: waste ? String(waste) : "" };
+  return readTechnicalDefaults(kind);
+}
+
+export const emptyPieceDraft = (store?: GlassDefaults): PieceDraft => ({
   kind: "janela_correr", width_mm: "", height_mm: "", leaves: 2, glass: "Incolor", thickness_mm: 8, finish: "Branco", notes: "",
-  ...readTechnicalDefaults(),
+  ...techDefaultsFor("janela_correr", store),
 });
 
 /** Preenche o formulário a partir de uma peça já lançada (edição). */
@@ -72,7 +86,7 @@ const field = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text
 const label = "mb-1 block text-xs font-semibold text-slate-600";
 
 /** showTechnical: sangria e margem de segurança só aparecem para a equipe (nunca na solicitação do cliente). */
-export default function GlassPieceFields({ draft, onChange, showTechnical = false }: { draft: PieceDraft; onChange: (d: PieceDraft) => void; showTechnical?: boolean }) {
+export default function GlassPieceFields({ draft, onChange, showTechnical = false, defaults }: { draft: PieceDraft; onChange: (d: PieceDraft) => void; showTechnical?: boolean; defaults?: GlassDefaults }) {
   const set = <K extends keyof PieceDraft>(k: K, v: PieceDraft[K]) => onChange({ ...draft, [k]: v });
   const spec = draftToSpec(draft);
   const hasLeaves = PIECE_KINDS.find((k) => k.value === draft.kind)?.leaves;
@@ -87,7 +101,7 @@ export default function GlassPieceFields({ draft, onChange, showTechnical = fals
             const kind = e.target.value as PieceKind;
             const leaves = PIECE_KINDS.find((k) => k.value === kind)?.leaves ? Math.max(2, draft.leaves) : 1;
             // ao trocar o tipo, traz a sangria/margem usadas da última vez para esse tipo
-            onChange({ ...draft, kind, leaves, ...(showTechnical ? readTechnicalDefaults(kind) : {}) });
+            onChange({ ...draft, kind, leaves, ...(showTechnical ? techDefaultsFor(kind, defaults) : {}) });
           }}>
             {PIECE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
           </select>

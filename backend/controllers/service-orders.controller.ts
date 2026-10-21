@@ -1203,6 +1203,7 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
         unit_price: p.unit_price,
         quantity: p.quantity,
         dimensions_label: p.dimensions_label,
+        piece_spec: p.piece_spec ? (p.piece_spec as unknown as Record<string, string | number>) : undefined,
       })),
     ];
 

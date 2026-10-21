@@ -723,6 +723,8 @@ export async function convertToOrder(req: Request, res: Response) {
               name:       s.name,
               unit_price: s.unit_price,
               quantity:   s.quantity,
+              dimensions_label: s.dimensions_label,
+              piece_spec: s.piece_spec ? (s.piece_spec as unknown as Record<string, string | number>) : undefined,
             })),
           },
         } : {}),

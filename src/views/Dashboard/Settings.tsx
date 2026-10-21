@@ -1,3 +1,4 @@
+import GlassDefaultsSettings from "../../components/GlassDefaultsSettings";
 import React, {
   useState,
   useEffect,
@@ -57,6 +58,7 @@ import {
   CheckSquare,
   Mail,
   Send,
+  Ruler,
 } from "lucide-react";
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
 import HeroSlidesEditor from "./HeroSlidesEditor";
@@ -319,6 +321,7 @@ const NAV = [
         icon: ClipboardList,
         label: "Checklists de OS",
       },
+      { id: "glass_cutting", icon: Ruler, label: "Corte de vidro" },
       { id: "cash_session", icon: Wallet, label: "Controle de Caixa" },
       { id: "preferences", icon: Settings2, label: "Preferências do Painel" },
       { id: "security", icon: Shield, label: "Segurança" },
@@ -409,6 +412,12 @@ const SETTING_META: Record<
     icon: "text-orange-600",
     iconBg: "bg-orange-50",
     border: "hover:border-orange-200",
+  },
+  glass_cutting: {
+    description: "Sangria e margem de segurança padrão",
+    icon: "text-cyan-600",
+    iconBg: "bg-cyan-50",
+    border: "hover:border-cyan-200",
   },
   service_checklists: {
     description: "Etapas padrão para ordens de serviço",
@@ -5493,6 +5502,17 @@ export default function Settings({
                   </div>
                 );
               })()}
+
+            {/* ── Corte de vidro (vidraçaria): sangria e margem padrão ──── */}
+            {active === "glass_cutting" && (
+              <div className="space-y-4">
+                <GlassDefaultsSettings
+                  value={(policies as StorePolicies).glass_defaults ?? {}}
+                  onChange={(next) => setPolicies({ glass_defaults: next })}
+                />
+                <SaveButton onClick={handleSaveTenant} label="Salvar padrões de corte" />
+              </div>
+            )}
 
             {/* ── Checklists de Ordem de Serviço ────────────────────────── */}
             {active === "service_checklists" &&

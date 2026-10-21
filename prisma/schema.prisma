@@ -572,6 +572,8 @@ model OrderService {
   unit_price       Decimal @db.Decimal(10, 2)
   quantity         Int     @default(1)
   dimensions_label String?
+  // Peça de vidraçaria (vão, sangria, margem, vidro...) que veio do orçamento/OS — alimenta a ficha de corte do pedido
+  piece_spec       Json?
 
   order   Order   @relation(fields: [order_id], references: [id], onDelete: Cascade)
   service Service @relation(fields: [service_id], references: [id])

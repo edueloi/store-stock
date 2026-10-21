@@ -37,6 +37,13 @@ export const GLASS_TYPES = ["Incolor", "Fumê", "Verde", "Bronze", "Fosco (jatea
 export const GLASS_THICKNESS = [4, 6, 8, 10, 12];
 export const FINISHES = ["Branco", "Preto", "Fosco natural", "Bronze", "Cromado", "Sem perfil"];
 
+/** Padrão de corte da loja (Configurações): vale para todas as peças, com ajuste opcional por tipo. */
+export interface GlassDefaults {
+  gap_mm?: number;
+  waste_pct?: number;
+  by_kind?: Record<string, { gap_mm?: number; waste_pct?: number }>;
+}
+
 export const pieceLabel = (kind: string) => PIECE_KINDS.find((k) => k.value === kind)?.label ?? "Peça";
 
 const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
