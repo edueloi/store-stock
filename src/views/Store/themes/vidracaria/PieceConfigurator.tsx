@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ArrowRight, Minus, Plus, Ruler, ShoppingBag } from "lucide-react";
 import GlassDrawing from "../../../../components/GlassDrawing";
 import { PIECE_KINDS, sanitizePieceSpec } from "../../../../lib/glassPieces";
 import { glassOptions, glassPrice, glassMeasureLabel, glassMeasurements, type GlassCatalogItem } from "../../../../../shared/glassCatalog";
 import type { ProjectPiece } from "./project";
 
+const colorSamples: Record<string, string> = { branco: "#ffffff", preto: "#151515", prata: "#c4c7cc", cinza: "#89909a", bronze: "#a77c52", azul: "#2d5da8", verde: "#4a8051", vermelho: "#df3131" };
+const normalizeColor = (value: string) => value.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
 export default function PieceConfigurator({ item, itemKey, onAdd, initial, label = "Adicionar ao projeto", allowNotes = true }: { item: GlassCatalogItem; itemKey: string; onAdd: (piece: ProjectPiece) => void; initial?: ProjectPiece; label?: string; allowNotes?: boolean }) {
+  const choiceId = useId();
   const [unit, setUnit] = useState("cm");
   const [width, setWidth] = useState(initial?.spec ? String(initial.spec.width_mm / 10) : "");
   const [height, setHeight] = useState(initial?.spec ? String(initial.spec.height_mm / 10) : "");
@@ -32,7 +36,10 @@ export default function PieceConfigurator({ item, itemKey, onAdd, initial, label
   };
   return <form className="vitra-config" onSubmit={submit}>
     {settings.enabled && <div className="vitra-config-title"><Ruler size={19}/><div><h2>Do tamanho do seu projeto</h2><p>Informe as medidas desta peça.</p></div></div>}
-    {groups.map(group => <label key={group.name}>{group.name}<select aria-label={group.name} required value={options[group.name] || ""} onChange={e => setOptions({ ...options, [group.name]: e.target.value })}><option value="" disabled>Selecione uma opção</option>{group.values.map(value => <option key={value}>{value}</option>)}</select></label>)}
+    {groups.map(group => ["cor", "cores"].includes(normalizeColor(group.name)) ? <fieldset key={group.name} className="vitra-color-choices"><legend>{group.name}</legend><div>{group.values.map(value => {
+      const sample = colorSamples[normalizeColor(value)];
+      return <label key={value} className={`vitra-color-option${options[group.name] === value ? " is-selected" : ""}`}><input type="radio" name={`${choiceId}-${group.name}`} value={value} required checked={options[group.name] === value} onChange={() => setOptions({ ...options, [group.name]: value })}/>{sample && <span className="vitra-color-sample" style={{ backgroundColor: sample }} aria-hidden="true"/>}<span>{value}</span></label>;
+    })}</div></fieldset> : <label key={group.name}>{group.name}<select aria-label={group.name} required value={options[group.name] || ""} onChange={e => setOptions({ ...options, [group.name]: e.target.value })}><option value="" disabled>Selecione uma opção</option>{group.values.map(value => <option key={value}>{value}</option>)}</select></label>)}
     {settings.enabled && settings.allowLater && <label className="vitra-checkline"><input type="checkbox" checked={later} onChange={e => setLater(e.target.checked)}/>Ainda não tenho as medidas; preciso da orientação da loja</label>}
     {settings.enabled && !later && <>
       <div className="vitra-measure-heading"><label>Unidade das medidas<select aria-label="Unidade das medidas" value={unit} onChange={e => { const next = e.target.value; const nextFactor = next === "m" ? 1000 : next === "cm" ? 10 : 1; if (width) setWidth(String(Number((mm(width) / nextFactor).toFixed(3)))); if (height) setHeight(String(Number((mm(height) / nextFactor).toFixed(3)))); setUnit(next); }}><option value="cm">Centímetros (cm)</option><option value="m">Metros (m)</option><option value="mm">Milímetros (mm)</option></select></label></div>
