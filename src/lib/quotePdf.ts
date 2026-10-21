@@ -1,4 +1,9 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import GlassDrawing from "../components/GlassDrawing";
 import { downloadHtmlAsPdf } from "./pdf";
+import { glassSpecFromOptions } from "./glassQuote";
+import { pieceCut, pieceLabel, type PieceSpec } from "./glassPieces";
 import {
   buildDocumentHeaderHtml,
   buildDocumentTableHtml,
@@ -25,6 +30,9 @@ export interface QuotePdfService {
   name: string;
   quantity: number;
   unit_price: number;
+  dimensions_label?: string | null;
+  /** Peça de vidraçaria: o PDF mostra o desenho e as medidas dela. */
+  piece_spec?: PieceSpec | null;
 }
 
 export interface QuotePdfCustomer {
@@ -52,6 +60,41 @@ export interface QuotePdfData {
   deposit_payment_method?: string | null;
   items: QuotePdfItem[];
   services?: QuotePdfService[];
+}
+
+const escHtml = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
+/** Seção "Projeto" do PDF: desenho técnico de cada peça com as medidas combinadas com o cliente. */
+function buildProjectHtml(quote: QuotePdfData): string {
+  const pieces: { name: string; spec: PieceSpec; qty: number }[] = [
+    ...(quote.services ?? []).filter((s) => s.piece_spec).map((s) => ({ name: s.name, spec: s.piece_spec as PieceSpec, qty: s.quantity })),
+    ...quote.items
+      .map((i) => ({ name: i.name, spec: glassSpecFromOptions(i.selected_options), qty: i.quantity }))
+      .filter((p): p is { name: string; spec: PieceSpec; qty: number } => !!p.spec),
+  ];
+  if (pieces.length === 0) return "";
+
+  const cards = pieces.map((p, i) => {
+    const area = pieceCut(p.spec).areaBilled;
+    const glass = [p.spec.glass, p.spec.thickness_mm ? `${p.spec.thickness_mm} mm` : ""].filter(Boolean).join(" ");
+    const lines = [
+      `<b>${i + 1}. ${escHtml(pieceLabel(p.spec.kind))}</b> <span style="color:#64748b">· ${escHtml(p.name)}</span>`,
+      `Medida: <b>${p.spec.width_mm} × ${p.spec.height_mm} mm</b>${p.spec.leaves && p.spec.leaves > 1 ? ` · ${p.spec.leaves} folhas` : ""}`,
+      glass ? `Vidro: ${escHtml(glass)}` : "",
+      p.spec.finish ? `Perfil / ferragem: ${escHtml(p.spec.finish)}` : "",
+      `Quantidade: <b>${p.qty}</b> · Área: ${(area * p.qty).toFixed(2)} m²`,
+      p.spec.notes ? `<i style="color:#475569">${escHtml(p.spec.notes)}</i>` : "",
+    ].filter(Boolean);
+    return `<div style="display:flex;gap:14px;align-items:center;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:10px;page-break-inside:avoid;">
+      <div style="width:210px;flex-shrink:0;background:#f8fafc;border-radius:6px;padding:4px;">${renderToStaticMarkup(createElement(GlassDrawing, { spec: p.spec }))}</div>
+      <div style="flex:1;font-size:12px;line-height:1.7;">${lines.map((l) => `<div>${l}</div>`).join("")}</div>
+    </div>`;
+  }).join("");
+
+  return `<div class="doc-section">
+  <div class="doc-section-label">Projeto — peças e medidas</div>
+  ${cards}
+</div>`;
 }
 
 function quoteItemUnit(dimLabel?: string | null): string {
@@ -108,9 +151,11 @@ export async function generateQuotePDF(
           fmtMoney(Number(s.unit_price)),
           fmtMoney(Number(s.unit_price) * s.quantity),
         ],
+        sub: s.dimensions_label || undefined,
       })),
     ],
   );
+  const projectHtml = buildProjectHtml(quote);
 
   const discountAmt = quote.discount_value > 0
     ? (quote.discount_type === "percent"
@@ -168,6 +213,8 @@ ${header}
   <div class="doc-section-label">Itens / Serviços</div>
   ${itemsTable}
 </div>
+
+${projectHtml}
 
 <div class="doc-section">
   <div class="doc-totals">

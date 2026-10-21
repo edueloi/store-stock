@@ -314,6 +314,8 @@ export default function QuoteDetail() {
   const [pieceMode, setPieceMode] = useState(false);
   // Índice do serviço (peça) que está sendo editado; null = adicionando uma peça nova.
   const [editingPieceIdx, setEditingPieceIdx] = useState<number | null>(null);
+  // Desenho ampliado de uma peça (clique na miniatura).
+  const [zoomPiece, setZoomPiece] = useState<{ name: string; spec: PieceSpec } | null>(null);
   const [pieceDraft, setPieceDraft] = useState<PieceDraft>(emptyPieceDraft());
   const [serviceSearch, setServiceSearch] = useState("");
   const [formItems, setFormItems] = useState<QuoteItem[]>([]);
@@ -1157,42 +1159,84 @@ export default function QuoteDetail() {
                 {formServices.length > 0 && (
                   <PanelCard title="Serviços" icon={Wrench}>
                     <div className="space-y-2 p-3">
-                      {formServices.map((svc, svcIdx) => (
-                        <div key={`${svc.service_id}-${svcIdx}`} className="flex flex-wrap items-end gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
-                          <div className="min-w-[100px] flex-1 self-center truncate">
-                            <span className="text-xs font-medium text-slate-800">{svc.name}</span>
-                            {svc.dimensions_label && <span className="ml-1.5 font-mono text-[11px] text-blue-600">{svc.dimensions_label}</span>}
-                          </div>
-                          {svc.piece_spec && <div className="w-28 shrink-0 overflow-hidden rounded border border-blue-100 bg-white"><GlassDrawing spec={svc.piece_spec} /></div>}
-                          <div className="shrink-0">
-                            <span className="ds-label mb-1 block">Qtd.</span>
-                            <div className="flex items-center gap-1">
-                              <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Diminuir quantidade" onClick={() => updateServiceQty(svcIdx, svc.quantity - 1)}>−</IconButton>
-                              <Input
-                                wrapperClassName="w-16" className="text-center"
-                                type="number" min={0} step="any" disabled={!isEditable} value={svc.quantity}
-                                aria-label="Quantidade"
-                                onChange={(e) => updateServiceQty(svcIdx, Number(e.target.value))}
-                              />
-                              <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Aumentar quantidade" onClick={() => updateServiceQty(svcIdx, svc.quantity + 1)}>+</IconButton>
+                      {formServices.map((svc, svcIdx) => {
+                        const spec = svc.piece_spec ?? null;
+                        const controls = (
+                          <div className="flex flex-wrap items-end gap-3">
+                            <div className="shrink-0">
+                              <span className="ds-label mb-1 block">Qtd.</span>
+                              <div className="flex items-center gap-1">
+                                <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Diminuir quantidade" onClick={() => updateServiceQty(svcIdx, svc.quantity - 1)}>−</IconButton>
+                                <Input
+                                  wrapperClassName="w-16" className="text-center"
+                                  type="number" min={0} step="any" disabled={!isEditable} value={svc.quantity}
+                                  aria-label="Quantidade"
+                                  onChange={(e) => updateServiceQty(svcIdx, Number(e.target.value))}
+                                />
+                                <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Aumentar quantidade" onClick={() => updateServiceQty(svcIdx, svc.quantity + 1)}>+</IconButton>
+                              </div>
+                            </div>
+                            <Input
+                              label="Preço unitário"
+                              wrapperClassName="w-32 shrink-0" className="text-right font-mono"
+                              addonLeft="R$"
+                              inputMode="numeric" disabled={!isEditable} placeholder="0,00" value={centsToMasked(svc.price)}
+                              onChange={(e) => updateServicePrice(svcIdx, parseMaskedPrice(applyMoneyMask(e.target.value)))}
+                            />
+                            <div className="ml-auto text-right">
+                              <span className="ds-label mb-1 block">Total</span>
+                              <span className="text-sm font-bold tabular-nums text-blue-700">{fmt(svc.price * svc.quantity)}</span>
+                            </div>
+                            <div className="flex items-center gap-1 self-end">
+                              {isEditable && spec && (
+                                <IconButton size="xs" variant="ghost" aria-label="Editar peça" title="Editar medidas da peça" onClick={() => openEditPiece(svcIdx)}><Pencil size={14} /></IconButton>
+                              )}
+                              {isEditable && (
+                                <IconButton size="xs" variant="ghost" aria-label="Remover serviço" onClick={() => removeService(svcIdx)}><X size={14} /></IconButton>
+                              )}
                             </div>
                           </div>
-                          <Input
-                            label="Preço unitário"
-                            wrapperClassName="w-32 shrink-0" className="text-right font-mono"
-                            addonLeft="R$"
-                            inputMode="numeric" disabled={!isEditable} placeholder="0,00" value={centsToMasked(svc.price)}
-                            onChange={(e) => updateServicePrice(svcIdx, parseMaskedPrice(applyMoneyMask(e.target.value)))}
-                          />
-                          <span className="w-20 shrink-0 self-center text-right text-xs font-semibold tabular-nums text-blue-700">{fmt(svc.price * svc.quantity)}</span>
-                          {isEditable && svc.piece_spec && (
-                            <IconButton size="xs" variant="ghost" aria-label="Editar peça" title="Editar medidas da peça" onClick={() => openEditPiece(svcIdx)}><Pencil size={14} /></IconButton>
-                          )}
-                          {isEditable && (
-                            <IconButton size="xs" variant="ghost" aria-label="Remover serviço" onClick={() => removeService(svcIdx)}><X size={14} /></IconButton>
-                          )}
-                        </div>
-                      ))}
+                        );
+
+                        if (!spec) {
+                          return (
+                            <div key={`${svc.service_id}-${svcIdx}`} className="space-y-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                              <div className="min-w-0 truncate">
+                                <span className="text-xs font-medium text-slate-800">{svc.name}</span>
+                                {svc.dimensions_label && <span className="ml-1.5 font-mono text-[11px] text-blue-600">{svc.dimensions_label}</span>}
+                              </div>
+                              {controls}
+                            </div>
+                          );
+                        }
+
+                        const cut = pieceCut(spec);
+                        const chip = "rounded-full px-2 py-0.5 text-[11px] font-medium";
+                        return (
+                          <div key={`${svc.service_id}-${svcIdx}`} className="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm sm:flex">
+                            <button type="button" onClick={() => setZoomPiece({ name: svc.name, spec })} title="Ampliar desenho"
+                              className="group relative block w-full shrink-0 bg-slate-50 p-2 sm:w-56">
+                              <GlassDrawing spec={spec} />
+                              <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-600 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">Ampliar</span>
+                            </button>
+                            <div className="min-w-0 flex-1 space-y-3 p-3">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">{pieceLabel(spec.kind)} <span className="font-normal text-slate-500">· {svc.name}</span></p>
+                                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                  <span className={`${chip} bg-blue-50 text-blue-700`}>Vão {spec.width_mm} × {spec.height_mm} mm</span>
+                                  {spec.gap_mm ? <span className={`${chip} bg-amber-50 text-amber-800`}>Corte {cut.cutW} × {cut.cutH} mm · sangria {spec.gap_mm} mm</span> : null}
+                                  {cut.leaves > 1 && <span className={`${chip} bg-slate-100 text-slate-700`}>{cut.leaves} folhas ≈ {cut.leafW} mm</span>}
+                                  {(spec.glass || spec.thickness_mm) && <span className={`${chip} bg-slate-100 text-slate-700`}>{[spec.glass, spec.thickness_mm ? `${spec.thickness_mm} mm` : ""].filter(Boolean).join(" ")}</span>}
+                                  {spec.finish && <span className={`${chip} bg-slate-100 text-slate-700`}>Perfil {spec.finish.toLowerCase()}</span>}
+                                  <span className={`${chip} bg-emerald-50 text-emerald-700`}>{cut.areaBilled.toFixed(2)} m² cobrados{spec.waste_pct ? ` (+${spec.waste_pct}% margem)` : ""}</span>
+                                </div>
+                                {spec.notes && <p className="mt-1.5 text-[11px] italic text-slate-500">{spec.notes}</p>}
+                              </div>
+                              {controls}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </PanelCard>
                 )}
@@ -1363,6 +1407,16 @@ export default function QuoteDetail() {
         </div>
       </div>
 
+      <Modal
+        open={!!zoomPiece}
+        onClose={() => setZoomPiece(null)}
+        size="lg"
+        title={zoomPiece ? pieceLabel(zoomPiece.spec.kind) : ""}
+        subtitle={zoomPiece ? pieceSummary(zoomPiece.spec) : undefined}
+      >
+        {zoomPiece && <div className="rounded-xl bg-white p-2 ring-1 ring-slate-100"><GlassDrawing spec={zoomPiece.spec} /></div>}
+      </Modal>
+
       <ProductVariationModal
         product={variationProduct}
         onClose={() => setVariationProduct(null)}
@@ -1418,7 +1472,7 @@ export default function QuoteDetail() {
       <Modal
         open={!!measureService}
         onClose={() => { setMeasureService(null); setEditingPieceIdx(null); }}
-        size={pieceMode ? "lg" : "sm"}
+        size={pieceMode ? "xl" : "sm"}
         title={editingPieceIdx !== null ? `Editar peça · ${measureService?.name ?? ""}` : measureService?.name}
         subtitle={measureService ? `Serviço por ${measureService.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
         footer={
@@ -1431,13 +1485,35 @@ export default function QuoteDetail() {
         {measureService && (
           <div className="space-y-3">
             {measureService.sale_unit === "m2" && (
-              <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+              <label className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800">
                 <input type="checkbox" checked={pieceMode} onChange={(e) => setPieceMode(e.target.checked)} />
                 Peça sob medida (vidraçaria) — com desenho e especificação
               </label>
             )}
             {pieceMode ? (
-              <GlassPieceFields draft={pieceDraft} onChange={setPieceDraft} showTechnical defaults={tenant?.policies?.glass_defaults} />
+              <GlassPieceFields
+                draft={pieceDraft}
+                onChange={setPieceDraft}
+                showTechnical
+                defaults={tenant?.policies?.glass_defaults}
+                summary={measureServicePreview && measureServicePreview.rawQuantity > 0 ? (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                    <div className="flex items-baseline justify-between text-xs text-blue-800">
+                      <span>Área cobrada</span>
+                      <span className="font-mono font-semibold">{pieceBilledAreaM2(pieceSpec).toFixed(2)} m²</span>
+                    </div>
+                    {measureServicePreview.minimumApplied && (
+                      <p className="mt-1 text-[11px] font-medium text-amber-700">
+                        Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)} m²
+                      </p>
+                    )}
+                    <div className="mt-2 flex items-end justify-between border-t border-blue-200 pt-2">
+                      <span className="text-xs font-semibold text-blue-900">Valor da peça</span>
+                      <span className="font-mono text-2xl font-bold text-blue-900">R$ {measureServicePreview.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                ) : null}
+              />
             ) : measureService.sale_unit === "m2" ? (
               <div className="grid grid-cols-2 gap-3">
                 <Input label="Altura (m)" type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
@@ -1446,7 +1522,7 @@ export default function QuoteDetail() {
             ) : (
               <Input label="Comprimento (m)" type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
             )}
-            {measureServicePreview && measureServicePreview.rawQuantity > 0 && (
+            {!pieceMode && measureServicePreview && measureServicePreview.rawQuantity > 0 && (
               <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
                 <div className="flex justify-between text-slate-500">
                   <span>{measureService.sale_unit === "m2" ? "Área" : "Comprimento"}</span>
