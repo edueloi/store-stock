@@ -61,6 +61,7 @@ import {
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
 import HeroSlidesEditor from "./HeroSlidesEditor";
 import VitraContentEditor from "./VitraContentEditor";
+import { sanitizeStorefrontHeadings } from "../../../shared/storefrontHeadings";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import AsaasAccountSetup from "../../components/settings/AsaasAccountSetup";
@@ -209,6 +210,7 @@ function TextInput({
   mono = false,
   className = "",
   autoComplete = "off",
+  name,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -217,6 +219,7 @@ function TextInput({
   mono?: boolean;
   className?: string;
   autoComplete?: string;
+  name?: string;
 }) {
   return (
     <Input
@@ -225,6 +228,7 @@ function TextInput({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       autoComplete={autoComplete}
+      name={name}
       autoCorrect="off"
       autoCapitalize="off"
       spellCheck={false}
@@ -1552,12 +1556,16 @@ export default function Settings({
   const handleSaveTenant = async () => {
     setSaving(true);
     try {
+      const nextTenant = { ...tenant, policies: sanitizeStorefrontHeadings(tenant?.policies) };
       const res = await fetch("/api/tenant", {
         method: "PUT",
         headers: API_HEADERS(),
-        body: JSON.stringify(tenant),
+        body: JSON.stringify(nextTenant),
       });
-      if (res.ok) showSaved();
+      if (res.ok) {
+        setTenant(prev => prev?.policies === tenant?.policies ? { ...prev, policies: nextTenant.policies } : prev);
+        showSaved();
+      }
     } finally {
       setSaving(false);
     }
@@ -4038,6 +4046,7 @@ export default function Settings({
                         </Field>
                         <Field label="Título dos destaques">
                           <TextInput
+                            name="storefront-featured-heading"
                             value={storefront.home_featured_title || ""}
                             onChange={(value) =>
                               setStorefront({ home_featured_title: value })

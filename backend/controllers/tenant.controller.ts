@@ -13,6 +13,7 @@ import { decryptSecret, encryptSecret } from "../utils/secretCrypto";
 import { parsePfx } from "../services/nfce/signer";
 import { sendReportNow } from "../services/email-reports.service";
 import { sendStoreEmailConnectionTest } from "../services/store-email.service";
+import { sanitizeStorefrontHeadings } from "../../shared/storefrontHeadings";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -248,7 +249,7 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.bestseller_limit !== undefined)   data.bestseller_limit   = Number(b.bestseller_limit);
     if (b.business_hours !== undefined)     data.business_hours     = b.business_hours;
     if (b.payment_methods !== undefined)    data.payment_methods    = b.payment_methods;
-    if (b.policies !== undefined)           data.policies           = b.policies;
+    if (b.policies !== undefined)           data.policies           = sanitizeStorefrontHeadings(b.policies);
     if (b.card_fees !== undefined)          data.card_fees          = b.card_fees;
     if (b.pass_fee_to_customer !== undefined) data.pass_fee_to_customer = Boolean(b.pass_fee_to_customer);
     if (b.max_installments !== undefined)   data.max_installments   = Number(b.max_installments);

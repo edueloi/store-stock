@@ -19,7 +19,7 @@ const entry=path.join(__dirname,'.glass-product-preview.tsx');
    if(url.pathname.startsWith('/api/public/store'))return route.fulfill({json:{tenant:{id:7,slug:'vidros',name:'VIDROS AÇÃO',template_id:'vidracaria',whatsapp:'5511999999999',show_address:true,address:'Rua São José, 100',banner_url:img,policies:{storefront:{glass_quote_enabled:enabled,glass_content:themeContent,glass_gallery:[{id:'foto',image:img2,title:'Ambiente da loja',subtitle:'Foto cadastrada'}]}}},products,categories:[{id:1,name:'Espelhos'},{id:2,name:'Ferragens'}]}});
    return route.fulfill({json:[]});
   });
-  const goto=async(suffix='')=>{await page.goto(base+'/s/vidros'+suffix);await page.locator('.vitra-root h1').first().waitFor();await page.locator('#app-splash').waitFor({state:'hidden'});};
+  const goto=async(suffix='')=>{await page.goto(base+'/s/vidros'+suffix,{waitUntil:'domcontentloaded'});await page.locator('.vitra-root h1').first().waitFor();await page.locator('#app-splash').waitFor({state:'hidden'});};
   for(const width of process.env.THEME_SKIP_RESPONSIVE ? [] : [390,768,1440]){
    await page.setViewportSize({width,height:1000});
    for(const suffix of ['','/catalogo','/produto/espelho-sob-medida-1','/produto/kit-01-al-2','/orcamento']){
@@ -78,6 +78,7 @@ const entry=path.join(__dirname,'.glass-product-preview.tsx');
   await editor.getByLabel('Título da apresentação',{exact:true}).fill('Sua escolha,\ncom atenção a cada detalhe.');
   await editor.getByLabel('Texto da apresentação',{exact:true}).fill('Descrição exclusiva da loja, com ação e proteção.');
   await editor.getByLabel('Mostrar categorias na página inicial',{exact:true}).uncheck();
+  await editor.getByLabel('Título dos produtos em destaque',{exact:true}).fill('acesso@example.test');
   await editor.getByText('Etapas do orçamento',{exact:true}).click();await editor.getByLabel('Mostrar etapas do orçamento',{exact:true}).uncheck();
   await editor.getByText('Galeria de fotos',{exact:true}).click();await editor.getByLabel('Mostrar galeria de fotos',{exact:true}).uncheck();
   await editor.getByText('Chamada com imagem antes do rodapé',{exact:true}).click();
@@ -92,8 +93,11 @@ const entry=path.join(__dirname,'.glass-product-preview.tsx');
   await editor.getByRole('button',{name:'Salvar textos e seções',exact:true}).click();await savedContentResponse;
   await page.waitForFunction(()=>document.body.innerText.includes('Configurações salvas com sucesso!'));
   themeContent=savedSettings.policies.storefront.glass_content;
+  assert.equal(savedSettings.policies.storefront.home_featured_title,undefined);
   assert.equal(themeContent.show_process,false);assert.equal(themeContent.closing_image,'');assert.equal(themeContent.footer_tagline,'');
   await page.reload();await editor.waitFor();await editor.getByText('Rodapé',{exact:true}).click();
+  await editor.getByText('Apresentação, categorias e destaques',{exact:true}).click();
+  assert.equal(await editor.getByLabel('Título dos produtos em destaque',{exact:true}).inputValue(),'Os detalhes começam aqui.');
   assert.equal(await editor.getByLabel('Descrição da loja no rodapé',{exact:true}).inputValue(),'Atendimento e seleção que fazem a diferença.');
   assert.equal(await editor.getByLabel('Subtítulo da loja no rodapé',{exact:true}).inputValue(),'');
   enabled=true;await goto();assert.match(await page.locator('.vitra-home-intro').innerText(),/Descrição exclusiva da loja, com ação e proteção/);

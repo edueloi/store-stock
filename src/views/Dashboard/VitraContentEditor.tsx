@@ -17,10 +17,10 @@ export default function VitraContentEditor({ tenant, onChange, onSave, saving }:
   const [error, setError] = useState("");
   const inputClass = "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800";
   const text = (label: string, key: keyof VitraContent, multiline = false) => <label className="grid gap-2 text-xs text-slate-600">{label}{multiline
-    ? <textarea aria-label={label} className={inputClass} rows={3} maxLength={2000} value={String(content[key])} onChange={e => patch({ [key]: e.target.value })}/>
-    : <input aria-label={label} className={inputClass} maxLength={500} value={String(content[key])} onChange={e => patch({ [key]: e.target.value })}/>}</label>;
+    ? <textarea name={`storefront-${key}`} autoComplete="off" data-lpignore="true" data-1p-ignore="true" aria-label={label} className={inputClass} rows={3} maxLength={2000} value={String(content[key])} onChange={e => patch({ [key]: e.target.value })}/>
+    : <input name={`storefront-${key}`} autoComplete="off" data-lpignore="true" data-1p-ignore="true" aria-label={label} className={inputClass} maxLength={500} value={String(content[key])} onChange={e => patch({ [key]: e.target.value })}/>}</label>;
   const toggle = (label: string, key: keyof VitraContent) => <label className="flex items-center gap-2 text-xs text-slate-700"><input type="checkbox" className="accent-blue-600" checked={content[key] === true} onChange={e => patch({ [key]: e.target.checked })}/>{label}</label>;
-  const field = (label: string, value: string, change: (value: string) => void) => <label className="grid gap-2 text-xs text-slate-600">{label}<textarea aria-label={label} className={inputClass} rows={2} maxLength={2000} value={value} onChange={e => change(e.target.value)}/></label>;
+  const field = (label: string, value: string, change: (value: string) => void) => <label className="grid gap-2 text-xs text-slate-600">{label}<textarea autoComplete="off" data-lpignore="true" data-1p-ignore="true" aria-label={label} className={inputClass} rows={2} maxLength={2000} value={value} onChange={e => change(e.target.value)}/></label>;
   const upload = async (file?: File) => {
     if (!file) return;
     setError("");

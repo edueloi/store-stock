@@ -9,6 +9,7 @@ import { createStoreOrderPdf } from "../services/store-order-pdf.service";
 import { baseTemplate, sendPlatformEmail } from "../services/mailer.service";
 import { escapeHtml } from "../utils/html-escape";
 import { env } from "../config/env";
+import { sanitizeStorefrontHeadings } from "../../shared/storefrontHeadings";
 import {
   buildTenantAccessUrl,
   resolveTenantLookupFromRequest,
@@ -102,7 +103,7 @@ function publicTenant(tenant: any) {
     bestseller_limit: tenant.bestseller_limit,
     business_hours: tenant.business_hours,
     sell_without_stock_control: Boolean(tenant.sell_without_stock_control),
-    policies: tenant.policies,
+    policies: sanitizeStorefrontHeadings(tenant.policies),
     public_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
   };
 }
