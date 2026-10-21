@@ -7,6 +7,7 @@ import { buildStorePath, resolveStoreSlug } from "../../store-routing";
 import "./styles.css";
 import { useGlassProject } from "./project";
 import { vitraContent } from "./content";
+import { formatContactPhone } from "../../../../lib/whatsappPhone";
 
 export function Header() {
   const { slug: routeSlug } = useParams();
@@ -137,7 +138,7 @@ export function Footer() {
           {content.footer_show_contact && (whatsapp || (tenant.show_address && tenant.address)) && <div className="vitra-fcard">
             <h4>Fale conosco</h4>
             {tenant.show_address && tenant.address && <p className="small">{tenant.address}</p>}
-            {tenant.whatsapp && <p className="small">{tenant.whatsapp}</p>}
+            {tenant.whatsapp && <p className="small">{formatContactPhone(tenant.whatsapp)}</p>}
             {whatsapp && (
               <a className="vitra-wa" href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer">
                 <MessageCircle size={15} /> Atendimento via WhatsApp
