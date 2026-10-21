@@ -6,6 +6,7 @@ import { localDateString } from "../utils/date";
 import { computeMeasuredPrice } from "../utils/measurePricing";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { resolveVariationSelection, VariationError } from "../utils/variation-selection";
+import { pieceCut, pieceSummary, sanitizePieceSpec } from "../utils/glassPieces";
 import { advanceServiceOrderToNotaEmitida, canMoveToStage, syncLinkedStatus } from "../utils/stage-permissions";
 import { getWorkflowStagesForTenant } from "../utils/workflow-stages";
 import { cancelarNfce } from "../services/nfce/cancelar";
@@ -604,11 +605,12 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const id = Number(req.params.id);
     const {
-      product_id, service_id, quantity, height, width, no_charge, selected_options: selectedOptionsRaw,
+      product_id, service_id, quantity, height, width, no_charge, selected_options: selectedOptionsRaw, piece_spec: pieceSpecRaw,
       name: freeName, unit: freeUnit, unit_price: freeUnitPrice,
       discount_type: discountType, discount_value: discountValueRaw,
     } = req.body as {
       selected_options?: Record<string, string>;
+      piece_spec?: unknown;
       product_id?: number; service_id?: number; quantity?: number; height?: number; width?: number; no_charge?: boolean;
       name?: string; unit?: string; unit_price?: number;
       discount_type?: string; discount_value?: number;
@@ -636,19 +638,25 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       let unitPrice = Number(service.price);
       let totalBeforeDiscount: number;
       let dimensionsLabel: string | null = null;
+      let pieceForPart: ReturnType<typeof sanitizePieceSpec> = null;
 
+      // Peça de vidraçaria (serviço por m²): o preço vem da medida de CORTE (vão menos a sangria)
+      // com a margem de segurança — sempre recalculado aqui, nunca confiado ao cliente.
+      const piece = isMeasured && service.sale_unit === "m2" ? sanitizePieceSpec(pieceSpecRaw) : null;
       if (isMeasured) {
+        const cut = piece ? pieceCut(piece) : null;
         const result = computeMeasuredPrice(
           service.sale_unit as "m2" | "linear",
           Number(service.price_per_measure) || 0,
           service.min_billable_quantity ? Number(service.min_billable_quantity) : null,
-          Number(height) || 0,
-          Number(width) || 0,
+          piece ? cut!.cutH / 1000 : Number(height) || 0,
+          piece ? (cut!.cutW / 1000) * (1 + (piece.waste_pct ?? 0) / 100) : Number(width) || 0,
         );
         qty = 1;
         unitPrice = result.total;
         totalBeforeDiscount = result.total;
-        dimensionsLabel = result.label;
+        dimensionsLabel = piece ? `${pieceSummary(piece)} · ${cut!.areaBilled.toFixed(2)}m²` : result.label;
+        pieceForPart = piece;
       } else {
         totalBeforeDiscount = Math.round(unitPrice * qty * 100) / 100;
       }
@@ -676,6 +684,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
           total,
           no_charge: !!no_charge,
           dimensions_label: dimensionsLabel,
+          piece_spec: pieceForPart ? (pieceForPart as unknown as Record<string, string | number>) : undefined,
         },
       });
 

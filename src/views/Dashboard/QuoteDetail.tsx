@@ -3,6 +3,8 @@ import GlassDrawing from "../../components/GlassDrawing";
 import GlassPieceFields, { draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, specToDraft, type PieceDraft } from "../../components/GlassPieceFields";
 import { pieceBilledAreaM2, pieceCut, pieceLabel, pieceSummary, type PieceSpec } from "../../lib/glassPieces";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
+import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
+import { printCutSheet } from "../../lib/cutSheet";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -1135,47 +1137,17 @@ export default function QuoteDetail() {
 
                 {(() => {
                   // Projeto: todas as peças do orçamento (serviços por m² e produtos de vidro vindos da vitrine).
-                  const pieces = [
+                  const pieces: ProjectPiece[] = [
                     ...formServices.filter((s) => s.piece_spec).map((s) => ({ name: s.name, spec: s.piece_spec as PieceSpec, qty: s.quantity })),
-                    ...formItems.map((i) => ({ name: i.name, spec: glassSpecFromOptions(i.selected_options), qty: i.quantity })).filter((p): p is { name: string; spec: PieceSpec; qty: number } => !!p.spec),
+                    ...formItems.map((i) => ({ name: i.name, spec: glassSpecFromOptions(i.selected_options), qty: i.quantity })).filter((p): p is ProjectPiece => !!p.spec),
                   ];
                   if (pieces.length === 0) return null;
-                  const totalPieces = pieces.reduce((sum, p) => sum + p.qty, 0);
-                  const totalM2 = pieces.reduce((sum, p) => sum + pieceBilledAreaM2(p.spec) * p.qty, 0);
                   return (
                     <PanelCard title="Projeto — peças e medidas" icon={PenTool}>
-                      <div className="overflow-x-auto p-3">
-                        <table className="w-full min-w-[560px] text-left text-[11px]">
-                          <thead>
-                            <tr className="border-b border-slate-200 text-slate-500">
-                              <th className="py-1.5 pr-2 font-medium">Peça</th>
-                              <th className="px-2 py-1.5 font-medium">Vão (mm)</th>
-                              <th className="px-2 py-1.5 font-medium">Sangria</th>
-                              <th className="px-2 py-1.5 font-medium">Corte (mm)</th>
-                              <th className="px-2 py-1.5 font-medium">Vidro</th>
-                              <th className="px-2 py-1.5 text-right font-medium">Qtd.</th>
-                              <th className="py-1.5 pl-2 text-right font-medium">m² cobrados</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {pieces.map((p, i) => {
-                              const cut = pieceCut(p.spec);
-                              return (
-                                <tr key={i} className="border-b border-slate-100 text-slate-700">
-                                  <td className="py-1.5 pr-2 font-medium">{pieceLabel(p.spec.kind)}<span className="block font-normal text-slate-400">{p.name}</span></td>
-                                  <td className="px-2 py-1.5 font-mono">{p.spec.width_mm} × {p.spec.height_mm}</td>
-                                  <td className="px-2 py-1.5 font-mono">{p.spec.gap_mm ? `${p.spec.gap_mm} mm/lado` : "—"}</td>
-                                  <td className="px-2 py-1.5 font-mono">{cut.cutW} × {cut.cutH}{cut.leaves > 1 ? <span className="block font-sans text-slate-400">{cut.leaves} folhas ≈ {cut.leafW} mm</span> : null}</td>
-                                  <td className="px-2 py-1.5">{[p.spec.glass, p.spec.thickness_mm ? `${p.spec.thickness_mm} mm` : ""].filter(Boolean).join(" ") || "—"}</td>
-                                  <td className="px-2 py-1.5 text-right tabular-nums">{p.qty}</td>
-                                  <td className="py-1.5 pl-2 text-right font-mono tabular-nums">{(cut.areaBilled * p.qty).toFixed(2)}{p.spec.waste_pct ? <span className="block font-sans text-slate-400">+{p.spec.waste_pct}% margem</span> : null}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                        <p className="mt-2 text-right text-xs font-semibold text-slate-800">{totalPieces} {totalPieces === 1 ? "peça" : "peças"} · {totalM2.toFixed(2)} m² cobrados</p>
-                      </div>
+                      <GlassProjectTable
+                        pieces={pieces}
+                        onPrint={() => printCutSheet({ heading: `Orçamento #${String(quote.number).padStart(4, "0")}`, customer: quote.customer_name, pieces })}
+                      />
                     </PanelCard>
                   );
                 })()}

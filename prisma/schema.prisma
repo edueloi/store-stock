@@ -1586,6 +1586,8 @@ model ServiceOrderPart {
   dimensions_label      String?
   // Variação escolhida da peça (ex.: {"Cor":"Azul"}) — baixa/devolve o estoque da variação certa
   selected_options      Json?
+  // Peça de vidro sob medida (vão, sangria, margem, vidro...) lançada direto na OS — alimenta a ficha de corte
+  piece_spec            Json?
   created_at            DateTime @default(now())
 
   service_order ServiceOrder @relation(fields: [service_order_id], references: [id], onDelete: Cascade)

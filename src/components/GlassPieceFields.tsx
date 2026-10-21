@@ -18,15 +18,26 @@ export interface PieceDraft {
 }
 
 // Sangria e margem costumam ser as mesmas em todo o trabalho: lembra os últimos valores usados neste navegador.
+// Cada tipo de peça tem a sua própria sangria (box, janela e espelho costumam ser diferentes): guarda
+// o último valor usado por tipo e, para tipo ainda sem histórico, o último valor usado em geral.
 const TECH_KEY = "vidra:tecnico";
-export function readTechnicalDefaults(): { gap_mm: string; waste_pct: string } {
-  try {
-    const saved = JSON.parse(localStorage.getItem(TECH_KEY) || "{}");
-    return { gap_mm: String(saved.gap_mm ?? ""), waste_pct: String(saved.waste_pct ?? "") };
-  } catch { return { gap_mm: "", waste_pct: "" }; }
+type TechValues = { gap_mm: string; waste_pct: string };
+const readTechStore = (): Record<string, TechValues> => {
+  try { return JSON.parse(localStorage.getItem(TECH_KEY) || "{}") ?? {}; } catch { return {}; }
+};
+export function readTechnicalDefaults(kind?: string): TechValues {
+  const store = readTechStore();
+  const saved = (kind && store[kind]) || store._last || ({} as Partial<TechValues>);
+  return { gap_mm: String(saved.gap_mm ?? ""), waste_pct: String(saved.waste_pct ?? "") };
 }
-export function rememberTechnicalDefaults(d: Pick<PieceDraft, "gap_mm" | "waste_pct">) {
-  try { localStorage.setItem(TECH_KEY, JSON.stringify({ gap_mm: d.gap_mm, waste_pct: d.waste_pct })); } catch { /* sem armazenamento */ }
+export function rememberTechnicalDefaults(d: Pick<PieceDraft, "gap_mm" | "waste_pct"> & { kind?: string }) {
+  try {
+    const store = readTechStore();
+    const values = { gap_mm: d.gap_mm, waste_pct: d.waste_pct };
+    store._last = values;
+    if (d.kind) store[d.kind] = values;
+    localStorage.setItem(TECH_KEY, JSON.stringify(store));
+  } catch { /* sem armazenamento */ }
 }
 
 export const emptyPieceDraft = (): PieceDraft => ({
@@ -75,7 +86,8 @@ export default function GlassPieceFields({ draft, onChange, showTechnical = fals
           <select className={field} value={draft.kind} onChange={(e) => {
             const kind = e.target.value as PieceKind;
             const leaves = PIECE_KINDS.find((k) => k.value === kind)?.leaves ? Math.max(2, draft.leaves) : 1;
-            onChange({ ...draft, kind, leaves });
+            // ao trocar o tipo, traz a sangria/margem usadas da última vez para esse tipo
+            onChange({ ...draft, kind, leaves, ...(showTechnical ? readTechnicalDefaults(kind) : {}) });
           }}>
             {PIECE_KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
           </select>

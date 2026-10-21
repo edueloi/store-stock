@@ -43,6 +43,8 @@ export interface ServiceOrderPart {
   total: number;
   no_charge: boolean;
   dimensions_label?: string | null;
+  /** Peça de vidro sob medida lançada na OS (vão, sangria, margem...). */
+  piece_spec?: import("../../lib/glassPieces").PieceSpec | null;
 }
 
 export interface LinkedQuote {

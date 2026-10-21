@@ -62,6 +62,11 @@ import {
   downloadServiceOrderPdf,
   NfseInvoice,
 } from "./serviceOrders.shared";
+import GlassPieceFields, { draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, type PieceDraft } from "../../components/GlassPieceFields";
+import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
+import { glassSpecFromOptions } from "../../lib/glassQuote";
+import { pieceCut, type PieceSpec } from "../../lib/glassPieces";
+import { printCutSheet } from "../../lib/cutSheet";
 import ProductVariationModal, { productHasVariations, type VariationOptions } from "../../components/pdv/ProductVariationModal";
 import SalePaymentForm, { SalePaymentFormState, newSalePaymentFormState, parseSalePaymentSettings, computeSalePayment, buildSalePayload } from "../../components/SalePaymentForm";
 import { ContentCard, Button, IconButton, Input, Textarea, Badge, Tabs, EmptyState } from "../../components/ui";
@@ -147,8 +152,8 @@ export default function ServiceOrderDetail() {
   const [observations, setObservations] = useState("");
   const [linkedQuote, setLinkedQuote] = useState<{
     id: number; number: number; total_amount: number; discount_type: string; discount_value: number;
-    items: { id: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label: string | null }[];
-    services: { id: number; name: string; unit_price: number; quantity: number; total: number; dimensions_label: string | null }[];
+    items: { id: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label: string | null; selected_options?: Record<string, string> | null }[];
+    services: { id: number; name: string; unit_price: number; quantity: number; total: number; dimensions_label: string | null; piece_spec?: PieceSpec | null }[];
   } | null>(null);
 
   const [showNewCustomer, setShowNewCustomer] = useState(false);
@@ -169,6 +174,9 @@ export default function ServiceOrderDetail() {
   const [partSearch, setPartSearch] = useState("");
   const [partSelectedProduct, setPartSelectedProduct] = useState<Product | null>(null);
   // Produto com variações (tamanho, cor...): escolhida no seletor antes de entrar na OS.
+  // Serviço por m² como peça de vidraçaria (medidas, sangria, margem) lançada direto na OS.
+  const [partPieceMode, setPartPieceMode] = useState(false);
+  const [partPieceDraft, setPartPieceDraft] = useState<PieceDraft>(emptyPieceDraft());
   const [variationPending, setVariationPending] = useState<Product | null>(null);
   const [partOptions, setPartOptions] = useState<{ options: VariationOptions; label: string } | null>(null);
   const [partSelectedService, setPartSelectedService] = useState<CatalogService | null>(null);
@@ -451,12 +459,17 @@ export default function ServiceOrderDetail() {
   const isMeasuredProduct = !!partSelectedProduct?.sale_unit && partSelectedProduct.sale_unit !== "unidade";
   const isMeasuredService = !!partSelectedService?.sale_unit && partSelectedService.sale_unit !== "unidade";
   const isMeasuredSelection = addPartTab === "services" ? isMeasuredService : isMeasuredProduct;
+  const partPieceSpec = draftToSpec(partPieceDraft);
+  const partPieceCut = pieceCut(partPieceSpec);
+  const servicePieceActive = partPieceMode && addPartTab === "services" && isMeasuredService && partSelectedService?.sale_unit === "m2";
 
   const openAddPartModal = () => {
     setAddPartTab("catalog");
     setPartSearch("");
     setPartSelectedProduct(null);
     setPartOptions(null);
+    setPartPieceMode(false);
+    setPartPieceDraft(emptyPieceDraft());
     setPartSelectedService(null);
     setPartQty(1);
     setPartNoCharge(false);
@@ -491,8 +504,8 @@ export default function ServiceOrderDetail() {
         (partSelectedService.sale_unit as "m2" | "linear") ?? "m2",
         Number(partSelectedService.price_per_measure) || 0,
         partSelectedService.min_billable_quantity ?? null,
-        Number(measureHeight) || 0,
-        Number(measureWidth) || 0,
+        servicePieceActive ? partPieceCut.cutH / 1000 : Number(measureHeight) || 0,
+        servicePieceActive ? (partPieceCut.cutW / 1000) * (1 + (partPieceSpec.waste_pct ?? 0) / 100) : Number(measureWidth) || 0,
       )
     : null;
 
@@ -520,6 +533,8 @@ export default function ServiceOrderDetail() {
         no_charge: partNoCharge,
         ...commonDiscount,
       };
+    } else if (servicePieceActive && partSelectedService) {
+      body = { service_id: partSelectedService.id, piece_spec: partPieceSpec, no_charge: partNoCharge, ...commonDiscount };
     } else if (addPartTab === "services" && isMeasuredService && partSelectedService) {
       body = {
         service_id: partSelectedService.id,
@@ -552,6 +567,7 @@ export default function ServiceOrderDetail() {
         body: JSON.stringify(body),
       });
       if (res.ok) {
+        if (servicePieceActive) rememberTechnicalDefaults(partPieceDraft);
         setShowAddPartModal(false);
         await fetchOrder(true);
       } else {
@@ -1085,6 +1101,27 @@ export default function ServiceOrderDetail() {
             )}
             {activeTab === "itens" && (
               <div className="space-y-3">
+          {/* Projeto: peças do orçamento vinculado e as lançadas direto na OS, com ficha de corte */}
+          {(() => {
+            const pieces: ProjectPiece[] = [
+              ...(linkedQuote?.services ?? []).filter((s) => s.piece_spec).map((s) => ({ name: s.name, spec: s.piece_spec as PieceSpec, qty: s.quantity })),
+              ...(linkedQuote?.items ?? []).map((i) => ({ name: i.name, spec: glassSpecFromOptions(i.selected_options), qty: i.quantity })).filter((p): p is ProjectPiece => !!p.spec),
+              ...(selected?.parts ?? []).filter((p) => p.piece_spec).map((p) => ({ name: p.name, spec: p.piece_spec as PieceSpec, qty: p.quantity })),
+            ];
+            if (pieces.length === 0) return null;
+            return (
+              <ContentCard padding="none">
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <p className="text-[10px] font-semibold text-slate-400">Projeto — peças e medidas</p>
+                </div>
+                <GlassProjectTable
+                  pieces={pieces}
+                  onPrint={() => printCutSheet({ heading: `OS #${String(selected!.number).padStart(4, "0")}`, customer: selected!.customer_name, pieces, storeName: tenant?.name })}
+                />
+              </ContentCard>
+            );
+          })()}
+
           {/* Orçamento vinculado */}
           {linkedQuote && (
             <ContentCard padding="md">
@@ -1707,7 +1744,7 @@ export default function ServiceOrderDetail() {
               disabled={
                 addingPart ||
                 (addPartTab === "free" ? !freePartName.trim() :
-                  isMeasuredSelection ? !measurePreview || measurePreview.rawQuantity <= 0 :
+                  isMeasuredSelection ? !measurePreview || measurePreview.rawQuantity <= 0 || (servicePieceActive && (partPieceSpec.width_mm < 50 || partPieceSpec.height_mm < 50 || partPieceCut.cutW < 50 || partPieceCut.cutH < 50)) :
                   addPartTab === "services" ? !partSelectedService :
                   !partSelectedProduct)
               } className="flex-1 justify-center">
@@ -1757,7 +1794,15 @@ export default function ServiceOrderDetail() {
               }))}
             />
 
-            {partSelectedService && isMeasuredService && (
+            {partSelectedService && isMeasuredService && partSelectedService.sale_unit === "m2" && (
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                <input type="checkbox" checked={partPieceMode} onChange={(e) => setPartPieceMode(e.target.checked)} />
+                Peça sob medida (vidraçaria) — com desenho, sangria e margem de segurança
+              </label>
+            )}
+            {servicePieceActive && <GlassPieceFields draft={partPieceDraft} onChange={setPartPieceDraft} showTechnical />}
+
+            {partSelectedService && isMeasuredService && !servicePieceActive && (
               partSelectedService.sale_unit === "m2" ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
