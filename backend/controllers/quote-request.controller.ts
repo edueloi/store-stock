@@ -1,49 +1,37 @@
 import type { Request, Response } from "express";
-
 import { prisma } from "../config/prisma";
 import { getTenantAccessState } from "../utils/tenant-access";
-import { pieceAreaM2, pieceSummary, sanitizePieceSpec } from "../utils/glassPieces";
 import { emitToTenant } from "../services/realtime.service";
-
-// Solicitação de orçamento feita pelo cliente na vitrine (vidraçaria): ele monta as peças
-// com medidas e o desenho, o preço estimado é calculado aqui (nunca confia no cliente) e
-// o orçamento nasce como rascunho com source = "vitrine" para a loja revisar e enviar.
+import { saveGlassQuote, GlassQuoteError } from "../services/glass-quote.service";
 
 async function findStore(slug: string) {
-  const tenant = await prisma.tenant.findFirst({
-    where: { OR: [{ slug }, { subdomain: slug }] },
-    include: { platform_subscription: true },
-  });
-  if (!tenant || !getTenantAccessState(tenant as any).allowed) return null;
-  return tenant;
+  const tenant = await prisma.tenant.findFirst({ where: { OR: [{ slug }, { subdomain: slug }] }, include: { platform_subscription: true } });
+  return tenant && getTenantAccessState(tenant as any).allowed ? tenant : null;
 }
-
 export async function getQuoteRequestCatalog(req: Request, res: Response) {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const tenant = await findStore(String(req.params.slug || ""));
-    if (!tenant) return res.status(404).json({ error: "Loja não encontrada." });
-    const services = await prisma.service.findMany({
-      where: { tenant_id: tenant.id, is_active: true, sale_unit: "m2" },
-      select: { id: true, name: true, description: true, price_per_measure: true, min_billable_quantity: true, image_url: true },
-      orderBy: { name: "asc" },
-    });
-    res.json({
-      store_name: tenant.name,
-      services: services.map((s) => ({
-        ...s,
-        price_per_measure: Number(s.price_per_measure ?? 0),
-        min_billable_quantity: s.min_billable_quantity == null ? null : Number(s.min_billable_quantity),
-      })),
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Falha ao carregar serviços." });
+    if (!tenant || (tenant.policies as any)?.storefront?.glass_quote_enabled !== true) return res.status(404).json({ error: "Orçamento online não habilitado nesta loja." });
+    const [products, services] = await Promise.all([
+      prisma.product.findMany({ where: { tenant_id: tenant.id, is_active: true, type: "sale", sale_unit: { in: ["unidade", "m2", "linear"] } }, select: { id: true, name: true, description: true, price: true, discount_price: true, price_per_measure: true, min_billable_quantity: true, sale_unit: true, measure_unit: true, image_url: true, images: true, attributes: true, variations: true, hide_price_on_site: true, category_id: true, storefront_details: true }, orderBy: { name: "asc" } }),
+      prisma.service.findMany({ where: { tenant_id: tenant.id, is_active: true, sale_unit: { in: ["unidade", "m2", "linear"] } }, select: { id: true, name: true, description: true, price: true, price_per_measure: true, min_billable_quantity: true, sale_unit: true, image_url: true }, orderBy: { name: "asc" } }),
+    ]);
+    const sf = (tenant.policies as any)?.storefront || {};
+    const hidden = sf.hide_prices === true || sf.checkout_mode === "order_request";
+    const publicItem = (item: any) => {
+      const hide = hidden || item.hide_price_on_site === true;
+      return { ...item, price: hide ? null : Number(item.price), discount_price: hide || item.discount_price == null ? null : Number(item.discount_price), price_per_measure: hide || item.price_per_measure == null ? null : Number(item.price_per_measure), min_billable_quantity: item.min_billable_quantity == null ? null : Number(item.min_billable_quantity), price_hidden: hide };
+    };
+    res.json({ store_name: tenant.name, products: products.map(publicItem), services: services.map(publicItem) });
+  } catch (error) {
+    console.error("Falha ao carregar catálogo de projetos", { code: (error as any)?.code });
+    res.status(500).json({ error: "Não foi possível carregar o catálogo. Tente novamente." });
   }
 }
-
 const requests = new Map<string, { count: number; until: number }>();
-
 export async function createQuoteRequest(req: Request, res: Response) {
+  res.setHeader("Cache-Control", "no-store");
   try {
     const key = `${req.ip}:${req.params.slug}`, now = Date.now(), entry = requests.get(key);
     if (entry && entry.until > now && entry.count >= 8) return res.status(429).json({ error: "Muitas solicitações. Tente novamente em alguns minutos." });
@@ -51,70 +39,14 @@ export async function createQuoteRequest(req: Request, res: Response) {
       if (requests.size >= 5000) requests.delete(requests.keys().next().value!);
       requests.set(key, { count: 1, until: now + 10 * 60_000 });
     } else entry.count++;
-
     const tenant = await findStore(String(req.params.slug || ""));
-    if (!tenant) return res.status(404).json({ error: "Loja não encontrada." });
-
-    const { customer, pieces, notes } = req.body as {
-      customer?: { name?: string; phone?: string; email?: string };
-      pieces?: Array<{ service_id: number; quantity?: number; spec?: unknown }>;
-      notes?: string;
-    };
-    const name = String(customer?.name || "").trim().slice(0, 120);
-    const phone = String(customer?.phone || "").trim().slice(0, 30);
-    const email = String(customer?.email || "").trim().toLowerCase().slice(0, 120);
-    if (!name || phone.replace(/\D/g, "").length < 10) return res.status(422).json({ error: "Informe seu nome e um WhatsApp com DDD." });
-    if (email && !/^\S+@\S+\.\S+$/.test(email)) return res.status(422).json({ error: "Informe um e-mail válido ou deixe em branco." });
-    if (!Array.isArray(pieces) || pieces.length === 0 || pieces.length > 30) return res.status(422).json({ error: "Adicione ao menos uma peça ao orçamento." });
-
-    const serviceIds = [...new Set(pieces.map((p) => Number(p.service_id)))];
-    const services = await prisma.service.findMany({ where: { tenant_id: tenant.id, is_active: true, sale_unit: "m2", id: { in: serviceIds } } });
-    const rows = [];
-    for (const piece of pieces) {
-      const service = services.find((s) => s.id === Number(piece.service_id));
-      const spec = sanitizePieceSpec(piece.spec);
-      if (!service || !spec) return res.status(422).json({ error: "Confira as medidas e o serviço de cada peça." });
-      const quantity = Math.min(99, Math.max(1, Math.round(Number(piece.quantity) || 1)));
-      const area = pieceAreaM2(spec);
-      const billed = Math.max(area, Number(service.min_billable_quantity ?? 0));
-      const unit = Math.round(billed * Number(service.price_per_measure ?? 0) * 100) / 100;
-      rows.push({
-        service_id: service.id,
-        name: service.name,
-        unit_price: unit,
-        quantity,
-        total: Math.round(unit * quantity * 100) / 100,
-        dimensions_label: `${pieceSummary(spec)} · ${area.toFixed(2)}m²`,
-        piece_spec: spec as any,
-      });
-    }
-    const subtotal = rows.reduce((sum, r) => sum + r.total, 0);
-
-    const quote = await prisma.$transaction(async (tx) => {
-      const last = await tx.quote.findFirst({ where: { tenant_id: tenant.id }, orderBy: { number: "desc" }, select: { number: true } });
-      const created = await tx.quote.create({
-        data: {
-          tenant_id: tenant.id,
-          number: (last?.number ?? 0) + 1,
-          customer_name: name,
-          customer_phone: phone,
-          customer_email: email || null,
-          subtotal,
-          total_amount: subtotal,
-          notes: notes ? `Solicitação pela vitrine: ${String(notes).trim().slice(0, 500)}` : "Solicitação pela vitrine",
-          status: "rascunho",
-          source: "vitrine",
-          services: { create: rows },
-        },
-      });
-      await tx.quoteAction.create({ data: { tenant_id: tenant.id, quote_id: created.id, action: "solicitado_vitrine", actor: name, note: "Cliente solicitou orçamento pela vitrine" } });
-      return created;
-    });
-
-    emitToTenant(tenant.id, "quote:requested", { quoteId: quote.id });
-    res.status(201).json({ number: quote.number, total: subtotal });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Não foi possível enviar a solicitação." });
+    if (!tenant || (tenant.policies as any)?.storefront?.glass_quote_enabled !== true) return res.status(404).json({ error: "Orçamento online não habilitado nesta loja." });
+    const result = await saveGlassQuote(tenant.id, req.body);
+    if (!result.duplicate) emitToTenant(tenant.id, "quote:requested", { quoteId: result.id });
+    res.status(result.duplicate ? 200 : 201).json({ number: result.number, total: result.total });
+  } catch (error) {
+    if (error instanceof GlassQuoteError) return res.status(error.status).json({ error: error.message });
+    console.error("Falha ao solicitar orçamento", { code: (error as any)?.code });
+    res.status(500).json({ error: "Não foi possível enviar a solicitação. Suas peças continuam salvas; tente novamente." });
   }
 }

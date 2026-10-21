@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import GlassDrawing from "../../components/GlassDrawing";
 import GlassPieceFields, { draftToSpec, emptyPieceDraft, type PieceDraft } from "../../components/GlassPieceFields";
 import { pieceAreaM2, pieceSummary, type PieceSpec } from "../../lib/glassPieces";
+import { glassSpecFromOptions } from "../../lib/glassQuote";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -1039,7 +1040,9 @@ export default function QuoteDetail() {
                         <div key={idx} className="flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 px-3 py-2">
                           <div className="min-w-[120px] flex-1 self-center">
                             <p className="truncate text-xs font-medium text-slate-800">{item.name}</p>
-                            {item.dimensions_label && <p className="truncate font-mono text-[11px] text-blue-600">{item.dimensions_label}</p>}
+                            {item.dimensions_label && <p className="font-mono text-[11px] text-blue-600">{item.dimensions_label}</p>}
+                            {item.selected_options && <p className="mt-1 text-[11px] text-slate-500">{Object.entries(item.selected_options).filter(([key]) => !["Modelo da peça", "Largura (mm)", "Altura (mm)", "Folhas"].includes(key)).map(([key,value]) => `${key}: ${value}`).join(" · ")}</p>}
+                            {glassSpecFromOptions(item.selected_options) && <div className="mt-2 w-40 rounded border border-blue-100 bg-white"><GlassDrawing spec={glassSpecFromOptions(item.selected_options)!}/></div>}
                           </div>
                           <div className="shrink-0">
                             <span className="ds-label mb-1 block">Qtd.</span>

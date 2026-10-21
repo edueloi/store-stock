@@ -457,6 +457,8 @@ model Product {
   track_stock    Boolean   @default(true)
   // true = o preço aparece no catálogo, PDV e relatórios, mas não é enviado à vitrine (orçamento).
   hide_price_on_site Boolean @default(false)
+  // Conteúdo específico da vitrine e configuração das medidas por produto.
+  storefront_details Json?
   variations     Json?
   attributes     Json?
   skus           Json?

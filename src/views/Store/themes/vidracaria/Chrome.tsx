@@ -1,26 +1,27 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { ChevronDown, Menu, MessageCircle, Search, ShoppingBag, X } from "lucide-react";
+import { ClipboardList, Menu, MessageCircle, Search, ShoppingBag, X } from "lucide-react";
 import SearchBar from "../../../../components/layout/SearchBar";
 import { useStore } from "../../StoreLayout";
 import { buildStorePath, resolveStoreSlug } from "../../store-routing";
 import "./styles.css";
+import { useGlassProject } from "./project";
 
 export function Header() {
   const { slug: routeSlug } = useParams();
-  const { tenant, cart, categories, products, openCart } = useStore();
+  const { tenant, cart, openCart } = useStore();
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
 
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [linesOpen, setLinesOpen] = useState(false);
 
   const slug = resolveStoreSlug(routeSlug);
   const path = (suffix = "") => buildStorePath(slug, suffix);
-  const count = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const lines = categories.filter((c) => products.some((p) => p.is_active && p.category_id === c.id));
+  const project = useGlassProject(slug);
+  const quoteEnabled = tenant.policies?.storefront?.glass_quote_enabled === true;
+  const count = (quoteEnabled ? project.pieces : cart).reduce((sum, item) => sum + item.quantity, 0);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,14 +34,12 @@ export function Header() {
   useEffect(() => {
     setMenuOpen(false);
     setSearchOpen(false);
-    setLinesOpen(false);
   }, [pathname, search]);
 
   const navLinks = [
     { label: "Início", to: path() },
     { label: "Catálogo", to: path("/catalogo") },
     { label: "Sobre", to: path("/sobre") },
-    { label: "Orçamento", to: path("/orcamento") },
   ];
   const isActive = (to: string) => (to === path() ? pathname === path() || pathname === `${path()}/` : pathname.startsWith(to));
 
@@ -56,11 +55,6 @@ export function Header() {
           {navLinks.map((link) => (
             <Link key={link.label} to={link.to} className={isActive(link.to) ? "active" : ""}>{link.label}</Link>
           ))}
-          {lines.length > 0 && (
-            <button type="button" className="vitra-lines-btn" aria-expanded={linesOpen} onClick={() => setLinesOpen((v) => !v)}>
-              Linhas <ChevronDown size={14} />
-            </button>
-          )}
         </nav>
 
         <Link to={path()} className="vitra-brand" aria-label={`${tenant.name} - Início`}>
@@ -76,23 +70,16 @@ export function Header() {
           <button type="button" className="vitra-icon-btn" onClick={() => setSearchOpen((prev) => !prev)} aria-expanded={searchOpen} aria-label="Pesquisar produtos">
             <Search size={18} />
           </button>
-          <button type="button" className="vitra-icon-btn" onClick={openCart} aria-label={`Carrinho, ${count} itens`}>
-            <ShoppingBag size={18} />
+          {quoteEnabled ? <Link to={path("/orcamento")} className="vitra-icon-btn vitra-project-link" aria-label={`Meu projeto, ${count} peças`}>
+            <ClipboardList size={18} /><span className="vitra-project-link-text">Meu projeto</span>
             {count > 0 && <span className="vitra-cart-badge">{count}</span>}
-          </button>
+          </Link> : <button type="button" className="vitra-icon-btn" onClick={openCart} aria-label={`Carrinho, ${count} itens`}><ShoppingBag size={18}/>{count > 0 && <span className="vitra-cart-badge">{count}</span>}</button>}
           <button type="button" className="vitra-icon-btn vitra-mobile-btn" onClick={() => setMenuOpen((prev) => !prev)} aria-expanded={menuOpen} aria-label={menuOpen ? "Fechar menu" : "Abrir menu"}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </div>
 
-      {linesOpen && (
-        <div className="vitra-pop vitra-lines" role="menu">
-          {lines.map((c) => (
-            <Link key={c.id} role="menuitem" to={path(`/catalogo?cat=${c.id}`)}>{c.name}</Link>
-          ))}
-        </div>
-      )}
 
       {searchOpen && (
         <form className="vitra-pop vitra-searchpop" onSubmit={submit} role="search">
@@ -101,12 +88,9 @@ export function Header() {
       )}
 
       <div className={`vitra-mobile-menu${menuOpen ? " open" : ""}`}>
+        {quoteEnabled && <Link to={path("/orcamento")}>Montar meu orçamento</Link>}
         {navLinks.map((link) => (
           <Link key={link.label} to={link.to} onClick={() => setMenuOpen(false)}>{link.label}</Link>
-        ))}
-        {lines.length > 0 && <h4>Linhas</h4>}
-        {lines.map((c) => (
-          <Link key={c.id} to={path(`/catalogo?cat=${c.id}`)} onClick={() => setMenuOpen(false)}>{c.name}</Link>
         ))}
         {wa && (
           <a href={wa} target="_blank" rel="noreferrer" onClick={() => setMenuOpen(false)}>
@@ -140,6 +124,7 @@ export function Footer() {
             <Link className="link" to={path()}>Início</Link>
             <Link className="link" to={path("/catalogo")}>Catálogo</Link>
             <Link className="link" to={path("/sobre")}>Sobre nós</Link>
+            {tenant.policies?.storefront?.glass_quote_enabled === true && <Link className="link" to={path("/orcamento")}>Solicitar orçamento</Link>}
           </div>
           <div className="vitra-fcard">
             <h4>Linhas & produtos</h4>
@@ -160,7 +145,7 @@ export function Footer() {
         </div>
         <div className="vitra-footer-bottom">
           <span>© {new Date().getFullYear()} {tenant.name}. Todos os direitos reservados.</span>
-          <span>Projetos sob medida em vidros temperados, laminados e espelhos.</span>
+          <span>Da sua ideia ao orçamento, com atenção a cada medida.</span>
         </div>
       </div>
     </footer>

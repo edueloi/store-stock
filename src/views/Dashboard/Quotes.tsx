@@ -47,6 +47,7 @@ interface QuoteServiceRow {
 }
 
 interface Quote {
+  source?: string;
   id: number;
   number: number;
   customer_name: string;
@@ -165,7 +166,7 @@ export default function Quotes() {
 
   const columns: Column<Quote>[] = [
     { header: "Nº", render: (q) => <span className="font-mono text-xs text-slate-500">#{String(q.number).padStart(4, "0")}</span> },
-    { header: "Cliente", render: (q) => <span className="text-xs font-medium text-slate-800">{q.customer_name || "—"}</span> },
+    { header: "Cliente", render: (q) => <div className="space-y-1"><span className="text-xs font-medium text-slate-800">{q.customer_name || "—"}</span>{q.source === "vitrine" && <div><Badge color="info" size="sm">Catálogo virtual</Badge></div>}</div> },
     { header: "Data", className: "hidden md:table-cell", headerClassName: "hidden md:table-cell", render: (q) => <span className="text-xs whitespace-nowrap text-slate-500">{new Date(q.created_at).toLocaleDateString("pt-BR")}</span> },
     { header: "Validade", className: "hidden lg:table-cell", headerClassName: "hidden lg:table-cell", render: (q) => <span className="text-xs text-slate-500">{q.validity_days}d</span> },
     { header: "Total", className: "text-right", headerClassName: "text-right", render: (q) => <span className="text-xs font-semibold tabular-nums whitespace-nowrap text-slate-800">{fmt(Number(q.total_amount))}</span> },

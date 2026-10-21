@@ -6,13 +6,16 @@ type Props = {
   slides: HeroSlide[];
   autoplaySeconds: number;
   onChange: (patch: { hero_slides?: HeroSlide[]; hero_autoplay_seconds?: number }) => void;
+  title?: string;
+  description?: string;
+  gallery?: boolean;
 };
 
 const MAX_SLIDES = 8;
 const inputClass = "h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs text-slate-800 outline-none focus:border-blue-500";
 
 /** Editor dos banners do carrossel da home da vitrine (imagem, título, subtítulo e botão). */
-export default function HeroSlidesEditor({ slides, autoplaySeconds, onChange }: Props) {
+export default function HeroSlidesEditor({ slides, autoplaySeconds, onChange, title, description, gallery }: Props) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -51,16 +54,16 @@ export default function HeroSlidesEditor({ slides, autoplaySeconds, onChange }: 
     <div className="rounded-lg border border-slate-200 bg-white p-5 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-slate-800">Banners da home (carrossel)</p>
-          <p className="text-[11px] text-slate-500">Cadastre uma ou mais imagens grandes. Com um banner a home mostra a imagem fixa; com vários, vira carrossel. Sem banners, o modelo usa o destaque padrão.</p>
+          <p className="text-xs font-semibold text-slate-800">{title || "Banners da home (carrossel)"}</p>
+          <p className="text-[11px] text-slate-500">{description || "Cadastre uma ou mais imagens grandes. Com um banner a home mostra a imagem fixa; com vários, vira carrossel. Sem banners, o modelo usa o destaque padrão."}</p>
         </div>
-        <label className="flex items-center gap-2 text-[11px] text-slate-600">
+        {!gallery && <label className="flex items-center gap-2 text-[11px] text-slate-600">
           Trocar a cada
           <select value={autoplaySeconds} onChange={(e) => onChange({ hero_autoplay_seconds: Number(e.target.value) })} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs">
             <option value={0}>Manual</option>
             {[4, 6, 8, 10].map((s) => <option key={s} value={s}>{s} segundos</option>)}
           </select>
-        </label>
+        </label>}
       </div>
 
       <div className="space-y-3">

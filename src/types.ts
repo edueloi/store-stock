@@ -32,6 +32,11 @@ export interface StorePolicies {
     catalog_description?: string;
     home_categories_title?: string;
     home_featured_title?: string;
+    glass_hero_title?: string;
+    glass_hero_description?: string;
+    /** Fotos de ambientes e projetos da vidraçaria, editadas pela loja. */
+    glass_gallery?: HeroSlide[];
+    glass_quote_enabled?: boolean;
     segment_label?: string;
     hero_button_label?: string;
     /** Banners do carrossel da home (se vazio, o tema usa o hero padrão). */
@@ -218,6 +223,11 @@ export interface Product {
   hide_price_on_site?: boolean;
   /** Só vem da API pública: o preço deste produto não é divulgado (price = -1). */
   price_hidden?: boolean;
+  storefront_details?: {
+    specifications?: string;
+    delivery_installation?: string;
+    measurements?: { enabled?: boolean; kind?: string; allow_measure_later?: boolean };
+  } | null;
   // attribute groups (ex: [{name:"Tamanho", values:["P","M","G"]}, {name:"Cor", values:["Preto","Branco"]}])
   attributes?: { name: string; values: string[]; colors?: Record<string, string> }[];
   // SKU combinations (ex: [{combo:{"Tamanho":"G","Cor":"Preto"}, stock:3}])

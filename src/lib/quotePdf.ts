@@ -18,6 +18,7 @@ export interface QuotePdfItem {
   unit_price: number;
   total: number;
   dimensions_label?: string | null;
+  selected_options?: Record<string, string> | null;
 }
 
 export interface QuotePdfService {
@@ -96,7 +97,7 @@ export async function generateQuotePDF(
           fmtMoney(Number(i.unit_price)),
           fmtMoney(Number(i.total)),
         ],
-        sub: i.dimensions_label ?? undefined,
+        sub: [i.dimensions_label, i.selected_options ? Object.entries(i.selected_options).filter(([key]) => !["Modelo da peça", "Largura (mm)", "Altura (mm)", "Folhas"].includes(key)).map(([key,value]) => `${key}: ${value}`).join(" · ") : ""].filter(Boolean).join(" · ") || undefined,
       })),
       ...(quote.services ?? []).map((s) => ({
         cells: [

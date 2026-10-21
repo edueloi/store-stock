@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
+import { Prisma } from "@prisma/client";
+import { PIECE_KINDS } from "../utils/glassPieces";
 import { deleteProductImage } from "./upload.controller";
 import { getLowStockThreshold } from "../utils/low-stock-threshold";
 import type { AuthenticatedRequest } from "../types/auth";
@@ -8,6 +10,13 @@ import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
+}
+function publicDetails(value: any) {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  const text = (v: unknown) => typeof v === "string" ? v.slice(0, 10000) : "";
+  const m = value?.measurements;
+  return { specifications: text(value?.specifications), delivery_installation: text(value?.delivery_installation), ...(m && typeof m === "object" ? { measurements: { ...(typeof m.enabled === "boolean" ? { enabled: m.enabled } : {}), kind: PIECE_KINDS.find(k => k.value === m.kind)?.value || "fixo", allow_measure_later: m.allow_measure_later !== false } } : {}) };
 }
 
 // Aviso preventivo (NÃO bloqueia salvar) sobre o caso mais comum de rejeição
@@ -141,7 +150,7 @@ export async function getProductByBarcode(req: Request, res: Response) {
 export async function createProduct(req: Request, res: Response) {
   try {
     const {
-      images, variations, attributes, skus,
+      images, variations, attributes, skus, storefront_details,
       tenant_id: _tid, id: _id, category, category_name,
       created_at, updated_at,
       ...rest
@@ -160,6 +169,7 @@ export async function createProduct(req: Request, res: Response) {
         variations: Array.isArray(variations) ? variations : undefined,
         attributes: Array.isArray(attributes) ? attributes : undefined,
         skus: Array.isArray(skus) ? skus : undefined,
+        storefront_details: publicDetails(storefront_details),
       },
     });
 
@@ -234,7 +244,7 @@ export async function updateProduct(req: Request, res: Response) {
     }
 
     const {
-      images, variations, attributes, skus,
+      images, variations, attributes, skus, storefront_details,
       tenant_id: _tid, id: _id, category, category_name,
       created_at, updated_at,
       ...rest
@@ -253,6 +263,7 @@ export async function updateProduct(req: Request, res: Response) {
         variations: Array.isArray(variations) ? variations : undefined,
         attributes: Array.isArray(attributes) ? attributes : undefined,
         skus: Array.isArray(skus) ? skus : undefined,
+        storefront_details: publicDetails(storefront_details),
       },
     });
 

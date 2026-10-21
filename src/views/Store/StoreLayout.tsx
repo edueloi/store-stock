@@ -9,6 +9,7 @@ import React, {
 import {
   Routes,
   Route,
+  Navigate,
   Link,
   useParams,
   useNavigate,
@@ -46,6 +47,7 @@ import { restoreStoreCart, serializeStoreCart, storeCartKey } from "../../lib/st
 import { lazy, Suspense } from "react";
 import { useStoreFx } from "../../components/store/fx";
 const StoreQuoteRequest = lazy(() => import("./pages/StoreQuoteRequest"));
+const VitraQuoteBuilder = lazy(() => import("./themes/vidracaria/QuoteBuilder"));
 const StrideCheckout = lazy(() => import("./themes/stride/StoreCheckout"));
 const StrideHelp = lazy(() => import("./themes/stride/StoreHelp"));
 
@@ -1587,7 +1589,7 @@ function StoreLayoutInner() {
               <Route path="catalogo" element={<StoreCatalog />} />
               <Route path="produto/:productId" element={<StoreProduct />} />
               <Route path="sobre" element={<StoreAbout />} />
-              <Route path="orcamento" element={<StoreQuoteRequest />} />
+              <Route path="orcamento" element={templateId === "vidracaria" ? storeData.tenant.policies?.storefront?.glass_quote_enabled === true ? <VitraQuoteBuilder /> : <Navigate to={storePath("/catalogo")} replace /> : <StoreQuoteRequest />} />
               {templateId === "stride" && <Route path="checkout" element={<StrideCheckout />} />}
               {templateId === "stride" && <Route path="ajuda" element={<StrideHelp />} />}
             </Routes>

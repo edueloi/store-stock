@@ -3,6 +3,7 @@ import { ArrowRight, ShoppingBag } from "lucide-react";
 import { productRouteSegment } from "../../store-routing";
 
 import { HIDDEN_PRICE } from "../../../../lib/storePrice";
+import { glassMeasureLabel, glassMeasurements } from "../../../../../shared/glassCatalog";
 export const vitraImage = (product: { image_url?: string | null; images?: unknown }) =>
   (Array.isArray(product.images) && typeof product.images[0] === "string"
     ? product.images[0]
@@ -15,10 +16,12 @@ export const vitraHidePrices = (tenant: any) =>
   tenant.policies?.storefront?.checkout_mode === "order_request" ||
   tenant.policies?.storefront?.hide_prices === true;
 
-export function VitraProductCard({ product, path, category, hidePrices }: any) {
+export function VitraProductCard({ product, path, category, hidePrices, quoteEnabled }: any) {
   const image = vitraImage(product);
   const full = Number(product.price);
-  const price = Number(product.discount_price || product.price);
+  const measured = product.sale_unit && product.sale_unit !== "unidade";
+  const price = Number(measured ? product.price_per_measure : product.discount_price ?? product.price);
+  const hidden = hidePrices || product.price_hidden || product.hide_price_on_site || price <= 0;
   const discounted = product.discount_price != null && price < full;
   const href = path(`/produto/${productRouteSegment(product)}`);
 
@@ -32,7 +35,7 @@ export function VitraProductCard({ product, path, category, hidePrices }: any) {
         <span className="vitra-product-cat">{category || "Projetos em vidro"}</span>
         <Link to={href} className="vitra-product-name">{product.name}</Link>
         <div className="vitra-product-price">
-          {hidePrices ? (
+          {hidden ? (
             <b>Sob consulta</b>
           ) : (
             <>
@@ -40,9 +43,9 @@ export function VitraProductCard({ product, path, category, hidePrices }: any) {
               {discounted && <s>{vitraMoney(full)}</s>}
             </>
           )}
-          <small>A partir de • orçamento sob medida</small>
+          <small>{hidden ? "Consulte a loja para saber mais" : `por ${glassMeasureLabel(product)}${quoteEnabled ? " · referência para orçamento" : ""}`}</small>
         </div>
-        <Link to={href} className="vitra-product-btn">Ver detalhes <ArrowRight size={14} /></Link>
+        <Link to={href} className="vitra-product-btn">{glassMeasurements(product).enabled ? "Ver produto e medidas" : "Ver detalhes"} <ArrowRight size={14} /></Link>
       </div>
     </article>
   );

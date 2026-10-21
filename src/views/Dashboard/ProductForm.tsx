@@ -10,12 +10,15 @@ import {
   Button, IconButton, Input, Select, Textarea, Switch, Tabs, SectionTitle, ContentCard, PanelCard, Badge, FilterLineSegmented, useToast,
 } from "../../components/ui";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
+import { PIECE_KINDS } from "../../lib/glassPieces";
+import { glassMeasurements } from "../../../shared/glassCatalog";
 import { defaultMeasureUnit, measureUnitAbbr, measureUnitLabel, measureUnitOptions } from "../../utils/measurePricing";
 
 // ── helpers ────────────────────────────────────────────────────────────────
 export const PRODUCT_MODAL_TABS = [
   { id: "identificacao", label: "Identificação", icon: Tag },
   { id: "estoque", label: "Estoque e Grades", icon: Boxes },
+  { id: "vitrine", label: "Catálogo virtual", icon: ImageIcon },
   { id: "fiscal", label: "Fiscal", icon: FileText },
 ] as const;
 export type ProductModalTab = (typeof PRODUCT_MODAL_TABS)[number]["id"];
@@ -831,6 +834,20 @@ export default function ProductForm({
               </PanelCard>
             )}
 
+            {productModalTab === "vitrine" && <PanelCard title="Conteúdo do catálogo virtual" icon={ImageIcon} contentClassName="space-y-4">
+              <p className="text-xs text-slate-500">Cada produto tem seu próprio conteúdo. As abas vazias não aparecem na loja. Cadastre cor, espessura e acabamento em Estoque e Grades → Grades & Variações; somente as opções cadastradas serão exibidas.</p>
+              <Textarea label="Descrição" rows={4} maxLength={10000} value={editingProduct?.description || ""} onChange={e => setEditingProduct(prev => ({ ...prev!, description: e.target.value }))}/>
+              <Textarea label="Especificações" rows={5} maxLength={10000} placeholder="Material, espessura, dimensões de fábrica, conteúdo do kit…" value={editingProduct?.storefront_details?.specifications || ""} onChange={e => setEditingProduct(prev => ({ ...prev!, storefront_details: { ...prev?.storefront_details, specifications: e.target.value } }))}/>
+              <Textarea label="Entrega e instalação" rows={5} maxLength={10000} placeholder="Região atendida, prazo, retirada e o que está incluído na instalação deste produto." value={editingProduct?.storefront_details?.delivery_installation || ""} onChange={e => setEditingProduct(prev => ({ ...prev!, storefront_details: { ...prev?.storefront_details, delivery_installation: e.target.value } }))}/>
+              <div className="space-y-3 border-t border-slate-200 pt-4">
+                <Switch label="Cliente pode informar medidas neste produto" checked={glassMeasurements(editingProduct as Product).enabled} onChange={enabled => setEditingProduct(prev => ({ ...prev!, storefront_details: { ...prev?.storefront_details, measurements: { ...prev?.storefront_details?.measurements, enabled } } }))} accent="blue"/>
+                <p className="text-xs text-slate-500">Desligue para ferragens, kits e produtos com dimensão fixa. Produtos vendidos por m² ou metro linear usam medidas por padrão. Para receber solicitações em rascunho, habilite Orçamento online nas configurações da loja.</p>
+                {glassMeasurements(editingProduct as Product).enabled && <>
+                  <Select label="Modelo do desenho da peça" value={editingProduct?.storefront_details?.measurements?.kind || "fixo"} onChange={e => setEditingProduct(prev => ({ ...prev!, storefront_details: { ...prev?.storefront_details, measurements: { ...prev?.storefront_details?.measurements, kind: e.target.value } } }))}>{PIECE_KINDS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}</Select>
+                  <Switch label="Permitir solicitar conferência quando o cliente não souber as medidas" checked={editingProduct?.storefront_details?.measurements?.allow_measure_later !== false} onChange={allow_measure_later => setEditingProduct(prev => ({ ...prev!, storefront_details: { ...prev?.storefront_details, measurements: { ...prev?.storefront_details?.measurements, allow_measure_later } } }))} accent="blue"/>
+                </>}
+              </div>
+            </PanelCard>}
             {productModalTab === "estoque" && (
               <div className="space-y-4">
                 <PanelCard title="Estoque" icon={Boxes} contentClassName="space-y-3">

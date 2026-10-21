@@ -2,6 +2,7 @@ import { prisma } from "../config/prisma";
 
 type SkuEntry = { combo: Record<string, string>; stock: number };
 type LegacyVariation = { name: string; options: { value: string; stock: number }[] };
+export const skuMatchesSelection = (combo: Record<string,string>, options: Record<string,string>) => Object.keys(combo).length > 0 && Object.entries(combo).every(([key,value]) => options[key] === value);
 
 // Aplica um delta (positivo ou negativo) ao estoque da SKU/variação correspondente
 // às opções selecionadas, sem tocar no total (stock_quantity) — quem chama já cuida
@@ -21,7 +22,7 @@ async function patchVariationStock(
   if (product?.skus) {
     const skus = product.skus as SkuEntry[];
     const updated = skus.map((sku) => {
-      const matches = Object.entries(selectedOptions).every(([k, v]) => sku.combo[k] === v);
+      const matches = skuMatchesSelection(sku.combo, selectedOptions);
       return matches ? { ...sku, stock: Math.max(0, sku.stock + delta) } : sku;
     });
     await prisma.product.update({ where: { id: productId }, data: { skus: updated } });
