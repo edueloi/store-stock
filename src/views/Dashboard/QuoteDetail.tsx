@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import GlassDrawing from "../../components/GlassDrawing";
+import GlassPieceFields, { draftToSpec, emptyPieceDraft, type PieceDraft } from "../../components/GlassPieceFields";
+import { pieceAreaM2, pieceSummary, type PieceSpec } from "../../lib/glassPieces";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -67,6 +70,8 @@ interface QuoteServiceRow {
   unit_price: number;
   quantity: number;
   total: number;
+  dimensions_label?: string | null;
+  piece_spec?: PieceSpec | null;
 }
 
 interface QuoteActionLog {
@@ -300,9 +305,11 @@ export default function QuoteDetail() {
   const [measureService, setMeasureService] = useState<ServiceCatalog | null>(null);
   const [measureServiceHeight, setMeasureServiceHeight] = useState("");
   const [measureServiceWidth, setMeasureServiceWidth] = useState("");
+  const [pieceMode, setPieceMode] = useState(false);
+  const [pieceDraft, setPieceDraft] = useState<PieceDraft>(emptyPieceDraft());
   const [serviceSearch, setServiceSearch] = useState("");
   const [formItems, setFormItems] = useState<QuoteItem[]>([]);
-  const [formServices, setFormServices] = useState<{ service_id: number; name: string; price: number; quantity: number; dimensions_label?: string }[]>([]);
+  const [formServices, setFormServices] = useState<{ service_id: number; name: string; price: number; quantity: number; dimensions_label?: string; piece_spec?: PieceSpec | null }[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [manualCustomer, setManualCustomer] = useState({ name: "", phone: "", email: "" });
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
@@ -358,7 +365,7 @@ export default function QuoteDetail() {
   // ── Load ────────────────────────────────────────────────────────────────
   const applyFormFields = useCallback((q: Quote) => {
     setFormItems(q.items.map((i) => ({ ...i, unit_price: Number(i.unit_price), total: Number(i.total) })));
-    setFormServices(q.services.map((s) => ({ service_id: s.service_id, name: s.name, price: Number(s.unit_price), quantity: s.quantity })));
+    setFormServices(q.services.map((s) => ({ service_id: s.service_id, name: s.name, price: Number(s.unit_price), quantity: s.quantity, dimensions_label: s.dimensions_label ?? undefined, piece_spec: s.piece_spec ?? null })));
     if (q.customer_id) {
       setSelectedCustomer({ id: q.customer_id, name: q.customer_name, phone: q.customer_phone, email: q.customer_email });
     } else {
@@ -484,7 +491,7 @@ export default function QuoteDetail() {
       items: items.map((i) => ({
         product_id: i.product_id, name: i.name, quantity: i.quantity, unit_price: i.unit_price, dimensions_label: i.dimensions_label ?? null, selected_options: i.selected_options ?? null,
       })),
-      services: svcs.map((s) => ({ id: s.service_id, name: s.name, price: s.price, quantity: s.quantity, dimensions_label: s.dimensions_label ?? null })),
+      services: svcs.map((s) => ({ id: s.service_id, name: s.name, price: s.price, quantity: s.quantity, dimensions_label: s.dimensions_label ?? null, piece_spec: s.piece_spec ?? null })),
     }, "items");
   }, [autosaveField]);
 
@@ -582,6 +589,8 @@ export default function QuoteDetail() {
       setMeasureService(s);
       setMeasureServiceHeight("");
       setMeasureServiceWidth("");
+      setPieceMode(s.sale_unit === "m2");
+      setPieceDraft(emptyPieceDraft());
       setServiceSearch("");
       return;
     }
@@ -596,14 +605,15 @@ export default function QuoteDetail() {
     setServiceSearch("");
   };
 
+  const pieceSpec = draftToSpec(pieceDraft);
   // Mesmo mecanismo de venda por medida do Produto, aplicado a Serviço.
   const measureServicePreview = measureService
     ? computeMeasuredPrice(
         (measureService.sale_unit as "m2" | "linear") ?? "m2",
         Number(measureService.price_per_measure) || 0,
         measureService.min_billable_quantity ?? null,
-        Number(measureServiceHeight) || 0,
-        Number(measureServiceWidth) || 0,
+        pieceMode ? pieceSpec.height_mm / 1000 : Number(measureServiceHeight) || 0,
+        pieceMode ? pieceSpec.width_mm / 1000 : Number(measureServiceWidth) || 0,
       )
     : null;
 
@@ -614,7 +624,8 @@ export default function QuoteDetail() {
       name: measureService.name,
       price: measureServicePreview.total,
       quantity: 1,
-      dimensions_label: measureServicePreview.label,
+      dimensions_label: pieceMode ? `${pieceSummary(pieceSpec)} · ${pieceAreaM2(pieceSpec).toFixed(2)}m²` : measureServicePreview.label,
+      piece_spec: pieceMode ? pieceSpec : null,
     }];
     setFormServices(next);
     autosaveItems(formItems, next);
@@ -623,22 +634,22 @@ export default function QuoteDetail() {
     setMeasureServiceWidth("");
   };
 
-  const updateServiceQty = (service_id: number, qty: number) => {
+  const updateServiceQty = (idx: number, qty: number) => {
     const next = qty <= 0
-      ? formServices.filter((s) => s.service_id !== service_id)
-      : formServices.map((s) => s.service_id === service_id ? { ...s, quantity: qty } : s);
+      ? formServices.filter((_, i) => i !== idx)
+      : formServices.map((s, i) => i === idx ? { ...s, quantity: qty } : s);
     setFormServices(next);
     autosaveItems(formItems, next);
   };
 
-  const updateServicePrice = (service_id: number, price: number) => {
-    const next = formServices.map((s) => s.service_id === service_id ? { ...s, price } : s);
+  const updateServicePrice = (idx: number, price: number) => {
+    const next = formServices.map((s, i) => i === idx ? { ...s, price } : s);
     setFormServices(next);
     autosaveItems(formItems, next);
   };
 
-  const removeService = (service_id: number) => {
-    const next = formServices.filter((s) => s.service_id !== service_id);
+  const removeService = (idx: number) => {
+    const next = formServices.filter((_, i) => i !== idx);
     setFormServices(next);
     autosaveItems(formItems, next);
   };
@@ -1098,23 +1109,24 @@ export default function QuoteDetail() {
                 {formServices.length > 0 && (
                   <PanelCard title="Serviços" icon={Wrench}>
                     <div className="space-y-2 p-3">
-                      {formServices.map((svc) => (
-                        <div key={svc.service_id} className="flex flex-wrap items-end gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                      {formServices.map((svc, svcIdx) => (
+                        <div key={`${svc.service_id}-${svcIdx}`} className="flex flex-wrap items-end gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
                           <div className="min-w-[100px] flex-1 self-center truncate">
                             <span className="text-xs font-medium text-slate-800">{svc.name}</span>
                             {svc.dimensions_label && <span className="ml-1.5 font-mono text-[11px] text-blue-600">{svc.dimensions_label}</span>}
                           </div>
+                          {svc.piece_spec && <div className="w-28 shrink-0 overflow-hidden rounded border border-blue-100 bg-white"><GlassDrawing spec={svc.piece_spec} /></div>}
                           <div className="shrink-0">
                             <span className="ds-label mb-1 block">Qtd.</span>
                             <div className="flex items-center gap-1">
-                              <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Diminuir quantidade" onClick={() => updateServiceQty(svc.service_id, svc.quantity - 1)}>−</IconButton>
+                              <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Diminuir quantidade" onClick={() => updateServiceQty(svcIdx, svc.quantity - 1)}>−</IconButton>
                               <Input
                                 wrapperClassName="w-16" className="text-center"
                                 type="number" min={0} step="any" disabled={!isEditable} value={svc.quantity}
                                 aria-label="Quantidade"
-                                onChange={(e) => updateServiceQty(svc.service_id, Number(e.target.value))}
+                                onChange={(e) => updateServiceQty(svcIdx, Number(e.target.value))}
                               />
-                              <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Aumentar quantidade" onClick={() => updateServiceQty(svc.service_id, svc.quantity + 1)}>+</IconButton>
+                              <IconButton size="xs" variant="outline" disabled={!isEditable} aria-label="Aumentar quantidade" onClick={() => updateServiceQty(svcIdx, svc.quantity + 1)}>+</IconButton>
                             </div>
                           </div>
                           <Input
@@ -1122,11 +1134,11 @@ export default function QuoteDetail() {
                             wrapperClassName="w-32 shrink-0" className="text-right font-mono"
                             addonLeft="R$"
                             inputMode="numeric" disabled={!isEditable} placeholder="0,00" value={centsToMasked(svc.price)}
-                            onChange={(e) => updateServicePrice(svc.service_id, parseMaskedPrice(applyMoneyMask(e.target.value)))}
+                            onChange={(e) => updateServicePrice(svcIdx, parseMaskedPrice(applyMoneyMask(e.target.value)))}
                           />
                           <span className="w-20 shrink-0 self-center text-right text-xs font-semibold tabular-nums text-blue-700">{fmt(svc.price * svc.quantity)}</span>
                           {isEditable && (
-                            <IconButton size="xs" variant="ghost" aria-label="Remover serviço" onClick={() => removeService(svc.service_id)}><X size={14} /></IconButton>
+                            <IconButton size="xs" variant="ghost" aria-label="Remover serviço" onClick={() => removeService(svcIdx)}><X size={14} /></IconButton>
                           )}
                         </div>
                       ))}
@@ -1355,19 +1367,27 @@ export default function QuoteDetail() {
       <Modal
         open={!!measureService}
         onClose={() => setMeasureService(null)}
-        size="sm"
+        size={pieceMode ? "lg" : "sm"}
         title={measureService?.name}
         subtitle={measureService ? `Serviço por ${measureService.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
         footer={
           <ModalFooter>
             <Button variant="outline" onClick={() => setMeasureService(null)}>Cancelar</Button>
-            <Button onClick={addMeasuredService} disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0} iconLeft={<PlusCircle size={14} />}>Adicionar</Button>
+            <Button onClick={addMeasuredService} disabled={!measureServicePreview || measureServicePreview.rawQuantity <= 0 || (pieceMode && (pieceSpec.width_mm < 50 || pieceSpec.height_mm < 50))} iconLeft={<PlusCircle size={14} />}>Adicionar</Button>
           </ModalFooter>
         }
       >
         {measureService && (
           <div className="space-y-3">
-            {measureService.sale_unit === "m2" ? (
+            {measureService.sale_unit === "m2" && (
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                <input type="checkbox" checked={pieceMode} onChange={(e) => setPieceMode(e.target.checked)} />
+                Peça sob medida (vidraçaria) — com desenho e especificação
+              </label>
+            )}
+            {pieceMode ? (
+              <GlassPieceFields draft={pieceDraft} onChange={setPieceDraft} />
+            ) : measureService.sale_unit === "m2" ? (
               <div className="grid grid-cols-2 gap-3">
                 <Input label="Altura (m)" type="number" min="0" step="0.01" autoFocus value={measureServiceHeight} onChange={(e) => setMeasureServiceHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
                 <Input label="Largura (m)" type="number" min="0" step="0.01" value={measureServiceWidth} onChange={(e) => setMeasureServiceWidth(e.target.value)} placeholder="0,00" className="text-center font-mono" />

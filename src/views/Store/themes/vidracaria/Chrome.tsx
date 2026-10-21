@@ -40,6 +40,7 @@ export function Header() {
     { label: "Início", to: path() },
     { label: "Catálogo", to: path("/catalogo") },
     { label: "Sobre", to: path("/sobre") },
+    { label: "Orçamento", to: path("/orcamento") },
   ];
   const isActive = (to: string) => (to === path() ? pathname === path() || pathname === `${path()}/` : pathname.startsWith(to));
 

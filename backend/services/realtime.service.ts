@@ -13,6 +13,7 @@ export type RealtimeEvent =
   | "stock:changed"          // estoque de produto mudou (venda, cancelamento, ajuste, OS)
   | "product:changed"        // produto/catálogo criado, editado ou removido
   | "category:changed"       // categoria criada, editada ou removida
+  | "quote:requested"        // cliente solicitou orçamento pela vitrine
   | "order:created"          // novo pedido/venda registrado
   | "order:updated"          // pedido teve status/dados alterados
   | "order:cancelled"        // pedido cancelado

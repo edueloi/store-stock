@@ -7,6 +7,7 @@ export type RealtimeEvent =
   | "stock:changed"
   | "product:changed"
   | "category:changed"
+  | "quote:requested"
   | "order:created"
   | "order:updated"
   | "order:cancelled"

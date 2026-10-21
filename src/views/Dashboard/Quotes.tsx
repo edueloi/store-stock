@@ -18,6 +18,7 @@ import {
   GridTable, usePagination,
 } from "../../components/ui";
 import type { Column } from "../../components/ui";
+import { onRealtimeAny } from "../../lib/realtime";
 import { generateQuotePDF } from "../../lib/quotePdf";
 import type { DocumentTenant } from "../../lib/documentPdf";
 import QuotesPageTour, { type QuotesPageTourHandle } from "../../components/onboarding/QuotesPageTour";
@@ -128,6 +129,7 @@ export default function Quotes() {
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => onRealtimeAny(["quote:requested"], () => { fetchAll(); }), [fetchAll]);
 
   const handleDelete = async (id: number) => {
     if (!confirm("Excluir este orçamento?")) return;

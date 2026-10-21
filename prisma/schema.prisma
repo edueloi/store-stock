@@ -581,6 +581,8 @@ model QuoteService {
   quantity         Int     @default(1)
   total            Decimal @db.Decimal(10, 2)
   dimensions_label String?
+  // Peça sob medida (vidraçaria): tipo, largura/altura em mm, vidro, cor, folhas... Vira o desenho no orçamento.
+  piece_spec       Json?
 
   quote   Quote   @relation(fields: [quote_id], references: [id], onDelete: Cascade)
   service Service @relation(fields: [service_id], references: [id])
@@ -1388,6 +1390,8 @@ model Quote {
   deposit_amount         Decimal?  @db.Decimal(10, 2)
   deposit_payment_method String?
   deposit_paid_at        DateTime?
+
+  source             String    @default("manual") // manual | vitrine (solicitado pelo cliente na loja)
 
   approval_token     String?   @unique // link público para o cliente aprovar o orçamento
   approved_at        DateTime?

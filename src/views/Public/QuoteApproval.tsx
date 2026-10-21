@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "motion/react";
 import { CheckCircle2, Clock, FileWarning, Loader2, ThumbsUp } from "lucide-react";
+import GlassDrawing from "../../components/GlassDrawing";
+import type { PieceSpec } from "../../lib/glassPieces";
 import { Button, Alert, ContentCard, EmptyState } from "../../components/ui";
 
 interface QuoteItem {
@@ -19,6 +21,8 @@ interface QuoteService {
   quantity: number;
   unit_price: number;
   total: number;
+  dimensions_label?: string | null;
+  piece_spec?: PieceSpec | null;
 }
 
 interface PublicQuote {
@@ -138,7 +142,8 @@ export default function QuoteApproval() {
                 <div key={`service-${s.id}`} className="flex items-center justify-between gap-3 text-sm">
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-700 truncate">{s.name}</p>
-                    <p className="text-[11px] text-slate-400">Qtd: {s.quantity} × {fmt(s.unit_price)}</p>
+                    <p className="text-[11px] text-slate-400">{s.dimensions_label ? `${s.dimensions_label} · ` : ""}Qtd: {s.quantity} × {fmt(s.unit_price)}</p>
+                    {s.piece_spec && <div className="mt-2 w-40 overflow-hidden rounded border border-slate-200"><GlassDrawing spec={s.piece_spec} /></div>}
                   </div>
                   <p className="shrink-0 font-mono font-semibold text-slate-700">{fmt(s.total)}</p>
                 </div>

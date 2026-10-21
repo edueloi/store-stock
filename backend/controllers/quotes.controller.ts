@@ -6,6 +6,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
 import { canMoveToStage, syncLinkedStatus } from "../utils/stage-permissions";
 import { isWorkflowStage, WORKFLOW_STAGES, GRAFICA_ONLY_STAGES } from "../utils/workflow-stages";
+import { sanitizePieceSpec } from "../utils/glassPieces";
 import { emitToTenant } from "../services/realtime.service";
 import { buildMethodSummary } from "../utils/payment-method";
 import { computeSalePaymentTotals, assertCrediarioAllowed, createCrediarioDebt, SalePaymentError } from "../utils/sale-payment";
@@ -158,7 +159,7 @@ export async function createQuote(req: Request, res: Response) {
       validity_days?: number;
       notes?: string;
       items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label?: string | null; selected_options?: Record<string, string> | null }>;
-      services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null }>;
+      services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null; piece_spec?: unknown }>;
     };
 
     // Criar/preencher um orçamento não significa que ele foi entregue ao cliente.
@@ -182,6 +183,7 @@ export async function createQuote(req: Request, res: Response) {
       quantity: s.quantity ?? 1,
       total: Math.round(s.price * (s.quantity ?? 1) * 100) / 100,
       dimensions_label: s.dimensions_label || null,
+      piece_spec: (sanitizePieceSpec(s.piece_spec) ?? undefined) as any,
     }));
     const itemsSubtotal = itemRows.reduce((sum, i) => sum + i.total, 0);
     const servicesSubtotal = serviceRows.reduce((sum, s) => sum + s.total, 0);
@@ -409,7 +411,7 @@ export async function updateQuote(req: Request, res: Response) {
       validity_days?: number;
       notes?: string;
       items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; dimensions_label?: string | null; selected_options?: Record<string, string> | null }>;
-      services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null }>;
+      services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null; piece_spec?: unknown }>;
     };
 
     const changes: AuditChange[] = [];
@@ -477,6 +479,7 @@ export async function updateQuote(req: Request, res: Response) {
               quantity: s.quantity ?? 1,
               total: Math.round(s.price * (s.quantity ?? 1) * 100) / 100,
               dimensions_label: s.dimensions_label || null,
+              piece_spec: (sanitizePieceSpec(s.piece_spec) ?? undefined) as any,
             })),
           },
         }),

@@ -44,6 +44,7 @@ import { restoreStoreCart, serializeStoreCart, storeCartKey } from "../../lib/st
 // ── Store pages (lazy-loaded per theme)
 import { lazy, Suspense } from "react";
 import { useStoreFx } from "../../components/store/fx";
+const StoreQuoteRequest = lazy(() => import("./pages/StoreQuoteRequest"));
 const StrideCheckout = lazy(() => import("./themes/stride/StoreCheckout"));
 const StrideHelp = lazy(() => import("./themes/stride/StoreHelp"));
 
@@ -1581,6 +1582,7 @@ function StoreLayoutInner() {
               <Route path="catalogo" element={<StoreCatalog />} />
               <Route path="produto/:productId" element={<StoreProduct />} />
               <Route path="sobre" element={<StoreAbout />} />
+              <Route path="orcamento" element={<StoreQuoteRequest />} />
               {templateId === "stride" && <Route path="checkout" element={<StrideCheckout />} />}
               {templateId === "stride" && <Route path="ajuda" element={<StrideHelp />} />}
             </Routes>
