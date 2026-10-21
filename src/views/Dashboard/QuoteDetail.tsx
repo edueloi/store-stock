@@ -1476,7 +1476,7 @@ export default function QuoteDetail() {
       <Modal
         open={!!measureService}
         onClose={() => { setMeasureService(null); setEditingPieceIdx(null); }}
-        size={pieceMode ? "xl" : "sm"}
+        size={pieceMode ? "full" : "sm"}
         title={editingPieceIdx !== null ? `Editar peça · ${measureService?.name ?? ""}` : measureService?.name}
         subtitle={measureService ? `Serviço por ${measureService.sale_unit === "m2" ? "m²" : "metro linear"}` : undefined}
         footer={

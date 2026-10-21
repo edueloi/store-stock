@@ -5,6 +5,25 @@ export type PieceKind =
   | "janela_correr" | "janela_maxim" | "porta_correr" | "porta_pivotante"
   | "box_frontal" | "box_canto" | "espelho" | "tampo" | "guarda_corpo" | "fixo";
 
+/** Formato do vidro: retangular ou um recorte (arco, redondo, triângulo...). Só para peças de uma folha. */
+export type PieceShape = "retangular" | "arco" | "meia_lua" | "redondo" | "triangulo" | "trapezio" | "chanfrado" | "octogonal";
+
+export const PIECE_SHAPES: { value: PieceShape; label: string }[] = [
+  { value: "retangular", label: "Retangular" },
+  { value: "arco", label: "Arco" },
+  { value: "meia_lua", label: "Meia-lua" },
+  { value: "redondo", label: "Redondo / oval" },
+  { value: "triangulo", label: "Triângulo" },
+  { value: "trapezio", label: "Trapézio" },
+  { value: "chanfrado", label: "Cantos cortados" },
+  { value: "octogonal", label: "Octogonal" },
+];
+
+/** Tipos de peça que aceitam formato diferente do retangular. */
+export const SHAPE_KINDS: PieceKind[] = ["espelho", "tampo", "fixo"];
+
+export const shapeLabel = (shape: string | undefined) => PIECE_SHAPES.find((s) => s.value === shape)?.label ?? "Retangular";
+
 export interface PieceSpec {
   kind: PieceKind;
   width_mm: number;
@@ -18,6 +37,8 @@ export interface PieceSpec {
   gap_mm?: number;
   /** Margem de segurança sobre a área (perda de corte/quebra), em %. Entra na área cobrada. */
   waste_pct?: number;
+  /** Formato do vidro (ausente = retangular). A cobrança é sempre pelo retângulo do vão (envolvente). */
+  shape?: PieceShape;
 }
 
 export const PIECE_KINDS: { value: PieceKind; label: string; leaves: boolean }[] = [
@@ -46,6 +67,7 @@ export function pieceSummary(spec: PieceSpec | null | undefined): string {
   if (!spec) return "";
   const parts = [`${pieceLabel(spec.kind)} · ${num(spec.width_mm)} × ${num(spec.height_mm)} mm`];
   if (spec.leaves && spec.leaves > 1) parts.push(`${spec.leaves} folhas`);
+  if (spec.shape && spec.shape !== "retangular") parts.push(`formato ${shapeLabel(spec.shape).toLowerCase()}`);
   const glass = [spec.glass, spec.thickness_mm ? `${spec.thickness_mm} mm` : ""].filter(Boolean).join(" ");
   if (glass) parts.push(glass);
   if (num(spec.gap_mm) > 0) {
@@ -69,6 +91,7 @@ export function sanitizePieceSpec(raw: any): PieceSpec | null {
   const thickness = Math.round(num(raw.thickness_mm));
   const gap = Math.min(50, Math.max(0, num(raw.gap_mm)));
   const waste = Math.min(50, Math.max(0, num(raw.waste_pct)));
+  const shape = PIECE_SHAPES.find((s) => s.value === raw.shape)?.value;
   return {
     kind, width_mm, height_mm,
     ...(leaves > 1 ? { leaves } : {}),
@@ -78,6 +101,7 @@ export function sanitizePieceSpec(raw: any): PieceSpec | null {
     ...(str(raw.notes, 300) ? { notes: str(raw.notes, 300) } : {}),
     ...(gap > 0 ? { gap_mm: Math.round(gap * 10) / 10 } : {}),
     ...(waste > 0 ? { waste_pct: Math.round(waste * 10) / 10 } : {}),
+    ...(shape && shape !== "retangular" && SHAPE_KINDS.includes(kind) ? { shape } : {}),
   };
 }
 

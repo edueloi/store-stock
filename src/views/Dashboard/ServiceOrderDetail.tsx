@@ -1734,7 +1734,7 @@ export default function ServiceOrderDetail() {
         onClose={() => setShowAddPartModal(false)}
         title="Adicionar item"
         subtitle={isMeasuredSelection ? `Venda por ${(addPartTab === "services" ? partSelectedService!.sale_unit : partSelectedProduct!.sale_unit) === "m2" ? "m²" : "metro linear"}` : undefined}
-        size="lg"
+        size={servicePieceActive ? "full" : "lg"}
         footer={
           <>
             <Button variant="outline" size="md" onClick={() => setShowAddPartModal(false)} className="flex-1">
