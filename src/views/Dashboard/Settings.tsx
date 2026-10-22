@@ -3178,6 +3178,17 @@ export default function Settings({
                           badge: { bg: "#e9edef", text: "#27343a" },
                         },
                         {
+                          id: "gadget",
+                          name: "Gadget Store",
+                          tag: "E-commerce de Tecnologia",
+                          desc: "Loja completa de eletrônicos: hero de campanha, mais vendidos, ofertas, filtros no catálogo, ficha técnica e cor de destaque da sua marca.",
+                          color: "#2f6bff",
+                          bg: "#ffffff",
+                          cardBg: "#f4f6f9",
+                          textColor: "#0b0d12",
+                          badge: { bg: "#e8efff", text: "#2f6bff" },
+                        },
+                        {
                           id: "nexus_tech",
                           name: "Nexus Tech",
                           tag: "Tecnologia & Design",
@@ -3339,7 +3350,7 @@ export default function Settings({
                         ...segmentModelCards,
                       ] as const
                     ).map(t => isSegment(t.id) ? { ...t, name: segmentThemes[t.id].name, tag: segmentThemes[t.id].tag, desc: segmentThemes[t.id].desc, color: segmentThemes[t.id].accent, bg: segmentThemes[t.id].bg, cardBg: segmentThemes[t.id].surface, textColor: segmentThemes[t.id].ink } : t).filter((t) => modelCategory === "Todos" || (isSegment(t.id) && segmentThemes[t.id].group === modelCategory) || ({
-                      minimal: "Geral", cyber: "Tecnologia", organic: "Geral", luxury: "Geral", tech: "Tecnologia", nexus_tech: "Tecnologia", atelier: "Moda", urban: "Moda", doceria: "Comércio", fragrance: "Beleza", beauty: "Beleza", street: "Moda", streetwear: "Moda", aura: "Moda", vidracaria: "Casa & Construção", sport: "Esportes & Fitness", fitness: "Esportes & Fitness", variety: "Comércio", toys: "Comércio", marketplace: "Comércio", electric: "Casa & Construção",
+                      minimal: "Geral", cyber: "Tecnologia", organic: "Geral", luxury: "Geral", tech: "Tecnologia", nexus_tech: "Tecnologia", gadget: "Tecnologia", atelier: "Moda", urban: "Moda", doceria: "Comércio", fragrance: "Beleza", beauty: "Beleza", street: "Moda", streetwear: "Moda", aura: "Moda", vidracaria: "Casa & Construção", sport: "Esportes & Fitness", fitness: "Esportes & Fitness", variety: "Comércio", toys: "Comércio", marketplace: "Comércio", electric: "Casa & Construção",
                     } as Record<string, string>)[t.id] === modelCategory || (modelCategory === "Comércio" && (t.id === "pet" || t.id === "paper")) || (modelCategory === "Casa & Construção" && t.id === "home")).map((t) => {
                       const isActive = tenant?.template_id === t.id;
                       const previewBase =

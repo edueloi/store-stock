@@ -257,6 +257,8 @@ export interface Product {
   type: 'sale' | 'internal';
   is_active: boolean;
   is_featured: boolean;
+  /** Só vem da API pública: unidades vendidas em pedidos concluídos (ranking de "mais vendidos"). */
+  sold_count?: number;
   /** false = sob encomenda: vende sem estoque, não baixa saldo e não gera alerta de esgotado. */
   track_stock?: boolean;
   /** true = preço visível no catálogo/PDV, mas escondido na vitrine (venda por orçamento). */

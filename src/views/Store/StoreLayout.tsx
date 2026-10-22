@@ -296,6 +296,14 @@ const templates: Record<string, StoreStyle> = {
     font: "font-sans",
     radius: "rounded-none",
   },
+  gadget: {
+    bg: "bg-white",
+    card: "bg-white border-[#e6e9ee]",
+    accent: "#2f6bff",
+    text: "text-[#0b0d12]",
+    font: "font-sans",
+    radius: "rounded-2xl",
+  },
   nexus_tech: {
     bg: "bg-[#f3f6f8]",
     card: "bg-white border-[#dfe6ec]",
@@ -608,7 +616,7 @@ function StoreLayoutInner() {
       }
     }
     const variationImages = getVariationImages(product, options || {});
-    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books', 'agro', 'feed', 'garden', 'electric', 'toys', 'variety', 'aura', 'coffee', 'nexus_tech'].includes(templateId || '');
+    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books', 'agro', 'feed', 'garden', 'electric', 'toys', 'variety', 'aura', 'coffee', 'nexus_tech', 'gadget'].includes(templateId || '');
     const usesDiscountPrice = isSegment(templateId || '') || editorialTheme;
     const storefrontPrice = editorialTheme && Number(product.discount_price) <= 0
       ? product.price

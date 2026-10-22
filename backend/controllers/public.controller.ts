@@ -177,12 +177,22 @@ export async function getPublicStore(req: Request, res: Response) {
       return;
     }
 
-    const [categories, products] = await Promise.all([
+    const [categories, products, soldRows] = await Promise.all([
       prisma.category.findMany({ where: { tenant_id: tenant.id }, orderBy: { name: "asc" } }),
       prisma.product.findMany({
         where: { tenant_id: tenant.id, is_active: true },
       }),
+      // Unidades vendidas em pedidos concluídos: alimenta a seção "Mais vendidos" da vitrine.
+      prisma.orderItem
+        .groupBy({
+          by: ["product_id"],
+          where: { product_id: { not: null }, order: { tenant_id: tenant.id, status: "completed" } },
+          _sum: { quantity: true },
+        })
+        .catch(() => [] as Array<{ product_id: number | null; _sum: { quantity: number | null } }>),
     ]);
+    const soldByProduct = new Map<number, number>();
+    for (const row of soldRows) if (row.product_id != null) soldByProduct.set(row.product_id, Number(row._sum.quantity) || 0);
 
     const hideDescription = Boolean(checkoutSettings(tenant).hide_product_description);
 
@@ -190,7 +200,7 @@ export async function getPublicStore(req: Request, res: Response) {
       tenant: publicTenant(tenant),
       categories,
       products: products.map((product) => {
-        const publicProduct = toPublicProduct(product);
+        const publicProduct = { ...toPublicProduct(product), sold_count: soldByProduct.get(product.id) || 0 };
         return hideDescription ? { ...publicProduct, description: null } : publicProduct;
       }),
     });
