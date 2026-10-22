@@ -3,7 +3,7 @@ import { ArrowRight, CreditCard, MessageCircle, RefreshCw } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import HeroSlider from "../../../../components/store/HeroSlider";
 import Card from "./Card";
-import { categoryImage, productImage, useHero, useKit, useUsedCategories } from "./kit";
+import { categoryImage, productImage, shorten, useHero, useKit, useUsedCategories } from "./kit";
 import "./styles.css";
 
 export default function StoreFront() {
@@ -14,19 +14,33 @@ export default function StoreFront() {
   const showcase = (featured.length ? featured : active).slice(0, tenant.featured_limit || 8);
   const lead = active.find((p) => p.is_featured) || active[0];
   const heroImage = tenant.banner_url || (lead ? productImage(lead) : "");
-  const title = tenant.hero_tagline || tenant.name;
-  const text = tenant.about_text ? tenant.about_text.slice(0, 140) : "Uma seleção simples, feita para escolher com calma.";
+  const tagline = (tenant.hero_tagline || "").trim();
+  const shortTag = tagline && tagline.length <= 60;
+  const title = shortTag ? tagline : tenant.name;
+  const text = shorten(shortTag ? tenant.about_text || "" : tagline || tenant.about_text || "", 170) || "Uma seleção simples, feita para escolher com calma.";
+  const kicker = shortTag ? tenant.name : "Bem-vindo";
 
   const fallback = (
-    <section className="mn-hero">
+    <section className={`mn-hero${heroImage ? "" : " mn-hero-solo"}`}>
       <div className="mn-hero-copy">
+        {tenant.logo_url && !heroImage && <img className="mn-hero-logo" src={tenant.logo_url} alt="" />}
+        <span className="mn-kicker">{kicker}</span>
         <h1>{title}</h1>
         <p>{text}</p>
-        <Link className="mn-btn" to={path("/catalogo")}>
-          {sf.hero_button_label || "Ver catálogo"} <ArrowRight size={16} />
-        </Link>
+        <div className="mn-hero-actions">
+          <Link className="mn-btn" to={path("/catalogo")}>
+            {sf.hero_button_label || "Ver catálogo"} <ArrowRight size={16} />
+          </Link>
+          <Link className="mn-btn mn-btn-line" to={path("/sobre")}>
+            Conheça a loja
+          </Link>
+        </div>
       </div>
-      <div className="mn-hero-art">{heroImage && <img src={heroImage} alt={lead?.name || tenant.name} />}</div>
+      {heroImage && (
+        <div className="mn-hero-art">
+          <img src={heroImage} alt={lead?.name || tenant.name} />
+        </div>
+      )}
     </section>
   );
 

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, Search, ShoppingBag, X } from "lucide-react";
-import { hoursRows, useKit, useUsedCategories } from "./kit";
+import { formatPhone, hoursRows, shorten, useKit, useUsedCategories } from "./kit";
 import "./styles.css";
 
 export function Header() {
@@ -86,58 +86,70 @@ export function Footer() {
   const { tenant, path, waLink } = useKit();
   const cats = useUsedCategories();
   const hours = hoursRows(tenant);
+  const blurb = shorten(tenant.footer_text || tenant.about_text || "Uma seleção simples, feita para escolher com calma.", 150);
   return (
     <div className="mn-footer" role="contentinfo">
-      <div className="mn-foot-grid">
-        <section className="mn-foot-card mn-foot-about">
-          <strong>{tenant.name}</strong>
-          <p>{tenant.footer_text || tenant.about_text || "Uma seleção simples, feita para escolher com calma."}</p>
-        </section>
-        <section className="mn-foot-card">
-          <h2>Navegar</h2>
-          <Link to={path("/catalogo")}>Catálogo</Link>
-          <Link to={path("/sobre")}>Sobre</Link>
-          {cats.slice(0, 5).map((c) => (
-            <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>
-              {c.name}
-            </Link>
-          ))}
-        </section>
-        <section className="mn-foot-card">
-          <h2>Contato</h2>
-          {tenant.whatsapp && (
-            <a href={waLink()} target="_blank" rel="noreferrer">
-              WhatsApp
-            </a>
-          )}
-          {tenant.instagram_url && (
-            <a href={tenant.instagram_url} target="_blank" rel="noreferrer">
-              Instagram
-            </a>
-          )}
-          {tenant.facebook_url && (
-            <a href={tenant.facebook_url} target="_blank" rel="noreferrer">
-              Facebook
-            </a>
-          )}
-          {tenant.show_address && tenant.address && <p>{tenant.address}</p>}
-          {hours.length > 0 && (
-            <ul className="mn-hours">
-              {hours.map((h) => (
-                <li key={h.day}>
-                  <span>{h.day}</span> {h.text}
-                </li>
+      <div className="mn-foot-inner">
+        <div className="mn-foot-top">
+          <div className="mn-foot-brand">
+            {tenant.logo_url ? <img src={tenant.logo_url} alt={tenant.name} /> : <strong>{tenant.name}</strong>}
+            <p>{blurb}</p>
+          </div>
+          <nav className="mn-foot-col" aria-label="Rodapé">
+            <h2>Navegar</h2>
+            <Link to={path()}>Início</Link>
+            <Link to={path("/catalogo")}>Catálogo</Link>
+            <Link to={path("/sobre")}>Sobre</Link>
+          </nav>
+          {cats.length > 0 && (
+            <nav className="mn-foot-col" aria-label="Categorias">
+              <h2>Categorias</h2>
+              {cats.slice(0, 5).map((c) => (
+                <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>
+                  {c.name}
+                </Link>
               ))}
-            </ul>
+            </nav>
           )}
-        </section>
+          <div className="mn-foot-col">
+            <h2>Contato</h2>
+            {tenant.whatsapp && (
+              <a href={waLink()} target="_blank" rel="noreferrer">
+                {formatPhone(tenant.whatsapp)}
+              </a>
+            )}
+            {tenant.instagram_url && (
+              <a href={tenant.instagram_url} target="_blank" rel="noreferrer">
+                Instagram
+              </a>
+            )}
+            {tenant.facebook_url && (
+              <a href={tenant.facebook_url} target="_blank" rel="noreferrer">
+                Facebook
+              </a>
+            )}
+            {tenant.show_address && tenant.address && <span>{tenant.address}</span>}
+            {hours.length > 0 && (
+              <ul className="mn-hours">
+                {hours.map((h) => (
+                  <li key={h.day}>
+                    <span>{h.day}</span> {h.text}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+        <p className="mn-credit">
+          <span>© {new Date().getFullYear()} {tenant.name}</span>
+          <span>
+            Desenvolvido por{" "}
+            <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">
+              BoxSys
+            </a>
+          </span>
+        </p>
       </div>
-      <p className="mn-credit">
-        © {new Date().getFullYear()} {tenant.name} · Desenvolvido por{" "}
-        <a href="https://boxsys.com.br" target="_blank" rel="noreferrer">
-          BoxSys
-        </a>
-      </p>
     </div>
   );
 }

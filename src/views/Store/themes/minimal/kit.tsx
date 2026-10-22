@@ -15,7 +15,7 @@ import { HIDDEN_PRICE } from "../../../../lib/storePrice";
 export const money = (value: number) =>
   value === HIDDEN_PRICE ? "Sob consulta" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
-export const productImage = (p: Product) => (Array.isArray(p.images) && p.images[0]) || p.image_url || "";
+export const productImage = (p?: Product | null) => (!p ? "" : (Array.isArray(p.images) && p.images[0]) || p.image_url || "");
 
 export const optionGroups = (p: Product) =>
   p.attributes?.length
@@ -173,4 +173,19 @@ export function useCatalogList(pageSize = 12) {
     return out;
   }, [kit.active, kit.hidden, query.q, query.category, sort]);
   return { ...kit, ...query, sort, setSort, list, shown: list.slice(0, visible), more: () => setVisible((v) => v + pageSize), hasMore: list.length > visible };
+}
+
+export function formatPhone(raw: string) {
+  const d = String(raw || "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return raw;
+}
+
+export function shorten(text: string, max: number) {
+  const t = text.replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max);
+  const stop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  return stop > max * 0.5 ? cut.slice(0, stop + 1) : `${cut.slice(0, cut.lastIndexOf(" "))}…`;
 }
