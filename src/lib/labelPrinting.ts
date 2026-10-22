@@ -19,11 +19,25 @@ export const DEFAULT_LABEL_PRINT: LabelPrintSettings = {
 export const LABEL_PRINT_PRESETS = [
   { id: "a4", name: "Exemplo: A4 · 50 × 30 mm", settings: DEFAULT_LABEL_PRINT },
   ...([1, 2, 3] as const).map(columns => ({
-    id: `roll-${columns}`, name: `Exemplo: bobina · ${columns} coluna${columns > 1 ? "s" : ""}`,
+    id: `roll-${columns}`, name: `Exemplo: bobina · ${columns} coluna${columns > 1 ? "s" : ""} · ${columns === 1 ? "100 × 50" : columns === 2 ? "50 × 30" : "32 × 25"} mm`,
     settings: { ...DEFAULT_LABEL_PRINT, mode: "thermal" as const, paperWidth: 104, paperHeight: 50,
       width: columns === 1 ? 100 : columns === 2 ? 50 : 32, height: columns === 1 ? 50 : columns === 2 ? 30 : 25,
       columns, gapX: columns === 1 ? 0 : 2, gapY: 3,
       marginLeft: columns === 2 ? 1 : 2, marginRight: columns === 2 ? 1 : 2,
+      marginTop: 0, marginBottom: 0, safety: 1,
+    },
+  })),
+  ...([
+    ["roll-100-150", 100, 150, 1, 104],
+    ["roll-60-40", 60, 40, 1, 64],
+    ["roll-50-30", 50, 30, 1, 54],
+    ["roll-40-25", 40, 25, 1, 44],
+    ["roll-2-40-25", 40, 25, 2, 84],
+    ["roll-3-30-20", 30, 20, 3, 98],
+  ] as const).map(([id, width, height, columns, paperWidth]) => ({
+    id, name: `Exemplo: bobina · ${columns} coluna${columns > 1 ? "s" : ""} · ${width} × ${height} mm`,
+    settings: { ...DEFAULT_LABEL_PRINT, mode: "thermal" as const, width, height, columns, paperWidth,
+      gapX: columns === 1 ? 0 : 2, gapY: 3, marginLeft: columns === 2 ? 1 : 2, marginRight: columns === 2 ? 1 : 2,
       marginTop: 0, marginBottom: 0, safety: 1,
     },
   })),
@@ -123,11 +137,11 @@ export function labelPrintDocument(s: LabelPrintSettings, contents: string[], ti
 .print-help{padding:16px;background:#edf4ff;color:#1e3a5f;font-size:13px;line-height:1.6}.print-help button{margin-top:8px;padding:8px 14px;cursor:pointer}
 @media screen{body{background:#e9edf2}.print-sheet{background:white;margin:16px auto;box-shadow:0 2px 8px #0002}}
 @media print{.print-help,.empty-slot{display:none}body{background:white}.print-sheet{margin:0;box-shadow:none}}
-${previewWidth ? `@media screen{html{zoom:${Math.min(1, previewWidth / (s.paperWidth * 96 / 25.4))}}.print-help{display:none!important}.print-sheet{margin:0!important;box-shadow:none!important}body{background:#fff!important}` : ""}
-</style></head><body><aside class="print-help"><strong>${labelEscape(title)}</strong><br>Papel ${s.paperWidth} × ${g.pageHeight} mm. Use escala 100%, margens nenhuma e cabeçalhos/rodapés desativados. Cadastre esse papel no driver. ${s.mode === "thermal" && s.media !== "continuous" ? `Configure o GAP/marca de ${s.gapY} mm no driver; ele faz o avanço entre fileiras.` : ""}<br><button type="button" onclick="window.print()">Imprimir</button></aside>
+${previewWidth ? `@media screen{html,body{overflow:hidden;width:${previewWidth}px;height:${g.pageHeight / s.paperWidth * previewWidth}px}.print-sheet{transform:scale(${previewWidth / (s.paperWidth * 96 / 25.4)});transform-origin:top left}}.print-help{display:none!important}.print-sheet{margin:0!important;box-shadow:none!important}body{background:#fff!important}` : ""}
+</style></head><body><aside class="print-help"><strong>${labelEscape(title)}</strong><br>${contents.length} etiqueta${contents.length > 1 ? "s" : ""} · ${s.columns} coluna${s.columns > 1 ? "s" : ""} lado a lado. Papel da fileira: ${s.paperWidth} × ${g.pageHeight} mm. No driver, use a largura da fileira inteira, não apenas ${s.width} mm de uma etiqueta.<br>Use escala 100%, margens nenhuma e cabeçalhos/rodapés desativados. Cadastre esse papel no driver. ${s.mode === "thermal" && s.media !== "continuous" ? `Configure o GAP/marca de ${s.gapY} mm no driver; ele faz o avanço entre fileiras.` : ""}<br><button type="button" onclick="window.print()">Imprimir</button></aside>
 ${pages.map((cells, page) => `<section class="print-sheet" data-page="${page + 1}">${cells.join("")}</section>`).join("")}
 <script>
-(async()=>{await document.fonts.ready;await Promise.all(Array.from(document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve})));let minScale=1;for(const box of document.querySelectorAll('.label-safe')){const content=box.firstElementChild;const scale=${calibration ? "1" : `Math.min(1,box.clientWidth/Math.max(1,content.scrollWidth),box.clientHeight/Math.max(1,content.scrollHeight))*${s.scale / 100}`};minScale=Math.min(minScale,scale);content.style.transform='translate('+Math.max(0,(box.clientWidth-content.offsetWidth*scale)/2)+'px,'+Math.max(0,(box.clientHeight-content.scrollHeight*scale)/2)+'px) scale('+scale+')';content.dataset.scale=String(scale)}window.__labelsReady=true;window.dispatchEvent(new Event('labels-ready'));if(window.parent!==window)window.parent.postMessage({kind:'boxsys-label-fit',minScale},'*')})();
+(async()=>{const boxes=Array.from(document.querySelectorAll('.label-safe'));let imagesReady=false;const fit=()=>{let minScale=1,ready=imagesReady;for(const box of boxes){if(box.clientWidth<1||box.clientHeight<1){ready=false;continue}const content=box.firstElementChild;const scale=${calibration ? "1" : `Math.min(1,box.clientWidth/Math.max(1,content.scrollWidth),box.clientHeight/Math.max(1,content.scrollHeight))*${s.scale / 100}`};minScale=Math.min(minScale,scale);content.style.transform='translate('+Math.max(0,(box.clientWidth-content.offsetWidth*scale)/2)+'px,'+Math.max(0,(box.clientHeight-content.scrollHeight*scale)/2)+'px) scale('+scale+')';content.dataset.scale=String(scale)}if(ready){window.__labelsReady=true;window.dispatchEvent(new Event('labels-ready'));if(window.parent!==window)window.parent.postMessage({kind:'boxsys-label-fit',minScale},'*')}};const observer=new ResizeObserver(fit);boxes.forEach(box=>observer.observe(box));await Promise.all(Array.from(document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve})));imagesReady=true;document.fonts.ready.then(fit);document.fonts.addEventListener('loadingdone',fit);fit()})();
 </script></body></html>`;
 }
 

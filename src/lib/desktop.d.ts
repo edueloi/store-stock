@@ -70,6 +70,8 @@ export interface BoxsysDesktopApi {
   savePrinterConfig: (cfg: PrinterConfig) => Promise<{ ok: boolean }>;
   testPrinter: (cfg: PrinterConfig) => Promise<PrinterActionResult>;
   listSerialPorts: () => Promise<SerialPortInfo[]>;
+  /** Impressoras instaladas no Windows, listadas pela ponte do aplicativo. */
+  listUsbPrinters?: () => Promise<Array<{ name: string; displayName: string; isDefault: boolean }>>;
 
   // Pareamento de terminal (Configurações → Vincular Dispositivos)
   getPairingState: () => Promise<PairingState>;

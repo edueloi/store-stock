@@ -206,22 +206,6 @@ function CustomLabelCard({ data, labelSize, fields, onReady }: { data: CustomLab
   );
 }
 
-// ── Componente preview de barcode para seleção ────────────────────────────────
-function BarcodePreview({ code }: { code: string }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  useEffect(() => {
-    if (!code) return;
-    loadJsBarcode().then(() => renderBarcode(svgRef.current, code, { height: 36, fontSize: 9, width: 1.4 }));
-  }, [code]);
-
-  if (!code) return (
-    <div className="h-10 flex items-center justify-center bg-slate-50 rounded-lg border border-dashed border-slate-200">
-      <span className="text-[10px] text-slate-400 font-semibold">Sem código</span>
-    </div>
-  );
-  return <svg ref={svgRef} className="w-full" />;
-}
-
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 interface SelectedItem {
   product: Product;
@@ -274,7 +258,6 @@ export default function Barcodes() {
   const [productPreview, setProductPreview] = useState<string[]>([]), [customPreview, setCustomPreview] = useState<string[]>([]);
   const [showOnly, setShowOnly]     = useState<"all" | "with" | "without">("all");
   const [fields, setFields]         = useState<LabelFields>(DEFAULT_LABEL_FIELDS);
-  const [jsBarcodeReady, setJsBarcodeReady] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
   const customPrintRef = useRef<HTMLDivElement>(null);
   const barcodesPageTourRef = useRef<BarcodesPageTourHandle>(null);
@@ -294,7 +277,7 @@ export default function Barcodes() {
         setProducts(Array.isArray(d) ? d : []);
         setLoading(false);
       });
-    loadJsBarcode().then(() => setJsBarcodeReady(true)).catch(() => toast.error("Não foi possível carregar o gerador de barras. Recarregue a página ou imprima sem esse campo."));
+    loadJsBarcode().catch(() => toast.error("Não foi possível carregar o gerador de barras. Recarregue a página ou imprima sem esse campo."));
   }, []);
 
   useEffect(() => {
@@ -397,9 +380,9 @@ export default function Barcodes() {
     return () => cancelAnimationFrame(frame);
   }, [productContents, customContents, renderTick, labelMode]);
 
-  const openPrint = useCallback((contents: string[], title: string, calibration = false) => {
+  const openPrint = useCallback((contents: string[], title: string, calibration = false, settings = printSettings) => {
     try {
-      const html = labelPrintDocument(printSettings, contents, title, calibration);
+      const html = labelPrintDocument(settings, contents, title, calibration);
       const popup = window.open("", "_blank", "width=1000,height=760");
       if (!popup) { toast.warning("Permita a abertura da janela de impressão neste navegador."); return; }
       popup.document.open(); popup.document.write(html); popup.document.close();
@@ -413,7 +396,7 @@ export default function Barcodes() {
   }, [printSettings, toast]);
   const handlePrint = useCallback(() => { try { openPrint(productContents(true), "Etiquetas de produtos"); } catch (error) { toast.error((error as Error).message); } }, [productContents, openPrint, toast]);
   const handlePrintCustom = useCallback(() => { try { openPrint(customContents(true), "Etiquetas personalizadas"); } catch (error) { toast.error((error as Error).message); } }, [customContents, openPrint, toast]);
-  const handleTestPrint = () => openPrint(calibrationContents(printSettings), "Teste de alinhamento · etiquetas", true);
+  const handleTestPrint = (settings: LabelPrintConfig) => openPrint(calibrationContents(settings), "Teste de alinhamento · etiquetas", true, settings);
 
   const totalLabels = selected.reduce((s, x) => s + x.qty, 0);
   const setCustom = (patch: Partial<CustomLabelData>) => setCustomLabel((current) => ({ ...current, ...patch }));
@@ -453,7 +436,7 @@ export default function Barcodes() {
       <LabelPrintSettings value={printSettings} onChange={setPrintSettings} onTest={handleTestPrint} />
 
       <Tabs<typeof LABEL_MODE_TABS[number]["id"]> items={LABEL_MODE_TABS} value={labelMode} onChange={setLabelMode} label="Tipo de etiqueta">
-      <div className={cn("flex flex-col gap-4 xl:flex-row", labelMode !== "products" && "hidden")}>
+      <div className={cn("grid min-w-0 grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]", labelMode !== "products" && "hidden")}>
 
         {/* ── PAINEL ESQUERDO — seleção de produtos ──────────────────────── */}
         <div className="flex-1 min-w-0 space-y-3">
@@ -498,7 +481,7 @@ export default function Barcodes() {
               <RefreshCw size={20} className="animate-spin text-slate-300" />
             </div>
           ) : (
-            <div className="space-y-1.5 xl:max-h-[calc(100vh-320px)] xl:overflow-y-auto admin-scroll pr-1">
+            <div className="max-h-[56vh] space-y-2 overflow-y-auto xl:max-h-[calc(100vh-340px)] admin-scroll pr-1">
               {filtered.map((p, idx) => {
                 const sel = isSelected(p.id);
                 const item = selected.find((s) => s.product.id === p.id);
@@ -512,7 +495,7 @@ export default function Barcodes() {
                         : "border-slate-200 hover:border-slate-300",
                     )}
                   >
-                    <div className="flex items-center gap-3 p-3">
+                    <div className="flex flex-wrap items-center gap-3 p-3 sm:p-4">
                       {/* checkbox */}
                       <button
                         type="button"
@@ -531,7 +514,7 @@ export default function Barcodes() {
                       </button>
 
                       {/* thumb */}
-                      <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-50 border border-slate-100 shrink-0 flex items-center justify-center">
+                      <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-50 border border-slate-100 shrink-0 flex items-center justify-center">
                         {p.image_url
                           ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
                           : <Package size={16} className="text-slate-300" />}
@@ -539,24 +522,25 @@ export default function Barcodes() {
 
                       {/* info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-slate-800 truncate">{p.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-sm font-semibold leading-5 text-slate-800 break-words">{p.name}</p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                           {(p.barcode || p.sku) ? (
-                            <span className="text-[11px] font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                            <span className="break-all text-xs font-mono text-slate-500">
                               {p.barcode || p.sku}
                             </span>
                           ) : (
                             <Badge color="warning">Sem código</Badge>
                           )}
-                          <span className="text-[11px] font-medium text-blue-600 font-mono">
-                            R$ {Number(p.price).toFixed(2)}
+                          <span className="text-sm font-semibold text-slate-800">
+                            {Number(p.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                           </span>
                         </div>
                       </div>
 
                       {/* qty control (só quando selecionado) */}
                       {sel && (
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-blue-100 pt-3">
+                          <span className="mr-auto text-xs font-medium text-slate-600">Cópias deste produto</span>
                           <IconButton variant="secondary" size="sm" aria-label="Diminuir quantidade" onClick={() => updateQty(p.id, -1)}>
                             <Minus size={11} />
                           </IconButton>
@@ -567,12 +551,6 @@ export default function Barcodes() {
                         </div>
                       )}
 
-                      {/* barcode mini-preview */}
-                      {(p.barcode || p.sku) && jsBarcodeReady && (
-                        <div className="hidden w-20 shrink-0 md:block">
-                          <BarcodePreview code={p.barcode || p.sku || ""} />
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -586,20 +564,19 @@ export default function Barcodes() {
         </div>
 
         {/* ── PAINEL DIREITO — configuração + preview ─────────────────────── */}
-        <div className="w-full shrink-0 space-y-4 xl:w-80">
+        <div className="flex min-w-0 w-full flex-col gap-4 xl:sticky xl:top-4">
 
           {/* Configurações de impressão */}
-          <PanelCard title="Configurações de Impressão" contentClassName="space-y-4">
-            <div data-tour="barcodes-label-size" className="rounded-lg bg-blue-50 p-3 text-xs leading-6 text-blue-900">
-              Etiqueta: {printSettings.width} × {printSettings.height} mm<br />
-              <span data-tour="barcodes-layout">{printSettings.columns} coluna{printSettings.columns > 1 ? "s" : ""} · {printSettings.mode === "thermal" ? "bobina" : "folha"}</span><br />
-              Ajuste as medidas em “Formato e alinhamento da impressão”, acima.
+          <PanelCard className="order-2" title="Conteúdo e quantidade" contentClassName="space-y-4">
+            <div data-tour="barcodes-label-size" className="flex flex-wrap gap-2 text-xs font-medium text-slate-600">
+              <span className="rounded-md bg-slate-100 px-3 py-2">{printSettings.width} × {printSettings.height} mm</span>
+              <span data-tour="barcodes-layout" className="rounded-md bg-slate-100 px-3 py-2">{printSettings.columns} coluna{printSettings.columns > 1 ? "s" : ""} · {printSettings.mode === "thermal" ? "bobina" : "folha"}</span>
             </div>
 
             {/* Campos da etiqueta */}
             <div data-tour="barcodes-fields" className="space-y-1">
               <p className="ds-label">Campos da Etiqueta</p>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="flex flex-wrap gap-2">
                 {([
                   ["showName", "Nome"],
                   ["showPrice", "Valor"],
@@ -622,16 +599,17 @@ export default function Barcodes() {
             </div>
 
             {/* Resumo */}
-            <div className="bg-slate-50 rounded-lg p-3 space-y-1">
-              <div className="flex justify-between text-[11px] font-medium">
-                <span className="text-slate-400">Produtos selecionados</span>
-                <span className="text-slate-700">{selected.length}</span>
+            <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-4">
+              <div className="space-y-1">
+                <p className="text-xs text-slate-500">Produtos selecionados</p>
+                <p className="text-2xl font-semibold text-slate-900">{selected.length}</p>
               </div>
-              <div className="flex justify-between text-[11px] font-medium">
-                <span className="text-slate-400">Total de etiquetas</span>
-                <span className="text-blue-600">{totalLabels}</span>
+              <div className="space-y-1">
+                <p className="text-xs text-slate-500">Total de etiquetas</p>
+                <p className="text-2xl font-semibold text-blue-600">{totalLabels}</p>
               </div>
             </div>
+            {selected.length === 1 && printSettings.columns > 1 && totalLabels !== printSettings.columns && <Button variant="outline" fullWidth onClick={() => setSelected(current => current.map(item => ({ ...item, qty: printSettings.columns })))}>Preencher fileira com {printSettings.columns} cópias</Button>}
 
             <Button
               data-tour="barcodes-print-btn"
@@ -647,22 +625,18 @@ export default function Barcodes() {
           </PanelCard>
 
           {/* Preview das etiquetas */}
-          {selected.length > 0 && (
-            <PanelCard data-tour="barcodes-preview" title="Pré-visualização" icon={Tag} contentClassName="space-y-3">
+            <PanelCard className="order-1" data-tour="barcodes-preview" title="Confira sua impressão" description="A fileira inteira, com as colunas e os dados escolhidos." icon={Tag} contentClassName="space-y-3">
+              {selected.length > 0 ? <>
               <div ref={printRef} className="hidden" aria-hidden="true">{selected.map(({ product }) => <LabelCard key={product.id} product={product} qty={1} labelSize={labelSize} fields={fields} onReady={codesReady} />)}</div>
               <LabelPrintPreview settings={printSettings} contents={productPreview} />
+              </> : <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-6 text-center"><Tag size={28} className="mb-1 text-slate-400" /><p className="text-sm font-semibold text-slate-700">Selecione um produto para começar</p><p className="text-xs leading-5 text-slate-500">Escolha os produtos na lista e informe quantas cópias deseja imprimir.</p></div>}
             </PanelCard>
-          )}
 
-          {/* Dica de leitor */}
-          <Alert variant="info" title="Leitor de código de barras">
-            Conecte seu leitor USB ao computador. No PDV, o campo de busca detecta automaticamente o scan — o produto é adicionado ao carrinho sem precisar clicar. Funciona com qualquer leitor HID (plug-and-play).
-          </Alert>
         </div>
       </div>
 
       {labelMode === "custom" && (
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <PanelCard
             className="min-w-0"
             title="Monte sua etiqueta"
