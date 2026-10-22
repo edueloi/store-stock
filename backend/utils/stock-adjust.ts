@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import type { Prisma } from "@prisma/client";
 
 type SkuEntry = { combo: Record<string, string>; stock: number };
 type LegacyVariation = { name: string; options: { value: string; stock: number }[] };
@@ -11,22 +12,23 @@ async function patchVariationStock(
   productId: number,
   selectedOptions: Record<string, string> | null | undefined,
   delta: number,
+  db: Prisma.TransactionClient = prisma,
 ) {
   if (!selectedOptions || Object.keys(selectedOptions).length === 0) return;
 
-  const product = await prisma.product.findUnique({
+  const product = await db.product.findUnique({
     where: { id: productId },
     select: { skus: true, variations: true },
   });
 
-  if (product?.skus) {
+  if (Array.isArray(product?.skus) && product.skus.length) {
     const skus = product.skus as SkuEntry[];
     const updated = skus.map((sku) => {
       const matches = skuMatchesSelection(sku.combo, selectedOptions);
       return matches ? { ...sku, stock: Math.max(0, sku.stock + delta) } : sku;
     });
-    await prisma.product.update({ where: { id: productId }, data: { skus: updated } });
-  } else if (product?.variations) {
+    await db.product.update({ where: { id: productId }, data: { skus: updated } });
+  } else if (Array.isArray(product?.variations) && product.variations.length) {
     const variations = product.variations as LegacyVariation[];
     const updated = variations.map((v) => ({
       ...v,
@@ -35,7 +37,7 @@ async function patchVariationStock(
         return matches ? { ...o, stock: Math.max(0, o.stock + delta) } : o;
       }),
     }));
-    await prisma.product.update({ where: { id: productId }, data: { variations: updated } });
+    await db.product.update({ where: { id: productId }, data: { variations: updated } });
   }
 }
 
@@ -46,12 +48,13 @@ export async function decrementProductStock(
   productId: number,
   quantity: number,
   selectedOptions?: Record<string, string> | null,
+  db: Prisma.TransactionClient = prisma,
 ): Promise<void> {
-  await prisma.product.update({
+  await db.product.update({
     where: { id: productId },
     data: { stock_quantity: { decrement: quantity } },
   });
-  await patchVariationStock(productId, selectedOptions, -quantity);
+  await patchVariationStock(productId, selectedOptions, -quantity, db);
 }
 
 // Devolve ao estoque total do produto e, se houver variação selecionada, a SKU/variação
@@ -61,10 +64,11 @@ export async function returnProductStock(
   productId: number,
   quantity: number,
   selectedOptions?: Record<string, string> | null,
+  db: Prisma.TransactionClient = prisma,
 ): Promise<void> {
-  await prisma.product.update({
+  await db.product.update({
     where: { id: productId },
     data: { stock_quantity: { increment: quantity } },
   });
-  await patchVariationStock(productId, selectedOptions, quantity);
+  await patchVariationStock(productId, selectedOptions, quantity, db);
 }

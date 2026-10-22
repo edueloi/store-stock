@@ -4,6 +4,7 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { emitToTenant } from "../services/realtime.service";
+import { expireWhatsappReservations } from "../services/whatsapp-held-sale.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -207,6 +208,8 @@ export async function resumeHeldSale(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const id = Number(req.params.id);
 
+    await expireWhatsappReservations({ tenantId, heldSaleId: id });
+
     const existing = await prisma.heldSale.findFirst({ where: { id, tenant_id: tenantId } });
     if (!existing) return res.status(404).json({ error: "Venda em espera não encontrada" });
     if (!["held", "resumed"].includes(existing.status)) {
@@ -214,9 +217,13 @@ export async function resumeHeldSale(req: Request, res: Response) {
     }
 
     const actor = getActor(req);
-    const updated = await prisma.heldSale.update({
-      where: { id },
+    const claim = await prisma.heldSale.updateMany({
+      where: { id, tenant_id: tenantId, status: { in: ["held", "resumed"] } },
       data: { status: "resumed", resumed_by: actor, resumed_at: new Date() },
+    });
+    if (!claim.count) return res.status(409).json({ error: "Esta reserva já foi cancelada, expirou ou foi finalizada." });
+    const updated = await prisma.heldSale.findFirst({
+      where: { id, tenant_id: tenantId },
       include: { ...HELD_SALE_INCLUDE, actions: { orderBy: { created_at: "desc" } } },
     });
 

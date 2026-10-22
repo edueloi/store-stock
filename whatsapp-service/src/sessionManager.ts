@@ -6,6 +6,7 @@ import { makeWASocket, DisconnectReason, useMultiFileAuthState, jidDecode, fetch
 import type { WASocket } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import pino from "pino";
+import { sendWithTyping } from "./typing";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
 
@@ -302,7 +303,7 @@ export async function sendMessage(
     content = { text: `${payload.title ?? ""}\n${payload.description ?? ""}\n\n${lines}`.trim() };
   }
 
-  const result = await entry.sock.sendMessage(jid, content as never);
+  const result = await sendWithTyping(entry.sock, jid, payload.delay, () => entry.sock.sendMessage(jid, content as never));
   return { key: result?.key ?? {} };
 }
 

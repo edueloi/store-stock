@@ -1,4 +1,8 @@
-import { createHeldSaleFromWhatsapp, HoldRejected, type WhatsappHoldItemInput } from "./whatsapp-held-sale.service";
+import { createHeldSaleFromWhatsapp, expireWhatsappReservations, HoldRejected, type WhatsappHoldItemInput } from "./whatsapp-held-sale.service";
+import { botTypingDelayMs, parseWhatsappAiReply, WHATSAPP_AI_STYLE } from "./whatsapp-ai-reply";
+import { createWhatsappReservationPdf, reservationDate } from "./whatsapp-reservation-pdf.service";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { buildCatalogContext, buildStoreContext, loadActiveSectors, loadConversationHistory } from "./whatsapp-ai-context.service";
 import axios from "axios";
 import { randomBytes } from "crypto";
@@ -1090,10 +1094,12 @@ export async function sendTextMessage(
   workspaceId: number,
   number: string,
   text: string,
+  delay = 0,
 ) {
   return sendProviderRequest(workspaceId, "/message/sendText", {
     number,
     text,
+    ...(delay > 0 ? { delay } : {}),
   });
 }
 
@@ -1145,7 +1151,8 @@ async function sendMessageAndTrack(
   let response: Record<string, unknown>;
 
   if (messageType === "text") {
-    response = await sendTextMessage(workspaceId, number, String(payload.text ?? ""));
+    const text = String(payload.text ?? "");
+    response = await sendTextMessage(workspaceId, number, text, direction === "bot" ? botTypingDelayMs(text) : 0);
   } else if (messageType === "buttons") {
     response = await sendButtonsMessage(
       workspaceId,
@@ -1708,18 +1715,19 @@ async function generateZeAiReply(
     settings.ai_system_prompt,
     "Converse de forma natural e simpática, como uma atendente de loja no WhatsApp: frases curtas, sem parecer robô e sem repetir saudações a cada mensagem. Use no máximo um emoji quando combinar.",
     "Responda SOMENTE o que o cliente perguntou, sem despejar informações da loja que ele não pediu (horário, endereço, formas de pagamento só quando perguntarem). Se ele apenas cumprimentar, cumprimente de volta pelo nome (se souber) e pergunte em uma frase como pode ajudar.",
-    "Organização: no máximo 3 produtos por resposta, cada um em uma linha no formato '• Nome — R$ preço (disponibilidade)'. Use *negrito* só para nomes de produto e preços. Faça uma pergunta por vez. Termine com o link filtrado quando falar de produto.",
+    WHATSAPP_AI_STYLE,
     "Horário e agora: use a linha 'Horário de hoje' dos dados para dizer se está aberto. Se o horário não estiver cadastrado nos dados, diga que não tem essa informação e ofereça chamar a equipe — nunca invente horário.",
     "Use SOMENTE os dados das seções DADOS DA LOJA e PRODUTOS abaixo para falar de produtos, preços, estoque, variações (tamanho, cor etc.), horário, endereço, pagamento e prazos. Informe o preço exatamente como está nos dados; se houver promoção, cite o valor promocional e o original.",
     "Se o produto tiver opções (variações), diga quais estão disponíveis e quais estão sem estoque. Se faltar informação para responder (ex.: o cliente não disse o tamanho), pergunte de forma curta.",
     "Se o produto não aparecer nos dados, diga que não encontrou esse item no catálogo e ofereça chamar a equipe. Nunca invente produto, preço, estoque, prazo de entrega, frete, desconto ou política.",
     "Depois de responder sobre um produto, envie também o link filtrado da loja para o cliente ver e comprar, montado com o padrão de links dos dados (ex.: .../catalogo?q=bolo+de+chocolate). Se o cliente falar de uma categoria, pode usar o link da categoria. Se pedir o site, envie o link da loja.",
     "Serviços: se perguntarem o que a loja presta, responda com os serviços listados nos dados e seus valores.",
-    "Pedidos: você não fecha pedido sozinha. Quando o cliente decidir comprar, passe o link filtrado para ele finalizar no site ou ofereça chamar a equipe de vendas ([[TRANSFERIR:sales]]) para fechar com ele.",
+    "Pedidos: você não fecha pedido sozinha. Quando o cliente decidir comprar, passe o link filtrado para finalizar no site ou ofereça chamar a equipe de vendas para fechar com ele. Oferecer ajuda NÃO é transferir: só emita o comando de transferência depois que o cliente aceitar ou solicitar atendimento humano. Nunca inclua comandos internos junto de uma oferta ou texto ao cliente.",
     "Não peça senha, dados de cartão ou códigos de confirmação. Pagamentos online acontecem no site da loja, nunca por mensagem.",
     `Setores de atendimento disponíveis: ${sectorsText}. Quando o cliente pedir para falar com uma pessoa ou o assunto fugir do que você pode resolver (reclamação, troca, problema com pedido, cobrança, negociação), responda SOMENTE com [[TRANSFERIR:chave_do_setor]] escolhendo o setor mais adequado (ex.: [[TRANSFERIR:sales]]).`,
     "Segurar pedido: se o cliente quiser reservar/comprar, primeiro CONFIRME com ele, em uma mensagem, os itens (nome, opção como tamanho/cor, quantidade) e o total, e pergunte se pode segurar no nome dele para a equipe confirmar. SOMENTE depois de ele confirmar com clareza (ex.: 'sim', 'pode segurar'), responda exclusivamente com [[SEGURAR:{\"items\":[{\"id\":123,\"qty\":1,\"options\":{\"Tamanho\":\"M\"}}]}]]. Use o id do produto dos dados e, se o produto tiver opções, informe exatamente a opção escolhida em options (sem opções, deixe options vazio). Nunca segure produto sem estoque, sem opção definida ou que o cliente não confirmou.",
     "Produtos marcados como SÓ NA LOJA FÍSICA existem no PDV da loja mas não estão no site: informe preço e disponibilidade normalmente, diga que é para retirar/comprar na loja e NÃO envie link do site para eles.",
+    "A reserva confirmada gera automaticamente um comprovante PDF válido por 24 horas; não é nota fiscal nem confirmação de pagamento. O comprovante é opcional: no balcão, basta informar nome, telefone ou número da reserva. Informe a validade ao pedir autorização para reservar. Não diga que reservou antes do comando ser processado.",
     "Responda em português do Brasil, em no máximo 900 caracteres.",
     storeContext ? `\n=== DADOS DA LOJA ===\n${storeContext}` : "",
     catalogContext ? `\n=== PRODUTOS ===\n${catalogContext}` : "",
@@ -1803,7 +1811,7 @@ async function generateZeAiReply(
 async function tryHandleZeAiMessage(
   workspace: { id: number; tenant_id: number; settings: unknown; templates: unknown; menus: unknown },
   tenantName: string,
-  conversation: { id: number; phone: string; customer_name: string | null },
+  conversation: { id: number; phone: string; customer_name: string | null; metadata: unknown },
   message: string,
   registeredCustomer: RegisteredCustomer | null,
 ) {
@@ -1813,22 +1821,22 @@ async function tryHandleZeAiMessage(
   const reply = await generateZeAiReply(settings, tenantName, message, registeredCustomer, { tenantId: workspace.tenant_id, conversationId: conversation.id });
   if (!reply) return false;
 
-  const transfer = reply.match(/^\s*\[\[TRANSFERIR:([a-z0-9_-]+)\]\]\s*$/i);
-  if (transfer) {
+  const parsed = parseWhatsappAiReply(reply);
+  if (parsed.transferDepartment) {
     // só setores ativos da loja; chave desconhecida cai em vendas
     const sectors = await loadActiveSectors(workspace.tenant_id).catch(() => []);
-    const requested = transfer[1].toLowerCase();
+    const requested = parsed.transferDepartment;
     const department = sectors.some((sec) => sec.key === requested) || ["sales", "support", "finance"].includes(requested) ? requested : "sales";
     await handleDepartmentRequest(workspace, tenantName, conversation, department);
     return true;
   }
 
-  const hold = reply.match(/^\s*\[\[SEGURAR:(\{[\s\S]*\})\]\]\s*$/);
-  if (hold) {
+  if (parsed.holdJson) {
     const say = (text: string) => sendMessageAndTrack(workspace.id, conversation.id, conversation.phone, "text", { text }, text);
     const money = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     let items: WhatsappHoldItemInput[] = [];
-    try { items = (JSON.parse(hold[1]) as { items?: WhatsappHoldItemInput[] }).items ?? []; } catch { /* cai no aviso abaixo */ }
+    let reservation: Awaited<ReturnType<typeof createHeldSaleFromWhatsapp>> | null = null;
+    try { items = (JSON.parse(parsed.holdJson) as { items?: WhatsappHoldItemInput[] }).items ?? []; } catch { /* cai no aviso abaixo */ }
     try {
       const result = await createHeldSaleFromWhatsapp({
         tenantId: workspace.tenant_id,
@@ -1837,18 +1845,48 @@ async function tryHandleZeAiMessage(
         customerId: registeredCustomer?.id ?? null,
         items,
       });
-      const lines = result.items.map((i) => `• ${i.quantity}x ${i.name}${i.selected_options ? ` (${Object.values(i.selected_options).join(", ")})` : ""} — ${money(i.unit_price * i.quantity)}`);
-      await say([`Pronto! Segurei para você (reserva nº ${result.number}):`, ...lines, `Total: ${money(result.total)}`, "", "Vou chamar alguém da nossa equipe para confirmar com você. 😊"].join("\n"));
+      reservation = result;
     } catch (error) {
       const why = error instanceof HoldRejected ? error.message : "Não consegui segurar agora.";
       console.error("[whatsapp] reserva pela IA não concluída:", error instanceof Error ? error.message : error);
       await say(`${why} Vou chamar alguém da equipe para te ajudar.`);
     }
+    if (reservation) {
+      const lines = reservation.items.map((i) => `• ${i.quantity}x *${i.name}*${i.selected_options ? ` (${Object.values(i.selected_options).join(", ")})` : ""}\n${money(i.unit_price * i.quantity)}`);
+      await say([`Pronto! Sua reserva *nº ${reservation.number}* foi registrada.`, "", ...lines, "", `*Total: ${money(reservation.total)}*`, `Válida por 24 horas, até *${reservationDate(reservation.expiresAt)}* (Brasília).`, "", "No balcão, basta informar seu nome, telefone ou número da reserva. Não precisa apresentar o comprovante.", "", "Vou chamar a equipe para confirmar a compra com você."].join("\n"));
+      try {
+        const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: workspace.tenant_id } });
+        let logoBuffer: Buffer | null = null;
+        if (tenant.logo_url?.startsWith("/uploads/")) {
+          const uploads = path.resolve(process.cwd(), "public", "uploads");
+          const logoPath = path.resolve(process.cwd(), "public", `.${tenant.logo_url}`);
+          if (logoPath.startsWith(`${uploads}${path.sep}`)) logoBuffer = await readFile(logoPath).catch(() => null);
+        }
+        const address = [
+          [tenant.address_street, tenant.address_number, tenant.address_complement].filter(Boolean).join(", "),
+          tenant.address_district, [tenant.address_city, tenant.address_state].filter(Boolean).join("/"),
+          tenant.address_zip ? `CEP ${tenant.address_zip.replace(/\D/g, "").replace(/^(\d{5})(\d{3})$/, "$1-$2")}` : "",
+        ].filter(Boolean).join(" - ") || tenant.address || "";
+        const pdf = await createWhatsappReservationPdf({
+          storeName: tenant.name, storePhone: tenant.whatsapp, storeDocument: tenant.document || "", storeAddress: address,
+          logoBuffer, customerName: registeredCustomer?.name || conversation.customer_name || "Cliente WhatsApp",
+          customerPhone: conversation.phone, ...reservation,
+        });
+        const fileName = `reserva-${String(reservation.number).padStart(6, "0")}.pdf`;
+        const caption = `Comprovante da reserva nº ${reservation.number} • válido até ${reservationDate(reservation.expiresAt)} (Brasília).`;
+        await sendWhatsappDocument(workspace.tenant_id, conversation.phone, pdf.toString("base64"), fileName, caption);
+        await logConversationMessage(conversation.id, "bot", "document", caption, { fileName, mimetype: "application/pdf", heldSaleId: reservation.id });
+      } catch (error) {
+        console.error("[whatsapp] envio do comprovante de reserva falhou:", error instanceof Error ? error.message : error);
+        await say(`Sua reserva nº ${reservation.number} continua registrada, mas não consegui enviar o PDF agora. A equipe vai te ajudar com o comprovante.`);
+      }
+    }
     await handleDepartmentRequest(workspace, tenantName, conversation, "sales");
     return true;
   }
 
-  await sendMessageAndTrack(workspace.id, conversation.id, conversation.phone, "text", { text: reply }, reply);
+  const text = parsed.text || "Não consegui concluir essa solicitação. Pode confirmar o que você precisa para eu te ajudar?";
+  await sendMessageAndTrack(workspace.id, conversation.id, conversation.phone, "text", { text }, text);
   return true;
 }
 
@@ -1864,13 +1902,14 @@ export async function testWhatsappAi(tenantId: number, question?: string) {
   let failure = "";
   const reply = await generateZeAiReply(settings, tenant.name, message, null, { tenantId, onError: (reason) => { failure = reason; } });
   if (!reply) throw new Error(failure ? friendlyAiReason(failure) : "A API não retornou uma resposta. Confira a chave e o acesso à API.");
-  return { ok: true, reply };
+  const parsed = parseWhatsappAiReply(reply);
+  return { ok: true, reply: parsed.transferDepartment ? "Vou chamar a equipe para continuar seu atendimento." : parsed.holdJson ? "Após a confirmação, a reserva será registrada e o comprovante PDF será enviado com validade de 24 horas." : parsed.text || "Pode confirmar o que você precisa para eu te ajudar?" };
 }
 
 async function tryHandleZeMessage(
   workspace: { id: number; tenant_id: number; settings: unknown; templates: unknown; menus: unknown },
   tenantName: string,
-  conversation: { id: number; phone: string; customer_name: string | null },
+  conversation: { id: number; phone: string; customer_name: string | null; metadata: unknown },
   message: string,
   registeredCustomer: RegisteredCustomer | null,
 ) {
@@ -2205,7 +2244,6 @@ async function handleDepartmentRequest(
     id: number;
     phone: string;
     customer_name: string | null;
-    metadata: unknown;
   },
   department: string,
 ) {
@@ -2950,6 +2988,7 @@ export async function processWhatsappWebhook(
 }
 
 export async function runWhatsappMaintenance() {
+  await expireWhatsappReservations();
   let workspaces;
 
   try {

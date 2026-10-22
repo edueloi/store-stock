@@ -7,6 +7,7 @@ import { localDateString } from "../utils/date";
 import { parsePaymentMethod, buildMethodSummary, computeSegmentFeeRaw } from "../utils/payment-method";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { emitToTenant } from "../services/realtime.service";
+import { expireWhatsappReservations } from "../services/whatsapp-held-sale.service";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -268,6 +269,7 @@ async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId:
     let heldSaleItemsToResolve: { id: number; product_id: number; selected_options: unknown; quantity: number; remaining: number }[] = [];
 
     if (heldSaleId) {
+      await expireWhatsappReservations({ tenantId, heldSaleId: Number(heldSaleId) });
       const claim = await prisma.heldSale.updateMany({
         where: { id: heldSaleId, tenant_id: tenantId, status: { in: ["held", "resumed"] } },
         data: { status: "completed" },
