@@ -1,5 +1,7 @@
 import nodemailer from "nodemailer";
 import { env } from "../config/env";
+import path from "node:path";
+import { passwordResetEmail } from "./password-reset-email";
 
 const transporter = nodemailer.createTransport({
   host: env.smtpHost,
@@ -58,34 +60,11 @@ export function baseTemplate(content: string) {
 }
 
 export async function sendPasswordResetEmail(to: string, name: string, resetUrl: string) {
-  const content = `
-    <p style="margin:0 0 8px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:#f59e0b;">
-      Redefinição de Senha
-    </p>
-    <h1 style="margin:0 0 16px;font-size:24px;font-weight:900;color:#0f172a;line-height:1.2;">
-      Oi, ${name}! Recebemos seu pedido.
-    </h1>
-    <p style="margin:0 0 24px;font-size:15px;color:#475569;line-height:1.6;">
-      Clique no botão abaixo para criar uma nova senha. Este link é válido por <strong>1 hora</strong>.
-    </p>
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>
-        <td align="center" style="padding:8px 0 28px;">
-          <a href="${resetUrl}" style="display:inline-block;background:#0f172a;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:12px;letter-spacing:0.5px;">
-            Redefinir Senha →
-          </a>
-        </td>
-      </tr>
-    </table>
-    <p style="margin:0;font-size:13px;color:#94a3b8;text-align:center;">
-      Se não foi você, ignore este e-mail. Sua senha permanece a mesma.
-    </p>`;
-
   await transporter.sendMail({
-    from: `"BoxSys Store" <${env.smtpUser}>`,
+    from: `"Store BoxSys" <${env.smtpUser}>`,
     to,
-    subject: "Redefinição de senha · BoxSys Store",
-    html: baseTemplate(content),
+    ...passwordResetEmail(name, resetUrl),
+    attachments: [{ filename: "store-boxsys.png", path: path.resolve(process.cwd(), "public/system/favicon.png"), cid: "store-boxsys-logo", contentDisposition: "inline" }],
   });
 }
 
