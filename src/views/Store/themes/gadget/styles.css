@@ -179,9 +179,21 @@
 .gd-add-off { background: var(--gd-soft); color: var(--gd-mute); cursor: default; }
 .gd-add-off:hover { background: var(--gd-soft); }
 
-/* ── Mais vendidos (trilho) ── */
-.gd-rail { display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 54px) / 4); gap: 18px; overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x proximity; scrollbar-width: thin; }
-.gd-rail-item { scroll-snap-align: start; min-width: 0; }
+/* ── Carrosséis de destaques e mais vendidos ── */
+.gd-carousel { --gd-carousel-gap: 18px; position: relative; min-width: 0; }
+.gd-carousel-viewport { overflow: hidden; padding: 7px 0 12px; touch-action: pan-y; }
+.gd-carousel-track { display: flex; align-items: stretch; gap: var(--gd-carousel-gap); transform: translateX(calc(var(--gd-carousel-position) * -1 * (100% + var(--gd-carousel-gap)) / var(--gd-carousel-columns))); }
+.gd-carousel-animated { transition: transform .55s cubic-bezier(.22,.7,.2,1); }
+.gd-carousel-item { flex: 0 0 calc((100% - (var(--gd-carousel-columns) - 1) * var(--gd-carousel-gap)) / var(--gd-carousel-columns)); min-width: 0; display: flex; }
+.gd-carousel-item > .gd-card { width: 100%; }
+.gd-carousel-controls { display: flex; align-items: center; justify-content: center; gap: 12px; padding-top: 10px; }
+.gd-carousel-arrow, .gd-carousel-play { display: grid; place-items: center; flex: none; width: 34px; height: 34px; padding: 0; border: 1px solid #e1e8f4; border-radius: 50%; color: #647b9b; background: #fff; cursor: pointer; transition: color .2s, background .2s, border-color .2s; }
+.gd-carousel-arrow:hover, .gd-carousel-play:hover { background: #edf3ff; color: #2459e0; border-color: #cbd9f8; }
+.gd-carousel-dots { display: flex; justify-content: center; flex-wrap: wrap; align-items: center; gap: 3px; }
+.gd-carousel-dots > button { display: grid; place-items: center; width: 23px; height: 32px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.gd-carousel-dots > button > span { display: block; width: 6px; height: 6px; border-radius: 6px; background: #cad5e6; transition: width .25s, background .25s; }
+.gd-carousel-dots > button[aria-current="true"] > span { width: 21px; background: #2459e0; }
+.gd-carousel-play { margin-left: 4px; width: 30px; height: 30px; border-color: transparent; }
 
 /* ── Ofertas ── */
 .gd-promo { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 3fr); gap: 28px; padding: clamp(22px, 3vw, 36px); border-radius: 24px; background: var(--gd-soft); }
@@ -489,7 +501,6 @@
   .gd-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .gd-promo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .gd-promo { grid-template-columns: minmax(0, 1fr); }
-  .gd-rail { grid-auto-columns: calc((100% - 36px) / 3); }
   .gd-hero { grid-template-columns: minmax(0, 1fr); }
   .gd-hero-side { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; }
   .gd-cats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -618,7 +629,10 @@
   .gd-about-final h2 { font-size: 29px; }
   .gd-wrap { padding-left: 16px; padding-right: 16px; }
   .gd-grid, .gd-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 12px; }
-  .gd-rail { grid-auto-columns: 62%; }
+  .gd-carousel { --gd-carousel-gap: 12px; }
+  .gd-carousel-controls { gap: 7px; }
+  .gd-carousel-dots { gap: 0; }
+  .gd-carousel-dots > button { width: 21px; }
   .gd-hero-side { grid-template-columns: minmax(0, 1fr); }
   .gd-hero-tile { min-height: 150px; }
   .gd-perks { grid-template-columns: repeat(2, minmax(0, 1fr)); }

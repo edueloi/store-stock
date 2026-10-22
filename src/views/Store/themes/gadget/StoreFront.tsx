@@ -3,6 +3,7 @@ import { ArrowRight, ArrowUpRight, CreditCard, Headphones, Laptop, MessageCircle
 import StoreSEO from "../../../../components/store/StoreSEO";
 import HeroSlider from "../../../../components/store/HeroSlider";
 import Card from "./Card";
+import ProductCarousel from "./ProductCarousel";
 import { categoryImage, discountPct, EDITORIAL_IMAGE, hasDiscount, shorten, useBestsellers, useGadgetMotion, useHero, useKit, useUsedCategories } from "./kit";
 import SocialSection from "./Social";
 import "./styles.css";
@@ -112,11 +113,7 @@ export default function StoreFront() {
           </div>
           <Link to={path("/catalogo")}>Ver todos <ArrowRight size={14} /></Link>
         </header>
-          <div className="gd-grid">
-            {showcase.map((p) => (
-              <Card key={p.id} product={p} />
-            ))}
-          </div>
+        <ProductCarousel products={showcase} label={sf.home_featured_title || "Em destaque"} />
       </section>}
 
       {!active.length && <section className="gd-wrap gd-section" data-gd-reveal>
@@ -139,13 +136,7 @@ export default function StoreFront() {
             </div>
             <Link to={path("/catalogo")}>Ver todos <ArrowRight size={14} /></Link>
           </header>
-          <div className="gd-rail">
-            {best.items.map((p, i) => (
-              <div key={p.id} className="gd-rail-item">
-                <Card product={p} rank={i + 1} />
-              </div>
-            ))}
-          </div>
+          <ProductCarousel products={best.items} label="Mais vendidos" ranked />
         </section>
       )}
 
