@@ -213,11 +213,12 @@ export default function WhatsappChannelConfig() {
       <div className="grid gap-5 lg:grid-cols-[1.15fr_.85fr]">
         <section className="rounded-lg border border-slate-200 bg-white p-6">
           <div className="flex items-center justify-between">
-            <div><h2 className="font-semibold text-slate-950">Modo inteligente</h2><p className="mt-1 text-sm text-slate-500">Reconhece clientes cadastrados e entende mensagens livres.</p></div>
+            <div><h2 className="font-semibold text-slate-950">Modo inteligente</h2><p className="mt-1 text-sm text-slate-500">Reconhece clientes cadastrados e entende mensagens de texto e áudio.</p></div>
             <Switch checked={settings.smart_bot_enabled} onChange={(value) => setSettings({ smart_bot_enabled: value })} label="Ativar modo inteligente" />
           </div>
           <div className="mt-6 grid gap-4">
             <Input label="Nome do assistente" value={settings.bot_name} maxLength={40} onChange={(e) => setSettings({ bot_name: e.target.value })}  showCount={false} />
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs leading-5 text-slate-600">Os áudios são transcritos no servidor, sem cobrança por transcrição. O assistente usa o que foi dito para continuar a conversa. Envie áudios de até 5 minutos e 10 MB. As respostas continuam usando a IA configurada abaixo.</p>
             <Select label="Inteligência artificial" value={settings.ai_provider} onChange={(e) => setSettings({ ai_provider: e.target.value as Settings["ai_provider"] })}><option value="rules">Regras do sistema</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option></Select>
             {settings.ai_provider !== "rules" && <>
               <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">O modelo de IA é escolhido automaticamente pelo sistema (sempre o mais recente e rápido). Você só precisa colar a chave.</p>

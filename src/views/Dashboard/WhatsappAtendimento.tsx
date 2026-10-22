@@ -7,6 +7,7 @@ import {
   Clock3,
   Loader2,
   MessageCircle,
+  Mic,
   Phone,
   RefreshCw,
   Send,
@@ -63,6 +64,7 @@ interface MessageLog {
   id: number;
   direction: "customer" | "bot" | "agent" | "system";
   body?: string | null;
+  message_type?: string;
   created_at: string;
 }
 
@@ -372,7 +374,9 @@ export default function WhatsappAtendimento({ view }: { view: AtendimentoView })
               <div className="flex-1 space-y-3 overflow-y-auto p-5 max-h-[420px] xl:max-h-[450px]">
                 {loadingDetail && !detail ? <div className="grid h-full place-items-center"><Loader2 className="animate-spin text-slate-400" size={20} /></div> : detail?.messages.map((message) => {
                   const mine = message.direction !== "customer";
-                  return <div key={message.id} className={cn("flex", mine ? "justify-end" : "justify-start")}><div className={cn("max-w-[82%] rounded-lg border px-3.5 py-2.5 shadow-sm", mine ? message.direction === "bot" ? "border-violet-200 bg-violet-50 text-violet-950" : "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}><p className="whitespace-pre-wrap text-sm leading-relaxed">{message.body || "Mensagem sem conteúdo"}</p><p className={cn("mt-1 text-[11px] font-medium", mine && message.direction !== "bot" ? "text-blue-100" : "text-slate-400")}>{message.direction === "bot" ? "BOT · " : ""}{formatTime(message.created_at)}</p></div></div>;
+                  return <div key={message.id} className={cn("flex", mine ? "justify-end" : "justify-start")}><div className={cn("max-w-[82%] rounded-lg border px-3.5 py-2.5 shadow-sm", mine ? message.direction === "bot" ? "border-violet-200 bg-violet-50 text-violet-950" : "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700")}>
+                    {message.message_type === "audio" && <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500"><Mic size={12} />Mensagem de áudio</p>}
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.body || "Mensagem sem conteúdo"}</p><p className={cn("mt-1 text-[11px] font-medium", mine && message.direction !== "bot" ? "text-blue-100" : "text-slate-400")}>{message.direction === "bot" ? "BOT · " : ""}{formatTime(message.created_at)}</p></div></div>;
                 })}
               </div>
 

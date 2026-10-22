@@ -1,5 +1,8 @@
 import { createHeldSaleFromWhatsapp, expireWhatsappReservations, HoldRejected, type WhatsappHoldItemInput } from "./whatsapp-held-sale.service";
 import { botTypingDelayMs, parseWhatsappAiReply, WHATSAPP_AI_STYLE } from "./whatsapp-ai-reply";
+import { audioRetryMessage, prepareWhatsappIncomingAudio } from "./whatsapp-audio.service";
+import { KeyedTaskQueue } from "../../shared/keyedTaskQueue";
+import { unwrapWhatsappMessage } from "../../shared/whatsappAudio";
 import { createWhatsappReservationPdf, reservationDate } from "./whatsapp-reservation-pdf.service";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -392,7 +395,7 @@ export function renderTemplate(template: string, values: Record<string, string |
 }
 
 function extractIncomingMessageContent(data: Record<string, unknown>): IncomingMessageContent {
-  const message = isRecord(data.message) ? data.message : {};
+  const message = unwrapWhatsappMessage(data.message);
   const conversation = typeof message.conversation === "string" ? message.conversation.trim() : "";
 
   const extendedTextMessage = isRecord(message.extendedTextMessage) ? message.extendedTextMessage : {};
@@ -2759,6 +2762,7 @@ async function createOrUpdateConversationFromWebhook(
   text: string,
   messageId: string | null,
   payload: unknown,
+  messageType: "text" | "audio" = "text",
 ) {
   const existing = await prisma.whatsappConversation.findUnique({
     where: {
@@ -2802,7 +2806,7 @@ async function createOrUpdateConversationFromWebhook(
   await logConversationMessage(
     conversation.id,
     "customer",
-    "text",
+    messageType,
     text,
     payload,
     messageId,
@@ -2811,7 +2815,20 @@ async function createOrUpdateConversationFromWebhook(
   return conversation;
 }
 
+const webhookQueue = new KeyedTaskQueue();
+
 export async function processWhatsappWebhook(
+  tenantSlug: string,
+  body: Record<string, unknown>,
+  headers: Record<string, string | string[] | undefined>,
+) {
+  const data = isRecord(body.data) ? body.data : {};
+  const key = isRecord(data.key) ? data.key : {};
+  const jid = String(key.remoteJid || "");
+  return webhookQueue.run(`${tenantSlug}:${jid}`, () => processWhatsappWebhookMessage(tenantSlug, body, headers));
+}
+
+async function processWhatsappWebhookMessage(
   tenantSlug: string,
   body: Record<string, unknown>,
   headers: Record<string, string | string[] | undefined>,
@@ -2853,7 +2870,7 @@ export async function processWhatsappWebhook(
 
   const remoteJid = String(key.remoteJid ?? body.sender ?? "");
 
-  if (!remoteJid || remoteJid.endsWith("@g.us")) {
+  if (!remoteJid || remoteJid.endsWith("@g.us") || remoteJid.endsWith("@broadcast")) {
     return { ok: true, ignored: true, reason: "unsupported-chat" };
   }
 
@@ -2865,13 +2882,24 @@ export async function processWhatsappWebhook(
   const messageId = typeof key.id === "string" ? key.id : null;
   const incoming = extractIncomingMessageContent(data);
 
+  if (messageId && await prisma.whatsappMessageLog.findFirst({
+    where: { external_message_id: messageId, direction: "customer", conversation: { workspace_id: workspaceRecord.id, remote_jid: normalizeJid(remoteJid) } },
+    select: { id: true },
+  })) return { ok: true, ignored: true, reason: "duplicate-message" };
+
+  const audio = await prepareWhatsappIncomingAudio(data);
+  if (audio) {
+    incoming.text = audio.text || "Áudio recebido — transcrição indisponível.";
+    incoming.command = audio.text;
+  }
+
   if (!incoming.text && !incoming.command) {
     return { ok: true, ignored: true, reason: "empty-message" };
   }
 
   // Atendentes recebem o aviso de handoff no próprio WhatsApp e podem aceitar
   // ou recusar sem criar uma conversa de cliente para o número deles.
-  if (await tryHandleAgentHandoffReply(workspaceRecord.id, phone, incoming.command || incoming.text)) {
+  if ((!audio || audio.status === "transcribed") && await tryHandleAgentHandoffReply(workspaceRecord.id, phone, incoming.command || incoming.text)) {
     return { ok: true, handled: true, action: "agent-handoff-reply" };
   }
 
@@ -2882,8 +2910,17 @@ export async function processWhatsappWebhook(
     customerName,
     incoming.text || incoming.command,
     messageId,
-    body,
+    audio ? audio.logPayload : body,
+    audio ? "audio" : "text",
   );
+
+  if (audio && audio.status !== "transcribed") {
+    if (conversation.status !== "assigned") {
+      const text = audioRetryMessage(audio.status);
+      await sendMessageAndTrack(workspaceRecord.id, conversation.id, phone, "text", { text }, text);
+    }
+    return { ok: true, handled: true, action: "audio-transcription-unavailable" };
+  }
 
   const tenantName = workspaceRecord.tenant.name;
   const settings = parseSettings(workspaceRecord.settings);

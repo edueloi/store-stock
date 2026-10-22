@@ -2,11 +2,13 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import path from "path";
 import axios from "axios";
 import QRCode from "qrcode";
-import { makeWASocket, DisconnectReason, useMultiFileAuthState, jidDecode, fetchLatestBaileysVersion } from "@whiskeysockets/baileys";
+import { makeWASocket, DisconnectReason, useMultiFileAuthState, jidDecode, fetchLatestBaileysVersion, downloadMediaMessage } from "@whiskeysockets/baileys";
 import type { WASocket } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import pino from "pino";
 import { sendWithTyping } from "./typing";
+import { prepareInboundAudio } from "./inboundAudio";
+import { KeyedTaskQueue } from "../../shared/keyedTaskQueue";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "warn" });
 
@@ -27,6 +29,7 @@ interface SessionEntry {
 }
 
 const sessions = new Map<number, SessionEntry>();
+const inboundQueue = new KeyedTaskQueue();
 
 // Sessão que nunca foi pareada (ninguém escaneou o QR) não deve pedir QR novo para sempre:
 // cada tentativa é uma nova conexão ao WhatsApp a partir do mesmo servidor, e centenas delas
@@ -197,15 +200,19 @@ async function startSocket(tenantId: number, tenantSlug: string, webhookSecret: 
 
     for (const message of upsert.messages) {
       if (message.key.fromMe) continue;
-      void (async () => {
+      const jid = message.key.remoteJid || "";
+      if (!jid || jid.endsWith("@g.us") || jid.endsWith("@broadcast")) continue;
+      void inboundQueue.run(`${tenantId}:${jid}`, async () => {
         const resolvedPhone = await resolvePhone(sock, message.key as { remoteJid?: string | null; remoteJidAlt?: string | null }).catch(() => null);
+        const audio = await prepareInboundAudio(message.message, () => downloadMediaMessage(message, "stream", { options: { signal: AbortSignal.timeout(25_000) } }, { reuploadRequest: sock.updateMediaMessage, logger }));
         await forwardMessageToWebhook(current.tenantSlug, current.webhookSecret, {
           key: message.key,
           message: message.message,
           pushName: message.pushName,
           resolvedPhone,
+          ...(audio ? { audio } : {}),
         });
-      })();
+      }).catch(() => logger.warn({ tenantId }, "failed to process inbound WhatsApp message"));
     }
   });
 

@@ -3,6 +3,8 @@ build/
 dist/
 coverage/
 tmp/pdfs/
+tmp/audio/
+transcription-service/__pycache__/
 desktop/release/
 .DS_Store
 *.log
