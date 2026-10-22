@@ -4,8 +4,8 @@ import { productRouteSegment } from "../../store-routing";
 
 import { HIDDEN_PRICE } from "../../../../lib/storePrice";
 import { glassMeasureLabel, glassMeasurements } from "../../../../../shared/glassCatalog";
-export const vitraImage = (product: { image_url?: string | null; images?: unknown }) =>
-  (Array.isArray(product.images) && typeof product.images[0] === "string"
+export const vitraImage = (product?: { image_url?: string | null; images?: unknown } | null) =>
+  !product ? null : (Array.isArray(product.images) && typeof product.images[0] === "string"
     ? product.images[0]
     : product.image_url) || null;
 

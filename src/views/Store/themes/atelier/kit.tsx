@@ -15,7 +15,7 @@ import { HIDDEN_PRICE } from "../../../../lib/storePrice";
 export const money = (value: number) =>
   value === HIDDEN_PRICE ? "Sob consulta" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
-export const productImage = (p: Product) => (Array.isArray(p.images) && p.images[0]) || p.image_url || "";
+export const productImage = (p?: Product | null) => (!p ? "" : (Array.isArray(p.images) && p.images[0]) || p.image_url || "");
 
 export const optionGroups = (p: Product) =>
   p.attributes?.length

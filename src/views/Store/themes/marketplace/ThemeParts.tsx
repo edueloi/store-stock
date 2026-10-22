@@ -3,7 +3,7 @@ import { Heart, Package, ShoppingCart } from "lucide-react";
 import { productRouteSegment } from "../../store-routing";
 
 import { HIDDEN_PRICE } from "../../../../lib/storePrice";
-export const marketImage = (product: { image_url?: string | null; images?: unknown }) => (Array.isArray(product.images) && typeof product.images[0] === "string" ? product.images[0] : product.image_url) || null;
+export const marketImage = (product?: { image_url?: string | null; images?: unknown } | null) => (!product ? null : (Array.isArray(product.images) && typeof product.images[0] === "string" ? product.images[0] : product.image_url) || null);
 export const marketMoney = (value: number) => value === HIDDEN_PRICE ? "Sob consulta" : value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 export const marketHide = (tenant: any) => tenant.policies?.storefront?.checkout_mode === "order_request" || tenant.policies?.storefront?.hide_prices === true;
 
