@@ -12,7 +12,7 @@ import {
 import { Product } from "../../types";
 import { cn } from "../../lib/utils";
 import BarcodesPageTour, { BARCODES_PAGE_TOUR_EVENTS, type BarcodesPageTourHandle } from "../../components/onboarding/BarcodesPageTour";
-import LabelPrintSettings from "../../components/labels/LabelPrintSettings";
+import LabelPrintSettings, { LabelPrintSummary } from "../../components/labels/LabelPrintSettings";
 import LabelPrintPreview from "../../components/labels/LabelPrintPreview";
 import { calibrationContents, labelBarcodeSvg, labelEscape, labelPrintDocument, labelSettingsStorageKey, storedLabelSettings, validateLabelPrint, type LabelPrintSettings as LabelPrintConfig } from "../../lib/labelPrinting";
 import { useToast } from "../../components/ui/Toast";
@@ -251,6 +251,7 @@ export default function Barcodes() {
   const [search, setSearch]         = useState("");
   const [selected, setSelected]     = useState<SelectedItem[]>([]);
   const [printSettings, setPrintSettings] = useState<LabelPrintConfig>(storedLabelSettings);
+  const [configuring, setConfiguring] = useState(false);
   const labelSize: LabelSize = "medium";
   const printErrors = validateLabelPrint(printSettings);
   const [renderTick, setRenderTick] = useState(0);
@@ -401,6 +402,8 @@ export default function Barcodes() {
   const totalLabels = selected.reduce((s, x) => s + x.qty, 0);
   const setCustom = (patch: Partial<CustomLabelData>) => setCustomLabel((current) => ({ ...current, ...patch }));
 
+  if (configuring) return <PageWrapper><LabelPrintSettings value={printSettings} onChange={setPrintSettings} onTest={handleTestPrint} onBack={() => setConfiguring(false)} /></PageWrapper>;
+
   return (
     <PageWrapper data-tour="barcodes-page">
     <div className="space-y-4">
@@ -433,7 +436,7 @@ export default function Barcodes() {
 
       <BarcodesPageTour ref={barcodesPageTourRef} />
 
-      <LabelPrintSettings value={printSettings} onChange={setPrintSettings} onTest={handleTestPrint} />
+      <LabelPrintSummary value={printSettings} onOpen={() => setConfiguring(true)} />
 
       <Tabs<typeof LABEL_MODE_TABS[number]["id"]> items={LABEL_MODE_TABS} value={labelMode} onChange={setLabelMode} label="Tipo de etiqueta">
       <div className={cn("grid min-w-0 grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]", labelMode !== "products" && "hidden")}>
