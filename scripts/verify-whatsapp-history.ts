@@ -28,6 +28,7 @@ test("datas incluem o dia final inteiro em Brasília; filtros combinam cliente, 
 test("assunto vem da solicitação do cliente, sem usar saudações ou textos de encerramento", () => {
   assert.equal(attendanceSubject([{ body: "Boa tarde!" }, { body: "Oi 😊" }, { body: "Quero saber o prazo de entrega da bolsa Ação." }]), "Quero saber o prazo de entrega da bolsa Ação.");
   assert.equal(attendanceSubject([{ body: "MENU" }, { body: "bom dia" }, { body: null }]), null);
+  assert.equal(attendanceSubject([{ body: "A".repeat(179) + "👜" }]), "A".repeat(179) + "👜");
   assert.equal(historyCloseReason("inactivity-timeout"), "Sem interação");
   assert.equal(historyCloseReason("closed-from-attendance"), "Encerrado pela equipe");
   assert.equal(historyCloseReason("codigo-interno-antigo"), "Encerrado");

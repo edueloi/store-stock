@@ -12,7 +12,7 @@ export function attendanceSubject(messages: Array<{ body: string | null }>) {
     const body = (message.body ?? "").trim().replace(/\s+/g, " ");
     const normalized = body.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[!?.😊👋]/gu, "").trim();
     if (body.length < 6 || /^(oi|ola|bom dia|boa tarde|boa noite|tudo bem|obrigad[oa]|menu|sair|encerrar|fim|sim|nao|ok)$/.test(normalized)) continue;
-    return body.slice(0, 180);
+    return Array.from(body).slice(0, 180).join("");
   }
   return null;
 }
