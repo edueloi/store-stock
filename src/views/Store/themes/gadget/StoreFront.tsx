@@ -1,13 +1,15 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, ArrowUpRight, CreditCard, Headphones, ShieldCheck, Truck } from "lucide-react";
+import { ArrowRight, ArrowUpRight, CreditCard, Headphones, Laptop, MessageCircle, Mouse, ShieldCheck, Smartphone, Sparkles, Truck, Zap } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import HeroSlider from "../../../../components/store/HeroSlider";
 import Card from "./Card";
-import { categoryImage, discountPct, hasDiscount, money, priceOf, productImage, shorten, useBestsellers, useHero, useKit, useUsedCategories } from "./kit";
+import { categoryImage, discountPct, EDITORIAL_IMAGE, hasDiscount, shorten, useBestsellers, useGadgetMotion, useHero, useKit, useUsedCategories } from "./kit";
+import SocialSection from "./Social";
 import "./styles.css";
 
 export default function StoreFront() {
-  const { tenant, active, path, sf, hidden, productPath } = useKit();
+  const { tenant, active, path, sf, hidden, waLink } = useKit();
+  const motion = useGadgetMotion();
   const cats = useUsedCategories();
   const hero = useHero();
   const best = useBestsellers();
@@ -17,57 +19,43 @@ export default function StoreFront() {
   const offers = active.filter((p) => hasDiscount(p)).sort((a, b) => discountPct(b) - discountPct(a)).slice(0, 4);
   const fresh = [...active].sort((a, b) => b.id - a.id).slice(0, 4);
 
-  const pool = (featured.length ? featured : active).filter((p) => productImage(p));
-  const lead = pool[0];
-  const side = pool.slice(1, 3);
-  const heroImage = tenant.banner_url || (lead ? productImage(lead) : "");
+  const heroImage = tenant.banner_url || EDITORIAL_IMAGE;
   const tagline = (tenant.hero_tagline || "").trim();
   const shortTag = tagline && tagline.length <= 64;
-  const title = shortTag ? tagline : tenant.name;
+  const title = shortTag ? tagline : "Seu mundo. Mais conectado.";
   const text = shorten(shortTag ? tenant.about_text || "" : tagline || tenant.about_text || "", 200) || "Tecnologia selecionada, com atendimento próximo e compra simples.";
 
   const fallback = (
     <section className="gd-hero">
       <div className="gd-hero-main">
         <div className="gd-hero-copy">
-          <span className="gd-kicker">{shortTag ? tenant.name : "Tecnologia & eletrônicos"}</span>
+          <span className="gd-hero-eyebrow"><span /> Conecte-se ao que vem a seguir</span>
           <h1>{title}</h1>
           <p>{text}</p>
           <div className="gd-hero-actions">
             <Link className="gd-btn gd-btn-accent" to={path("/catalogo")}>
-              {sf.hero_button_label || "Ver catálogo"} <ArrowRight size={15} />
+              {sf.hero_button_label || "Explorar a loja"} <ArrowUpRight size={18} />
             </Link>
-            {offers.length > 0 && (
-              <Link className="gd-btn gd-btn-ghost" to={path("/catalogo?sort=menor")}>
-                Ver ofertas
+            {!hidden && offers.length > 0 && (
+              <Link className="gd-btn gd-btn-line" to={path("/catalogo?ofertas=1")}>
+                Ver ofertas <Zap size={16} />
               </Link>
             )}
           </div>
+          <div className="gd-hero-signature"><span><ShieldCheck size={17} /> Escolha com confiança</span><span><Headphones size={17} /> Atendimento de verdade</span></div>
         </div>
-        {heroImage && (
-          <div className="gd-hero-art">
-            <img src={heroImage} alt={lead?.name || tenant.name} />
-          </div>
-        )}
+        <div className="gd-hero-art">
+          <img src={heroImage} alt={tenant.banner_url ? `Destaque da ${tenant.name}` : "Composição ilustrativa de notebook, smartphone e fone de ouvido"} fetchPriority="high" />
+          <span className="gd-image-label">{tenant.banner_url ? "Destaques da loja" : "Universo tech · Imagem ilustrativa"}</span>
+          <div className="gd-hero-float"><span className="gd-float-icon"><Zap size={23} /></span><div><small>Trabalho. Diversão. Conexão.</small><strong>Seu próximo upgrade.</strong></div><ArrowUpRight size={22} /></div>
+          <span className="gd-hero-orbit" aria-hidden="true"><Sparkles size={22} /></span>
+        </div>
       </div>
-      {side.length > 0 && (
-        <div className="gd-hero-side">
-          {side.map((p) => (
-            <Link key={p.id} to={productPath(p)} className="gd-hero-tile">
-              <span className="gd-kicker">{p.is_featured ? "Destaque" : "Novidade"}</span>
-              <strong>{p.name}</strong>
-              {!hidden && <em>{money(priceOf(p))}</em>}
-              <img src={productImage(p)} alt="" loading="lazy" />
-              <ArrowUpRight size={16} className="gd-tile-go" />
-            </Link>
-          ))}
-        </div>
-      )}
     </section>
   );
 
   return (
-    <main className="gd-page">
+    <main className="gd-page" ref={motion}>
       <StoreSEO
         title={tenant.name}
         description={tenant.hero_tagline || tenant.about_text || `Catálogo de ${tenant.name}`}
@@ -80,7 +68,7 @@ export default function StoreFront() {
         <HeroSlider slides={hero.slides} autoplaySeconds={hero.autoplay} resolveUrl={hero.resolveUrl} layout="banner" className="gd-slider" fallback={fallback} />
       </div>
 
-      <div className="gd-wrap">
+      <div className="gd-wrap" data-gd-reveal>
         <div className="gd-perks">
           <div><Truck size={18} strokeWidth={1.5} /><span>Entrega combinada<small>Receba em casa ou retire na loja</small></span></div>
           <div><CreditCard size={18} strokeWidth={1.5} /><span>Pagamento facilitado<small>Escolha a forma que preferir</small></span></div>
@@ -90,7 +78,7 @@ export default function StoreFront() {
       </div>
 
       {cats.length > 0 && (
-        <section className="gd-wrap gd-section" aria-labelledby="gd-cats-title">
+        <section className="gd-wrap gd-section" data-gd-reveal aria-labelledby="gd-cats-title">
           <header className="gd-sec-head">
             <div>
               <span className="gd-kicker">Explore</span>
@@ -115,7 +103,7 @@ export default function StoreFront() {
         </section>
       )}
 
-      <section className="gd-wrap gd-section">
+      {showcase.length > 0 && <section className="gd-wrap gd-section" data-gd-reveal>
         <header className="gd-sec-head">
           <div>
             <span className="gd-kicker">Seleção da loja</span>
@@ -123,19 +111,26 @@ export default function StoreFront() {
           </div>
           <Link to={path("/catalogo")}>Ver todos <ArrowRight size={14} /></Link>
         </header>
-        {showcase.length ? (
           <div className="gd-grid">
             {showcase.map((p) => (
               <Card key={p.id} product={p} />
             ))}
           </div>
-        ) : (
-          <p className="gd-muted gd-empty">Nenhum produto disponível no momento.</p>
-        )}
-      </section>
+      </section>}
+
+      {!active.length && <section className="gd-wrap gd-section" data-gd-reveal>
+        <header className="gd-sec-head"><div><span className="gd-kicker">Explore possibilidades</span><h2>Qual é o seu próximo upgrade?</h2></div></header>
+        <div className="gd-discover-grid">{[
+          { Icon: Smartphone, name: "Mais conexão", desc: "Smartphones e acessórios", query: "smartphone" },
+          { Icon: Laptop, name: "Mais produtividade", desc: "Informática para o seu dia", query: "informática" },
+          { Icon: Headphones, name: "Mais imersão", desc: "Áudio e entretenimento", query: "fone" },
+          { Icon: Mouse, name: "Mais possibilidades", desc: "Acessórios e conectividade", query: "acessórios" },
+        ].map(({ Icon, name, desc, query }) => <Link key={query} to={path(`/catalogo?q=${encodeURIComponent(query)}`)}><Icon size={36} strokeWidth={1.2} /><strong>{name}</strong><span>{desc}</span><ArrowUpRight size={17} /></Link>)}</div>
+        <p className="gd-catalog-notice">Nosso catálogo está sendo atualizado.{tenant.whatsapp ? " Fale com a gente para consultar produtos e disponibilidade." : " Volte em breve para conhecer os produtos disponíveis."}</p>
+      </section>}
 
       {best.items.length > 0 && (
-        <section className="gd-wrap gd-section" aria-labelledby="gd-best-title">
+        <section className="gd-wrap gd-section" data-gd-reveal aria-labelledby="gd-best-title">
           <header className="gd-sec-head">
             <div>
               <span className="gd-kicker">Preferidos dos clientes</span>
@@ -153,14 +148,14 @@ export default function StoreFront() {
         </section>
       )}
 
-      {offers.length > 0 && (
-        <section className="gd-wrap gd-section">
+      {!hidden && offers.length > 0 && (
+        <section className="gd-wrap gd-section" data-gd-reveal>
           <div className="gd-promo">
             <div className="gd-promo-copy">
               <span className="gd-kicker">Ofertas</span>
               <h2>Preços que valem a pena</h2>
               <p>Até {discountPct(offers[0])}% de desconto em itens selecionados. Por tempo limitado, enquanto durar o estoque.</p>
-              <Link className="gd-btn gd-btn-accent" to={path("/catalogo")}>
+              <Link className="gd-btn gd-btn-accent" to={path("/catalogo?ofertas=1")}>
                 Aproveitar <ArrowRight size={15} />
               </Link>
             </div>
@@ -174,7 +169,7 @@ export default function StoreFront() {
       )}
 
       {fresh.length > 0 && active.length > 4 && (
-        <section className="gd-wrap gd-section">
+        <section className="gd-wrap gd-section" data-gd-reveal>
           <header className="gd-sec-head">
             <div>
               <span className="gd-kicker">Acabou de chegar</span>
@@ -190,16 +185,22 @@ export default function StoreFront() {
         </section>
       )}
 
+      <section className="gd-wrap gd-section" data-gd-reveal>
+        <div className="gd-story-teaser">
+          <div className="gd-story-photo"><img src={EDITORIAL_IMAGE} alt="Ambiente de trabalho com equipamentos de tecnologia, imagem ilustrativa" loading="lazy" /><span><Sparkles size={17} /> Tecnologia que faz sentido para você.</span></div>
+          <div className="gd-story-copy"><span className="gd-kicker">Muito além de produtos</span><h2>Boas escolhas começam<br />com uma boa conversa.</h2><p>{shorten(tenant.about_text || "Acreditamos na tecnologia que aproxima, simplifica e abre novas possibilidades. Por isso, ajudamos você a encontrar o que faz sentido para a sua rotina.", 260)}</p><Link className="gd-text-link" to={path("/sobre")}>Conheça a {tenant.name} <ArrowUpRight size={18} /></Link></div>
+        </div>
+      </section>
+
+      <SocialSection />
       {tenant.whatsapp && (
-        <section className="gd-wrap gd-section">
+        <section className="gd-wrap gd-section" data-gd-reveal>
           <div className="gd-cta">
             <div>
               <h2>Não sabe qual escolher?</h2>
               <p>Fale com a gente. Ajudamos a comparar modelos e a encontrar o que combina com o seu uso.</p>
             </div>
-            <Link className="gd-btn gd-btn-light" to={path("/sobre")}>
-              Falar com a loja <ArrowRight size={15} />
-            </Link>
+            <a className="gd-btn gd-btn-light" href={waLink()} target="_blank" rel="noreferrer"><MessageCircle size={18} /> Falar com a loja <ArrowUpRight size={15} /></a>
           </div>
         </section>
       )}

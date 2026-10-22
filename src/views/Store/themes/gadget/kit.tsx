@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { Product, Tenant } from "../../../../types";
 import { useStore } from "../../StoreLayout";
@@ -27,6 +27,67 @@ export const hasDiscount = (p: Product) => p.discount_price != null && Number(p.
 
 export const isSoldOut = (p: Product, tenant: Tenant) => storeTracksStock(tenant) && availableUnits(p) === 0;
 
+export const EDITORIAL_IMAGE = "/store-assets/tech-editorial-hero-v1.jpg";
+
+/** Aceita os links e @usuários cadastrados em Canais Sociais. */
+export function socialUrl(value: string | undefined, network: "instagram" | "facebook") {
+  const raw = (value || "").trim();
+  if (!raw) return "";
+  const domain = network === "instagram" ? "instagram.com" : "facebook.com";
+  if (/^(https?:)?\/\//i.test(raw) || /^(www\.)?(instagram|facebook|fb)\.com\//i.test(raw)) {
+    try {
+      const url = new URL(raw.startsWith("//") ? `https:${raw}` : /^https?:/i.test(raw) ? raw : `https://${raw}`);
+      const host = url.hostname.toLowerCase().replace(/^www\./, "");
+      return url.protocol === "https:" || url.protocol === "http:"
+        ? (host === domain || (network === "facebook" && host === "fb.com")) ? url.href : ""
+        : "";
+    } catch { return ""; }
+  }
+  const handle = raw.replace(/^@/, "").replace(/\/$/, "");
+  return /^[a-zA-Z0-9._-]+$/.test(handle) ? `https://${domain}/${handle}` : "";
+}
+
+export function whatsappNumber(raw: string) {
+  const digits = (raw || "").replace(/\D/g, "").replace(/^00/, "");
+  return digits.length === 10 || digits.length === 11 ? `55${digits}` : digits;
+}
+
+/** Conteúdo permanece visível sem JS e com movimento reduzido. */
+export function useGadgetMotion() {
+  const root = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = root.current;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+    if (!el) return;
+    const shell = el.closest<HTMLElement>(".store-theme-gadget");
+    if (shell) {
+      const color = getComputedStyle(shell).getPropertyValue("--theme-accent").trim();
+      const hex = color.replace(/^#/, "");
+      const expanded = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
+      if (/^[a-f\d]{6}$/i.test(expanded)) {
+        const channels = [0, 2, 4].map((offset) => parseInt(expanded.slice(offset, offset + 2), 16) / 255).map((c) => c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
+        const luminance = channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+        shell.style.setProperty("--gd-on-accent", luminance > .179 ? "#0b0d12" : "#fff");
+      }
+    }
+    if (reduced.matches || !window.IntersectionObserver) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("gd-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08 });
+    el.querySelectorAll("[data-gd-reveal]").forEach((item) => observer.observe(item));
+    el.classList.add("gd-motion-ready");
+    const update = () => { if (reduced.matches) el.classList.remove("gd-motion-ready"); };
+    reduced.addEventListener("change", update);
+    return () => { observer.disconnect(); el.classList.remove("gd-motion-ready"); reduced.removeEventListener("change", update); };
+  }, []);
+  return root;
+}
+
 export const DAY_LABELS: Record<string, string> = { seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta", sex: "Sexta", sab: "Sábado", dom: "Domingo" };
 const DAY_ORDER = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"];
 export function hoursRows(tenant: Tenant) {
@@ -34,7 +95,9 @@ export function hoursRows(tenant: Tenant) {
   if (!hours) return [];
   return Object.entries(hours)
     .map(([key, v]) => {
-      const k = key.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").slice(0, 3);
+      const normalized = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const english: Record<string, string> = { monday: "seg", tuesday: "ter", wednesday: "qua", thursday: "qui", friday: "sex", saturday: "sab", sunday: "dom" };
+      const k = english[normalized] || normalized.slice(0, 3);
       const i = DAY_ORDER.indexOf(k);
       return {
         order: i < 0 ? 99 : i,
@@ -58,10 +121,10 @@ export function useKit() {
   };
   const sf = store.tenant.policies?.storefront || {};
   const hidden = sf.hide_prices === true || sf.checkout_mode === "order_request";
-  const active = useMemo(() => store.products.filter((p) => p.is_active), [store.products]);
+  const active = useMemo(() => store.products.filter((p) => p.is_active && p.type !== "internal"), [store.products]);
   const productPath = (p: Product) => path(`/produto/${productRouteSegment(p)}`);
   const waLink = (text?: string) =>
-    store.tenant.whatsapp ? `https://wa.me/${store.tenant.whatsapp.replace(/\D/g, "")}${text ? `?text=${encodeURIComponent(text)}` : ""}` : "";
+    store.tenant.whatsapp ? `https://wa.me/${whatsappNumber(store.tenant.whatsapp)}${text ? `?text=${encodeURIComponent(text)}` : ""}` : "";
   return { ...store, slug, path, sf, hidden, active, productPath, preview, waLink, cartCount: store.cart.reduce((s, i) => s + i.quantity, 0) };
 }
 
@@ -69,8 +132,8 @@ export function useKit() {
 export function useProductState() {
   const kit = useKit();
   const { productId } = useParams();
-  const { products, tenant, addToCart, openCart } = kit;
-  const product = products.find((p) => p.id === parseProductIdFromRoute(productId) && p.is_active);
+  const { active, tenant, addToCart, openCart } = kit;
+  const product = active.find((p) => p.id === parseProductIdFromRoute(productId));
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
@@ -176,7 +239,7 @@ export function useCatalogList(pageSize = 12) {
 }
 
 export function formatPhone(raw: string) {
-  const d = String(raw || "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+  const d = String(raw || "").replace(/\D/g, "").replace(/^00/, "").replace(/^55(?=\d{10,11}$)/, "");
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return raw;
@@ -192,7 +255,7 @@ export function shorten(text: string, max: number) {
 
 export const discountPct = (p: Product) => (hasDiscount(p) ? Math.round((1 - priceOf(p) / Number(p.price)) * 100) : 0);
 
-/** Mais vendidos: ranking por unidades vendidas (sold_count). Sem vendas ainda, cai nos destaques e depois nos demais. */
+/** Ranking por unidades vendidas; só exibe produtos com vendas concluídas. */
 export function useBestsellers(limit?: number) {
   const { active, tenant } = useKit();
   return useMemo(() => {

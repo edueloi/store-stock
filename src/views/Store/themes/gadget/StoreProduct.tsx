@@ -4,13 +4,14 @@ import { Check, ChevronLeft, ChevronRight, Heart, MessageCircle, Minus, Plus, Sh
 import StoreSEO from "../../../../components/store/StoreSEO";
 import StockAvailability from "../../../../components/store/StockAvailability";
 import Card from "./Card";
-import { discountPct, hasDiscount, money, parseSpecs, priceOf, useProductState } from "./kit";
+import { discountPct, hasDiscount, money, parseSpecs, priceOf, useGadgetMotion, useProductState } from "./kit";
 import "./styles.css";
 
 type Tab = "desc" | "specs" | "delivery";
 
 export default function StoreProduct() {
   const s = useProductState();
+  const motion = useGadgetMotion();
   const { product, tenant, categories, path, hidden, wishlist, toggleWishlist, waLink } = s;
   const [tab, setTab] = useState<Tab>("desc");
   const [zoom, setZoom] = useState(false);
@@ -74,7 +75,7 @@ export default function StoreProduct() {
   const activeTab = visibleTabs.some((t) => t.id === tab) ? tab : visibleTabs[0]?.id;
 
   return (
-    <main className="gd-page gd-prod-page">
+    <main className="gd-page gd-prod-page" ref={motion}>
       <StoreSEO title={`${product.name} — ${tenant.name}`} description={product.description || product.name} image={s.images[0]} url={typeof window !== "undefined" ? window.location.href : ""} type="product" price={hidden ? undefined : String(priceOf(product))} siteName={tenant.name} />
 
       <div className="gd-wrap">

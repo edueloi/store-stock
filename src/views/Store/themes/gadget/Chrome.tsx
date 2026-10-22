@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ChevronRight, Instagram, Menu, MessageCircle, Search, ShieldCheck, ShoppingBag, Truck, X } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Menu, MessageCircle, Search, ShieldCheck, ShoppingBag, Truck, X, Zap } from "lucide-react";
 import { formatPhone, hoursRows, shorten, useKit, useUsedCategories } from "./kit";
+import { SocialLinks } from "./Social";
 import "./styles.css";
 
 export function Header() {
@@ -32,26 +33,15 @@ export function Header() {
     { to: path("/catalogo"), label: "Catálogo" },
     { to: path("/sobre"), label: "Sobre" },
   ];
-  const notice = (tenant.whatsapp ? "Atendimento direto pelo WhatsApp" : "Bem-vindo à nossa loja");
-
   return (
     <div className="gd-header" role="banner">
-      <div className="gd-top">
-        <div className="gd-top-in">
-          <span>{notice}</span>
-          {tenant.whatsapp && (
-            <a href={waLink()} target="_blank" rel="noreferrer">
-              <MessageCircle size={13} /> {formatPhone(tenant.whatsapp)}
-            </a>
-          )}
-        </div>
-      </div>
       <div className="gd-bar">
         <button type="button" className="gd-icon gd-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
           {menu ? <X size={20} strokeWidth={1.7} /> : <Menu size={20} strokeWidth={1.7} />}
         </button>
         <Link to={path()} className="gd-brand" aria-label={`${tenant.name} — início`}>
-          {tenant.logo_url ? <img src={tenant.logo_url} alt={tenant.name} /> : <span>{tenant.name}</span>}
+          {tenant.logo_url ? <img src={tenant.logo_url} alt="" /> : <span className="gd-brand-symbol" aria-hidden="true"><Zap size={23} /></span>}
+          <span className="gd-brand-name">{tenant.name}<small>Tecnologia & eletrônicos</small></span>
         </Link>
         <form className="gd-search" role="search" onSubmit={submit}>
           <Search size={15} aria-hidden="true" />
@@ -65,15 +55,17 @@ export function Header() {
           ))}
         </nav>
         <div className="gd-actions">
+          <div className="gd-header-social"><SocialLinks /></div>
           <button type="button" className="gd-icon gd-cart" onClick={openCart} aria-label={`Abrir carrinho, ${cartCount} ${cartCount === 1 ? "item" : "itens"}`}>
             <ShoppingBag size={19} strokeWidth={1.6} />
             {cartCount > 0 && <span className="gd-count">{cartCount}</span>}
           </button>
         </div>
       </div>
-      {cats.length > 0 && (
+      <div className="gd-header-bottom">
         <nav className="gd-cats-bar" aria-label="Categorias">
           <div className="gd-cats-in">
+            <Link className="gd-all-cats" to={path("/catalogo")}><Menu size={14} /> Todos os produtos</Link>
             {cats.slice(0, 9).map((c) => (
               <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>
                 {c.name}
@@ -81,7 +73,8 @@ export function Header() {
             ))}
           </div>
         </nav>
-      )}
+        {tenant.whatsapp && <a className="gd-header-contact" href={waLink()} target="_blank" rel="noreferrer"><MessageCircle size={15} /><span>Precisa de ajuda? <strong>{formatPhone(tenant.whatsapp)}</strong></span><ArrowUpRight size={13} /></a>}
+      </div>
       {menu && (
         <div className="gd-drawer" role="dialog" aria-label="Menu">
           <form className="gd-search gd-search-drawer" role="search" onSubmit={submit}>
@@ -107,6 +100,8 @@ export function Header() {
               </nav>
             </>
           )}
+          <SocialLinks labels />
+          {tenant.whatsapp && <a className="gd-drawer-phone" href={waLink()} target="_blank" rel="noreferrer"><MessageCircle size={16} /> {formatPhone(tenant.whatsapp)}</a>}
         </div>
       )}
     </div>
@@ -137,20 +132,9 @@ export function Footer() {
       <div className="gd-foot-main">
         <div className="gd-foot-top">
           <div className="gd-foot-brand">
-            {tenant.logo_url ? <img src={tenant.logo_url} alt={tenant.name} /> : <strong>{tenant.name}</strong>}
+            <div className="gd-foot-identity">{tenant.logo_url && <img src={tenant.logo_url} alt="" />}<strong>{tenant.name}</strong></div>
             <p>{blurb}</p>
-            <div className="gd-foot-social">
-              {tenant.whatsapp && (
-                <a href={waLink()} target="_blank" rel="noreferrer" aria-label="WhatsApp">
-                  <MessageCircle size={16} />
-                </a>
-              )}
-              {tenant.instagram_url && (
-                <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram">
-                  <Instagram size={16} />
-                </a>
-              )}
-            </div>
+            <SocialLinks />
           </div>
           <nav className="gd-foot-col" aria-label="Rodapé">
             <h2>Loja</h2>

@@ -1,20 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import Card from "./Card";
-import { hasDiscount, isSoldOut, priceOf, useCatalogList, useUsedCategories, type SortKey } from "./kit";
+import { hasDiscount, isSoldOut, priceOf, useCatalogList, useGadgetMotion, useUsedCategories, type SortKey } from "./kit";
 import "./styles.css";
 
 const PAGE = 16;
 
 export default function StoreCatalog() {
   const c = useCatalogList(PAGE);
+  const motion = useGadgetMotion();
+  const [params, setParams] = useSearchParams();
   const cats = useUsedCategories();
   const { tenant, sf, hidden } = c;
   const [text, setText] = useState(c.q);
   const [min, setMin] = useState("");
   const [max, setMax] = useState("");
-  const [onlyOffers, setOnlyOffers] = useState(false);
+  const onlyOffers = !hidden && params.get("ofertas") === "1";
+  const setOnlyOffers = (value: boolean) => { const next = new URLSearchParams(params); if (value) next.set("ofertas", "1"); else next.delete("ofertas"); setParams(next, { replace: true }); };
   const [onlyStock, setOnlyStock] = useState(false);
   const [panel, setPanel] = useState(false);
   const [visible, setVisible] = useState(PAGE);
@@ -43,9 +47,8 @@ export default function StoreCatalog() {
     setText("");
     setMin("");
     setMax("");
-    setOnlyOffers(false);
     setOnlyStock(false);
-    c.update({ q: null, categoria: null });
+    c.update({ q: null, categoria: null, ofertas: null });
   };
 
   const filters = (
@@ -91,7 +94,7 @@ export default function StoreCatalog() {
   );
 
   return (
-    <main className="gd-page">
+    <main className="gd-page" ref={motion}>
       <StoreSEO
         title={`${current ? `${current.name} — ` : ""}${title} — ${tenant.name}`}
         description={desc || `Catálogo de ${tenant.name}`}
