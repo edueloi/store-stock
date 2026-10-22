@@ -12,6 +12,8 @@ import {
   getWhatsappConnectionStatusHandler,
   getWhatsappConversationMessagesHandler,
   getWhatsappModuleOverview,
+  getWhatsappHistoryHandler,
+  getWhatsappHistoryDetailHandler,
   pingWhatsappProvider,
   testWhatsappAiHandler,
   transferWhatsappConversationHandler,
@@ -34,6 +36,8 @@ router.post("/webhook/:tenantSlug", whatsappWebhookHandler);
 router.use(authenticateToken);
 
 router.get("/overview", getWhatsappModuleOverview);
+router.get("/history", getWhatsappHistoryHandler);
+router.get("/history/:id", getWhatsappHistoryDetailHandler);
 router.put("/workspace", saveWhatsappWorkspace);
 router.post("/ping", pingWhatsappProvider);
 router.post("/test-ai", testWhatsappAiHandler);

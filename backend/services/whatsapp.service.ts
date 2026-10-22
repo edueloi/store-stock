@@ -9,6 +9,7 @@ import path from "node:path";
 import { buildCatalogContext, buildStoreContext, loadActiveSectors, loadConversationHistory } from "./whatsapp-ai-context.service";
 import { buildHumanAttendanceContext, loadHumanAttendance } from "./whatsapp-attendance.service";
 import { agentAttendanceHours, validateAgentBusinessHours } from "../../shared/businessHours";
+import { archiveWhatsappAttendance } from "./whatsapp-history.service";
 import axios from "axios";
 import { randomBytes } from "crypto";
 import { Prisma } from "@prisma/client";
@@ -2395,28 +2396,14 @@ async function closeConversationInternal(
   reason: string,
   notifyCustomer: boolean,
 ) {
-  const [workspace, conversation] = await Promise.all([
-    prisma.whatsappWorkspace.findUnique({ where: { id: workspaceId } }),
-    prisma.whatsappConversation.findUnique({ where: { id: conversationId } }),
-  ]);
-
-  if (!workspace || !conversation) return;
+  const workspace = await prisma.whatsappWorkspace.findUnique({ where: { id: workspaceId } });
+  if (!workspace) return;
+  const archived = await archiveWhatsappAttendance(workspaceId, conversationId, reason);
+  if (!archived) return;
+  const { conversation } = archived;
 
   const department = conversation.department || undefined;
   const templates = parseTemplates(workspace.templates);
-
-  await updateConversationState(conversationId, {
-    status: "closed",
-    closed_reason: reason,
-    assigned_agent_id: null,
-    queue_position: null,
-    current_menu: "closed",
-    metadata: asJson({
-      ...parseMetadata(conversation.metadata),
-      pending_choices: [],
-      agent_list_department: null,
-    }),
-  });
 
   if (notifyCustomer) {
     const text = templates.closed_inactivity;
@@ -2535,6 +2522,7 @@ export async function startWhatsappConversation(tenantId: number, payload: Recor
           assigned_agent_id: null,
           queue_position: null,
           closed_reason: null,
+          attendance_started_at: new Date(),
           current_menu: "main",
           metadata: asJson(metadata),
         },
@@ -2546,6 +2534,7 @@ export async function startWhatsappConversation(tenantId: number, payload: Recor
           phone,
           customer_name: customerName,
           status: "bot",
+          attendance_started_at: new Date(),
           current_menu: "main",
           metadata: asJson(metadata),
         },
@@ -2816,10 +2805,11 @@ async function createOrUpdateConversationFromWebhook(
           phone,
           customer_name: customerName ?? existing.customer_name,
           status,
+          ...(existing.status === "closed" ? { attendance_started_at: new Date(), department: null, assigned_agent_id: null, queue_position: null, current_menu: "main" } : {}),
           last_message_preview: text,
           last_inbound_at: new Date(),
           closed_reason: null,
-          metadata: asJson(metadata),
+          metadata: asJson(existing.status === "closed" ? { ...metadata, pending_choices: [], agent_list_department: null, handoff: null } : metadata),
         },
       })
     : await prisma.whatsappConversation.create({
@@ -2829,6 +2819,7 @@ async function createOrUpdateConversationFromWebhook(
           phone,
           customer_name: customerName,
           status: "bot",
+          attendance_started_at: new Date(),
           last_message_preview: text,
           last_inbound_at: new Date(),
           metadata: asJson(metadata),

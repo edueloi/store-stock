@@ -2078,6 +2078,7 @@ model WhatsappConversation {
   last_inbound_at      DateTime?
   last_outbound_at     DateTime?
   closed_reason        String?
+  attendance_started_at DateTime?
   metadata             Json?
   created_at           DateTime  @default(now())
   updated_at           DateTime  @updatedAt
@@ -2085,11 +2086,41 @@ model WhatsappConversation {
   workspace      WhatsappWorkspace    @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
   assigned_agent WhatsappAgent?       @relation(fields: [assigned_agent_id], references: [id], onDelete: SetNull)
   messages       WhatsappMessageLog[]
+  attendances    WhatsappAttendance[]
 
   @@unique([workspace_id, remote_jid])
   @@index([workspace_id, status, department])
   @@index([workspace_id, assigned_agent_id])
   @@map("whatsapp_conversations")
+}
+
+model WhatsappAttendance {
+  id                Int      @id @default(autoincrement())
+  workspace_id      Int
+  conversation_id   Int
+  phone             String
+  customer_name     String?
+  department        String?
+  department_label  String?
+  agent_id          Int?
+  agent_name        String?
+  subject           String?  @db.Text
+  started_at        DateTime
+  closed_at         DateTime
+  close_reason      String
+  start_message_id  Int?
+  end_message_id    Int?
+  message_count     Int      @default(0)
+  legacy_import     Boolean  @default(false)
+  created_at        DateTime @default(now())
+
+  conversation WhatsappConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@unique([conversation_id, end_message_id])
+  @@index([workspace_id, closed_at, id])
+  @@index([workspace_id, phone, closed_at])
+  @@index([workspace_id, agent_id, closed_at])
+  @@map("whatsapp_attendances")
 }
 
 model WhatsappMessageLog {

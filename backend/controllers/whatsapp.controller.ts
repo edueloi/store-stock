@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 
 import type { AuthenticatedRequest } from "../types/auth";
+import { getWhatsappHistoryDetail, listWhatsappHistory } from "../services/whatsapp-history.service";
 import {
   assignWhatsappConversation,
   closeWhatsappConversation,
@@ -28,6 +29,20 @@ import {
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user?.tenantId;
+}
+
+export async function getWhatsappHistoryHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  if (!tenantId) { res.sendStatus(403); return; }
+  try { res.json(await listWhatsappHistory(tenantId, req.query)); }
+  catch (error) { res.status(400).json({ error: getErrorMessage(error) }); }
+}
+
+export async function getWhatsappHistoryDetailHandler(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  if (!tenantId) { res.sendStatus(403); return; }
+  try { res.json(await getWhatsappHistoryDetail(tenantId, Number(req.params.id), req.query.after)); }
+  catch (error) { res.status(404).json({ error: getErrorMessage(error) }); }
 }
 
 function getErrorMessage(error: unknown) {

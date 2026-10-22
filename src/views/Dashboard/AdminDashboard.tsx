@@ -95,6 +95,7 @@ import ServiceOrderDetail from "./ServiceOrderDetail";
 import WorkflowBoard from "./WorkflowBoard";
 import WhatsappChannelConfig from "./WhatsappChannelConfig";
 import WhatsappAtendimento from "./WhatsappAtendimento";
+import WhatsappHistory from "./WhatsappHistory";
 import Consignments from "./Consignments";
 import Assinatura from "./Assinatura";
 import MinhaLoja from "./MinhaLoja";
@@ -1071,7 +1072,6 @@ export default function AdminDashboard() {
                           : item.path === "/admin/atendimento/bot" ? whatsappCounts.bot
                           : item.path === "/admin/atendimento/fila" ? whatsappCounts.queued
                           : item.path === "/admin/atendimento/em-andamento" ? whatsappCounts.assigned
-                          : item.path === "/admin/atendimento/finalizados" ? whatsappCounts.closed
                           : undefined
                       }
                       badgeLabel={
@@ -1156,7 +1156,6 @@ export default function AdminDashboard() {
                           : item.path === "/admin/atendimento/bot" ? whatsappCounts.bot
                           : item.path === "/admin/atendimento/fila" ? whatsappCounts.queued
                           : item.path === "/admin/atendimento/em-andamento" ? whatsappCounts.assigned
-                          : item.path === "/admin/atendimento/finalizados" ? whatsappCounts.closed
                           : 0;
                       return (
                         <MobileItemTag key={item.path} item={item} target={itemTarget(item)} onClose={() => setIsSidebarOpen(false)} onTour={startTour}
@@ -1286,7 +1285,7 @@ export default function AdminDashboard() {
               <Route path="atendimento/bot" element={<WhatsappAtendimento view="bot" />} />
               <Route path="atendimento/fila" element={<WhatsappAtendimento view="queued" />} />
               <Route path="atendimento/em-andamento" element={<WhatsappAtendimento view="assigned" />} />
-              <Route path="atendimento/finalizados" element={<WhatsappAtendimento view="closed" />} />
+              <Route path="atendimento/finalizados" element={<WhatsappHistory />} />
               <Route path="metas"      element={<Goals />} />
               <Route path="markup"     element={<Markup />} />
               <Route path="etiquetas"  element={<Barcodes />} />
