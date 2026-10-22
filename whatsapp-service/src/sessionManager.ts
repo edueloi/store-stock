@@ -87,7 +87,8 @@ async function forwardMessageToWebhook(tenantSlug: string, webhookSecret: string
       { headers: { "x-whatsapp-secret": webhookSecret }, timeout: 10_000 },
     );
   } catch (err) {
-    logger.error({ err, tenantSlug }, "failed to forward inbound message to main backend webhook");
+    // O erro Axios completo contém o áudio e o segredo do webhook no payload/headers.
+    logger.error({ tenantSlug, status: axios.isAxiosError(err) ? err.response?.status : undefined, code: axios.isAxiosError(err) ? err.code : "forward_failed" }, "failed to forward inbound message to main backend webhook");
   }
 }
 
