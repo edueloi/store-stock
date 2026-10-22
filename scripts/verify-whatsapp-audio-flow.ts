@@ -31,6 +31,7 @@ test("áudio chega ao catálogo e à IA com contexto; duplicatas e atendimento h
   replace(prisma.category, "findMany", async () => []);
   replace(prisma.service, "findMany", async () => []);
   replace(prisma.whatsappSector, "findMany", async () => []);
+  replace(prisma.whatsappAgent, "findMany", async () => []);
   replace(prisma.product, "findMany", async () => [{ id: 3, name: "Bolsa Luna", price: 189.9, stock_quantity: 4, skus: [{ combo: { Cor: "Preto" }, stock: 4 }], variations: [], attributes: [], is_active: true }]);
   replace(axios, "post", async (url: string, body: any) => {
     if (url === `${env.whatsappTranscriptionUrl}/transcribe`) {

@@ -7,6 +7,8 @@ import { createWhatsappReservationPdf, reservationDate } from "./whatsapp-reserv
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { buildCatalogContext, buildStoreContext, loadActiveSectors, loadConversationHistory } from "./whatsapp-ai-context.service";
+import { buildHumanAttendanceContext, loadHumanAttendance } from "./whatsapp-attendance.service";
+import { agentAttendanceHours, validateAgentBusinessHours } from "../../shared/businessHours";
 import axios from "axios";
 import { randomBytes } from "crypto";
 import { Prisma } from "@prisma/client";
@@ -643,7 +645,7 @@ export async function getWhatsappOverview(tenantId: number) {
     ensureWorkspace(tenantId),
   ]);
 
-  const [agents, conversations, loadMap] = await Promise.all([
+  const [agents, conversations, loadMap, tenant] = await Promise.all([
     prisma.whatsappAgent.findMany({
       where: { workspace_id: workspace.id },
       orderBy: [{ priority: "desc" }, { name: "asc" }],
@@ -659,6 +661,7 @@ export async function getWhatsappOverview(tenantId: number) {
       take: 100,
     }),
     getAgentLoadMap(workspace.id),
+    prisma.tenant.findUnique({ where: { id: tenantId }, select: { business_hours: true } }),
   ]);
 
   await ensureDefaultSectors(workspace.id);
@@ -670,11 +673,13 @@ export async function getWhatsappOverview(tenantId: number) {
 
   const mappedAgents = agents.map((agent) => ({
     ...agent,
+    attendance_hours: agentAttendanceHours(agent, tenant?.business_hours),
     current_load: loadMap.get(agent.id) ?? 0,
     is_available:
       agent.is_active &&
       agent.is_online &&
       agent.can_receive_transfer &&
+      agentAttendanceHours(agent, tenant?.business_hours).openNow !== false &&
       (loadMap.get(agent.id) ?? 0) < agent.max_concurrent_chats,
   }));
 
@@ -686,7 +691,7 @@ export async function getWhatsappOverview(tenantId: number) {
   return {
     workspace: workspacePayload,
     stats: {
-      online_agents: mappedAgents.filter((agent) => agent.is_online && agent.is_active).length,
+      online_agents: mappedAgents.filter((agent) => agent.is_online && agent.is_active && agent.attendance_hours.openNow !== false).length,
       open_conversations: mappedConversations.filter((item) =>
         OPEN_STATUSES.includes(item.status as ConversationStatus),
       ).length,
@@ -874,6 +879,7 @@ function validateAgentPayload(payload: Record<string, unknown>) {
     max_concurrent_chats: Math.max(1, Number(payload.max_concurrent_chats ?? 3)),
     priority: Number(payload.priority ?? 0),
     notes: String(payload.notes ?? "").trim() || null,
+    ...(payload.business_hours !== undefined ? { business_hours: payload.business_hours === null ? Prisma.DbNull : asJson(validateAgentBusinessHours(payload.business_hours)) } : {}),
   };
 }
 
@@ -914,7 +920,7 @@ export async function updateWhatsappAgent(
     throw new Error("Atendente não encontrado.");
   }
 
-  const data = validateAgentPayload(payload);
+  const data = validateAgentPayload({ ...existing, ...payload });
   const sector = await whatsappSector.findFirst({
     where: { workspace_id: workspace.id, key: data.department, is_active: true },
   });
@@ -1288,14 +1294,8 @@ async function sendAgentDirectory(
   },
   department: string,
 ) {
-  const agents = await prisma.whatsappAgent.findMany({
-    where: {
-      workspace_id: workspace.id,
-      department,
-      is_active: true,
-    },
-    orderBy: [{ priority: "desc" }, { name: "asc" }],
-  });
+  const attendance = await loadHumanAttendance(workspace.id, department);
+  const agents = attendance.onlineAgents;
 
   const settings = parseSettings(workspace.settings);
   const loadMap = await getAgentLoadMap(workspace.id);
@@ -1695,6 +1695,7 @@ async function generateZeAiReply(
   // Dados reais da loja + produtos ligados à pergunta. Sem isso a IA só conseguiria "conversar".
   let storeContext = "";
   let catalogContext = "";
+  let attendanceContext = "";
   let sectorsText = "sales (Vendas), support (Suporte), finance (Financeiro)";
   let history: Array<{ role: "customer" | "assistant"; text: string }> = [];
   if (context) {
@@ -1704,9 +1705,10 @@ async function generateZeAiReply(
       if (history.length && history[history.length - 1].role === "customer" && history[history.length - 1].text === message.slice(0, 500)) history.pop();
       const sectors = await loadActiveSectors(context.tenantId).catch(() => []);
       if (sectors.length) sectorsText = sectors.map((sec) => `${sec.key} (${sec.name}${sec.description ? `: ${sec.description}` : ""})`).join("; ");
-      [storeContext, catalogContext] = await Promise.all([
+      [storeContext, catalogContext, attendanceContext] = await Promise.all([
         buildStoreContext(context.tenantId),
         buildCatalogContext(context.tenantId, message, history.filter((h) => h.role === "customer").map((h) => h.text)),
+        buildHumanAttendanceContext(context.tenantId),
       ]);
     } catch (error) {
       console.error("[whatsapp] contexto da IA indisponível:", error instanceof Error ? error.message : error);
@@ -1719,20 +1721,22 @@ async function generateZeAiReply(
     "Converse de forma natural e simpática, como uma atendente de loja no WhatsApp: frases curtas, sem parecer robô e sem repetir saudações a cada mensagem. Use no máximo um emoji quando combinar.",
     "Responda SOMENTE o que o cliente perguntou, sem despejar informações da loja que ele não pediu (horário, endereço, formas de pagamento só quando perguntarem). Se ele apenas cumprimentar, cumprimente de volta pelo nome (se souber) e pergunte em uma frase como pode ajudar.",
     WHATSAPP_AI_STYLE,
-    "Horário e agora: use a linha 'Horário de hoje' dos dados para dizer se está aberto. Se o horário não estiver cadastrado nos dados, diga que não tem essa informação e ofereça chamar a equipe — nunca invente horário.",
-    "Use SOMENTE os dados das seções DADOS DA LOJA e PRODUTOS abaixo para falar de produtos, preços, estoque, variações (tamanho, cor etc.), horário, endereço, pagamento e prazos. Informe o preço exatamente como está nos dados; se houver promoção, cite o valor promocional e o original.",
+    "Diferencie funcionamento da loja de atendimento HUMANO. Use o estado atual e os horários cadastrados (Brasília). Fora do expediente ou sem atendente disponível, informe o horário da equipe e continue ajudando pelo bot; não diga que transferiu, entrou na fila ou que alguém vai responder imediatamente. Horário ausente: diga que ainda não está cadastrado, sem inventar nem prometer retorno automático.",
+    "Use SOMENTE os dados das seções DADOS DA LOJA, ATENDIMENTO HUMANO e PRODUTOS abaixo para falar de produtos, preços, estoque, variações (tamanho, cor etc.), horário, endereço, pagamento e prazos. Informe o preço exatamente como está nos dados; se houver promoção, cite o valor promocional e o original.",
     "Se o produto tiver opções (variações), diga quais estão disponíveis e quais estão sem estoque. Se faltar informação para responder (ex.: o cliente não disse o tamanho), pergunte de forma curta.",
-    "Se o produto não aparecer nos dados, diga que não encontrou esse item no catálogo e ofereça chamar a equipe. Nunca invente produto, preço, estoque, prazo de entrega, frete, desconto ou política.",
+    "A busca e a amostra do catálogo são PARCIAIS. Se o produto não aparecer, diga 'Não encontrei esse item no catálogo disponível agora' e ofereça consultar um atendente (dentro do expediente). NUNCA conclua 'não vendemos', 'não trabalhamos com isso', 'só vendemos X' ou 'não temos esse produto' apenas por não aparecer na busca. Mesmo ao explicar o ramo, não transforme as categorias em uma lista exclusiva. Estoque zero de um produto identificado pode ser informado como 'sem estoque no cadastro no momento'. Nunca invente produto, preço, estoque, prazo de entrega, frete, desconto ou política.",
+    "Endereço, telefone, Instagram, Facebook e informações do negócio: responda com os dados oficiais quando perguntarem, incluindo o link cadastrado da rede solicitada. Se o dado estiver ausente ou não for público, diga que não consta no cadastro; nunca invente endereço, perfil, link ou área de atuação. Use a apresentação da loja e as categorias para explicar o que ela oferece, sem afirmar que são os únicos produtos vendidos.",
     "Depois de responder sobre um produto, envie também o link filtrado da loja para o cliente ver e comprar, montado com o padrão de links dos dados (ex.: .../catalogo?q=bolo+de+chocolate). Se o cliente falar de uma categoria, pode usar o link da categoria. Se pedir o site, envie o link da loja.",
     "Serviços: se perguntarem o que a loja presta, responda com os serviços listados nos dados e seus valores.",
     "Pedidos: você não fecha pedido sozinha. Quando o cliente decidir comprar, passe o link filtrado para finalizar no site ou ofereça chamar a equipe de vendas para fechar com ele. Oferecer ajuda NÃO é transferir: só emita o comando de transferência depois que o cliente aceitar ou solicitar atendimento humano. Nunca inclua comandos internos junto de uma oferta ou texto ao cliente.",
     "Não peça senha, dados de cartão ou códigos de confirmação. Pagamentos online acontecem no site da loja, nunca por mensagem.",
-    `Setores de atendimento disponíveis: ${sectorsText}. Quando o cliente pedir para falar com uma pessoa ou o assunto fugir do que você pode resolver (reclamação, troca, problema com pedido, cobrança, negociação), responda SOMENTE com [[TRANSFERIR:chave_do_setor]] escolhendo o setor mais adequado (ex.: [[TRANSFERIR:sales]]).`,
+    `Setores de atendimento cadastrados: ${sectorsText}. Se houver atendentes disponíveis dentro do expediente e o cliente pedir uma pessoa (ou aceitar sua oferta para reclamação, troca, cobrança ou negociação), responda SOMENTE com [[TRANSFERIR:chave_do_setor]] escolhendo o setor adequado (ex.: [[TRANSFERIR:sales]]). Fora do expediente, responda com os horários e ofereça continuar ajudando pelo bot. Nunca transfira apenas por oferecer ajuda.`,
     "Segurar pedido: se o cliente quiser reservar/comprar, primeiro CONFIRME com ele, em uma mensagem, os itens (nome, opção como tamanho/cor, quantidade) e o total, e pergunte se pode segurar no nome dele para a equipe confirmar. SOMENTE depois de ele confirmar com clareza (ex.: 'sim', 'pode segurar'), responda exclusivamente com [[SEGURAR:{\"items\":[{\"id\":123,\"qty\":1,\"options\":{\"Tamanho\":\"M\"}}]}]]. Use o id do produto dos dados e, se o produto tiver opções, informe exatamente a opção escolhida em options (sem opções, deixe options vazio). Nunca segure produto sem estoque, sem opção definida ou que o cliente não confirmou.",
     "Produtos marcados como SÓ NA LOJA FÍSICA existem no PDV da loja mas não estão no site: informe preço e disponibilidade normalmente, diga que é para retirar/comprar na loja e NÃO envie link do site para eles.",
     "A reserva confirmada gera automaticamente um comprovante PDF válido por 24 horas; não é nota fiscal nem confirmação de pagamento. O comprovante é opcional: no balcão, basta informar nome, telefone ou número da reserva. Informe a validade ao pedir autorização para reservar. Não diga que reservou antes do comando ser processado.",
     "Responda em português do Brasil, em no máximo 900 caracteres.",
     storeContext ? `\n=== DADOS DA LOJA ===\n${storeContext}` : "",
+    attendanceContext ? `\n=== ATENDIMENTO HUMANO ===\n${attendanceContext}` : "",
     catalogContext ? `\n=== PRODUTOS ===\n${catalogContext}` : "",
   ].filter(Boolean).join("\n");
 
@@ -1852,11 +1856,11 @@ async function tryHandleZeAiMessage(
     } catch (error) {
       const why = error instanceof HoldRejected ? error.message : "Não consegui segurar agora.";
       console.error("[whatsapp] reserva pela IA não concluída:", error instanceof Error ? error.message : error);
-      await say(`${why} Vou chamar alguém da equipe para te ajudar.`);
+      await say(`${why} Vou verificar a disponibilidade da equipe para te ajudar.`);
     }
     if (reservation) {
       const lines = reservation.items.map((i) => `• ${i.quantity}x *${i.name}*${i.selected_options ? ` (${Object.values(i.selected_options).join(", ")})` : ""}\n${money(i.unit_price * i.quantity)}`);
-      await say([`Pronto! Sua reserva *nº ${reservation.number}* foi registrada.`, "", ...lines, "", `*Total: ${money(reservation.total)}*`, `Válida por 24 horas, até *${reservationDate(reservation.expiresAt)}* (Brasília).`, "", "No balcão, basta informar seu nome, telefone ou número da reserva. Não precisa apresentar o comprovante.", "", "Vou chamar a equipe para confirmar a compra com você."].join("\n"));
+      await say([`Pronto! Sua reserva *nº ${reservation.number}* foi registrada.`, "", ...lines, "", `*Total: ${money(reservation.total)}*`, `Válida por 24 horas, até *${reservationDate(reservation.expiresAt)}* (Brasília).`, "", "No balcão, basta informar seu nome, telefone ou número da reserva. Não precisa apresentar o comprovante.", "", "A confirmação da compra é feita pela equipe no horário de atendimento."].join("\n"));
       try {
         const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: workspace.tenant_id } });
         let logoBuffer: Buffer | null = null;
@@ -1928,6 +1932,9 @@ async function tryHandleZeMessage(
   // catálogo e a loja; as regras abaixo só ficam com pedidos/orçamentos/notas explícitos.
   const aiReady = settings.ai_provider !== "rules" && Boolean(settings.ai_api_key);
 
+  // Perguntar pelo horário de um vendedor não é pedir transferência.
+  if (aiReady && /\b(horario|expediente|funcionamento|abre|abrem|fecha|fecham|endereco|instagram|facebook|rede social|redes sociais|ramo)\b/.test(text)) return false;
+
   if (isAny("quem e voce", "quem e vc", "seu nome", "voce e robo", "voce e bot")) {
     await say(`Eu sou ${settings.bot_name}, o assistente virtual da ${tenantName}. Posso resolver consultas rápidas e, quando precisar, encaminhar você para uma pessoa da equipe.`);
     return true;
@@ -1955,7 +1962,7 @@ async function tryHandleZeMessage(
     return true;
   }
 
-  if (isAny("atendente", "humano", "pessoa", "vendedor", "vendedora", "falar com alguem", "falar com alguém", "suporte")) {
+  if (isAny("atendente", "humano", "pessoa", "vendedor", "vendedora", "falar com alguem", "falar com alguém", "suporte") && (!aiReady || /\b(falar|conversar|chamar|chame|transfere|transferir|quero|preciso|passa|passe)\b/.test(text))) {
     const department = isAny("vendedor", "vendedora", "comprar", "preco", "preço")
       ? "sales"
       : isAny("boleto", "pagamento", "cobranca", "cobrança", "financeiro")
@@ -2008,7 +2015,13 @@ async function queueConversation(workspaceId: number, conversationId: number, de
   const workspace = await prisma.whatsappWorkspace.findUnique({ where: { id: workspaceId } });
   const conversation = await prisma.whatsappConversation.findUnique({ where: { id: conversationId } });
 
-  if (!workspace || !conversation) return;
+  if (!workspace || !conversation) return false;
+
+  const attendance = await loadHumanAttendance(workspaceId, department);
+  if (!attendance.onlineAgents.length) {
+    await respondHumanUnavailable(workspaceId, conversation, attendance.unavailableMessage);
+    return false;
+  }
 
   const templates = parseTemplates(workspace.templates);
   const currentQueuedCount = await prisma.whatsappConversation.count({
@@ -2042,6 +2055,24 @@ async function queueConversation(workspaceId: number, conversationId: number, de
 
   await sendMessageAndTrack(workspaceId, conversationId, conversation.phone, "text", { text }, text, "system");
   await normalizeQueuePositions(workspaceId, department);
+  return true;
+}
+
+async function respondHumanUnavailable(
+  workspaceId: number,
+  conversation: { id: number; phone: string; metadata: unknown; status: string; department?: string | null },
+  text: string,
+) {
+  // Uma solicitação recusada pelo horário não cria fila nem deixa um aceite antigo pendente.
+  // Uma conversa já assumida por uma pessoa continua com ela.
+  if (conversation.status !== "assigned") {
+    await updateConversationState(conversation.id, {
+      status: "bot", assigned_agent_id: null, queue_position: null, current_menu: "main",
+      metadata: asJson({ ...parseMetadata(conversation.metadata), pending_choices: [], agent_list_department: null, handoff: null }),
+    });
+    if (conversation.status === "queued" && conversation.department) await normalizeQueuePositions(workspaceId, conversation.department);
+  }
+  await sendMessageAndTrack(workspaceId, conversation.id, conversation.phone, "text", { text }, text, "bot");
 }
 
 async function assignConversationToAgent(
@@ -2056,7 +2087,13 @@ async function assignConversationToAgent(
     prisma.whatsappAgent.findUnique({ where: { id: agentId } }),
   ]);
 
-  if (!workspace || !conversation || !agent) return;
+  if (!workspace || !conversation || !agent || agent.workspace_id !== workspaceId || conversation.workspace_id !== workspaceId) return false;
+
+  const attendance = await loadHumanAttendance(workspaceId, agent.department, agent.id);
+  if (!attendance.onlineAgents.some(candidate => candidate.id === agent.id)) {
+    await respondHumanUnavailable(workspaceId, conversation, attendance.unavailableMessage);
+    return false;
+  }
 
   const templates = parseTemplates(workspace.templates);
   const department = agent.department || conversation.department || "sales";
@@ -2071,6 +2108,7 @@ async function assignConversationToAgent(
       ...parseMetadata(conversation.metadata),
       pending_choices: [],
       agent_list_department: null,
+      handoff: null,
     }),
   });
 
@@ -2083,24 +2121,16 @@ async function assignConversationToAgent(
 
   await sendMessageAndTrack(workspaceId, conversationId, conversation.phone, "text", { text }, text, "system");
   await normalizeQueuePositions(workspaceId, department);
+  return true;
 }
 
 async function chooseBestAvailableAgent(workspaceId: number, department: string) {
-  const [agents, loadMap] = await Promise.all([
-    prisma.whatsappAgent.findMany({
-      where: {
-        workspace_id: workspaceId,
-        department,
-        is_active: true,
-        is_online: true,
-        can_receive_transfer: true,
-      },
-      orderBy: [{ priority: "desc" }, { name: "asc" }],
-    }),
+  const [attendance, loadMap] = await Promise.all([
+    loadHumanAttendance(workspaceId, department),
     getAgentLoadMap(workspaceId),
   ]);
 
-  const candidates = agents
+  const candidates = attendance.onlineAgents
     .map((agent) => ({ agent, load: loadMap.get(agent.id) ?? 0 }))
     .filter(({ agent, load }) => load < agent.max_concurrent_chats)
     .sort((a, b) => {
@@ -2128,11 +2158,18 @@ async function tryAssignSpecificAgent(
     throw new Error("Atendente não encontrado.");
   }
 
+  const attendance = await loadHumanAttendance(workspaceId, agent.department, agent.id);
+  if (!attendance.onlineAgents.length) {
+    const conversation = await prisma.whatsappConversation.findUnique({ where: { id: conversationId } });
+    if (conversation) await respondHumanUnavailable(workspaceId, conversation, attendance.unavailableMessage);
+    return { assigned: false, department: agent.department };
+  }
+
   const load = loadMap.get(agent.id) ?? 0;
 
   if (agent.is_online && agent.can_receive_transfer && load < agent.max_concurrent_chats) {
-    await assignConversationToAgent(workspaceId, conversationId, agent.id);
-    return { assigned: true, department: agent.department };
+    const assigned = await assignConversationToAgent(workspaceId, conversationId, agent.id);
+    return { assigned, department: agent.department };
   }
 
   await queueConversation(workspaceId, conversationId, agent.department);
@@ -2145,29 +2182,24 @@ async function requestHandoffAcceptance(
   department: string,
   onlyAgentId?: number,
 ) {
-  const [conversation, agents] = await Promise.all([
+  const [conversation, attendance] = await Promise.all([
     prisma.whatsappConversation.findUnique({ where: { id: conversationId } }),
-    prisma.whatsappAgent.findMany({
-      where: {
-        workspace_id: workspaceId,
-        department,
-        is_active: true,
-        is_online: true,
-        can_receive_transfer: true,
-        ...(onlyAgentId ? { id: onlyAgentId } : {}),
-      },
-      orderBy: [{ priority: "desc" }, { name: "asc" }],
-    }),
+    loadHumanAttendance(workspaceId, department, onlyAgentId),
   ]);
   if (!conversation) return;
 
-  const candidates = agents.filter((agent) => normalizePhone(agent.phone).length >= 10);
+  if (!attendance.onlineAgents.length) {
+    await respondHumanUnavailable(workspaceId, conversation, attendance.unavailableMessage);
+    return;
+  }
+
+  const candidates = attendance.onlineAgents.filter((agent) => normalizePhone(agent.phone).length >= 10);
   if (candidates.length === 0) {
     await queueConversation(workspaceId, conversationId, department);
     return;
   }
 
-  await queueConversation(workspaceId, conversationId, department);
+  if (!await queueConversation(workspaceId, conversationId, department)) return;
   const queued = await prisma.whatsappConversation.findUnique({ where: { id: conversationId } });
   if (!queued) return;
   await updateConversationState(conversationId, {
@@ -2223,8 +2255,8 @@ async function tryHandleAgentHandoffReply(
   if (!conversation) return false;
 
   if (normalized === "1") {
-    await assignConversationToAgent(workspaceId, conversation.id, agent.id);
-    await sendTextMessage(workspaceId, senderPhone, `Atendimento aceito: ${conversation.customer_name || conversation.phone}. A conversa já está atribuída a você no painel.`);
+    const assigned = await assignConversationToAgent(workspaceId, conversation.id, agent.id);
+    await sendTextMessage(workspaceId, senderPhone, assigned ? `Atendimento aceito: ${conversation.customer_name || conversation.phone}. A conversa já está atribuída a você no painel.` : "O atendimento não foi atribuído: você está indisponível ou fora do seu expediente cadastrado.");
     return true;
   }
 

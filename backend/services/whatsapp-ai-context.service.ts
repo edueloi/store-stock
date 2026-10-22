@@ -1,15 +1,10 @@
 import { prisma } from "../config/prisma";
 import { buildTenantAccessUrl } from "../utils/tenant-domain";
+import { describeBusinessHours } from "../../shared/businessHours";
 
 // Contexto real da loja entregue à IA do WhatsApp: dados da loja, horário e os produtos
 // relacionados à pergunta do cliente (preço, variações e disponibilidade). A IA só pode
 // afirmar o que estiver aqui — nada de preço ou estoque "de cabeça".
-
-const DAY_LABELS: Record<string, string> = {
-  seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta", sex: "Sexta", sab: "Sábado", dom: "Domingo",
-};
-const DAY_ORDER = ["seg", "ter", "qua", "qui", "sex", "sab", "dom"];
-const JS_DAY_KEYS = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 
 const STOPWORDS = new Set([
   "de", "da", "do", "das", "dos", "um", "uma", "uns", "umas", "o", "a", "os", "as", "e", "ou", "que", "com", "sem", "para", "pra", "por",
@@ -36,50 +31,16 @@ function keywordsOf(text: string): string[] {
   return [...seen].slice(0, 8);
 }
 
-type HoursEntry = { open?: string; close?: string; closed?: boolean };
-
-function describeHours(hours: unknown): { text: string; openNow: boolean | null; today: string | null } {
-  if (!hours || typeof hours !== "object") return { text: "não cadastrado", openNow: null, today: null };
-  const map = hours as Record<string, HoursEntry>;
-  const lines = DAY_ORDER.filter((d) => map[d]).map((d) => {
-    const h = map[d];
-    return `${DAY_LABELS[d]}: ${h.closed || !h.open || !h.close ? "fechado" : `${h.open} às ${h.close}`}`;
-  });
-  if (!lines.length) return { text: "não cadastrado", openNow: null, today: null };
-
-  // "agora" no fuso de Brasília, independente do fuso do servidor
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "America/Sao_Paulo", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false,
-  }).formatToParts(new Date());
-  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
-  const dayKey = JS_DAY_KEYS[["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(weekday)];
-  const nowMin = Number(parts.find((p) => p.type === "hour")?.value ?? 0) * 60 + Number(parts.find((p) => p.type === "minute")?.value ?? 0);
-  const today = map[dayKey];
-  let openNow: boolean | null = null;
-  if (today) {
-    if (today.closed || !today.open || !today.close) openNow = false;
-    else {
-      const toMin = (s: string) => Number(s.split(":")[0]) * 60 + Number(s.split(":")[1] ?? 0);
-      openNow = nowMin >= toMin(today.open) && nowMin < toMin(today.close);
-    }
-  }
-  const todayLabel = DAY_LABELS[dayKey] ?? "";
-  const todayText = today
-    ? `${todayLabel}: ${today.closed || !today.open || !today.close ? "fechado hoje" : `${today.open} às ${today.close}`}`
-    : null;
-  return { text: lines.join("; "), openNow, today: todayText };
-}
-
 export async function buildStoreContext(tenantId: number): Promise<string> {
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
   if (!tenant) return "";
   const t = tenant as Record<string, any>;
 
   const url = buildTenantAccessUrl(t.subdomain || t.slug);
-  const hours = describeHours(t.business_hours);
+  const hours = describeBusinessHours(t.business_hours);
   const address = t.show_address === false ? null : [
     [t.address_street, t.address_number].filter(Boolean).join(", "),
-    t.address_district, [t.address_city, t.address_state].filter(Boolean).join("/"),
+    t.address_complement, t.address_district, [t.address_city, t.address_state].filter(Boolean).join("/"), t.address_zip,
   ].filter(Boolean).join(" - ") || t.address || null;
 
   const payments = t.payment_methods && typeof t.payment_methods === "object"
@@ -109,14 +70,18 @@ export async function buildStoreContext(tenantId: number): Promise<string> {
   return [
     `Loja: ${t.name}`,
     `Link da loja virtual: ${url}`,
+    t.about_text ? `Apresentação e ramo do negócio (cadastro da loja): ${String(t.about_text).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 2500)}` : "Ramo do negócio: não informado explicitamente. As categorias abaixo são referências, não uma lista exclusiva do que a loja vende.",
+    t.instagram_url ? `Instagram oficial: ${t.instagram_url}` : "Instagram: não cadastrado (não invente perfil).",
+    t.facebook_url ? `Facebook oficial: ${t.facebook_url}` : "Facebook: não cadastrado (não invente perfil).",
     t.whatsapp ? `WhatsApp da loja: ${t.whatsapp}` : "",
-    address ? `Endereço: ${address}` : "",
+    address ? `Endereço: ${address}` : "Endereço: não disponível para divulgação no cadastro.",
     `Horário de funcionamento: ${hours.text}`,
     hours.today ? `Horário de hoje (${hours.today})` : "",
     hours.openNow === null ? "" : `Agora a loja está: ${hours.openNow ? "ABERTA" : "FECHADA"} (horário de Brasília)`,
     payments.length ? `Formas de pagamento aceitas: ${payments.join(", ")}` : "",
     ...policyLines,
     `Padrão de links da loja virtual: busca por produto = ${url}/catalogo?q=TERMO (espaços viram +, ex.: ${url}/catalogo?q=bolo+de+chocolate); por categoria = ${url}/catalogo?cat=ID`,
+    "O catálogo e as categorias podem ser parciais: não encontrar um produto NÃO prova que a loja não trabalha com ele. Não afirme exclusividade de ramo ou ausência definitiva de produtos.",
     categories.length ? `Categorias (id): ${categories.map((c) => `${c.name} (${c.id})`).join(", ")}` : "",
     serviceLines.length ? `Serviços prestados:\n${serviceLines.join("\n")}` : "",
   ].filter(Boolean).join("\n");
@@ -201,8 +166,8 @@ export async function buildCatalogContext(tenantId: number, message: string, his
   // Pergunta genérica ("o que vocês vendem?"): amostra de destaques para a IA ter o que mostrar.
   if (!products.length) {
     products = await prisma.product.findMany({ where: base, select, take: 6, orderBy: [{ is_featured: "desc" }, { id: "desc" }] });
-    if (!products.length) return "Catálogo: nenhum produto ativo cadastrado.";
-    return `Catálogo (amostra — a busca não encontrou nada específico para a pergunta):\n${products.map(formatProduct).join("\n")}`;
+    if (!products.length) return "Não foram encontrados produtos no cadastro consultado. Isso NÃO confirma que a loja não vende o item; informe que não encontrou no catálogo disponível agora e ofereça consultar a equipe.";
+    return `Catálogo PARCIAL (amostra de outros itens; a busca não encontrou um resultado específico para a pergunta). Não afirme que a loja não vende o item solicitado; ofereça consultar a equipe:\n${products.map(formatProduct).join("\n")}`;
   }
   return `Produtos encontrados para a pergunta:\n${products.map(formatProduct).join("\n")}\nSugestão de termo para o link filtrado: ${terms.slice(0, 3).join("+")} (ajuste para o nome do produto como o cliente falou)`;
 }

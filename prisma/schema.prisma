@@ -2052,6 +2052,7 @@ model WhatsappAgent {
   max_concurrent_chats Int      @default(3)
   priority             Int      @default(0)
   notes                String?  @db.Text
+  business_hours       Json?
   created_at           DateTime @default(now())
   updated_at           DateTime @updatedAt
 
