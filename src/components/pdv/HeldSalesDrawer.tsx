@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { AlertTriangle, ChevronDown, ChevronRight, Clock, Loader2, Search, X } from "lucide-react";
 
-import { cancelHeldSale, listHeldSales, resumeHeldSale, type HeldSale } from "../../lib/heldSales";
+import { cancelHeldSale, heldSaleMatchesSearch, listHeldSales, resumeHeldSale, type HeldSale } from "../../lib/heldSales";
+import { formatContactPhone } from "../../lib/whatsappPhone";
 import { cn } from "../../lib/utils";
 import Modal from "../ui/Modal";
 import Button, { IconButton } from "../ui/Button";
@@ -51,12 +52,7 @@ export default function HeldSalesDrawer({ open, onClose, token, onResume }: Held
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const q = search.trim().toLowerCase();
-  const filtered = sales.filter((s) =>
-    !q ||
-    (s.customer_name ?? "").toLowerCase().includes(q) ||
-    String(s.number).includes(q)
-  );
+  const filtered = sales.filter((s) => heldSaleMatchesSearch(s, search));
 
   async function handleResume(s: HeldSale) {
     setBusyId(s.id);
@@ -108,7 +104,7 @@ export default function HeldSalesDrawer({ open, onClose, token, onResume }: Held
             </div>
             <div className="p-4 border-b border-slate-100 shrink-0">
               <Input value={search} onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por cliente ou número..." autoFocus
+                placeholder="Nome, telefone ou nº da reserva..." autoFocus
                 aria-label="Buscar venda em espera"
                 iconLeft={<Search size={13} />} />
             </div>
@@ -137,6 +133,7 @@ export default function HeldSalesDrawer({ open, onClose, token, onResume }: Held
                             <p className="text-[11px] text-slate-400 flex items-center gap-1">
                               {s.items.length} {s.items.length === 1 ? "item" : "itens"} · R$ {total.toFixed(2)}
                             </p>
+                            {s.customer_phone && <p className="text-[11px] text-slate-500">{formatContactPhone(s.customer_phone)}</p>}
                             <p className={cn("text-[10px] font-semibold flex items-center gap-1 mt-0.5", isStale ? "text-amber-600" : "text-slate-400")}>
                               {isStale ? <AlertTriangle size={10} /> : <Clock size={10} />} {elapsed.text}
                             </p>

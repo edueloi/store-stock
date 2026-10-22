@@ -62,6 +62,16 @@ export interface CreateHeldSaleItemInput {
   dimensionsLabel?: string | null;
 }
 
+export function heldSaleMatchesSearch(sale: Pick<HeldSale, "number" | "customer_name" | "customer_phone">, search: string): boolean {
+  const normalize = (value: string) => value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  const query = normalize(search.trim());
+  if (!query || normalize(sale.customer_name || "").includes(query)) return true;
+  const reference = query.replace(/^#/, "");
+  if (/^\d+$/.test(reference) && (String(sale.number).includes(reference) || Number(reference) === sale.number)) return true;
+  const phoneDigits = query.replace(/\D/g, "");
+  return /^[+\d\s().-]+$/.test(query) && phoneDigits.length >= 3 && (sale.customer_phone || "").replace(/\D/g, "").includes(phoneDigits);
+}
+
 export interface CreateHeldSaleInput {
   customer_id?: number | null;
   customer_name?: string | null;

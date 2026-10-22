@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHeldSaleFromWhatsapp, expireWhatsappReservations } from "../backend/services/whatsapp-held-sale.service";
 import { whatsappReservationExpiry } from "../backend/services/whatsapp-reservation";
+import { heldSaleMatchesSearch } from "../src/lib/heldSales";
 
 type Row = Record<string, any>;
 function fixture() {
@@ -44,6 +45,12 @@ function fixture() {
   return { database, get state() { return state; }, failMovement() { failMovement = true; } };
 }
 const request = (extra: Row = {}) => ({ tenantId: 1, customerName: "Karen Ação", customerPhone: "5515999999999", items: [{ id: 1, qty: 1, options: { Cor: "Preto" } }], ...extra });
+
+test("balcão localiza por nome, telefone com máscara ou número impresso no PDF", () => {
+  const sale = { number: 8, customer_name: "Karen Ação", customer_phone: "5515996093492" };
+  for (const search of ["Karen", "acao", "(15) 99609-3492", "15996093492", "+55 (15) 99609-3492", "000008", "#000008"]) assert.ok(heldSaleMatchesSearch(sale, search), search);
+  for (const search of ["Mariana", "11912345678", "#000009", "Karen999"]) assert.equal(heldSaleMatchesSearch(sale, search), false, search);
+});
 
 test("reserva usa preço real, grava 24 horas e reserva a SKU", async () => {
   const db = fixture();
