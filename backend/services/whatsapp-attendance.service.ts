@@ -33,7 +33,7 @@ export async function buildHumanAttendanceContext(tenantId: number): Promise<str
     "Atendimento HUMANO (separado do funcionamento da loja; fuso de Brasília):",
     ...state.scheduleLines,
     ...state.evaluated.map(({ agent, hours }) => `${agent.name} | setor ${agent.department} | agora: ${hours.openNow === false ? "fora do expediente" : !agent.is_online ? "offline" : hours.openNow === null ? "online, horário não cadastrado" : "online, dentro do expediente"}`),
-    `Situação agora: ${state.outsideHours ? "FORA DO EXPEDIENTE" : state.onlineAgents.length ? "há atendentes online dentro do horário conhecido (sujeito à fila)" : "sem atendentes disponíveis para transferência"}.`,
+    `Situação agora: ${state.outsideHours ? "FORA DO EXPEDIENTE" : state.onlineAgents.length ? "há atendentes online aptos a receber solicitações (sujeito à fila; consulte o expediente individual acima)" : "sem atendentes disponíveis para transferência"}.`,
     "Horário não cadastrado não confirma abertura nem expediente; nunca invente horários ou prometa retorno/transferência automática.",
   ].join("\n");
 }
