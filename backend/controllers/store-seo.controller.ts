@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import { getTenantAccessState } from "../utils/tenant-access";
 import { resolveTenantLookupFromRequest } from "../utils/tenant-domain";
+import { env } from "../config/env";
 import { parseProductIdFromRoute } from "../utils/product-slug";
 import { escapeHtml, escapeJsonForScriptTag } from "../utils/html-escape";
 
@@ -267,8 +268,23 @@ export async function handleStoreSeo(req: Request, res: Response) {
   }
 }
 
+// No endereço principal (sem loja) o sitemap é um índice com o sitemap de cada loja ativa:
+// um único arquivo no Search Console cobre todas as vitrines.
+async function sendStoresSitemapIndex(req: Request, res: Response) {
+  const protocol = baseUrl(req).split("://")[0];
+  const tenants = await prisma.tenant.findMany({ orderBy: { created_at: "asc" } });
+  const entries = tenants
+    .filter((tenant) => tenant.subdomain && getTenantAccessState(tenant).allowed)
+    .map((tenant) => `  <sitemap><loc>${escapeHtml(`${protocol}://${tenant.subdomain}.${env.appDomain}/sitemap.xml`)}</loc></sitemap>`)
+    .join("\n");
+  res.setHeader("Content-Type", "application/xml; charset=utf-8");
+  res.setHeader("Cache-Control", "public, max-age=900");
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</sitemapindex>`);
+}
+
 export async function handleStoreSitemap(req: Request, res: Response) {
   try {
+    if (!resolveTenantLookupFromRequest(req)) { await sendStoresSitemapIndex(req, res); return; }
     const tenant = await findPublicTenant(req);
     if (!tenant) { res.status(404).type("text").send("Loja não encontrada"); return; }
 
@@ -298,6 +314,11 @@ export async function handleStoreSitemap(req: Request, res: Response) {
 
 export async function handleStoreRobots(req: Request, res: Response) {
   try {
+    if (!resolveTenantLookupFromRequest(req)) {
+      // Endereço do painel: bloqueado para buscadores, exceto o índice de sitemaps das lojas.
+      res.type("text/plain").send(`User-agent: *\nDisallow: /\nAllow: /sitemap.xml\n\nSitemap: ${baseUrl(req)}/sitemap.xml\n`);
+      return;
+    }
     const tenant = await findPublicTenant(req);
     if (!tenant) { res.status(404).type("text").send("User-agent: *\nDisallow: /"); return; }
     res.type("text/plain").send(`User-agent: *\nAllow: /\n\nSitemap: ${storePath(req, "/sitemap.xml")}\n`);
