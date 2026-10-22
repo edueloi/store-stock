@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ArrowUpRight, ChevronRight, Menu, MessageCircle, Search, ShieldCheck, ShoppingBag, Truck, X, Zap } from "lucide-react";
+import { ChevronRight, Menu, MessageCircle, Search, ShieldCheck, ShoppingBag, Truck, X, Zap } from "lucide-react";
 import { formatPhone, hoursRows, shorten, useKit, useUsedCategories } from "./kit";
 import { SocialLinks } from "./Social";
 import "./styles.css";
@@ -61,19 +61,6 @@ export function Header() {
             {cartCount > 0 && <span className="gd-count">{cartCount}</span>}
           </button>
         </div>
-      </div>
-      <div className="gd-header-bottom">
-        <nav className="gd-cats-bar" aria-label="Categorias">
-          <div className="gd-cats-in">
-            <Link className="gd-all-cats" to={path("/catalogo")}><Menu size={14} /> Todos os produtos</Link>
-            {cats.slice(0, 9).map((c) => (
-              <Link key={c.id} to={path(`/catalogo?categoria=${c.id}`)}>
-                {c.name}
-              </Link>
-            ))}
-          </div>
-        </nav>
-        {tenant.whatsapp && <a className="gd-header-contact" href={waLink()} target="_blank" rel="noreferrer"><MessageCircle size={15} /><span>Precisa de ajuda? <strong>{formatPhone(tenant.whatsapp)}</strong></span><ArrowUpRight size={13} /></a>}
       </div>
       {menu && (
         <div className="gd-drawer" role="dialog" aria-label="Menu">

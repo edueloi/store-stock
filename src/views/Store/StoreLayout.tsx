@@ -1915,9 +1915,9 @@ function StoreLayoutInner() {
                 animate={{ x: 0 }}
                 exit={{ x: "100%" }}
                 transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                role={templateId === "vidracaria" ? "dialog" : undefined}
-                aria-modal={templateId === "vidracaria" ? true : undefined}
-                aria-label={templateId === "vidracaria" ? "Seu carrinho" : undefined}
+                role={templateId === "vidracaria" || templateId === "gadget" ? "dialog" : undefined}
+                aria-modal={templateId === "vidracaria" || templateId === "gadget" ? true : undefined}
+                aria-label={templateId === "vidracaria" || templateId === "gadget" ? "Seu carrinho" : undefined}
                 className={cn(
                   "fragrance-cart-drawer fixed top-0 right-0 h-full w-full max-w-md z-[101] shadow-2xl flex flex-col border-l",
                   isElectronics
@@ -1952,7 +1952,7 @@ function StoreLayoutInner() {
                         isElectronics || isFragrance ? "text-white" : "text-slate-900",
                       )}
                     >
-                      {storefront.cart_title || (segment ? segment.cart : templateId === "vidracaria" || isUrban ? "Seu carrinho" : isFragrance ? "Sua sacola" : "Carrinho")}
+                      {storefront.cart_title || (segment ? segment.cart : templateId === "vidracaria" || templateId === "gadget" || isUrban ? "Seu carrinho" : isFragrance ? "Sua sacola" : "Carrinho")}
                     </h3>
                     <p
                       className={cn(
@@ -1989,6 +1989,7 @@ function StoreLayoutInner() {
                 </div>
 
                 <div className="fragrance-cart-content flex-1 overflow-y-auto bg-slate-50 px-5 py-5 space-y-3">
+                  {templateId === "gadget" && cart.length > 0 && <div className="gd-cart-note"><ShoppingCart size={21} /><div><strong>Seu próximo upgrade está aqui.</strong><p>Confira sua seleção antes de continuar.</p></div></div>}
                   {templateId === "coffee" && cart.length > 0 && <div className="cf-basket-note"><ShoppingBasket size={28} /><div><strong>Uma cesta de boas pausas.</strong><p>Confira os itens e as quantidades antes de continuar.</p></div></div>}
                   {cart.length === 0 ? (
                     <div
@@ -2179,7 +2180,7 @@ function StoreLayoutInner() {
                               onClick={() => removeFromCart(item.cartItemId)}
                               className={cn("fragrance-cart-remove", isDoceria ? "text-[#a56e1e] hover:text-red-600 transition-colors" : "text-slate-500 hover:text-red-500 transition-colors")}
                             >
-                              {templateId === "vidracaria" ? <><Trash2 size={14}/><span>Remover</span></> : <X size={14} />}
+                              {templateId === "vidracaria" || templateId === "gadget" ? <><Trash2 size={14}/><span>Remover</span></> : <X size={14} />}
                             </button>
                           </div>
                         </div>
@@ -2272,7 +2273,7 @@ function StoreLayoutInner() {
                                 : "text-slate-400",
                         )}
                       >
-                        {isOrderRequest ? "Estimativa da encomenda" : isUrban ? "Resumo do pedido" : "Total"}
+                        {isOrderRequest ? "Estimativa da encomenda" : templateId === "gadget" ? "Subtotal dos produtos" : isUrban ? "Resumo do pedido" : "Total"}
                       </p>
                       {hideStorePrices ? (
                         <p className="text-right text-[10px] font-bold leading-snug text-[#70541c]">Valores e prazo<br />confirmados pela loja</p>
@@ -2295,6 +2296,7 @@ function StoreLayoutInner() {
                         </p>
                       )}
                     </div>
+                    {templateId === "gadget" && <p className="gd-cart-delivery-note">Entrega e pagamento conforme as opções da loja.</p>}
                     {checkoutMode === "reservation" && (
                       <p
                         className={cn(
@@ -2329,13 +2331,13 @@ function StoreLayoutInner() {
                           : "bg-[#25D366] rounded-2xl hover:bg-[#1db954]",
                       )}
                     >
-                      <svg
+                      {templateId === "gadget" && checkoutMode !== "whatsapp" ? <ShoppingCart size={18} /> : <svg
                         viewBox="0 0 24 24"
                         fill="currentColor"
                         className="w-5 h-5"
                       >
                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                      </svg>
+                      </svg>}
                       {reservationState.loading
                         ? "Reservando itens..."
                         : checkoutMode === "reservation"
@@ -2343,6 +2345,7 @@ function StoreLayoutInner() {
                           : checkoutMode === "online" ? "Continuar para checkout" : isOrderRequest ? "Enviar solicitação" : "Fechar pedido via WhatsApp"}
                     </button>
                     {templateId === "vidracaria" && <button type="button" className="vitra-cart-continue" onClick={() => setIsCartOpen(false)}>Continuar comprando</button>}
+                    {templateId === "gadget" && <button type="button" className="gd-cart-continue" onClick={() => setIsCartOpen(false)}>Continuar comprando</button>}
                     <p
                       className={cn(
                         "text-center text-[9px] font-medium",

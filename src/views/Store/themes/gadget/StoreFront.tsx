@@ -22,18 +22,17 @@ export default function StoreFront() {
   const heroImage = tenant.banner_url || EDITORIAL_IMAGE;
   const tagline = (tenant.hero_tagline || "").trim();
   const shortTag = tagline && tagline.length <= 64;
-  const title = shortTag ? tagline : "Seu mundo. Mais conectado.";
   const text = shorten(shortTag ? tenant.about_text || "" : tagline || tenant.about_text || "", 200) || "Tecnologia selecionada, com atendimento próximo e compra simples.";
 
   const fallback = (
-    <section className="gd-hero">
+    <section className={`gd-hero${tenant.banner_url ? " gd-custom-campaign" : ""}`}>
       <div className="gd-hero-main">
         <div className="gd-hero-copy">
-          <span className="gd-hero-eyebrow"><span /> Conecte-se ao que vem a seguir</span>
-          <h1>{title}</h1>
+          <span className="gd-hero-eyebrow"><span /> Seu universo de tecnologia</span>
+          <h1>{shortTag ? tagline : <>Tecnologia para <span>ir além.</span></>}</h1>
           <p>{text}</p>
           <div className="gd-hero-actions">
-            <Link className="gd-btn gd-btn-accent" to={path("/catalogo")}>
+            <Link className="gd-btn gd-btn-electric" to={path("/catalogo")}>
               {sf.hero_button_label || "Explorar a loja"} <ArrowUpRight size={18} />
             </Link>
             {!hidden && offers.length > 0 && (
@@ -41,13 +40,15 @@ export default function StoreFront() {
                 Ver ofertas <Zap size={16} />
               </Link>
             )}
+            {tenant.whatsapp && <a className="gd-hero-help" href={waLink()} target="_blank" rel="noreferrer">Fale com um especialista <ArrowUpRight size={15} /></a>}
           </div>
           <div className="gd-hero-signature"><span><ShieldCheck size={17} /> Escolha com confiança</span><span><Headphones size={17} /> Atendimento de verdade</span></div>
         </div>
         <div className="gd-hero-art">
           <img src={heroImage} alt={tenant.banner_url ? `Destaque da ${tenant.name}` : "Composição ilustrativa de notebook, smartphone e fone de ouvido"} fetchPriority="high" />
           <span className="gd-image-label">{tenant.banner_url ? "Destaques da loja" : "Universo tech · Imagem ilustrativa"}</span>
-          <div className="gd-hero-float"><span className="gd-float-icon"><Zap size={23} /></span><div><small>Trabalho. Diversão. Conexão.</small><strong>Seu próximo upgrade.</strong></div><ArrowUpRight size={22} /></div>
+          <Link className="gd-hero-float gd-feature-audio" to={path("/catalogo?q=fone")}><span className="gd-float-icon"><Headphones size={22} /></span><div><small>Entre no seu ritmo</small><strong>Som que acompanha.</strong></div><ArrowUpRight size={17} /></Link>
+          <Link className="gd-feature-connect" to={path("/catalogo?q=acess%C3%B3rios")}><Zap size={17} /><span>Conecte possibilidades</span><ArrowUpRight size={15} /></Link>
           <span className="gd-hero-orbit" aria-hidden="true"><Sparkles size={22} /></span>
         </div>
       </div>
@@ -55,7 +56,7 @@ export default function StoreFront() {
   );
 
   return (
-    <main className="gd-page" ref={motion}>
+    <main className="gd-page gd-home-page" ref={motion}>
       <StoreSEO
         title={tenant.name}
         description={tenant.hero_tagline || tenant.about_text || `Catálogo de ${tenant.name}`}
@@ -68,7 +69,7 @@ export default function StoreFront() {
         <HeroSlider slides={hero.slides} autoplaySeconds={hero.autoplay} resolveUrl={hero.resolveUrl} layout="banner" className="gd-slider" fallback={fallback} />
       </div>
 
-      <div className="gd-wrap" data-gd-reveal>
+      <div className="gd-wrap gd-benefits-wrap" data-gd-reveal>
         <div className="gd-perks">
           <div><Truck size={18} strokeWidth={1.5} /><span>Entrega combinada<small>Receba em casa ou retire na loja</small></span></div>
           <div><CreditCard size={18} strokeWidth={1.5} /><span>Pagamento facilitado<small>Escolha a forma que preferir</small></span></div>

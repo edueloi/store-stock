@@ -27,7 +27,7 @@ export const hasDiscount = (p: Product) => p.discount_price != null && Number(p.
 
 export const isSoldOut = (p: Product, tenant: Tenant) => storeTracksStock(tenant) && availableUnits(p) === 0;
 
-export const EDITORIAL_IMAGE = "/store-assets/tech-editorial-hero-v1.jpg";
+export const EDITORIAL_IMAGE = "/store-assets/gadget-campaign-hero-v2.jpg";
 
 /** Aceita os links e @usuários cadastrados em Canais Sociais. */
 export function socialUrl(value: string | undefined, network: "instagram" | "facebook") {

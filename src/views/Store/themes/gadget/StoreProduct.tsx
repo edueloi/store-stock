@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, Heart, MessageCircle, Minus, Plus, ShieldCheck, Share2, Truck, X } from "lucide-react";
+import { ArrowUpRight, Check, ChevronLeft, ChevronRight, Heart, MessageCircle, Minus, Plus, ShieldCheck, Share2, ShoppingBag, Truck, X, ZoomIn } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import StockAvailability from "../../../../components/store/StockAvailability";
 import Card from "./Card";
@@ -93,7 +93,7 @@ export default function StoreProduct() {
       <div className="gd-wrap gd-prod">
         <div className="gd-prod-media">
           {s.images.length > 1 && (
-            <div className="gd-thumbs" role="tablist" aria-label="Fotos do produto">
+            <div className="gd-thumbs" role="group" aria-label="Fotos do produto">
               {s.images.map((im, i) => (
                 <button key={im + i} type="button" className={i === s.activeImage ? "is-on" : ""} aria-label={`Ver foto ${i + 1}`} aria-current={i === s.activeImage} onClick={() => s.setActiveImage(i)}>
                   <img src={im} alt="" />
@@ -102,20 +102,24 @@ export default function StoreProduct() {
             </div>
           )}
           <button type="button" className="gd-prod-main" onClick={() => img && setZoom(true)} aria-label="Ampliar foto" disabled={!img}>
-            {img ? <img src={img} alt={product.name} /> : <span>Sem foto</span>}
+            {img ? <img src={img} alt={product.name} /> : <span className="gd-photo-empty">Sem foto</span>}
             {off > 0 && <span className="gd-badge gd-badge-off gd-prod-off">-{off}%</span>}
+            {img && <span className="gd-gallery-zoom"><ZoomIn size={16} /> Ampliar imagem</span>}
+            {s.images.length > 1 && <span className="gd-gallery-count">{s.activeImage + 1} / {s.images.length}</span>}
           </button>
         </div>
 
         <div className="gd-prod-buy">
-          {category && <span className="gd-kicker">{category.name}</span>}
+          {category && <span className="gd-product-category">{category.name}</span>}
           <h1>{product.name}</h1>
           <div className="gd-prod-meta">
             {product.sku && <span>Cód. {product.sku}</span>}
-            {(product.sold_count || 0) > 0 && <span>{product.sold_count} vendidos</span>}
+            {(product.sold_count || 0) > 0 && <span className="gd-product-sold"><Check size={13} /> {product.sold_count} {product.sold_count === 1 ? "unidade vendida" : "unidades vendidas"}</span>}
           </div>
+          {product.description && <p className="gd-product-summary">{product.description.length > 180 ? `${product.description.slice(0, 177)}…` : product.description}</p>}
 
           <div className="gd-buybox">
+            <span className="gd-purchase-label">{hidden ? "Vamos encontrar a melhor opção para você" : "Preço do produto"}</span>
             {hidden ? (
               <p className="gd-prod-price gd-muted">Sob consulta</p>
             ) : (
@@ -150,7 +154,7 @@ export default function StoreProduct() {
 
             <div className="gd-buyrow">
               <div className="gd-qty" role="group" aria-label="Quantidade">
-                <button type="button" aria-label="Diminuir quantidade" onClick={() => s.setQuantity(Math.max(1, s.qty - 1))}>
+                <button type="button" aria-label="Diminuir quantidade" disabled={s.qty <= 1} onClick={() => s.setQuantity(Math.max(1, s.qty - 1))}>
                   <Minus size={14} />
                 </button>
                 <span aria-live="polite">{s.qty}</span>
@@ -158,13 +162,14 @@ export default function StoreProduct() {
                   <Plus size={14} />
                 </button>
               </div>
-              <button type="button" className="gd-btn gd-btn-accent gd-btn-full" disabled={!s.canAdd} onClick={s.add}>
+              <button type="button" className="gd-btn gd-btn-electric gd-btn-full" disabled={!s.canAdd} onClick={s.add}>
+                <ShoppingBag size={18} />
                 {s.soldOut ? "Esgotado" : hidden ? "Incluir no pedido" : "Adicionar ao carrinho"}
               </button>
             </div>
             {tenant.whatsapp && (
-              <a className="gd-btn gd-btn-line gd-btn-full" href={waLink(`Olá! Tenho interesse em ${product.name}.`)} target="_blank" rel="noreferrer">
-                <MessageCircle size={15} /> Tirar dúvidas no WhatsApp
+              <a className="gd-btn gd-btn-line gd-btn-full gd-product-whatsapp" href={waLink(`Olá! Tenho interesse em ${product.name}.`)} target="_blank" rel="noreferrer">
+                <MessageCircle size={17} /> Tirar dúvidas no WhatsApp <ArrowUpRight size={15} />
               </a>
             )}
             <div className="gd-prod-tools">
@@ -187,12 +192,12 @@ export default function StoreProduct() {
       <section className="gd-wrap gd-detail" aria-label="Detalhes do produto">
         <div className="gd-tabs" role="tablist">
           {visibleTabs.map((t) => (
-            <button key={t.id} type="button" role="tab" aria-selected={activeTab === t.id} className={activeTab === t.id ? "is-on" : ""} onClick={() => setTab(t.id)}>
+            <button key={t.id} id={`gd-tab-${t.id}`} type="button" role="tab" aria-controls="gd-product-panel" aria-selected={activeTab === t.id} className={activeTab === t.id ? "is-on" : ""} onClick={() => setTab(t.id)}>
               {t.label}
             </button>
           ))}
         </div>
-        <div className="gd-tab-body" role="tabpanel">
+        <div className="gd-tab-body" id="gd-product-panel" role="tabpanel" aria-labelledby={`gd-tab-${activeTab}`}>
           {activeTab === "desc" && <p className="gd-desc">{product.description}</p>}
           {activeTab === "specs" && (
             <>
@@ -237,7 +242,7 @@ export default function StoreProduct() {
             <small>{product.name}</small>
             <strong>{money(priceOf(product))}</strong>
           </div>
-          <button type="button" className="gd-btn gd-btn-accent" disabled={!s.canAdd} onClick={s.add}>
+          <button type="button" className="gd-btn gd-btn-electric" disabled={!s.canAdd} onClick={s.add}>
             {s.soldOut ? "Esgotado" : s.groups.length > 0 && !s.ready ? "Escolha as opções" : "Comprar"}
           </button>
         </div>

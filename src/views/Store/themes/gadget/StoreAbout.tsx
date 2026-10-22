@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
-import { ArrowDown, ArrowUpRight, Clock, Headphones, MapPin, MessageCircle, ShieldCheck, Sparkles, Zap } from "lucide-react";
+import { ArrowDown, ArrowUpRight, Clock, Headphones, MapPin, MessageCircle, Plus, ShieldCheck, Zap } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { EDITORIAL_IMAGE, formatPhone, hoursRows, useGadgetMotion, useKit } from "./kit";
+import { formatPhone, hoursRows, useGadgetMotion, useKit } from "./kit";
 import SocialSection, { SocialLinks } from "./Social";
 import "./styles.css";
 
@@ -17,24 +17,23 @@ export default function StoreAbout() {
     <main className="gd-page gd-about-page" ref={motion}>
       <StoreSEO title={`Sobre — ${tenant.name}`} description={text} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
       <section className="gd-wrap gd-about-intro">
+        <div className="gd-about-visual">
+          <img src={tenant.banner_url || "/store-assets/tech-editorial-hero-v1.jpg"} alt={tenant.banner_url ? `Conheça a ${tenant.name}` : "Composição ilustrativa de notebook, fone de ouvido e smartphone"} fetchPriority="high" />
+          {!tenant.banner_url && <span className="gd-image-label">Imagem ilustrativa</span>}
+        </div>
         <div className="gd-about-intro-copy">
           <span className="gd-hero-eyebrow"><span /> Prazer, somos a {tenant.name}</span>
           <h1>{title}</h1>
           <p>{tenant.hero_tagline || "Tecnologia aproxima pessoas. E uma boa experiência começa com quem entende você."}</p>
-          <a className="gd-text-link" href="#gd-nossa-historia">Conheça a nossa história <ArrowDown size={17} /></a>
-          <div className="gd-about-mini"><span><Zap size={18} /> Tecnologia no seu dia</span><span><Headphones size={18} /> Pessoas de verdade</span></div>
+          <div className="gd-about-hero-actions"><a className="gd-btn gd-btn-electric" href="#gd-nossa-historia">Nossa história <ArrowDown size={16} /></a><Link className="gd-text-link" to={path("/catalogo")}>Explore a loja <ArrowUpRight size={17} /></Link></div>
         </div>
-        <div className="gd-about-visual">
-          <img src={tenant.banner_url || EDITORIAL_IMAGE} alt={tenant.banner_url ? `Conheça a ${tenant.name}` : "Composição ilustrativa de notebook, fone de ouvido e smartphone"} fetchPriority="high" />
-          <div className="gd-about-visual-caption"><span className="gd-float-icon"><Sparkles size={23} /></span><div><small>O futuro faz parte do presente.</small><strong>E da sua rotina também.</strong></div></div>
-          {!tenant.banner_url && <span className="gd-image-label">Imagem ilustrativa</span>}
-        </div>
+        <div className="gd-about-ribbon"><span><Zap size={18} /> Tecnologia que simplifica</span><span><Headphones size={18} /> Atendimento que aproxima</span><span><ShieldCheck size={18} /> Escolhas com confiança</span></div>
       </section>
 
       <section className="gd-wrap gd-section" data-gd-reveal id="gd-nossa-historia">
         <div className="gd-about-body">
           <article className="gd-about-story">
-            <span className="gd-kicker">Nossa história</span><h2>Mais conexão.<br /><span>Mais possibilidades.</span></h2>
+            <span className="gd-kicker">Nossa história</span><h2>A tecnologia evolui.<br /><span>A nossa essência continua.</span></h2>
             <div className="gd-about-text">{paras.map((p, i) => <p key={i}>{p}</p>)}</div>
             <div className="gd-about-signoff">{tenant.logo_url && <img src={tenant.logo_url} alt="" loading="lazy" />}<div><strong>{tenant.name}</strong><span>Tecnologia com atendimento próximo.</span></div></div>
           </article>
@@ -53,13 +52,21 @@ export default function StoreAbout() {
         </div>
       </section>
 
-      <section className="gd-wrap gd-section" data-gd-reveal aria-labelledby="gd-values-title">
+      <section className="gd-wrap gd-section gd-values-section" data-gd-reveal aria-labelledby="gd-values-title">
         <header className="gd-sec-head"><div><span className="gd-kicker">Nosso jeito de fazer</span><h2 id="gd-values-title">Tecnologia é o começo.<br />A experiência faz a diferença.</h2></div></header>
         <div className="gd-values">{[
           { Icon: Zap, number: "01", title: "Escolhas que fazem sentido", text: "Da rotina de trabalho ao seu momento de lazer: descubra possibilidades para o que você precisa." },
           { Icon: Headphones, number: "02", title: "Atendimento próximo", text: "Converse, tire dúvidas e compare opções. A melhor escolha é aquela que funciona para você." },
           { Icon: ShieldCheck, number: "03", title: "Clareza em cada detalhe", text: "Informações sobre produtos, disponibilidade e condições de compra para decidir com tranquilidade." },
         ].map(({ Icon, number, title: name, text: description }) => <article key={number}><div><Icon size={26} strokeWidth={1.4} /><span>{number}</span></div><h3>{name}</h3><p>{description}</p></article>)}</div>
+      </section>
+      <section className="gd-wrap gd-section gd-faq" data-gd-reveal aria-labelledby="gd-faq-title">
+        <div><span className="gd-kicker">Antes do seu próximo upgrade</span><h2 id="gd-faq-title">Boas perguntas.<br /><span>Respostas simples.</span></h2><p>Informação faz parte de uma boa experiência. Conte com a gente em cada escolha.</p>{tenant.whatsapp && <a className="gd-text-link" href={waLink()} target="_blank" rel="noreferrer">Tire outras dúvidas <ArrowUpRight size={16} /></a>}</div>
+        <div className="gd-faq-list">{[
+          { question: "Como escolher o produto ideal?", answer: "Confira as informações e especificações no catálogo. Se precisar de ajuda para comparar opções e compatibilidade, converse com a loja antes de comprar." },
+          { question: "Como funcionam a entrega e a retirada?", answer: tenant.policies?.shipping || "Consulte as opções disponíveis no checkout ou combine os detalhes diretamente com a loja. A disponibilidade depende do produto e da sua localização." },
+          { question: "Onde consulto as condições de troca?", answer: tenant.policies?.exchange || tenant.policies?.returns || "Fale com a loja para conhecer as condições aplicáveis ao seu produto e ao seu pedido." },
+        ].map(({ question, answer }) => <details key={question}><summary>{question}<Plus size={18} /></summary><p>{answer}</p></details>)}</div>
       </section>
       <SocialSection />
       <section className="gd-wrap gd-section" data-gd-reveal><div className="gd-about-final"><span className="gd-kicker">Seu próximo passo</span><h2>Pronto para se conectar<br />a novas possibilidades?</h2><Link className="gd-btn gd-btn-accent" to={path("/catalogo")}>Conhecer os produtos <ArrowUpRight size={18} /></Link></div></section>
