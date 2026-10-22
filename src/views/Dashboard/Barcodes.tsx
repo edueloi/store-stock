@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Barcode, Search, Printer, Download, RefreshCw,
   Package, ChevronDown, Tag, Plus, Minus, Check,
@@ -12,6 +12,10 @@ import {
 import { Product } from "../../types";
 import { cn } from "../../lib/utils";
 import BarcodesPageTour, { BARCODES_PAGE_TOUR_EVENTS, type BarcodesPageTourHandle } from "../../components/onboarding/BarcodesPageTour";
+import LabelPrintSettings from "../../components/labels/LabelPrintSettings";
+import LabelPrintPreview from "../../components/labels/LabelPrintPreview";
+import { calibrationContents, labelBarcodeSvg, labelEscape, labelPrintDocument, labelSettingsStorageKey, storedLabelSettings, validateLabelPrint, type LabelPrintSettings as LabelPrintConfig } from "../../lib/labelPrinting";
+import { useToast } from "../../components/ui/Toast";
 
 const API_HEADERS = () => ({
   "Content-Type": "application/json",
@@ -46,38 +50,36 @@ function renderBarcode(svg: SVGSVGElement | null, code: string, opts?: object) {
       margin: 4,
       ...opts,
     });
-  } catch { /* código inválido */ }
+    svg.dataset.code = code;
+    delete svg.dataset.error;
+  } catch { svg.innerHTML = ""; svg.dataset.error = "true"; delete svg.dataset.code; }
 }
 
-// ── QRCode loader (CDN dinâmico, sem instalar pacote) ─────────────────────────
+// ── QR Code carregado do pacote incluído no sistema ──────────────────────────
 let qrCodePromise: Promise<void> | null = null;
 function loadQRCode(): Promise<void> {
   if ((window as any).QRCode) return Promise.resolve();
   if (qrCodePromise) return qrCodePromise;
-  qrCodePromise = new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js";
-    s.onload = () => resolve();
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
+  qrCodePromise = import("qrcode").then(module => { (window as any).QRCode = module.default || module; });
   return qrCodePromise;
 }
 
 // ── Gera canvas de QR Code ────────────────────────────────────────────────────
-function renderQRCode(canvas: HTMLCanvasElement | null, code: string, size = 64) {
+function renderQRCode(canvas: HTMLCanvasElement | null, code: string, size = 64, onReady?: () => void) {
   if (!canvas || !(window as any).QRCode) return;
-  (window as any).QRCode.toCanvas(canvas, code, { width: size, margin: 0 }, () => {});
+  delete canvas.dataset.code;
+  (window as any).QRCode.toCanvas(canvas, code, { width: size, margin: 4 }, (error: unknown) => { if (!error) canvas.dataset.code = code; onReady?.(); });
 }
 
 // ── Componente de etiqueta individual ────────────────────────────────────────
 function LabelCard({
-  product, qty, labelSize, fields,
+  product, qty, labelSize, fields, onReady,
 }: {
   product: Product & { barcode?: string };
   qty: number;
   labelSize: "small" | "medium" | "large";
   fields: LabelFields;
+  onReady?: () => void;
 }) {
   const svgRef    = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -85,13 +87,13 @@ function LabelCard({
 
   useEffect(() => {
     if (!code || !fields.showBarcode) return;
-    loadJsBarcode().then(() => renderBarcode(svgRef.current, code));
-  }, [code, fields.showBarcode]);
+    loadJsBarcode().then(() => { renderBarcode(svgRef.current, code); onReady?.(); }).catch(() => onReady?.());
+  }, [code, fields.showBarcode, onReady]);
 
   useEffect(() => {
     if (!code || !fields.showQrCode) return;
-    loadQRCode().then(() => renderQRCode(canvasRef.current, code, 64));
-  }, [code, fields.showQrCode]);
+    loadQRCode().then(() => renderQRCode(canvasRef.current, code, 128, onReady)).catch(() => onReady?.());
+  }, [code, fields.showQrCode, onReady]);
 
   const sizeMap = {
     small:  "w-32",
@@ -100,7 +102,7 @@ function LabelCard({
   };
 
   return (
-    <div data-label-card className={cn("bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center gap-1 shadow-sm", sizeMap[labelSize])}>
+    <div data-label-card data-product-id={product.id} className={cn("bg-white border border-slate-200 rounded-lg p-2 flex flex-col items-center gap-1 shadow-sm", sizeMap[labelSize])}>
       {fields.showName && (
         <p className="text-[10px] font-semibold text-slate-800 text-center line-clamp-2 leading-tight w-full">
           {product.name}
@@ -176,17 +178,17 @@ const DEFAULT_CUSTOM_LABEL: CustomLabelData = {
   quantity: 1,
 };
 
-function CustomLabelCard({ data, labelSize, fields }: { data: CustomLabelData; labelSize: LabelSize; fields: CustomLabelFields }) {
+function CustomLabelCard({ data, labelSize, fields, onReady }: { data: CustomLabelData; labelSize: LabelSize; fields: CustomLabelFields; onReady?: () => void }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const code = data.code || data.reference;
 
   useEffect(() => {
-    if (code && fields.showBarcode) loadJsBarcode().then(() => renderBarcode(svgRef.current, code, { height: 40, fontSize: 9, width: 1.3 }));
-  }, [code, fields.showBarcode]);
+    if (code && fields.showBarcode) loadJsBarcode().then(() => { renderBarcode(svgRef.current, code, { height: 40, fontSize: 9, width: 1.3 }); onReady?.(); }).catch(() => onReady?.());
+  }, [code, fields.showBarcode, onReady]);
   useEffect(() => {
-    if (code && fields.showQrCode) loadQRCode().then(() => renderQRCode(canvasRef.current, code, 58));
-  }, [code, fields.showQrCode]);
+    if (code && fields.showQrCode) loadQRCode().then(() => renderQRCode(canvasRef.current, code, 128, onReady)).catch(() => onReady?.());
+  }, [code, fields.showQrCode, onReady]);
 
   const sizeMap = { small: "w-36", medium: "w-48", large: "w-60" };
   return (
@@ -202,10 +204,6 @@ function CustomLabelCard({ data, labelSize, fields }: { data: CustomLabelData; l
       {fields.showQrCode && code && <canvas ref={canvasRef} className="max-w-full" />}
     </div>
   );
-}
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>'"]/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#039;", '"': "&quot;" }[char] || char));
 }
 
 // ── Componente preview de barcode para seleção ────────────────────────────────
@@ -231,7 +229,6 @@ interface SelectedItem {
 }
 
 type LabelSize = "small" | "medium" | "large";
-type LabelLayout = "1x1" | "2x2" | "3x3" | "4x4";
 
 interface LabelFields {
   showName: boolean;
@@ -249,25 +246,10 @@ const DEFAULT_LABEL_FIELDS: LabelFields = {
   showSku: false,
 };
 
-const LAYOUT_COLS: Record<LabelLayout, number> = { "1x1": 1, "2x2": 2, "3x3": 3, "4x4": 4 };
 
 function LabelInput({ label, value, onChange, placeholder, hint }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; hint?: string }) {
   return (
     <Input label={label} hint={hint} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
-  );
-}
-
-function OptionButtons<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: [T, string][]; onChange: (value: T) => void }) {
-  return (
-    <div className="space-y-1">
-      <p className="ds-label">{label}</p>
-      <FilterLineSegmented<T>
-        size="sm"
-        value={value}
-        options={options.map(([option, text]) => ({ value: option, label: text }))}
-        onChange={onChange}
-      />
-    </div>
   );
 }
 
@@ -278,13 +260,18 @@ const LABEL_MODE_TABS = [
 ] as const;
 
 export default function Barcodes() {
+  const toast = useToast();
   const [labelMode, setLabelMode]   = useState<"products" | "custom">("products");
   const [products, setProducts]     = useState<Product[]>([]);
   const [loading, setLoading]       = useState(true);
   const [search, setSearch]         = useState("");
   const [selected, setSelected]     = useState<SelectedItem[]>([]);
-  const [labelSize, setLabelSize]   = useState<LabelSize>("medium");
-  const [layout, setLayout]         = useState<LabelLayout>("3x3");
+  const [printSettings, setPrintSettings] = useState<LabelPrintConfig>(storedLabelSettings);
+  const labelSize: LabelSize = "medium";
+  const printErrors = validateLabelPrint(printSettings);
+  const [renderTick, setRenderTick] = useState(0);
+  const codesReady = useCallback(() => setRenderTick(tick => tick + 1), []);
+  const [productPreview, setProductPreview] = useState<string[]>([]), [customPreview, setCustomPreview] = useState<string[]>([]);
   const [showOnly, setShowOnly]     = useState<"all" | "with" | "without">("all");
   const [fields, setFields]         = useState<LabelFields>(DEFAULT_LABEL_FIELDS);
   const [jsBarcodeReady, setJsBarcodeReady] = useState(false);
@@ -307,8 +294,12 @@ export default function Barcodes() {
         setProducts(Array.isArray(d) ? d : []);
         setLoading(false);
       });
-    loadJsBarcode().then(() => setJsBarcodeReady(true));
+    loadJsBarcode().then(() => setJsBarcodeReady(true)).catch(() => toast.error("Não foi possível carregar o gerador de barras. Recarregue a página ou imprima sem esse campo."));
   }, []);
+
+  useEffect(() => {
+    if (!validateLabelPrint(printSettings).length) try { localStorage.setItem(labelSettingsStorageKey(), JSON.stringify(printSettings)); } catch { /* A impressão continua disponível sem persistência. */ }
+  }, [printSettings]);
 
   useEffect(() => {
     localStorage.setItem("custom-label-draft", JSON.stringify(customLabel));
@@ -337,7 +328,7 @@ export default function Barcodes() {
 
   const updateQty = (id: number, delta: number) =>
     setSelected((s) =>
-      s.map((x) => x.product.id === id ? { ...x, qty: Math.max(1, x.qty + delta) } : x)
+      s.map((x) => x.product.id === id ? { ...x, qty: Math.min(2000, Math.max(1, x.qty + delta)) } : x)
     );
 
   const selectAll = () =>
@@ -367,101 +358,62 @@ export default function Barcodes() {
   }, [filtered, selected]);
 
   // Gera lista expandida de etiquetas (produto repetido pela qty)
-  const labelItems = selected.flatMap(({ product, qty }) =>
+  const labelItems = useMemo(() => selected.flatMap(({ product, qty }) =>
     Array.from({ length: qty }, (_, i) => ({ product, key: `${product.id}-${i}` }))
-  );
+  ), [selected]);
 
-  const cols = LAYOUT_COLS[layout];
-
-  // ── Impressão ─────────────────────────────────────────────────────────────
-  const handlePrint = useCallback(() => {
-    if (!printRef.current) return;
-    const cards = Array.from(printRef.current.querySelectorAll("[data-label-card]"));
-
-    const labelW = { small: "80px", medium: "110px", large: "140px" }[labelSize];
-    const colsCSS = `repeat(${cols}, ${labelW})`;
-
-    const cardsHtml = labelItems.map(({ product }, idx) => {
-      const card = cards[idx] as HTMLElement | undefined;
-      const code = product.barcode || product.sku || "";
-
-      const svg = card?.querySelector("svg");
-      const barcodeHtml = fields.showBarcode
-        ? (svg ? svg.outerHTML : `<div class="label-nocode">Sem código</div>`)
-        : "";
-
-      const canvas = card?.querySelector("canvas") as HTMLCanvasElement | null;
-      const qrHtml = fields.showQrCode && code && canvas
-        ? `<img class="label-qr" src="${canvas.toDataURL()}" />`
-        : "";
-
-      return `
-  <div class="label">
-    ${fields.showName ? `<div class="label-name">${product.name}</div>` : ""}
-    ${fields.showPrice ? `<div class="label-price">R$ ${Number(product.price).toFixed(2)}</div>` : ""}
-    ${fields.showSku && code ? `<div class="label-sku">${code}</div>` : ""}
-    ${barcodeHtml}
-    ${qrHtml}
-  </div>`;
-    }).join("");
-
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etiquetas</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #fff; font-family: Arial, sans-serif; }
-  .grid { display: grid; grid-template-columns: ${colsCSS}; gap: 6px; padding: 12px; }
-  .label { border: 1px solid #ccc; border-radius: 6px; padding: 4px; display: flex; flex-direction: column; align-items: center; gap: 2px; width: ${labelW}; }
-  .label-name { font-size: 7px; font-weight: 900; text-transform: ; text-align: center; line-height: 1.2; color: #111; }
-  .label-price { font-size: 9px; font-weight: 900; color: #2563eb; font-family: monospace; }
-  .label-sku { font-size: 7px; color: #666; font-family: monospace; }
-  .label-nocode { font-size: 7px; color: #999; text-transform: ; font-weight: 700; }
-  svg { width: 100%; }
-  .label-qr { width: 40px; height: 40px; }
-  @media print { @page { margin: 8mm; } body { background: #fff; } }
-</style></head><body>
-<div class="grid">
-${cardsHtml}
-</div>
-</body></html>`;
-
-    const w = window.open("", "_blank", "width=900,height=700");
-    if (!w) return;
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => { w.focus(); w.print(); }, 600);
-  }, [labelItems, labelSize, cols, fields]);
-
-  const handlePrintCustom = useCallback(() => {
-    if (!customPrintRef.current) return;
-    const card = customPrintRef.current.querySelector("[data-custom-label]");
-    const code = customLabel.code || customLabel.reference;
-    const barcode = customFields.showBarcode ? (card?.querySelector("svg")?.outerHTML || "") : "";
+  const codeImages = useCallback((card: Element | null, code: string, barcode: boolean, qr: boolean, strict = false) => {
+    const svg = card?.querySelector("svg") as SVGSVGElement | null;
     const canvas = card?.querySelector("canvas") as HTMLCanvasElement | null;
-    const qr = customFields.showQrCode && code && canvas ? `<img class="label-qr" src="${canvas.toDataURL()}" />` : "";
-    const item = (show: boolean, value: string, className: string) => show && value ? `<div class="${className}">${escapeHtml(value)}</div>` : "";
-    const label = `
-      <div class="label">
-        <div class="label-title">${escapeHtml(customLabel.title || "Etiqueta personalizada")}</div>
-        ${item(customFields.showCustomer, customLabel.customer, "label-customer")}
-        ${item(customFields.showReference, customLabel.reference, "label-reference")}
-        ${item(customFields.showDocument, customLabel.document, "label-text")}
-        ${item(customFields.showPhone, customLabel.phone, "label-text")}
-        ${item(customFields.showAddress, customLabel.address, "label-text")}
-        ${item(customFields.showNotes, customLabel.notes, "label-notes")}
-        ${barcode}${qr}
-      </div>`;
-    const labelW = { small: "90px", medium: "130px", large: "170px" }[labelSize];
-    const cards = Array.from({ length: Math.max(1, Math.min(500, customLabel.quantity || 1)) }, () => label).join("");
-    const w = window.open("", "_blank", "width=900,height=700");
-    if (!w) return;
-    w.document.open();
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Etiquetas personalizadas</title><style>
-      *{box-sizing:border-box;margin:0;padding:0} body{font-family:Arial,sans-serif;background:#fff}.grid{display:grid;grid-template-columns:repeat(${cols},${labelW});gap:6px;padding:12px}.label{width:${labelW};min-height:88px;border:1px solid #bbb;border-radius:5px;padding:5px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}.label-title{font-size:8px;font-weight:900;;line-height:1.2}.label-customer{font-size:8px;font-weight:700}.label-reference{font:700 8px monospace;color:#2563eb}.label-text,.label-notes{font-size:7px;color:#555;line-height:1.25}.label-notes{font-style:italic}svg{width:100%;margin-top:auto}.label-qr{width:42px;height:42px}@media print{@page{margin:8mm}}
-    </style></head><body><div class="grid">${cards}</div></body></html>`);
-    w.document.close();
-    setTimeout(() => { w.focus(); w.print(); }, 600);
-  }, [customLabel, customFields, labelSize, cols]);
+    if (strict && code && barcode && svg?.dataset.code !== code) throw new Error(svg?.dataset.error ? "Código de barras inválido. Revise o código do produto." : "Aguarde o código de barras carregar antes de imprimir.");
+    if (strict && code && qr && canvas?.dataset.code !== code) throw new Error("Aguarde o QR Code carregar antes de imprimir.");
+    return (barcode ? labelBarcodeSvg(svg) : "") + (qr && code && canvas?.dataset.code === code ? `<img class="label-qr" alt="QR Code" src="${canvas.toDataURL()}" />` : "");
+  }, []);
+  const productContents = useCallback((strict = false) => {
+    const cards = new Map(Array.from(printRef.current?.querySelectorAll("[data-label-card]") || []).map(card => [(card as HTMLElement).dataset.productId, card]));
+    return labelItems.map(({ product }) => {
+      const code = product.barcode || product.sku || "";
+      return `<div class="label-name">${fields.showName ? labelEscape(product.name) : ""}</div>` +
+        (fields.showPrice ? `<div class="label-price">${labelEscape(Number(product.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }))}</div>` : "") +
+        (fields.showSku && code ? `<div class="label-sku">${labelEscape(code)}</div>` : "") +
+        codeImages(cards.get(String(product.id)) || null, code, fields.showBarcode, fields.showQrCode, strict);
+    });
+  }, [labelItems, fields, codeImages]);
+  const customContents = useCallback((strict = false) => {
+    const card = customPrintRef.current?.querySelector("[data-custom-label]") || null;
+    const item = (show: boolean, value: string, className: string) => show && value ? `<div class="${className}">${labelEscape(value)}</div>` : "";
+    const content = `<div class="label-title">${labelEscape(customLabel.title || "Etiqueta personalizada")}</div>` +
+      item(customFields.showCustomer, customLabel.customer, "label-customer") + item(customFields.showReference, customLabel.reference, "label-reference") +
+      item(customFields.showDocument, customLabel.document, "label-text") + item(customFields.showPhone, customLabel.phone, "label-text") +
+      item(customFields.showAddress, customLabel.address, "label-text") + item(customFields.showNotes, customLabel.notes, "label-notes") +
+      codeImages(card, customLabel.code || customLabel.reference, customFields.showBarcode, customFields.showQrCode, strict);
+    return Array.from({ length: Math.max(1, Math.min(500, customLabel.quantity || 1)) }, () => content);
+  }, [customLabel, customFields, codeImages]);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setProductPreview(labelMode === "products" ? productContents() : []);
+      setCustomPreview(labelMode === "custom" ? customContents() : []);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [productContents, customContents, renderTick, labelMode]);
+
+  const openPrint = useCallback((contents: string[], title: string, calibration = false) => {
+    try {
+      const html = labelPrintDocument(printSettings, contents, title, calibration);
+      const popup = window.open("", "_blank", "width=1000,height=760");
+      if (!popup) { toast.warning("Permita a abertura da janela de impressão neste navegador."); return; }
+      popup.document.open(); popup.document.write(html); popup.document.close();
+      let attempts = 0;
+      const timer = window.setInterval(() => {
+        if (popup.closed) { clearInterval(timer); return; }
+        if ((popup as any).__labelsReady) { clearInterval(timer); popup.focus(); popup.print(); }
+        else if (++attempts > 160) { clearInterval(timer); toast.warning("A prévia está aberta. Aguarde o carregamento e use o botão Imprimir nessa janela."); }
+      }, 50);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível preparar as etiquetas."); }
+  }, [printSettings, toast]);
+  const handlePrint = useCallback(() => { try { openPrint(productContents(true), "Etiquetas de produtos"); } catch (error) { toast.error((error as Error).message); } }, [productContents, openPrint, toast]);
+  const handlePrintCustom = useCallback(() => { try { openPrint(customContents(true), "Etiquetas personalizadas"); } catch (error) { toast.error((error as Error).message); } }, [customContents, openPrint, toast]);
+  const handleTestPrint = () => openPrint(calibrationContents(printSettings), "Teste de alinhamento · etiquetas", true);
 
   const totalLabels = selected.reduce((s, x) => s + x.qty, 0);
   const setCustom = (patch: Partial<CustomLabelData>) => setCustomLabel((current) => ({ ...current, ...patch }));
@@ -475,12 +427,12 @@ ${cardsHtml}
         action={
           <>
             {labelMode === "products" && selected.length > 0 && (
-              <Button variant="primary" iconLeft={<Printer size={14} />} onClick={handlePrint}>
+              <Button variant="primary" iconLeft={<Printer size={14} />} onClick={handlePrint} disabled={printErrors.length > 0}>
                 Imprimir {totalLabels} etiqueta{totalLabels !== 1 ? "s" : ""}
               </Button>
             )}
             {labelMode === "custom" && (
-              <Button variant="primary" iconLeft={<Printer size={14} />} onClick={handlePrintCustom}>
+              <Button variant="primary" iconLeft={<Printer size={14} />} onClick={handlePrintCustom} disabled={printErrors.length > 0}>
                 Imprimir {customLabel.quantity || 1}
               </Button>
             )}
@@ -497,6 +449,8 @@ ${cardsHtml}
       />
 
       <BarcodesPageTour ref={barcodesPageTourRef} />
+
+      <LabelPrintSettings value={printSettings} onChange={setPrintSettings} onTest={handleTestPrint} />
 
       <Tabs<typeof LABEL_MODE_TABS[number]["id"]> items={LABEL_MODE_TABS} value={labelMode} onChange={setLabelMode} label="Tipo de etiqueta">
       <div className={cn("flex flex-col gap-4 xl:flex-row", labelMode !== "products" && "hidden")}>
@@ -606,9 +560,7 @@ ${cardsHtml}
                           <IconButton variant="secondary" size="sm" aria-label="Diminuir quantidade" onClick={() => updateQty(p.id, -1)}>
                             <Minus size={11} />
                           </IconButton>
-                          <span className="w-8 text-center text-xs font-medium text-slate-900 tabular-nums">
-                            {item?.qty}
-                          </span>
+                          <Input type="number" min={1} max={2000} step={1} showCount={false} aria-label={`Quantidade de etiquetas de ${p.name}`} wrapperClassName="w-16" className="px-1 text-center tabular-nums" value={item?.qty || 1} onChange={event => setSelected(current => current.map(row => row.product.id === p.id ? { ...row, qty: Math.max(1, Math.min(2000, Math.floor(Number(event.target.value) || 1))) } : row))} />
                           <IconButton variant="secondary" size="sm" aria-label="Aumentar quantidade" onClick={() => updateQty(p.id, 1)}>
                             <Plus size={11} />
                           </IconButton>
@@ -638,30 +590,10 @@ ${cardsHtml}
 
           {/* Configurações de impressão */}
           <PanelCard title="Configurações de Impressão" contentClassName="space-y-4">
-            {/* Tamanho da etiqueta */}
-            <div data-tour="barcodes-label-size" className="space-y-1">
-              <p className="ds-label">Tamanho da Etiqueta</p>
-              <FilterLineSegmented<LabelSize>
-                size="sm"
-                value={labelSize}
-                options={[
-                  { value: "small", label: "Pequena" },
-                  { value: "medium", label: "Média" },
-                  { value: "large", label: "Grande" },
-                ]}
-                onChange={setLabelSize}
-              />
-            </div>
-
-            {/* Layout da folha */}
-            <div data-tour="barcodes-layout" className="space-y-1">
-              <p className="ds-label">Colunas por Linha</p>
-              <FilterLineSegmented<LabelLayout>
-                size="sm"
-                value={layout}
-                options={(["1x1", "2x2", "3x3", "4x4"] as LabelLayout[]).map((l) => ({ value: l, label: `${l[0]}×` }))}
-                onChange={setLayout}
-              />
+            <div data-tour="barcodes-label-size" className="rounded-lg bg-blue-50 p-3 text-xs leading-6 text-blue-900">
+              Etiqueta: {printSettings.width} × {printSettings.height} mm<br />
+              <span data-tour="barcodes-layout">{printSettings.columns} coluna{printSettings.columns > 1 ? "s" : ""} · {printSettings.mode === "thermal" ? "bobina" : "folha"}</span><br />
+              Ajuste as medidas em “Formato e alinhamento da impressão”, acima.
             </div>
 
             {/* Campos da etiqueta */}
@@ -708,7 +640,7 @@ ${cardsHtml}
               size="lg"
               iconLeft={<Printer size={15} />}
               onClick={handlePrint}
-              disabled={totalLabels === 0}
+              disabled={totalLabels === 0 || printErrors.length > 0}
             >
               Imprimir Etiquetas
             </Button>
@@ -717,22 +649,8 @@ ${cardsHtml}
           {/* Preview das etiquetas */}
           {selected.length > 0 && (
             <PanelCard data-tour="barcodes-preview" title="Pré-visualização" icon={Tag} contentClassName="space-y-3">
-              {/* grid de etiquetas */}
-              <div
-                ref={printRef}
-                className="overflow-auto max-h-96"
-                style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(cols, 3)}, 1fr)`, gap: "6px" }}
-              >
-                {labelItems.map(({ product, key }) => (
-                  <LabelCard
-                    key={key}
-                    product={product}
-                    qty={1}
-                    labelSize={labelSize}
-                    fields={fields}
-                  />
-                ))}
-              </div>
+              <div ref={printRef} className="hidden" aria-hidden="true">{selected.map(({ product }) => <LabelCard key={product.id} product={product} qty={1} labelSize={labelSize} fields={fields} onReady={codesReady} />)}</div>
+              <LabelPrintPreview settings={printSettings} contents={productPreview} />
             </PanelCard>
           )}
 
@@ -774,12 +692,10 @@ ${cardsHtml}
                 <p className="ds-label">Quantidade</p>
                 <div className="flex w-fit items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
                   <IconButton variant="ghost" aria-label="Diminuir quantidade" onClick={() => setCustom({ quantity: Math.max(1, customLabel.quantity - 1) })}><Minus size={13} /></IconButton>
-                  <span className="w-9 text-center text-xs font-medium tabular-nums">{customLabel.quantity}</span>
+                  <Input type="number" min={1} max={500} step={1} showCount={false} aria-label="Quantidade de etiquetas próprias" wrapperClassName="w-20" className="px-1 text-center tabular-nums" value={customLabel.quantity} onChange={event => setCustom({ quantity: Math.max(1, Math.min(500, Math.floor(Number(event.target.value) || 1))) })} />
                   <IconButton variant="ghost" aria-label="Aumentar quantidade" onClick={() => setCustom({ quantity: Math.min(500, customLabel.quantity + 1) })}><Plus size={13} /></IconButton>
                 </div>
               </div>
-              <OptionButtons label="Tamanho" value={labelSize} options={[ ["small", "Pequena"], ["medium", "Média"], ["large", "Grande"] ] as [LabelSize, string][]} onChange={(value) => setLabelSize(value as LabelSize)} />
-              <OptionButtons label="Colunas" value={layout} options={[ ["1x1", "1×"], ["2x2", "2×"], ["3x3", "3×"], ["4x4", "4×"] ] as [LabelLayout, string][]} onChange={(value) => setLayout(value as LabelLayout)} />
             </div>
 
             <div className="space-y-1 border-t border-slate-100 pt-4">
@@ -803,10 +719,11 @@ ${cardsHtml}
 
           <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
             <PanelCard title="Como vai ficar" description="Pré-visualização em tempo real" icon={Tag} contentClassName="space-y-3">
-              <div ref={customPrintRef} className="flex max-h-[420px] justify-center overflow-auto rounded-lg bg-slate-50 p-4">
-                <CustomLabelCard data={customLabel} labelSize={labelSize} fields={customFields} />
+              <div ref={customPrintRef} className="hidden" aria-hidden="true">
+                <CustomLabelCard data={customLabel} labelSize={labelSize} fields={customFields} onReady={codesReady} />
               </div>
-              <Button variant="primary" fullWidth size="lg" iconLeft={<Printer size={14} />} onClick={handlePrintCustom}>
+              <LabelPrintPreview settings={printSettings} contents={customPreview} />
+              <Button variant="primary" fullWidth size="lg" iconLeft={<Printer size={14} />} onClick={handlePrintCustom} disabled={printErrors.length > 0}>
                 Imprimir {customLabel.quantity} etiqueta{customLabel.quantity !== 1 ? "s" : ""}
               </Button>
             </PanelCard>

@@ -67,7 +67,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("barcodes-label-size"),
       popover: {
         title: "Tamanho da etiqueta",
-        description: "Escolha o tamanho físico da etiqueta (pequena, média ou grande), de acordo com a folha ou rolo de etiquetas que você vai usar na impressora.",
+        description: "As medidas agora são definidas em milímetros em Formato e alinhamento da impressão, no topo. Configure o papel, a largura, a altura, os espaços e as margens conforme sua etiqueta real.",
         side: "left",
         align: "start",
         onPrevClick: (_el, _step, opts) => {
@@ -98,7 +98,7 @@ function buildSteps(): DriveStep[] {
       element: tourElement("barcodes-preview"),
       popover: {
         title: "Pré-visualização",
-        description: "Aqui você vê exatamente como cada etiqueta vai ficar impressa, já com o código de barras e os campos escolhidos, antes de mandar para a impressora.",
+        description: "A prévia mostra a primeira folha ou fileira com os campos e as medidas configuradas. Use o teste de alinhamento para conferir o papel, as margens e a escala na impressora real.",
         side: "left",
         align: "start",
       },
