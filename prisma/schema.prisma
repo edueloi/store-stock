@@ -530,6 +530,8 @@ model Service {
   sale_unit             String   @default("unidade") // "unidade" | "m2" | "linear"
   price_per_measure     Decimal? @db.Decimal(10, 2)
   min_billable_quantity Decimal? @db.Decimal(10, 2)
+  // Valor mínimo cobrado (R$) por item do serviço por medida: peça pequena nunca sai abaixo disso.
+  min_charge            Decimal? @db.Decimal(10, 2)
 
   // Vidraçaria: quando preenchido, o serviço (por m²) é uma peça com desenho, sangria e margem no
   // orçamento e na OS. piece_kind = tipo padrão da peça; piece_defaults = {glass, thickness_mm, finish}.

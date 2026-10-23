@@ -154,6 +154,7 @@ export interface CatalogService {
   price: number;
   unit: string;
   is_active: boolean;
+  min_charge?: number | null;
   sale_unit?: "unidade" | "m2" | "linear";
   price_per_measure?: number | null;
   min_billable_quantity?: number | null;

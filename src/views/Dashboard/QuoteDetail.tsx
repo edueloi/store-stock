@@ -152,6 +152,8 @@ interface ServiceCatalog {
   sale_unit?: "unidade" | "m2" | "linear";
   price_per_measure?: number | null;
   min_billable_quantity?: number | null;
+  /** Valor mínimo (R$) por item cobrado por medida. */
+  min_charge?: number | null;
   /** Serviço marcado como peça de vidraçaria (Serviços): abre o desenho já com tipo, vidro e perfil. */
   piece_kind?: string | null;
   piece_defaults?: { glass?: string; thickness_mm?: number; finish?: string } | null;
@@ -633,6 +635,8 @@ export default function QuoteDetail() {
         pieceMode ? pieceCutInfo.cutH / 1000 : Number(measureServiceHeight) || 0,
         // a margem de segurança aumenta a área cobrada; escalar a largura mantém o cálculo por m² exato
         pieceMode ? (pieceCutInfo.cutW / 1000) * (1 + (pieceSpec.waste_pct ?? 0) / 100) : Number(measureServiceWidth) || 0,
+        undefined,
+        measureService.min_charge ?? null,
       )
     : null;
 
@@ -1535,6 +1539,11 @@ export default function QuoteDetail() {
                     {measureServicePreview.minimumApplied && (
                       <p className="mt-1 text-[11px] font-medium text-amber-700">
                         Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)} m²
+                      </p>
+                    )}
+                    {measureServicePreview.minChargeApplied && (
+                      <p className="mt-1 text-[11px] font-medium text-amber-700">
+                        Cobrando o valor mínimo de R$ {Number(measureService.min_charge).toFixed(2)}
                       </p>
                     )}
                     {pieceExtrasAmount > 0 && (

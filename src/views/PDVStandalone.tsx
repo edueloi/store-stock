@@ -132,6 +132,7 @@ interface CompletedSale {
 interface SellerEntry { id: number; name: string; commission_rate: number; user_id?: number | null }
 interface ServiceItem  {
   id: number; name: string; price: number; description?: string; unit?: string;
+  min_charge?: number | null;
   category_id?: number | null;
   category_ref?: { id: number; name: string; icon: string | null; color: string | null } | null;
   quantity?: number;
@@ -1313,6 +1314,8 @@ export default function PDVStandalone() {
         measureService.min_billable_quantity ?? null,
         parseMeasureInput(measureServiceHeight),
         parseMeasureInput(measureServiceWidth),
+        undefined,
+        measureService.min_charge ?? null,
       )
     : null;
 

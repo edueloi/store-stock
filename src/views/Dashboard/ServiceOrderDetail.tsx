@@ -508,6 +508,8 @@ export default function ServiceOrderDetail() {
         partSelectedService.min_billable_quantity ?? null,
         servicePieceActive ? partPieceCut.cutH / 1000 : Number(measureHeight) || 0,
         servicePieceActive ? (partPieceCut.cutW / 1000) * (1 + (partPieceSpec.waste_pct ?? 0) / 100) : Number(measureWidth) || 0,
+        undefined,
+        partSelectedService.min_charge ?? null,
       )
     : null;
 

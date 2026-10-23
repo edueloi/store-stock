@@ -90,6 +90,8 @@ interface Service {
   sale_unit: "unidade" | "m2" | "linear";
   price_per_measure: number | null;
   min_billable_quantity: number | null;
+  /** Valor mínimo (R$) por item cobrado por medida. */
+  min_charge?: number | null;
   /** Vidraçaria: tipo padrão da peça (serviço por m² marcado como peça). */
   piece_kind?: string | null;
   piece_defaults?: { glass?: string; thickness_mm?: number; finish?: string } | null;
@@ -97,7 +99,7 @@ interface Service {
 }
 
 export const SALE_UNIT_OPTIONS = [
-  { value: "unidade", label: "Preço fixo" },
+  { value: "unidade", label: "Por peça (preço fixo)" },
   { value: "m2", label: "Por m² (área)" },
   { value: "linear", label: "Por metro linear" },
 ] as const;
@@ -179,6 +181,7 @@ const EMPTY_FORM = () => ({
   sale_unit: "unidade" as "unidade" | "m2" | "linear",
   price_per_measure: "",
   min_billable_quantity: "",
+  min_charge: "",
   piece_kind: "",
   piece_glass: "",
   piece_thickness: "",
@@ -343,6 +346,7 @@ export default function Services() {
       price_per_measure: measureMasked,
       min_billable_quantity:
         s.min_billable_quantity != null ? String(s.min_billable_quantity) : "",
+      min_charge: s.min_charge ? applyMoneyMask(String(Math.round(Number(s.min_charge) * 100))) : "",
       piece_kind: s.piece_kind ?? "",
       piece_glass: s.piece_defaults?.glass ?? "",
       piece_thickness: s.piece_defaults?.thickness_mm ? String(s.piece_defaults.thickness_mm) : "",
@@ -472,6 +476,7 @@ export default function Services() {
           min_billable_quantity: form.min_billable_quantity
             ? Number(form.min_billable_quantity)
             : null,
+          min_charge: form.min_charge ? parseMaskedPrice(form.min_charge) : null,
           image_url: form.image_url || null,
           // Peça de vidraçaria: só vale para serviço por m²
           piece_kind: form.sale_unit === "m2" && form.piece_kind ? form.piece_kind : null,
@@ -1284,6 +1289,18 @@ export default function Services() {
                     })
                   }
                 />
+                <Input
+                  label="Valor mínimo por item"
+                  inputMode="numeric"
+                  placeholder="Opcional"
+                  addonLeft="R$"
+                  className="font-mono"
+                  value={form.min_charge}
+                  onChange={(e) => setForm({ ...form, min_charge: applyMoneyMask(e.target.value) })}
+                />
+                <p className="col-span-2 -mt-1 text-[11px] text-slate-500">
+                  Peça pequena nunca sai por menos que o valor mínimo (ex.: um espelho de 30 × 30 cm cobrado no mínimo de R$ 80).
+                </p>
               </div>
             )}
 

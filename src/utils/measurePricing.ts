@@ -38,6 +38,8 @@ export interface MeasuredPriceResult {
   total: number;
   label: string;
   minimumApplied: boolean;
+  /** O valor mínimo em R$ (min_charge) foi aplicado porque o cálculo ficou abaixo dele. */
+  minChargeApplied: boolean;
 }
 
 /** Aceita a vírgula brasileira e o ponto decimal sem alterar o que o usuário vê. */
@@ -59,17 +61,21 @@ export function computeMeasuredPrice(
   height: number,
   width?: number,
   measureUnit?: string | null,
+  minCharge?: number | null,
 ): MeasuredPriceResult {
   const rawQuantity = saleUnit === "m2" ? height * (width ?? 0) : height;
   const min = Number(minBillableQuantity) || 0;
   const billedQuantity = Math.max(rawQuantity, min);
   const minimumApplied = min > 0 && rawQuantity < min;
-  const total = Math.round(billedQuantity * pricePerMeasure * 100) / 100;
+  const calculated = Math.round(billedQuantity * pricePerMeasure * 100) / 100;
+  const floor = Math.max(0, Number(minCharge) || 0);
+  const minChargeApplied = floor > 0 && calculated < floor;
+  const total = minChargeApplied ? floor : calculated;
 
   const unit = measureUnitAbbr(measureUnit, saleUnit);
   const label = saleUnit === "m2"
     ? `${height.toFixed(2)}${unit} × ${(width ?? 0).toFixed(2)}${unit} = ${billedQuantity.toFixed(2)}${unit}`
     : `${rawQuantity.toFixed(2)} ${unit}`;
 
-  return { rawQuantity, billedQuantity, total, label, minimumApplied };
+  return { rawQuantity, billedQuantity, total, label, minimumApplied, minChargeApplied };
 }

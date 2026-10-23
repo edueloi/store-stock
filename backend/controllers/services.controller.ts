@@ -43,7 +43,7 @@ export async function createService(req: Request, res: Response) {
   try {
     const {
       name, description, price, unit, category_id, is_active, image_url,
-      sale_unit, price_per_measure, min_billable_quantity, piece_kind, piece_defaults,
+      sale_unit, price_per_measure, min_billable_quantity, min_charge, piece_kind, piece_defaults,
     } = req.body;
     const saleUnit = ALLOWED_SALE_UNITS.includes(sale_unit) ? sale_unit : "unidade";
     const isMeasured = saleUnit !== "unidade";
@@ -73,6 +73,7 @@ export async function createService(req: Request, res: Response) {
         sale_unit:   saleUnit,
         price_per_measure:     isMeasured ? (Number(price_per_measure) || 0) : null,
         min_billable_quantity: isMeasured && min_billable_quantity ? Number(min_billable_quantity) : null,
+        min_charge:            isMeasured && Number(min_charge) > 0 ? Math.round(Number(min_charge) * 100) / 100 : null,
         ...glassPieceFields(saleUnit, piece_kind, piece_defaults),
       },
     });
@@ -89,7 +90,7 @@ export async function updateService(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const {
       name, description, price, unit, category_id, is_active, image_url,
-      sale_unit, price_per_measure, min_billable_quantity, piece_kind, piece_defaults,
+      sale_unit, price_per_measure, min_billable_quantity, min_charge, piece_kind, piece_defaults,
     } = req.body;
     const saleUnit = ALLOWED_SALE_UNITS.includes(sale_unit) ? sale_unit : "unidade";
     const isMeasured = saleUnit !== "unidade";
@@ -119,6 +120,7 @@ export async function updateService(req: Request, res: Response) {
         sale_unit:   saleUnit,
         price_per_measure:     isMeasured ? (Number(price_per_measure) || 0) : null,
         min_billable_quantity: isMeasured && min_billable_quantity ? Number(min_billable_quantity) : null,
+        min_charge:            isMeasured && Number(min_charge) > 0 ? Math.round(Number(min_charge) * 100) / 100 : null,
         ...glassPieceFields(saleUnit, piece_kind, piece_defaults),
       },
     });

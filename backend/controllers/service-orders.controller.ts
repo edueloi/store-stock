@@ -658,6 +658,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
           service.min_billable_quantity ? Number(service.min_billable_quantity) : null,
           piece ? cut!.cutH / 1000 : Number(height) || 0,
           piece ? (cut!.cutW / 1000) * (1 + (piece.waste_pct ?? 0) / 100) : Number(width) || 0,
+          service.min_charge ? Number(service.min_charge) : null,
         );
         qty = 1;
         const extrasTotal = piece ? pieceExtrasTotal(piece) : 0;

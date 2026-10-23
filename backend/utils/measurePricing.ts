@@ -6,6 +6,7 @@ export interface MeasuredPriceResult {
   total: number;
   label: string;
   minimumApplied: boolean;
+  minChargeApplied: boolean;
 }
 
 // Calcula o preço de um item vendido por medida (m² ou metro linear), aplicando
@@ -19,16 +20,20 @@ export function computeMeasuredPrice(
   minBillableQuantity: number | null | undefined,
   height: number,
   width?: number,
+  minCharge?: number | null,
 ): MeasuredPriceResult {
   const rawQuantity = saleUnit === "m2" ? height * (width ?? 0) : height;
   const min = Number(minBillableQuantity) || 0;
   const billedQuantity = Math.max(rawQuantity, min);
   const minimumApplied = min > 0 && rawQuantity < min;
-  const total = Math.round(billedQuantity * pricePerMeasure * 100) / 100;
+  const calculated = Math.round(billedQuantity * pricePerMeasure * 100) / 100;
+  const floor = Math.max(0, Number(minCharge) || 0);
+  const minChargeApplied = floor > 0 && calculated < floor;
+  const total = minChargeApplied ? floor : calculated;
 
   const label = saleUnit === "m2"
     ? `${height.toFixed(2)}m × ${(width ?? 0).toFixed(2)}m = ${billedQuantity.toFixed(2)}m²`
     : `${billedQuantity.toFixed(2)} unidade de medida`;
 
-  return { rawQuantity, billedQuantity, total, label, minimumApplied };
+  return { rawQuantity, billedQuantity, total, label, minimumApplied, minChargeApplied };
 }
