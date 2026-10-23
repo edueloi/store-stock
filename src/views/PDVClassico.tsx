@@ -6,6 +6,7 @@ import {
   cacheGet, cacheSet, countPendingCashOps, countPendingSales, getPendingSales, queueCashOp, queueSale, type PendingSale,
 } from "../lib/offlineDb";
 import { syncPendingOps } from "../lib/pdvSync";
+import { renewLogin } from "../lib/offlineLogin";
 import {
   fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession,
   type CashSessionInfo,
@@ -266,6 +267,7 @@ function ClassicPDV() {
 
     fetchCurrentCashSession(token)
       .then(({ requireCashSession, session }) => {
+        void renewLogin(user?.id);
         setRequireCash(requireCashSession);
         setCashSession(session);
         cacheSet("cashSession", session);

@@ -8,12 +8,17 @@ import { cacheGet, cacheSet } from "./offlineDb";
 
 const CACHE_KEY = "offline_logins";
 const ITERATIONS = 150_000;
+// Quanto tempo o acesso offline vale sem o usuário se conectar de novo. Dentro desse prazo,
+// qualquer uso online (abrir o PDV com internet) renova; passou disso, a próxima entrada
+// precisa de internet — assim senha trocada ou usuário removido deixam de valer offline.
+export const OFFLINE_LOGIN_MAX_AGE_DAYS = 7;
 
 interface StoredLogin {
   salt: string;
   hash: string;
   token: string;
   user: unknown;
+  at: number; // última vez que este acesso foi confirmado pelo servidor (ms)
 }
 
 type LoginMap = Record<string, StoredLogin>;
@@ -37,19 +42,45 @@ export async function rememberLogin(identifier: string, password: string, token:
   try {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const logins = (await cacheGet<LoginMap>(CACHE_KEY)) ?? {};
-    logins[normalize(identifier)] = { salt: toHex(salt.buffer), hash: await derive(password, salt), token, user };
+    logins[normalize(identifier)] = { salt: toHex(salt.buffer), hash: await derive(password, salt), token, user, at: Date.now() };
     await cacheSet(CACHE_KEY, logins);
   } catch {
     // sem Electron/banco local: login offline simplesmente não fica disponível
   }
 }
 
+// O servidor recusou as credenciais (senha trocada, usuário removido): esquece o acesso offline.
+export async function forgetLogin(identifier: string) {
+  try {
+    const logins = (await cacheGet<LoginMap>(CACHE_KEY)) ?? {};
+    if (logins[normalize(identifier)]) {
+      delete logins[normalize(identifier)];
+      await cacheSet(CACHE_KEY, logins);
+    }
+  } catch { /* sem banco local */ }
+}
+
+// O usuário está usando o sistema COM internet e o servidor aceitou o token dele: renova o
+// prazo do acesso offline.
+export async function renewLogin(userId: number | undefined) {
+  if (userId == null) return;
+  try {
+    const logins = (await cacheGet<LoginMap>(CACHE_KEY)) ?? {};
+    let changed = false;
+    for (const entry of Object.values(logins)) {
+      if ((entry.user as { id?: number } | null)?.id === userId) { entry.at = Date.now(); changed = true; }
+    }
+    if (changed) await cacheSet(CACHE_KEY, logins);
+  } catch { /* sem banco local */ }
+}
+
 // Retorna a sessão guardada se a senha confere; "unknown" se este usuário nunca entrou
-// neste computador; "wrong" se a senha não bate.
-export async function verifyOfflineLogin(identifier: string, password: string): Promise<StoredLogin | "unknown" | "wrong"> {
+// neste computador; "wrong" se a senha não bate; "expired" se passou do prazo offline.
+export async function verifyOfflineLogin(identifier: string, password: string): Promise<StoredLogin | "unknown" | "wrong" | "expired"> {
   const logins = (await cacheGet<LoginMap>(CACHE_KEY)) ?? {};
   const stored = logins[normalize(identifier)];
   if (!stored) return "unknown";
+  if (Date.now() - (stored.at ?? 0) > OFFLINE_LOGIN_MAX_AGE_DAYS * 86_400_000) return "expired";
   const hash = await derive(password, fromHex(stored.salt));
   return hash === stored.hash ? stored : "wrong";
 }

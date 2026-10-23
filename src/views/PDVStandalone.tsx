@@ -20,7 +20,7 @@ import {
   removePendingSale, countPendingSales, PendingSale,
   queueCashOp, getPendingCashOps, removePendingCashOp, countPendingCashOps, PendingCashOp,
 } from "../lib/offlineDb";
-import { rememberLogin, verifyOfflineLogin } from "../lib/offlineLogin";
+import { forgetLogin, OFFLINE_LOGIN_MAX_AGE_DAYS, rememberLogin, renewLogin, verifyOfflineLogin } from "../lib/offlineLogin";
 import { computeMeasuredPrice, measureUnitAbbr, measureUnitLabel, parseMeasureInput } from "../utils/measurePricing";
 import { productHasStock } from "../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../lib/cashSession";
@@ -201,6 +201,7 @@ export function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
         // Sem servidor/internet: entra com a verificação guardada deste computador.
         const offline = await verifyOfflineLogin(identifier, password);
         if (offline === "unknown") setError("Sem conexão com o servidor. Este usuário ainda não entrou neste computador — conecte à internet uma vez para liberar o acesso offline.");
+        else if (offline === "expired") setError(`Faz mais de ${OFFLINE_LOGIN_MAX_AGE_DAYS} dias que este usuário não se conecta. Conecte à internet para renovar o acesso.`);
         else if (offline === "wrong") setError("Senha incorreta.");
         else {
           localStorage.setItem("token", offline.token);
@@ -220,6 +221,7 @@ export function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
         }
         onLogin(data.token);
       } else {
+        if (res.status === 400 || res.status === 401) void forgetLogin(identifier);
         setError(data.error || "Credenciais inválidas.");
       }
     } catch {
@@ -812,6 +814,7 @@ export default function PDVStandalone() {
 
     fetchCurrentCashSession(token)
       .then(({ requireCashSession, session }) => {
+        void renewLogin(JSON.parse(localStorage.getItem("user") || "null")?.id);
         setRequireCashSession(requireCashSession);
         setCashSession(session);
         if (session) cacheSet("cashSession", session);
