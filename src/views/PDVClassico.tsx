@@ -13,10 +13,8 @@ import {
 } from "../lib/cashSession";
 import { buildCashCloseReceiptText, buildOrderReceiptText, printThermalText } from "../lib/thermalReceipt";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, listHeldSales, resumeHeldSale, type HeldSale } from "../lib/heldSales";
-import OpenCashSessionScreen from "../components/pdv/OpenCashSessionScreen";
-import CloseCashSessionModal from "../components/pdv/CloseCashSessionModal";
+import { ClassicCloseCash, ClassicLogin, ClassicOpenCash } from "../components/pdv/ClassicCash";
 import { ToastProvider } from "../components/ui/Toast";
-import { PDVLogin } from "./PDVStandalone";
 
 // ─── Caixa Clássico ──────────────────────────────────────────────────────────
 // Segundo modelo de PDV: tela de balcão tradicional, toda por teclado (F2…F10), com
@@ -667,8 +665,10 @@ function ClassicPDV() {
   const closeCompleted = () => { setCompleted(null); newSale(); };
 
   // ── atalhos de teclado ─────────────────────────────────────────────────────
-  const actions = useRef({ screen, modal, completed, hasCart: cart.length > 0 });
-  actions.current = { screen, modal, completed, hasCart: cart.length > 0 };
+  // Login, abertura e fechamento de caixa são telas próprias: as teclas F do balcão ficam desligadas enquanto elas estão abertas.
+  const blocked = !token || (!cashLoading && requireCash && !cashSession) || showCloseCash;
+  const actions = useRef({ screen, modal, completed, hasCart: cart.length > 0, blocked });
+  actions.current = { screen, modal, completed, hasCart: cart.length > 0, blocked };
   const handlers = useRef<Record<string, () => void>>({});
   handlers.current = {
     F2: () => (screen === "sale" ? (setScannerMode((v) => !v), codeRef.current?.focus()) : (setLookup(""), setModal("customer"))),
@@ -683,7 +683,8 @@ function ClassicPDV() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { modal: m, completed: c, screen: s } = actions.current;
+      const { modal: m, completed: c, screen: s, blocked: b } = actions.current;
+      if (b) return;
       if (c) {
         if (e.key === "Enter") { e.preventDefault(); closeCompleted(); }
         else if (e.key.toLowerCase() === "p" && window.boxsysDesktop?.printReceipt) {
@@ -712,12 +713,13 @@ function ClassicPDV() {
   useEffect(() => { if (screen === "sale" && !modal && !completed) codeRef.current?.focus(); }, [screen, modal, completed]);
 
   // ── renderização ───────────────────────────────────────────────────────────
-  if (!token) return <PDVLogin onLogin={setToken} />;
+  if (!token) return <ClassicLogin onLogin={setToken} />;
 
   if (!cashLoading && requireCash && !cashSession) {
     return (
-      <OpenCashSessionScreen
+      <ClassicOpenCash
         operatorName={operatorName}
+        onLogout={logout}
         onOpen={async (amount, note) => {
           if (!isOnline) {
             const localId = crypto.randomUUID();
@@ -1190,7 +1192,7 @@ function ClassicPDV() {
       )}
 
       {showCloseCash && cashSession && (
-        <CloseCashSessionModal
+        <ClassicCloseCash
           onCancel={() => setShowCloseCash(false)}
           onFinish={() => {
             setShowCloseCash(false);

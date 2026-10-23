@@ -2,7 +2,7 @@ interface StockAwareProduct {
   /** false = produto sob encomenda: sempre disponível para venda. */
   track_stock?: boolean;
   stock_quantity: number;
-  sale_unit?: "unidade" | "m2" | "linear";
+  sale_unit?: "unidade" | "m2" | "linear" | "peso" | "volume";
   measure_stock_quantity?: number | null;
   skus?: { combo: Record<string, string>; stock: number }[];
   variations?: { name: string; options: { value: string; stock: number }[] }[];
