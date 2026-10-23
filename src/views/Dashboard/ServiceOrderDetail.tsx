@@ -1,3 +1,4 @@
+import { getHideValuesPref, setHideValuesPref } from "../../lib/documentPrefs";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -211,6 +212,7 @@ export default function ServiceOrderDetail() {
   const [launchingReceivable, setLaunchingReceivable] = useState(false);
 
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [hideValues, setHideValues] = useState<boolean>(() => getHideValuesPref("service_order"));
   const [emailDelivery, setEmailDelivery] = useState<{ sent: boolean; recipient: string | null; sent_at: string | null; attempts: number } | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
 
@@ -654,7 +656,7 @@ export default function ServiceOrderDetail() {
     if (!selected) return;
     setGeneratingPdf(true);
     try {
-      await downloadServiceOrderPdf(selected, tenant);
+      await downloadServiceOrderPdf(selected, tenant, { hideValues });
     } finally {
       setGeneratingPdf(false);
     }
@@ -1558,6 +1560,13 @@ export default function ServiceOrderDetail() {
           </ContentCard>
 
           {/* Ações */}
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-medium text-slate-700">
+            <input
+              type="checkbox" checked={hideValues}
+              onChange={(e) => { setHideValues(e.target.checked); setHideValuesPref("service_order", e.target.checked); }}
+            />
+            Não incluir valores no PDF
+          </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Button variant="outline" size="md" onClick={handleGeneratePdf} disabled={generatingPdf} className="justify-center">
               {generatingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />} Gerar PDF

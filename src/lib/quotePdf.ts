@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import GlassDrawing from "../components/GlassDrawing";
 import { downloadHtmlAsPdf } from "./pdf";
+import { getHideValuesPref } from "./documentPrefs";
 import { glassSpecFromOptions } from "./glassQuote";
 import { pieceCut, pieceLabel, type PieceSpec } from "./glassPieces";
 import {
@@ -126,7 +127,7 @@ function quoteItemUnit(dimLabel?: string | null): string {
 export async function generateQuotePDF(
   quote: QuotePdfData,
   tenant: DocumentTenant,
-  opts?: { customer?: QuotePdfCustomer | null; sellerName?: string | null; includeDrawing?: boolean },
+  opts?: { customer?: QuotePdfCustomer | null; sellerName?: string | null; includeDrawing?: boolean; hideValues?: boolean },
 ) {
   const brandColor = tenant.primary_color ?? "#2563eb";
   const dateStr = new Date(quote.created_at).toLocaleDateString("pt-BR");
@@ -142,14 +143,20 @@ export async function generateQuotePDF(
     extraTopRight: [`Válido até ${validUntil}`],
   });
 
+  // "Sem valores": o documento vira uma lista de itens/medidas, sem preços nem totais.
+  const hideValues = opts?.hideValues ?? getHideValuesPref("quote");
+  const money = (cells: string[]) => (hideValues ? [] : cells);
+
   const itemsTable = buildDocumentTableHtml(
     [
       { label: "Cód", align: "center", width: "45px" },
       { label: "Descrição" },
       { label: "Un", align: "center", width: "40px" },
       { label: "Qtd", align: "center", width: "45px" },
-      { label: "Preço Unit.", align: "right", width: "85px" },
-      { label: "Total", align: "right", width: "85px" },
+      ...(hideValues ? [] : [
+        { label: "Preço Unit.", align: "right" as const, width: "85px" },
+        { label: "Total", align: "right" as const, width: "85px" },
+      ]),
     ],
     [
       ...quote.items.map((i) => ({
@@ -158,8 +165,7 @@ export async function generateQuotePDF(
           i.name,
           quoteItemUnit(i.dimensions_label),
           String(i.quantity),
-          fmtMoney(Number(i.unit_price)),
-          fmtMoney(Number(i.total)),
+          ...money([fmtMoney(Number(i.unit_price)), fmtMoney(Number(i.total))]),
         ],
         sub: [i.dimensions_label, i.selected_options ? Object.entries(i.selected_options).filter(([key]) => !["Modelo da peça", "Largura (mm)", "Altura (mm)", "Folhas"].includes(key)).map(([key,value]) => `${key}: ${value}`).join(" · ") : ""].filter(Boolean).join(" · ") || undefined,
       })),
@@ -169,8 +175,7 @@ export async function generateQuotePDF(
           s.name,
           "UN",
           String(s.quantity),
-          fmtMoney(Number(s.unit_price)),
-          fmtMoney(Number(s.unit_price) * s.quantity),
+          ...money([fmtMoney(Number(s.unit_price)), fmtMoney(Number(s.unit_price) * s.quantity)]),
         ],
         sub: s.dimensions_label || undefined,
       })),
@@ -225,7 +230,7 @@ ${header}
     <div class="doc-info-grid" style="grid-template-columns:1fr;">
       ${opts?.sellerName ? `<div class="doc-info-row">Atendente: <b>${opts.sellerName}</b></div>` : ""}
       <div class="doc-info-row">Validade: <b>${quote.validity_days} dia(s)</b> (até ${validUntil})</div>
-      ${paymentMethodLabel ? `<div class="doc-info-row">Forma de pagamento: <b>${paymentMethodLabel}</b></div>` : ""}
+      ${paymentMethodLabel && !hideValues ? `<div class="doc-info-row">Forma de pagamento: <b>${paymentMethodLabel}</b></div>` : ""}
     </div>
   </div>
 </div>
@@ -237,7 +242,7 @@ ${header}
 
 ${projectHtml}
 
-<div class="doc-section">
+${hideValues ? "" : `<div class="doc-section">
   <div class="doc-totals">
     <div class="doc-totals-box">
       <div class="doc-totals-row"><span>Subtotal</span><span>${fmtMoney(Number(quote.subtotal))}</span></div>
@@ -248,7 +253,7 @@ ${projectHtml}
       <div class="doc-totals-row"><span>Restante</span><span>${fmtMoney(remaining)}</span></div>` : ""}
     </div>
   </div>
-</div>
+</div>`}
 
 ${quote.notes ? `
 <div class="doc-section">

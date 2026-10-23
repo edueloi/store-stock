@@ -50,6 +50,7 @@ import { useToast } from "../../components/ui/Toast";
 import { cn } from "../../lib/utils";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { generateQuotePDF, getIncludeDrawingPref, quoteHasGlassPieces, setIncludeDrawingPref } from "../../lib/quotePdf";
+import { getHideValuesPref, setHideValuesPref } from "../../lib/documentPrefs";
 import { getStoredUser } from "../../lib/session";
 import ProductVariationModal, { productHasVariations, type VariationOptions } from "../../components/pdv/ProductVariationModal";
 
@@ -774,6 +775,7 @@ export default function QuoteDetail() {
   };
 
   const [includeDrawing, setIncludeDrawing] = useState<boolean>(() => getIncludeDrawingPref());
+  const [hideValues, setHideValues] = useState<boolean>(() => getHideValuesPref("quote"));
 
   const handleDownloadPDF = async () => {
     if (!quote || !tenant) return;
@@ -789,6 +791,7 @@ export default function QuoteDetail() {
       customer: c ? { name: c.name, phone: c.phone, email: c.email, document: c.document, address } : null,
       sellerName: getStoredUser()?.name,
       includeDrawing,
+      hideValues,
     });
   };
 
@@ -1369,6 +1372,13 @@ export default function QuoteDetail() {
             </div>
             <div className="space-y-2 border-t border-slate-100 p-3">
               <p className="text-center text-[11px] text-emerald-700">Alterações salvas automaticamente</p>
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-medium text-slate-700">
+                <input
+                  type="checkbox" checked={hideValues}
+                  onChange={(e) => { setHideValues(e.target.checked); setHideValuesPref("quote", e.target.checked); }}
+                />
+                Não incluir valores no PDF
+              </label>
               {quote && quoteHasGlassPieces(quote) && (
                 <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-medium text-slate-700">
                   <input

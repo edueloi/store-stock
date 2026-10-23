@@ -1,6 +1,7 @@
 import { Clock, Send, Search, ThumbsUp, Palette, PenTool, Wrench, Package, FileCheck, CheckCircle2, XCircle } from "lucide-react";
 import { createElement } from "react";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
+import { getHideValuesPref } from "../../lib/documentPrefs";
 import { buildDocumentHeaderHtml, buildDocumentTableHtml, DOCUMENT_BASE_CSS, fmtMoney } from "../../lib/documentPdf";
 import type { Tenant as AppTenant } from "../../types";
 
@@ -294,7 +295,9 @@ export function getStatusOrderForTenant(graficaEnabled: boolean | undefined): SO
 
 // ─── PDF template ─────────────────────────────────────────────────────────────
 
-export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null): string {
+export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null, opts?: { hideValues?: boolean }): string {
+  // "Sem valores": itens e medidas continuam, mas sem preços, totais nem mão de obra.
+  const hideValues = opts?.hideValues ?? getHideValuesPref("service_order");
   const brandColor = tenant?.primary_color ?? "#2563eb";
   const orderNum = String(so.number).padStart(6, "0");
   const orderDate = new Date(so.created_at).toLocaleDateString("pt-BR");
@@ -324,8 +327,10 @@ export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | n
           { label: "Descrição" },
           { label: "Un", align: "center", width: "40px" },
           { label: "Qtd", align: "center", width: "45px" },
-          { label: "Valor Unit.", align: "right", width: "80px" },
-          { label: "Total", align: "right", width: "80px" },
+          ...(hideValues ? [] : [
+            { label: "Valor Unit.", align: "right" as const, width: "80px" },
+            { label: "Total", align: "right" as const, width: "80px" },
+          ]),
         ],
         so.parts.map((p) => ({
           cells: [
@@ -333,8 +338,10 @@ export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | n
             p.name,
             p.unit || "UN",
             String(p.quantity),
-            p.no_charge ? "Sem cobrança" : fmtMoney(p.unit_price),
-            p.no_charge ? "—" : fmtMoney(p.total),
+            ...(hideValues ? [] : [
+              p.no_charge ? "Sem cobrança" : fmtMoney(p.unit_price),
+              p.no_charge ? "—" : fmtMoney(p.total),
+            ]),
           ],
           sub: p.dimensions_label ?? undefined,
         })),
@@ -347,11 +354,13 @@ export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | n
         [
           { label: "Descrição" },
           { label: "Qtd", align: "center", width: "45px" },
-          { label: "Valor Unit.", align: "right", width: "80px" },
-          { label: "Total", align: "right", width: "80px" },
+          ...(hideValues ? [] : [
+            { label: "Valor Unit.", align: "right" as const, width: "80px" },
+            { label: "Total", align: "right" as const, width: "80px" },
+          ]),
         ],
         quoteItems.map((item) => ({
-          cells: [item.name, String(item.quantity), fmtMoney(item.unit_price), fmtMoney(item.total)],
+          cells: [item.name, String(item.quantity), ...(hideValues ? [] : [fmtMoney(item.unit_price), fmtMoney(item.total)])],
           sub: item.dimensions_label ?? undefined,
         })),
       )
@@ -415,7 +424,7 @@ ${quoteItemsTable && so.quote ? `
 <div class="doc-section">
   <div class="doc-section-label">Itens do Orçamento Vinculado #${String(so.quote.number).padStart(4, "0")}</div>
   ${quoteItemsTable}
-  <div class="doc-totals" style="margin-top:10px"><div class="doc-totals-box"><div class="doc-totals-row grand"><span>Total do orçamento</span><span>${fmtMoney(so.quote.total_amount)}</span></div></div></div>
+  ${hideValues ? "" : `<div class="doc-totals" style="margin-top:10px"><div class="doc-totals-box"><div class="doc-totals-row grand"><span>Total do orçamento</span><span>${fmtMoney(so.quote.total_amount)}</span></div></div></div>`}
 </div>` : ""}
 
 ${checklistTable ? `
@@ -430,7 +439,7 @@ ${partsTable ? `
   ${partsTable}
 </div>` : ""}
 
-<div class="doc-section">
+${hideValues ? "" : `<div class="doc-section">
   <div class="doc-totals">
     <div class="doc-totals-box">
       ${so.quote ? `<div class="doc-totals-row"><span>Orçamento vinculado</span><span>${fmtMoney(so.quote.total_amount)}</span></div>` : ""}
@@ -439,7 +448,7 @@ ${partsTable ? `
       <div class="doc-totals-row grand"><span>TOTAL</span><span>${fmtMoney(so.total_amount)}</span></div>
     </div>
   </div>
-</div>
+</div>`}
 
 ${(so.warranty_days || so.warranty_terms) ? `
 <div class="doc-section">
@@ -470,7 +479,7 @@ ${so.observations ? `
 </html>`;
 }
 
-export async function downloadServiceOrderPdf(so: ServiceOrder, tenant: Tenant | null) {
-  const html = buildServiceOrderIntakeHtml(so, tenant);
+export async function downloadServiceOrderPdf(so: ServiceOrder, tenant: Tenant | null, opts?: { hideValues?: boolean }) {
+  const html = buildServiceOrderIntakeHtml(so, tenant, opts);
   await downloadHtmlAsPdf(html, `ordem-servico-${String(so.number).padStart(6, "0")}.pdf`);
 }
