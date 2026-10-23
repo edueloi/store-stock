@@ -31,6 +31,7 @@ const PM_LABEL: Record<PaymentMethod, string> = {
 const PM_SHORT: Record<PaymentMethod, string> = {
   money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário",
 };
+const PAY_ORDER: PaymentMethod[] = ["money", "pix", "debit", "credit", "crediario"];
 const BRANDS: { key: CardBrand; label: string }[] = [
   { key: "visa", label: "Visa" }, { key: "master", label: "Mastercard" }, { key: "elo", label: "Elo" },
   { key: "amex", label: "Amex" }, { key: "hiper", label: "Hipercard" }, { key: "other", label: "Outra" },
@@ -144,6 +145,8 @@ function ClassicPDV() {
   const [scannerMode, setScannerMode] = useState(false);
   const [activeHeldId, setActiveHeldId] = useState<number | null>(null);
   const [saleNumber, setSaleNumber] = useState(1);
+  const [selectedId, setSelectedId] = useState<string | null>(null);   // linha selecionada na lista (↑ ↓ / Del)
+  const [lastAdded, setLastAdded] = useState<{ name: string; variation: string; qty: number; price: number } | null>(null);
 
   // pagamento
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
@@ -326,7 +329,7 @@ function ClassicPDV() {
 
   // ── busca de produto ───────────────────────────────────────────────────────
   const suggestions = useMemo(() => {
-    const q = norm(code.trim());
+    const q = norm(code.trim().replace(/^\d+(?:[.,]\d+)?\s*\*\s*/, ""));
     if (!q || picked) return [];
     return products
       .filter((p) => (sellWithoutStock || productHasStock(p)) && (
@@ -365,6 +368,8 @@ function ClassicPDV() {
     setCart((prev) => existing
       ? prev.map((i) => i.cartItemId === cartItemId ? { ...i, quantity: wanted } : i)
       : [...prev, { ...product, price: Number(product.discount_price || product.price), quantity, cartItemId, selectedOptions: options, variationLabel }]);
+    setLastAdded({ name: product.name, variation: variationLabel, qty: quantity, price: Number(product.discount_price || product.price) });
+    setSelectedId(cartItemId);
     return true;
   }, [cart, flash, sellWithoutStock]);
 
@@ -376,13 +381,21 @@ function ClassicPDV() {
       if (addItem(picked, num(qty))) resetEntry();
       return;
     }
-    const raw = code.trim();
-    if (!raw) return;
+    // "3*789…": digita a quantidade antes do código (convenção de balcão)
+    const mult = code.trim().match(/^(\d+(?:[.,]\d+)?)\s*\*\s*(.+)$/);
+    const raw = (mult ? mult[2] : code).trim();
+    const qtyFromCode = mult ? num(mult[1]) : null;
+    if (!raw) {
+      // campo vazio: Enter abre a quantidade do item selecionado na lista
+      const item = selectedId ? cart.find((i) => i.cartItemId === selectedId) : undefined;
+      if (item) { setEditingItem(item); setEditQty(String(item.quantity)); setModal("qty"); }
+      return;
+    }
     const lower = raw.toLowerCase();
     const exact = products.find((p) => (p.barcode ?? "").toLowerCase() === lower || (p.sku ?? "").toLowerCase() === lower);
     if (exact) {
       if (!sellWithoutStock && !productHasStock(exact)) { flash(`"${exact.name}" sem estoque.`); return; }
-      if (addItem(exact, num(qty) || 1)) resetEntry();
+      if (addItem(exact, qtyFromCode ?? (num(qty) || 1))) resetEntry();
       return;
     }
     if (scannerMode) { flash(`Código "${raw}" não encontrado.`); setCode(""); return; }
@@ -390,6 +403,7 @@ function ClassicPDV() {
     if (!choice) { flash(`Nenhum produto encontrado para "${raw}".`); return; }
     setPicked(choice);
     setCode(choice.name);
+    if (qtyFromCode) setQty(String(qtyFromCode));
     setSuggestions0();
     // vai para a quantidade para confirmar com Enter
     window.setTimeout(() => document.getElementById("classic-qty")?.focus(), 0);
@@ -438,6 +452,10 @@ function ClassicPDV() {
   const moneyPaid = payments.filter((p) => p.method === "money").reduce((s, p) => s + num(p.amount), 0);
   const change = moneyPaid > 0 && paid >= total ? Math.round((moneyPaid - (total - (paid - moneyPaid))) * 100) / 100 : 0;
   const canFinish = cart.length > 0 && total > 0 && remaining <= 0.004;
+  // troco em tempo real: dinheiro digitado acima do que falta pagar (antes mesmo de lançar o pagamento)
+  const previewChange = payMethod === "money" && remaining > 0 ? Math.max(0, Math.round((num(payAmount) - remaining) * 100) / 100) : 0;
+  const shownChange = previewChange > 0 ? previewChange : change;
+  const pickPayMethod = (m: PaymentMethod) => { setPayMethod(m); setPayInstallments(1); window.setTimeout(() => payRef.current?.focus(), 0); };
 
   // ── ações ──────────────────────────────────────────────────────────────────
   const newSale = useCallback(() => {
@@ -679,6 +697,8 @@ function ClassicPDV() {
     F8: () => { if (screen === "payment") setEmitNfce((v) => !v); },
     F9: () => { if (actions.current.hasCart) setModal("confirmCancel"); else if (screen === "payment") setScreen("sale"); },
     F10: () => { if (screen === "payment") { setLookup(""); setModal("seller"); } },
+    Alt1: () => pickPayMethod(PAY_ORDER[0]), Alt2: () => pickPayMethod(PAY_ORDER[1]), Alt3: () => pickPayMethod(PAY_ORDER[2]),
+    Alt4: () => pickPayMethod(PAY_ORDER[3]), Alt5: () => pickPayMethod(PAY_ORDER[4]),
   };
 
   useEffect(() => {
@@ -699,6 +719,7 @@ function ClassicPDV() {
         return;
       }
       if (e.ctrlKey && e.key.toLowerCase() === "p") { e.preventDefault(); setScreen("sale"); window.setTimeout(() => codeRef.current?.focus(), 0); return; }
+      if (e.altKey && /^[1-5]$/.test(e.key) && s === "payment" && !m) { e.preventDefault(); handlers.current[`Alt${e.key}`]?.(); return; }
       if (/^F(2|3|4|6|7|8|9|10)$/.test(e.key)) {
         e.preventDefault();
         if (m && m !== "confirmCancel") return;
@@ -791,6 +812,24 @@ function ClassicPDV() {
               placeholder={scannerMode ? "Bipe o código de barras…" : "Digite o código, código de barras ou nome"}
               onChange={(e) => { setCode(e.target.value); setPicked(null); setActiveSuggestion(0); }}
               onKeyDown={(e) => {
+                // campo vazio e sem sugestões: as setas percorrem os itens do pedido e Delete remove o selecionado
+                if (!code && !picked && cart.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Delete")) {
+                  e.preventDefault();
+                  const at = cart.findIndex((i) => i.cartItemId === selectedId);
+                  if (e.key === "Delete") {
+                    if (at >= 0) {
+                      const removed = cart[at];
+                      const rest = cart.filter((_, idx) => idx !== at);
+                      setCart(rest);
+                      setSelectedId(rest.length ? rest[Math.min(at, rest.length - 1)].cartItemId : null);
+                      flash(`Item removido: ${removed.name}`, "ok");
+                    }
+                    return;
+                  }
+                  const next = e.key === "ArrowDown" ? (at < 0 ? 0 : Math.min(at + 1, cart.length - 1)) : (at < 0 ? cart.length - 1 : Math.max(at - 1, 0));
+                  setSelectedId(cart[next].cartItemId);
+                  return;
+                }
                 if (e.key === "Enter") { e.preventDefault(); handleCodeEnter(); }
                 else if (e.key === "ArrowDown") { e.preventDefault(); setActiveSuggestion((i) => Math.min(i + 1, suggestions.length - 1)); }
                 else if (e.key === "ArrowUp") { e.preventDefault(); setActiveSuggestion((i) => Math.max(i - 1, 0)); }
@@ -832,8 +871,23 @@ function ClassicPDV() {
               </div>
             </div>
             <button onClick={handleCodeEnter} className={cn(btn("blue"), "mt-5 w-full")}>Incluir (Enter)</button>
-            <p className="mt-4 text-[12px] leading-relaxed text-slate-500">
-              Digite o código de barras ou o código do produto e tecle Enter para incluir direto. Para buscar pelo nome, escolha na lista (↑ ↓) e confirme a quantidade.
+            <div className="mt-6 rounded-sm border border-[#c5cfdf] bg-white p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Último item</p>
+              {lastAdded ? (
+                <>
+                  <p className="mt-1 text-[20px] font-semibold leading-snug text-slate-800">{lastAdded.name}</p>
+                  {lastAdded.variation && <p className="text-[12px] text-slate-500">{lastAdded.variation}</p>}
+                  <p className="mt-2 flex items-baseline justify-between text-[14px] text-slate-500">
+                    <span>{lastAdded.qty} × R$ {money(lastAdded.price)}</span>
+                    <b className="text-[24px] font-semibold text-[#0b527a]">R$ {money(lastAdded.qty * lastAdded.price)}</b>
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 text-[14px] text-slate-400">Nenhum item incluído ainda.</p>
+              )}
+            </div>
+            <p className="mt-3 text-[12px] leading-relaxed text-slate-500">
+              Tecle o código de barras ou o código e Enter. Para várias unidades, digite <b>3*código</b>. Com o campo vazio, <b>↑ ↓</b> escolhem um item do pedido, <b>Enter</b> altera a quantidade e <b>Delete</b> remove.
             </p>
           </section>
 
@@ -852,21 +906,25 @@ function ClassicPDV() {
                 <table className="w-full text-[13px]">
                   <thead className="sticky top-0 bg-white text-[11px] uppercase text-slate-400">
                     <tr className="border-b border-dashed border-slate-300">
-                      <th className="px-4 py-3 text-left">Qtde.</th><th className="px-2 text-left">Cód.</th><th className="px-2 text-left">Produto ({cart.length})</th>
+                      <th className="w-10 px-3 py-3 text-left">#</th><th className="px-2 text-left">Qtde.</th><th className="px-2 text-left">Cód.</th><th className="px-2 text-left">Produto ({cart.length})</th>
                       <th className="px-2 text-right">Valor unitário</th><th className="px-2 text-right">Valor total</th><th className="w-20" />
                     </tr>
                   </thead>
                   <tbody>
-                    {cart.map((i) => (
-                      <tr key={i.cartItemId} className="border-b border-dashed border-slate-200">
-                        <td className="px-4 py-3 font-medium">{i.quantity}</td>
+                    {cart.map((i, idx) => (
+                      <tr
+                        key={i.cartItemId} onClick={() => setSelectedId(i.cartItemId)}
+                        className={cn("cursor-pointer border-b border-dashed border-slate-200", i.cartItemId === selectedId ? "bg-[#e6f1fb] shadow-[inset_3px_0_0_#0078d4]" : "hover:bg-slate-50")}
+                      >
+                        <td className="px-3 py-3 text-[12px] text-slate-400">{idx + 1}</td>
+                        <td className="px-2 py-3 font-medium">{i.quantity}</td>
                         <td className="px-2 text-slate-500">{i.sku ?? ""}</td>
                         <td className="px-2">{i.name}{i.variationLabel && <span className="block text-[11px] text-slate-500">{i.variationLabel}</span>}</td>
                         <td className="px-2 text-right">R$ {money(i.price)}</td>
                         <td className="px-2 text-right font-semibold">R$ {money(i.price * i.quantity)}</td>
                         <td className="px-2 text-right">
-                          <button title="Alterar quantidade" className="mr-2 text-[#0078d4]" onClick={() => { setEditingItem(i); setEditQty(String(i.quantity)); setModal("qty"); }}>✎</button>
-                          <button title="Remover" className="text-rose-600" onClick={() => setCart((prev) => prev.filter((x) => x.cartItemId !== i.cartItemId))}>✕</button>
+                          <button title="Alterar quantidade" className="mr-2 text-[#0078d4]" onClick={(e) => { e.stopPropagation(); setEditingItem(i); setEditQty(String(i.quantity)); setModal("qty"); }}>✎</button>
+                          <button title="Remover" className="text-rose-600" onClick={(e) => { e.stopPropagation(); setCart((prev) => prev.filter((x) => x.cartItemId !== i.cartItemId)); }}>✕</button>
                         </td>
                       </tr>
                     ))}
@@ -875,9 +933,12 @@ function ClassicPDV() {
               )}
             </div>
             {cart.length > 0 && (
-              <div className="mt-3 flex items-center justify-between rounded-sm bg-[#0b527a] px-5 py-4 text-white">
-                <span className="text-[18px] font-medium">SUBTOTAL</span>
-                <span className="text-[24px] font-semibold">R$ {money(subtotal)}</span>
+              <div className="mt-3 flex items-center justify-between rounded-sm bg-[#0b527a] px-5 py-3 text-white">
+                <div className="leading-tight">
+                  <p className="text-[16px] font-medium">SUBTOTAL</p>
+                  <p className="text-[12px] text-white/70">{cart.length} {cart.length === 1 ? "item" : "itens"} · {cart.reduce((a, i) => a + i.quantity, 0)} un.</p>
+                </div>
+                <span className="text-[36px] font-semibold leading-none">R$ {money(subtotal)}</span>
               </div>
             )}
           </section>
@@ -887,13 +948,20 @@ function ClassicPDV() {
           <section>
             <h2 className="mb-3 text-[20px] font-semibold text-[#0b527a]">Confirmação de pagamento</h2>
             <div className="rounded-sm border border-dashed border-[#b6c3d8] p-4">
-              <div className="grid grid-cols-[1.2fr_0.7fr_1fr] gap-3">
-                <div>
-                  <label className={labelCls}>Forma de pagamento:</label>
-                  <select className={inputCls} value={payMethod} onChange={(e) => { setPayMethod(e.target.value as PaymentMethod); setPayInstallments(1); }}>
-                    {(Object.keys(PM_LABEL) as PaymentMethod[]).map((m) => <option key={m} value={m}>{PM_LABEL[m]}</option>)}
-                  </select>
-                </div>
+              <label className={labelCls}>Forma de pagamento <span className="text-slate-400">(Alt + número)</span></label>
+              <div className="mb-4 grid grid-cols-5 gap-2">
+                {PAY_ORDER.map((m, idx) => (
+                  <button
+                    key={m} type="button" onClick={() => pickPayMethod(m)}
+                    className={cn("flex h-[52px] flex-col items-center justify-center rounded-sm border text-[12px] font-semibold transition-colors",
+                      payMethod === m ? "border-[#0078d4] bg-[#0078d4] text-white" : "border-[#c5cfdf] bg-white text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]")}
+                  >
+                    <span className="text-[10px] font-medium opacity-70">Alt+{idx + 1}</span>
+                    {PM_SHORT[m]}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-[0.7fr_1fr] gap-3">
                 <div>
                   <label className={labelCls}>Parcelas:</label>
                   <input
@@ -911,6 +979,17 @@ function ClassicPDV() {
                   />
                 </div>
               </div>
+              {payMethod === "money" && remaining > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-[12px] font-medium text-slate-500">Valor rápido:</span>
+                  <button type="button" onClick={() => { setPayAmount(remaining.toFixed(2).replace(".", ",")); payRef.current?.focus(); }}
+                    className="h-8 rounded-sm border border-[#c5cfdf] bg-white px-3 text-[12px] font-semibold text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]">Exato</button>
+                  {[10, 20, 50, 100, 200].map((v) => (
+                    <button key={v} type="button" onClick={() => { setPayAmount(v.toFixed(2).replace(".", ",")); payRef.current?.focus(); }}
+                      className="h-8 rounded-sm border border-[#c5cfdf] bg-white px-3 text-[12px] font-semibold text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]">R$ {v}</button>
+                  ))}
+                </div>
+              )}
               {(payMethod === "debit" || payMethod === "credit") && (
                 <div className="mt-3 w-1/2">
                   <label className={labelCls}>Bandeira:</label>
@@ -924,6 +1003,13 @@ function ClassicPDV() {
                 <button onClick={addPayment} className={btn("blue")}>Adicionar (Enter)</button>
               </div>
             </div>
+
+            {shownChange > 0 && (
+              <div className="mt-4 flex items-center justify-between rounded-sm border border-emerald-300 bg-emerald-50 px-5 py-3">
+                <span className="text-[15px] font-semibold text-emerald-800">TROCO</span>
+                <span className="text-[34px] font-semibold leading-none text-emerald-700">R$ {money(shownChange)}</span>
+              </div>
+            )}
 
             {payments.length > 0 && (
               <ul className="mt-4 divide-y divide-slate-200 rounded-sm border border-[#c5cfdf] bg-white">
@@ -988,6 +1074,13 @@ function ClassicPDV() {
           </section>
         </main>
       )}
+
+      {/* legenda de atalhos */}
+      <div className="shrink-0 border-t border-[#d5deec] bg-[#e9eef7] px-5 py-1.5 text-[11px] text-slate-500">
+        {screen === "sale"
+          ? <>Ctrl+P produto · <b>3*código</b> quantidade · ↑ ↓ Del itens · F2 leitor · F3 operador · F4 vendas em aberto · F6 pagamento · F7 aguardar · F9 cancelar</>
+          : <>Alt+1…5 forma de pagamento · Enter adiciona · F2 cliente · F3 desconto · F7 recibo · F8 NFC-e · F10 vendedor · F6 finalizar · Esc volta</>}
+      </div>
 
       {/* rodapé */}
       <footer className="flex h-[88px] shrink-0 items-center justify-between gap-4 bg-white px-5">
