@@ -62,6 +62,23 @@ function computeMachineFee(pm: string, gross: number, discount: number, cardFees
   return Math.round(fee * 100) / 100;
 }
 
+// Reescala os valores embutidos em "credit-visa-2x:120.00|money:30.00" para somarem `target`
+// (mantendo a proporção entre as formas). Strings sem valores embutidos ("money") não mudam —
+// nesse caso quem lê usa o amount da própria linha.
+function scalePaymentMethodAmounts(pm: string, target: number): string {
+  const parts = pm.split("|");
+  const amounts = parts.map((p) => parseFloat(p.split(":")[1] ?? "") || 0);
+  const total = amounts.reduce((s, a) => s + a, 0);
+  if (total <= 0 || !(target > 0)) return pm;
+  let allocated = 0;
+  return parts.map((p, i) => {
+    const isLast = i === parts.length - 1;
+    const value = isLast ? Math.round((target - allocated) * 100) / 100 : Math.round((amounts[i] / total) * target * 100) / 100;
+    allocated += value;
+    return `${p.split(":")[0]}:${value.toFixed(2)}`;
+  }).join("|");
+}
+
 export async function createFinanceEntry(req: Request, res: Response) {
   try {
     const { date, ...rest } = req.body;
@@ -95,26 +112,47 @@ export async function updateFinanceEntry(req: Request, res: Response) {
     const orderMatch = description.match(/PDV\s*#(\d+)/i);
 
     // Valores finais (do edit ou do que já existia)
-    const finalPm       = (rest.payment_method ?? existing.payment_method ?? "money") as string;
-    const finalGross    = rest.gross_amount    != null ? Number(rest.gross_amount)
+    let finalPm         = (rest.payment_method ?? existing.payment_method ?? "money") as string;
+    let finalGross      = rest.gross_amount    != null ? Number(rest.gross_amount)
                         : existing.gross_amount != null ? Number(existing.gross_amount)
                         : Number(rest.amount ?? existing.amount);
     const finalDiscount = rest.discount_amount != null ? Number(rest.discount_amount)
                         : existing.discount_amount != null ? Number(existing.discount_amount) : 0;
 
+    // O modal de edição reenvia o lançamento inteiro (gross/fee antigos junto), então "valor
+    // editado" = amount diferente do que está salvo, sem o bruto ter sido mexido de propósito.
+    const amountChanged = rest.amount != null && Math.abs(Number(rest.amount) - Number(existing.amount)) > 0.004;
+    const grossChanged  = rest.gross_amount != null && Math.abs(Number(rest.gross_amount) - Number(existing.gross_amount ?? rest.gross_amount)) > 0.004;
+    const editedValueOnly = amountChanged && !grossChanged;
+
     let recalculated: { fee: number; net: number } | null = null;
+    let syncedGross: number | null = null;
     if (orderMatch) {
       const tenantData = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { card_fees: true } });
       const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
+      if (editedValueOnly) {
+        // O valor digitado é o líquido: descobre o bruto que, descontada a taxa, resulta nele.
+        const probeBase = 10000;
+        const probeFee = computeMachineFee(scalePaymentMethodAmounts(finalPm, probeBase + finalDiscount), probeBase + finalDiscount, finalDiscount, cardFees);
+        const rate = Math.min(0.99, probeFee / probeBase);
+        finalGross = Math.round((Number(rest.amount) / (1 - rate) + finalDiscount) * 100) / 100;
+        finalPm = scalePaymentMethodAmounts(finalPm, finalGross);
+        syncedGross = finalGross;
+      }
       const fee = computeMachineFee(finalPm, finalGross, finalDiscount, cardFees);
       const net = Math.round((finalGross - finalDiscount - fee) * 100) / 100;
       recalculated = { fee, net };
+    } else if (amountChanged && existing.payment_method) {
+      finalPm = scalePaymentMethodAmounts(finalPm, Number(rest.amount));
     }
+    const pmRewritten = finalPm !== (rest.payment_method ?? existing.payment_method ?? "money");
 
     await prisma.finance.update({
       where: { id: Number(id) },
       data: {
         ...rest,
+        ...(pmRewritten ? { payment_method: finalPm } : {}),
+        ...(syncedGross != null ? { gross_amount: syncedGross } : {}),
         ...(recalculated ? { fee_amount: recalculated.fee > 0 ? recalculated.fee : null, amount: recalculated.net } : {}),
         ...(date ? { date: parseDateField(date) } : {}),
       },
@@ -126,8 +164,9 @@ export async function updateFinanceEntry(req: Request, res: Response) {
       const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId } });
       if (order) {
         const newDiscount = rest.discount_amount != null ? Number(rest.discount_amount) : undefined;
-        const newGross    = rest.gross_amount    != null ? Number(rest.gross_amount)    : undefined;
-        const newPm: string | undefined = rest.payment_method ?? undefined;
+        const newGross    = syncedGross != null ? syncedGross
+                          : rest.gross_amount != null ? Number(rest.gross_amount) : undefined;
+        const newPm: string | undefined = pmRewritten ? finalPm : (rest.payment_method ?? undefined);
 
         await prisma.order.update({
           where: { id: orderId },
