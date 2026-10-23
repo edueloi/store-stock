@@ -36,6 +36,8 @@ async function getActor(req: Request): Promise<string> {
 const QUOTE_INCLUDE = {
   items: true,
   services: true,
+  // OS vinculada a este orçamento (se já foi convertida) — a tela mostra "Abrir OS #N"
+  service_order: { select: { id: true, number: true, status: true } },
   actions: { orderBy: { created_at: "desc" as const } },
   files: { orderBy: { created_at: "desc" as const } },
 };
@@ -291,7 +293,7 @@ async function createLinkedServiceOrder(
 // que é independente do Quote) — quem abre a OS já vê os itens do orçamento vinculado
 // via QUOTE_INCLUDE em getServiceOrderById (ver "Orçamento vinculado" em ServiceOrderDetail.tsx),
 // então reported_issue aqui só precisa de um resumo textual de fallback.
-async function syncLinkedServiceOrderFromQuote(tenantId: number, quoteId: number) {
+async function syncLinkedServiceOrderFromQuote(tenantId: number, quoteId: number, opts?: { overwriteIssue?: boolean }) {
   const linked = await prisma.serviceOrder.findFirst({ where: { quote_id: quoteId, tenant_id: tenantId } });
   if (!linked) return;
 
@@ -317,7 +319,8 @@ async function syncLinkedServiceOrderFromQuote(tenantId: number, quoteId: number
       customer_id: quote.customer_id,
       customer_name: quote.customer_name,
       customer_phone: quote.customer_phone,
-      reported_issue: reportedIssue,
+      // OS convertida à mão (vidraçaria etc.) tem o atendimento editado pela equipe: não sobrescreve
+      ...(opts?.overwriteIssue === false ? {} : { reported_issue: reportedIssue }),
       subtotal: quote.subtotal,
       total_amount: quote.total_amount,
     },
@@ -498,9 +501,8 @@ export async function updateQuote(req: Request, res: Response) {
     }
 
     const tenantRow = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { grafica_enabled: true } });
-    if (tenantRow?.grafica_enabled) {
-      await syncLinkedServiceOrderFromQuote(tenantId, id);
-    }
+    // Com OS vinculada (automática na gráfica ou convertida à mão), cliente e totais acompanham o orçamento
+    await syncLinkedServiceOrderFromQuote(tenantId, id, { overwriteIssue: !!tenantRow?.grafica_enabled });
 
     const updated = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId }, include: QUOTE_INCLUDE });
     res.json(updated);
@@ -625,6 +627,52 @@ export async function deleteQuoteFileHandler(req: Request, res: Response) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao remover arquivo" });
+  }
+}
+
+// "Converter em OS": cria a ordem de serviço do orçamento (a OS mostra os itens do orçamento vinculado).
+// Se já existe OS deste orçamento, devolve a existente — nunca duplica (ServiceOrder.quote_id é único).
+export async function convertToServiceOrder(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const quoteId = Number(req.params.id);
+
+    const quote = await prisma.quote.findFirst({
+      where: { id: quoteId, tenant_id: tenantId },
+      include: { items: true, services: true },
+    });
+    if (!quote) return res.status(404).json({ error: "Orçamento não encontrado" });
+
+    const existing = await prisma.serviceOrder.findFirst({ where: { quote_id: quoteId, tenant_id: tenantId }, select: { id: true, number: true } });
+    if (existing) return res.json({ ...existing, existing: true });
+
+    if (["converted", "cancelled", "expired"].includes(quote.status)) {
+      return res.status(400).json({ error: "Este orçamento não pode virar OS (já foi convertido em venda, cancelado ou expirou)." });
+    }
+    if (quote.items.length + quote.services.length === 0) {
+      return res.status(400).json({ error: "Adicione itens ao orçamento antes de converter em OS." });
+    }
+
+    const actor = await getActor(req);
+    let order;
+    try {
+      order = await createLinkedServiceOrder(tenantId, quote, actor);
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        // duas conversões ao mesmo tempo: a outra venceu, devolve a OS que ficou
+        const winner = await prisma.serviceOrder.findFirst({ where: { quote_id: quoteId, tenant_id: tenantId }, select: { id: true, number: true } });
+        if (winner) return res.json({ ...winner, existing: true });
+      }
+      throw err;
+    }
+
+    await logQuoteAction(tenantId, quoteId, "converted_to_service_order", {
+      actor, meta: { service_order_id: order.id, number: order.number },
+    });
+    res.status(201).json({ id: order.id, number: order.number, existing: false });
+  } catch (err) {
+    console.error("[convertToServiceOrder]", err);
+    res.status(500).json({ error: "Falha ao converter orçamento em OS" });
   }
 }
 

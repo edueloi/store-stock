@@ -39,6 +39,7 @@ import {
   Mail,
   Send,
   History,
+  ClipboardList,
 } from "lucide-react";
 import {
   Button, IconButton, Badge, Input, Textarea, Select, Modal, ModalFooter, Tabs,
@@ -117,6 +118,8 @@ interface Quote {
   deposit_amount?: number | null;
   deposit_payment_method?: string | null;
   deposit_paid_at?: string | null;
+  /** OS criada a partir deste orçamento (se já foi convertida). */
+  service_order?: { id: number; number: number; status: string } | null;
   created_at: string;
   items: QuoteItem[];
   services: QuoteServiceRow[];
@@ -282,6 +285,7 @@ function quoteActionLabel(action: QuoteActionLog) {
   if (action.action === "created") return "Orçamento criado";
   if (action.action === "edited") return "Alterações salvas";
   if (action.action === "converted") return "Convertido em venda";
+  if (action.action === "converted_to_service_order") return "Convertido em OS";
   if (action.action === "deposit_recorded") return `Entrada registrada${action.note ? `: ${action.note}` : ""}`;
   if (action.action === "expired") return "Orçamento expirado";
   return action.action;
@@ -761,6 +765,24 @@ export default function QuoteDetail() {
       }
     } finally {
       setSavingDeposit(false);
+    }
+  };
+
+  const [convertingOS, setConvertingOS] = useState(false);
+
+  // "Converter em OS": cria a ordem de serviço do orçamento (ou abre a que já existe) e vai para ela.
+  const handleConvertToOS = async () => {
+    if (!quote) return;
+    if (quote.service_order) { navigate(`/admin/ordens-servico/${quote.service_order.id}`); return; }
+    setConvertingOS(true);
+    try {
+      const res = await fetch(`/api/quotes/${quote.id}/service-order`, { method: "POST", headers: authHeader() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast.error(data?.error || "Não foi possível converter o orçamento em OS."); return; }
+      toast.success(data.existing ? `Abrindo a OS #${data.number}.` : `OS #${data.number} criada a partir do orçamento.`);
+      navigate(`/admin/ordens-servico/${data.id}`);
+    } finally {
+      setConvertingOS(false);
     }
   };
 
@@ -1415,6 +1437,11 @@ export default function QuoteDetail() {
                 </>
               ) : (
                 <p className="text-center text-[11px] text-amber-700">Cadastre o e-mail do cliente para enviar este orçamento.</p>
+              )}
+              {!["converted", "cancelled", "expired"].includes(quote.status) && (formItems.length > 0 || formServices.length > 0 || !!quote.service_order) && (
+                <Button fullWidth variant="primary" size="sm" loading={convertingOS} onClick={handleConvertToOS} iconLeft={<ClipboardList size={14} />}>
+                  {quote.service_order ? `Abrir OS #${quote.service_order.number}` : "Converter em OS"}
+                </Button>
               )}
               {quote.status === "orcamento_enviado" && (
                 <>

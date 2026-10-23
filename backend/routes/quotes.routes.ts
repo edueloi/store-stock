@@ -8,6 +8,7 @@ import {
   recordQuoteDeposit,
   deleteQuote,
   convertToOrder,
+  convertToServiceOrder,
   attachQuoteFile,
   deleteQuoteFileHandler,
 } from "../controllers/quotes.controller";
@@ -30,6 +31,7 @@ router.put("/:id", updateQuote);
 router.put("/:id/status", updateQuoteStatus);
 router.post("/:id/deposit", recordQuoteDeposit);
 router.post("/:id/convert", convertToOrder);
+router.post("/:id/service-order", convertToServiceOrder);
 router.post("/:id/approval-link", createQuoteApprovalLink);
 router.post("/:id/files", attachQuoteFile);
 router.delete("/:id/files/:fileId", deleteQuoteFileHandler);
