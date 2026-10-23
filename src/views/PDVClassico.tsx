@@ -101,7 +101,7 @@ function Overlay({ title, onClose, children, width = 520 }: { title: string; onC
   );
 }
 
-const inputCls = "h-11 w-full rounded-sm border border-[#c5cfdf] bg-white px-3 text-[15px] text-slate-800 outline-none focus:border-[#0078d4] focus:ring-2 focus:ring-[#0078d4]/20 disabled:bg-slate-100 read-only:bg-slate-100";
+const inputCls = "h-11 w-full rounded-sm border border-[#c5cfdf] bg-white px-3 text-[15px] text-slate-800 outline-none focus:border-[#0078d4] focus:ring-2 focus:ring-[#0078d4]/20 disabled:bg-slate-100 disabled:text-slate-400 read-only:bg-slate-100";
 const labelCls = "mb-1 block text-[12px] font-medium text-slate-500";
 const btn = (tone: "blue" | "green" | "red" | "navy" | "gray") =>
   cn(
