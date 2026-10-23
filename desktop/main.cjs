@@ -578,6 +578,9 @@ ipcMain.handle("printer:open-drawer", async () => {
 
 // A tela (logada) entrega a credencial do terminal emitida pelo servidor; a partir daí o
 // processo principal mantém a conexão de impressão remota sozinho.
+// Abre a janela de vínculo a partir da tela de impressoras (quando o terminal ainda não está vinculado).
+ipcMain.handle("pairing:open-window", () => { openPairingWindow(); });
+
 ipcMain.handle("terminal:set-token", (_e, token) => {
   if (typeof token !== "string" || !token) return { ok: false };
   if (readConfig().terminalToken !== token) writeConfig({ ...readConfig(), terminalToken: token });

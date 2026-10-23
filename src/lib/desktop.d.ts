@@ -83,6 +83,8 @@ export interface BoxsysDesktopApi {
   setTerminalToken?: (token: string) => Promise<{ ok: boolean }>;
   getRemotePrintStatus?: () => Promise<{ hasToken: boolean; connected: boolean }>;
   /** Baixa agora o pacote offline (produtos leves, vendedores, clientes, configurações). */
+  /** Abre a janela de vínculo do terminal (quando ainda não está vinculado). */
+  openPairingWindow?: () => Promise<void>;
   syncOfflineData?: () => Promise<{ ok: boolean; at?: string; products?: number; customers?: number; error?: string }>;
 
   // Múltiplas impressoras por terminal (cupom, OS em A4, etc.)

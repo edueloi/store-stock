@@ -4,89 +4,106 @@
   <meta charset="UTF-8" />
   <title>Configurar Impressoras</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
-    body {
-      min-height: 100vh; padding: 24px;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #e2e8f0;
-    }
-    h1 { font-size: 15px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
-    p.sub { font-size: 11px; color: #94a3b8; margin-bottom: 18px; line-height: 1.5; }
-    label { display: block; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.18em; color: #64748b; margin-bottom: 6px; margin-top: 14px; }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: Inter, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    body { min-height: 100vh; padding: 20px; background: #f8fafc; color: #0f172a; font-size: 13px; }
+    button { font-family: inherit; }
+    button:focus-visible, select:focus-visible { outline: none; box-shadow: 0 0 0 2px rgba(147,197,253,.5); }
+    button:disabled { opacity: .5; pointer-events: none; }
+
+    /* Button (ui/Button.tsx + theme.ts) */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 34px; min-width: 60px; padding: 0 14px; border-radius: 6px; border: 1px solid; font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; user-select: none; transition: all .15s; }
+    .btn:active { transform: scale(.98); }
+    .btn.lg { height: 36px; font-size: 13px; }
+    .btn.block { width: 100%; }
+    .btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .btn.primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
+    .btn.outline { background: #fff; border-color: #e2e8f0; color: #334155; }
+    .btn.outline:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+    .btn.ghost { background: transparent; border-color: transparent; color: #52525b; }
+    .btn.ghost:hover { background: #f4f4f5; color: #3f3f46; }
+
+    /* Campos (ui/Input.tsx + styles.css) */
+    label { display: block; font-size: 12px; font-weight: 500; color: #475569; margin: 12px 0 4px; }
     label:first-of-type { margin-top: 0; }
-    select, input {
-      width: 100%; height: 40px; padding: 0 14px; font-size: 13px; font-weight: 600;
-      background: rgba(15,23,42,0.6); border: 1px solid #334155; border-radius: 12px;
-      color: #f1f5f9; outline: none; transition: border-color .2s;
-    }
-    select:focus, input:focus { border-color: #3b82f6; }
-    input::placeholder { color: #475569; font-weight: 400; }
+    select, input[type="text"] { width: 100%; height: 34px; padding: 0 10px; font-size: 13px; font-weight: 500; color: #1e293b; background: #fff; border: 1px solid #e4e4e7; border-radius: 6px; outline: none; transition: border-color .15s, box-shadow .15s; }
+    select:focus, input[type="text"]:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    input::placeholder { color: #94a3b8; font-weight: 400; }
     .row { display: flex; gap: 10px; }
     .row > div { flex: 1; }
-    .transport-group { display: flex; gap: 6px; margin-top: 6px; }
-    .transport-btn {
-      flex: 1; height: 36px; border-radius: 10px; border: 1px solid #334155;
-      background: rgba(15,23,42,0.4); color: #94a3b8; font-size: 10px; font-weight: 800;
-      text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer; transition: all .15s;
-    }
-    .transport-btn.active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
-    #usbFields, #serialFields, #networkFields { display: none; margin-top: 4px; }
-    button.primary {
-      width: 100%; height: 44px; margin-top: 16px; border: none; border-radius: 12px;
-      background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: #fff;
-      font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em;
-      cursor: pointer; transition: opacity .2s;
-    }
-    button.secondary {
-      width: 100%; height: 40px; margin-top: 8px; border-radius: 12px;
-      background: rgba(255,255,255,0.06); border: 1px solid #334155; color: #cbd5e1;
-      font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em;
-      cursor: pointer; transition: opacity .2s;
-    }
-    button:disabled { opacity: 0.5; cursor: wait; }
-    .msg {
-      display: none; margin-top: 12px; padding: 10px 14px; font-size: 11px; line-height: 1.4;
-      border-radius: 12px;
-    }
-    .msg.error { background: rgba(244,63,94,0.12); border: 1px solid rgba(244,63,94,0.3); color: #fda4af; }
-    .msg.success { background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #6ee7b7; }
-    .refresh-link { font-size: 10px; color: #60a5fa; cursor: pointer; text-decoration: underline; margin-top: 6px; display: inline-block; }
+    .opt { color: #94a3b8; font-weight: 400; }
 
-    .list { margin-bottom: 18px; }
-    .printer-item {
-      display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 6px;
-      background: rgba(15,23,42,0.5); border: 1px solid #334155; border-radius: 12px; cursor: pointer;
-    }
-    .printer-item:hover { border-color: #475569; }
-    .printer-item .name { font-size: 12px; font-weight: 700; flex: 1; }
-    .printer-item .role { font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; padding: 3px 8px; border-radius: 999px; }
-    .printer-item .role.receipt { background: rgba(59,130,246,0.2); color: #93c5fd; }
-    .printer-item .role.service_order { background: rgba(217,119,6,0.2); color: #fbbf24; }
-    .printer-item .role.custom { background: rgba(100,116,139,0.2); color: #cbd5e1; }
-    .printer-item .default-tag { font-size: 8px; color: #6ee7b7; font-weight: 900; }
-    .printer-item .del-btn { color: #64748b; font-size: 14px; cursor: pointer; }
-    .printer-item .del-btn:hover { color: #fda4af; }
-    .add-link {
-      font-size: 10px; color: #60a5fa; cursor: pointer; text-align: center; padding: 10px;
-      border: 1px dashed #334155; border-radius: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
-    }
-    .form-box { display: none; border-top: 1px solid #334155; padding-top: 16px; }
+    /* Tabs (ui/Tabs.tsx): abas sublinhadas */
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid #e2e8f0; margin-top: 4px; overflow-x: auto; scrollbar-width: none; }
+    .tabs::-webkit-scrollbar { display: none; }
+    .transport-btn { flex: none; padding: 10px 12px; margin-bottom: -1px; background: none; border: none; border-bottom: 2px solid transparent; color: #64748b; font-size: 12px; font-weight: 500; cursor: pointer; transition: color .15s, border-color .15s; white-space: nowrap; }
+    .transport-btn:hover { color: #1e293b; }
+    .transport-btn.active { border-bottom-color: #2563eb; color: #1d4ed8; }
+    #usbFields, #serialFields, #networkFields { display: none; margin-top: 12px; }
+    .refresh-link { font-size: 11px; font-weight: 500; color: #2563eb; cursor: pointer; display: inline-block; margin-top: 6px; }
+    .refresh-link:hover { text-decoration: underline; }
+
+    /* Cabeçalho (SectionTitle) */
+    .header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
+    .header .icon { flex: none; width: 32px; height: 32px; border-radius: 8px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; }
+    h1 { font-size: 15px; font-weight: 600; color: #0f172a; line-height: 1.3; }
+    p.sub { font-size: 12px; color: #64748b; margin-top: 2px; line-height: 1.5; }
+    .section-title { font-size: 11px; font-weight: 600; color: #94a3b8; margin: 0 0 6px 2px; }
+
+    /* Superfície e alertas (theme.ts) */
+    .surface { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
+    .msg { display: none; margin-top: 12px; padding: 9px 12px; font-size: 12px; line-height: 1.45; border-radius: 8px; border: 1px solid; }
+    .msg.error { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+    .msg.success { background: #ecfdf5; border-color: #d1fae5; color: #047857; }
+    .alert-warn { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+    .alert-warn .t { font-size: 13px; font-weight: 600; color: #92400e; margin-bottom: 3px; }
+    .alert-warn .d { font-size: 12px; color: #92400e; opacity: .85; line-height: 1.5; margin-bottom: 10px; }
+
+    /* Lista de impressoras */
+    .list { margin-bottom: 10px; }
+    .empty { padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; background: #fff; border: 1px dashed #cbd5e1; border-radius: 8px; }
+    .printer-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin-bottom: 6px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: border-color .15s, background .15s; }
+    .printer-item:hover { border-color: #93c5fd; background: #f8fbff; }
+    .printer-item .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .printer-item .name { font-size: 13px; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .printer-item .meta { font-size: 11px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge { flex: none; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; }
+    .badge.default { background: #ecfdf5; color: #047857; }
+    .badge.role.receipt { background: #eff6ff; color: #1d4ed8; }
+    .badge.role.service_order { background: #fffbeb; color: #b45309; }
+    .badge.role.custom { background: #f1f5f9; color: #475569; }
+    .printer-item .del-btn { flex: none; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #94a3b8; font-size: 12px; cursor: pointer; transition: all .15s; }
+    .printer-item .del-btn:hover { background: #fef2f2; color: #dc2626; }
+
+    /* Formulário */
+    .form-box { display: none; margin-top: 6px; padding: 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
+    .form-title { font-size: 13px; font-weight: 600; color: #0f172a; margin-bottom: 10px; }
     .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
-    .checkbox-row input[type="checkbox"] { width: auto; height: auto; }
+    .checkbox-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: #2563eb; }
     .checkbox-row label { margin: 0; }
-    .actions-row { display: flex; gap: 8px; margin-top: 16px; }
-    .actions-row button { margin-top: 0; }
+    .actions-row { display: flex; gap: 8px; margin-top: 14px; }
+    .actions-row .btn { flex: 1; }
   </style>
 </head>
 <body>
-  <h1>Impressoras deste terminal</h1>
-  <p class="sub">Configure quantas impressoras precisar — uma pra cupom de venda (térmica), outra pra Ordem de Serviço (A4), etc. Se a impressora já aparece em "Dispositivos e Impressoras" do Windows, use "Impressora do Windows". Bluetooth pareado sem instalação aparece como Porta COM.</p>
+  <div class="header">
+    <div class="icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    </div>
+    <div>
+      <h1>Impressoras deste terminal</h1>
+      <p class="sub">Cadastre a térmica do cupom, a A4 das ordens de serviço e o que mais precisar. Se a impressora aparece em &quot;Dispositivos e Impressoras&quot; do Windows, use <b>Impressora do Windows</b>.</p>
+    </div>
+  </div>
 
+  <p class="section-title">Cadastradas</p>
   <div class="list" id="printerList"></div>
-  <div class="add-link" id="addLink" onclick="showForm()">+ Adicionar impressora</div>
+  <button type="button" class="btn outline lg block" id="addLink" onclick="showForm()">+ Adicionar impressora</button>
 
   <div class="form-box" id="formBox">
-    <label>Nome (rótulo)</label>
-    <input id="label" type="text" placeholder="Ex: Térmica Balcão, A4 Ordens de Serviço" />
+    <p class="form-title">Impressora</p>
+
+    <label>Nome <span class="opt">(opcional)</span></label>
+    <input id="label" type="text" placeholder="Ex.: Térmica do balcão — se vazio, usa o nome da impressora" />
 
     <label>Uso</label>
     <select id="role">
@@ -97,7 +114,7 @@
 
     <div id="thermalFields">
       <div id="brandFields">
-        <label>Marca / Compatibilidade</label>
+        <label>Marca / compatibilidade</label>
         <select id="brand">
           <option value="epson">Epson (padrão — compatível com Elgin, Bematech)</option>
           <option value="daruma">Daruma</option>
@@ -107,10 +124,10 @@
       </div>
 
       <label>Conexão</label>
-      <div class="transport-group">
-        <button type="button" class="transport-btn active" data-transport="usb" onclick="setTransport('usb')">Impressora do Windows</button>
-        <button type="button" class="transport-btn" data-transport="serial" onclick="setTransport('serial')">Porta COM / Bluetooth</button>
-        <button type="button" class="transport-btn" data-transport="network" onclick="setTransport('network')">Rede (Wi-Fi/Ethernet)</button>
+      <div class="tabs" role="tablist" aria-label="Tipo de conexão">
+        <button type="button" class="transport-btn active" role="tab" aria-selected="true" data-transport="usb" onclick="setTransport('usb')">Impressora do Windows</button>
+        <button type="button" class="transport-btn" role="tab" aria-selected="false" data-transport="serial" onclick="setTransport('serial')">Porta COM / Bluetooth</button>
+        <button type="button" class="transport-btn" role="tab" aria-selected="false" data-transport="network" onclick="setTransport('network')">Rede</button>
       </div>
 
       <div id="usbFields">
@@ -141,16 +158,16 @@
 
     <div class="checkbox-row">
       <input id="isDefault" type="checkbox" checked />
-      <label for="isDefault" style="margin:0">Usar como padrão pra esse uso</label>
+      <label for="isDefault">Usar como padrão para este uso</label>
     </div>
 
     <div id="msg" class="msg"></div>
 
     <div class="actions-row">
-      <button class="secondary" id="testBtn" onclick="testPrinter()">Testar</button>
-      <button class="primary" id="saveBtn" onclick="savePrinter()">Salvar</button>
+      <button class="btn outline lg" id="testBtn" onclick="testPrinter()">Testar</button>
+      <button class="btn primary lg" id="saveBtn" onclick="savePrinter()">Salvar</button>
     </div>
-    <button class="secondary" onclick="hideForm()">Cancelar</button>
+    <button class="btn ghost block" style="margin-top:6px" onclick="hideForm()">Cancelar</button>
   </div>
 
   <script>
@@ -160,7 +177,7 @@
 
     function setTransport(t) {
       currentTransport = t;
-      document.querySelectorAll(".transport-btn").forEach((b) => b.classList.toggle("active", b.dataset.transport === t));
+      document.querySelectorAll(".transport-btn").forEach((b) => { const on = b.dataset.transport === t; b.classList.toggle("active", on); b.setAttribute("aria-selected", String(on)); });
       // Marca/compatibilidade só importa pro driver ESC/POS usado em COM/Bluetooth e
       // Rede — impressora do Windows manda ESC/POS raw genérico direto pro spooler.
       document.getElementById("brandFields").style.display = t === "usb" ? "none" : "block";
@@ -206,17 +223,33 @@
 
     const ROLE_LABELS = { receipt: "Cupom", service_order: "Ordem de Serviço", custom: "Outro" };
 
+    const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    function connectionSummary(c) {
+      if (!c) return "";
+      if (c.transport === "network") return `Rede · ${c.networkHost || "?"}:${c.networkPort || 9100}`;
+      if (c.transport === "serial") return `Porta ${c.serialPort || "?"}`;
+      return `Windows · ${c.usbPrinterName || "?"}`;
+    }
+
     function renderList() {
       const list = document.getElementById("printerList");
       list.innerHTML = "";
+      if (printers.length === 0) {
+        list.innerHTML = '<div class="empty">Nenhuma impressora cadastrada neste computador.</div>';
+        return;
+      }
       printers.forEach((p) => {
         const item = document.createElement("div");
         item.className = "printer-item";
         item.innerHTML = `
-          <span class="name">${p.label}</span>
-          ${p.is_default ? '<span class="default-tag">PADRÃO</span>' : ""}
-          <span class="role ${p.role}">${ROLE_LABELS[p.role] || p.role}</span>
-          <span class="del-btn" data-del="${p.id}">✕</span>
+          <div class="info">
+            <span class="name">${esc(p.label)}</span>
+            <span class="meta">${esc(connectionSummary(p.config))}</span>
+          </div>
+          ${p.is_default ? '<span class="badge default">Padrão</span>' : ""}
+          <span class="badge role ${esc(p.role)}">${esc(ROLE_LABELS[p.role] || p.role)}</span>
+          <span class="del-btn" data-del="${p.id}" title="Remover impressora">✕</span>
         `;
         item.addEventListener("click", (e) => {
           if (e.target.dataset.del) { e.stopPropagation(); deletePrinter(p.id); return; }
@@ -258,11 +291,12 @@
       document.getElementById("msg").style.display = "none";
       document.getElementById("formBox").style.display = "block";
       document.getElementById("addLink").style.display = "none";
+      document.getElementById("formBox").scrollIntoView({ block: "start", behavior: "smooth" });
     }
 
     function hideForm() {
       document.getElementById("formBox").style.display = "none";
-      document.getElementById("addLink").style.display = "block";
+      document.getElementById("addLink").style.display = "inline-flex";
     }
 
     function editPrinter(p) {
@@ -293,9 +327,22 @@
       else showMsg(result.error || "Não foi possível conectar à impressora.", "error");
     }
 
+    // Sem nome digitado, usa o da própria impressora escolhida (o campo "Nome" fica no topo do formulário
+    // e muita gente nem chega a vê-lo): salvar nunca deve travar por causa disso.
+    function defaultLabelFor(form) {
+      const c = form.config;
+      if (c.transport === "usb" && c.usbPrinterName) return c.usbPrinterName.replace(/\s*\(padrão do Windows\)\s*$/i, "").trim().slice(0, 60);
+      if (c.transport === "serial" && c.serialPort) return `Impressora ${c.serialPort}`;
+      if (c.transport === "network" && c.networkHost) return `Impressora ${c.networkHost}`;
+      return "Impressora";
+    }
+
     async function savePrinter() {
       const form = readForm();
-      if (!form.label) { showMsg("Informe um nome para a impressora.", "error"); return; }
+      if (!form.label) {
+        form.label = defaultLabelFor(form);
+        document.getElementById("label").value = form.label;
+      }
       const btn = document.getElementById("saveBtn");
       btn.disabled = true;
       btn.textContent = "Salvando...";
@@ -322,8 +369,14 @@
       printers = result.printers || [];
       renderList();
       if (!result.ok && result.error) {
-        document.getElementById("printerList").innerHTML =
-          `<p style="font-size:11px;color:#fda4af;padding:10px;">${result.error}</p>`;
+        const notPaired = /vincula/i.test(result.error);
+        document.getElementById("printerList").innerHTML = notPaired
+          ? `<div class="alert-warn">
+               <p class="t">Este computador ainda não está vinculado à loja</p>
+               <p class="d">Sem o vínculo não dá para listar nem salvar impressoras. Vincule o dispositivo primeiro: gere o código aqui e digite no sistema, em Configurações → App Desktop PDV.</p>
+               <button class="btn primary lg block" onclick="window.boxsysDesktop.openPairingWindow && window.boxsysDesktop.openPairingWindow()">Vincular dispositivo agora</button>
+             </div>`
+          : `<div class="msg error" style="display:block">${esc(result.error)}</div>`;
       }
     }
 
