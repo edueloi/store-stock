@@ -39,6 +39,8 @@ export interface PieceSpec {
   waste_pct?: number;
   /** Formato do vidro (ausente = retangular). A cobrança é sempre pelo retângulo do vão (envolvente). */
   shape?: PieceShape;
+  /** Adicionais cobrados nesta peça (furos, lapidação, instalação…), somados ao valor do vidro. */
+  extras?: PieceExtra[];
 }
 
 export const PIECE_KINDS: { value: PieceKind; label: string; leaves: boolean }[] = [
@@ -53,6 +55,25 @@ export const PIECE_KINDS: { value: PieceKind; label: string; leaves: boolean }[]
   { value: "guarda_corpo", label: "Guarda-corpo", leaves: true },
   { value: "fixo", label: "Vidro fixo / vitrô", leaves: false },
 ];
+
+/** Como um adicional da peça é cobrado. */
+export type ExtraMode = "fixed" | "per_unit" | "per_m2" | "per_meter";
+
+export const EXTRA_MODES: { value: ExtraMode; label: string; unit: string }[] = [
+  { value: "fixed", label: "Valor fixo por peça", unit: "por peça" },
+  { value: "per_unit", label: "Por unidade (furo, puxador…)", unit: "por unidade" },
+  { value: "per_m2", label: "Por m² da peça", unit: "por m²" },
+  { value: "per_meter", label: "Por metro linear (perímetro)", unit: "por metro" },
+];
+
+/** Adicional cadastrado pela loja (Configurações > Vidraçaria): furos, lapidação, instalação… */
+export interface GlassExtra { id: string; name: string; mode: ExtraMode; price: number }
+
+/**
+ * Adicional escolhido numa peça. Guarda nome, modo e preço do momento: um orçamento antigo não
+ * muda se a loja alterar o cadastro depois.
+ */
+export interface PieceExtra extends GlassExtra { qty?: number }
 
 export const GLASS_TYPES = ["Incolor", "Fumê", "Verde", "Bronze", "Fosco (jateado)", "Espelhado", "Laminado", "Canelado"];
 export const GLASS_THICKNESS = [4, 6, 8, 10, 12];
@@ -91,6 +112,9 @@ export function pieceSummary(spec: PieceSpec | null | undefined): string {
   }
   if (num(spec.waste_pct) > 0) parts.push(`margem ${num(spec.waste_pct)}%`);
   if (spec.finish) parts.push(`perfil ${spec.finish.toLowerCase()}`);
+  if (spec.extras?.length) {
+    parts.push(`adicionais: ${spec.extras.map((e) => (e.mode === "per_unit" && (e.qty ?? 1) > 1 ? `${e.name} (${e.qty}x)` : e.name)).join(", ")}`);
+  }
   return parts.join(" · ");
 }
 
@@ -107,6 +131,7 @@ export function sanitizePieceSpec(raw: any): PieceSpec | null {
   const gap = Math.min(50, Math.max(0, num(raw.gap_mm)));
   const waste = Math.min(50, Math.max(0, num(raw.waste_pct)));
   const shape = PIECE_SHAPES.find((s) => s.value === raw.shape)?.value;
+  const extras = sanitizeExtras(raw.extras);
   return {
     kind, width_mm, height_mm,
     ...(leaves > 1 ? { leaves } : {}),
@@ -117,7 +142,25 @@ export function sanitizePieceSpec(raw: any): PieceSpec | null {
     ...(gap > 0 ? { gap_mm: Math.round(gap * 10) / 10 } : {}),
     ...(waste > 0 ? { waste_pct: Math.round(waste * 10) / 10 } : {}),
     ...(shape && shape !== "retangular" && SHAPE_KINDS.includes(kind) ? { shape } : {}),
+    ...(extras.length ? { extras } : {}),
   };
+}
+
+/** Limpa a lista de adicionais vinda do cliente (tamanhos, modos e valores dentro de limites seguros). */
+export function sanitizeExtras(raw: any): PieceExtra[] {
+  if (!Array.isArray(raw)) return [];
+  const out: PieceExtra[] = [];
+  for (const e of raw.slice(0, 20)) {
+    if (!e || typeof e !== "object") continue;
+    const id = typeof e.id === "string" ? e.id.trim().slice(0, 40) : "";
+    const name = typeof e.name === "string" ? e.name.trim().slice(0, 60) : "";
+    const mode = EXTRA_MODES.find((m) => m.value === e.mode)?.value;
+    if (!id || !name || !mode) continue;
+    const price = Math.round(Math.min(1_000_000, Math.max(0, num(e.price))) * 100) / 100;
+    const qty = Math.min(99, Math.max(1, Math.round(num(e.qty)) || 1));
+    out.push({ id, name, mode, price, ...(mode === "per_unit" ? { qty } : {}) });
+  }
+  return out;
 }
 
 /**
@@ -132,6 +175,24 @@ export function pieceCut(spec: Pick<PieceSpec, "width_mm" | "height_mm" | "leave
   const areaCut = (cutW / 1000) * (cutH / 1000);
   const waste = Math.max(0, num(spec.waste_pct));
   return { cutW, cutH, leaves, leafW: Math.round(cutW / leaves), areaCut, areaBilled: areaCut * (1 + waste / 100) };
+}
+
+/** Valor de UM adicional na peça, conforme o modo de cobrança. */
+export function extraAmount(extra: PieceExtra, spec: Pick<PieceSpec, "width_mm" | "height_mm" | "leaves" | "gap_mm" | "waste_pct">): number {
+  const price = Math.max(0, num(extra.price));
+  const cut = pieceCut(spec);
+  switch (extra.mode) {
+    case "per_unit": return price * Math.max(1, Math.round(num(extra.qty)) || 1);
+    case "per_m2": return price * cut.areaBilled;
+    case "per_meter": return price * ((2 * (cut.cutW + cut.cutH)) / 1000);
+    default: return price;
+  }
+}
+
+/** Soma dos adicionais da peça (R$), arredondada a centavos. */
+export function pieceExtrasTotal(spec: PieceSpec | null | undefined): number {
+  if (!spec?.extras?.length) return 0;
+  return Math.round(spec.extras.reduce((sum, e) => sum + extraAmount(e, spec), 0) * 100) / 100;
 }
 
 /** Área cobrada em m² considerando sangria e margem de segurança. */

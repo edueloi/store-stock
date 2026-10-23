@@ -6,7 +6,7 @@ import { localDateString } from "../utils/date";
 import { computeMeasuredPrice } from "../utils/measurePricing";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { resolveVariationSelection, VariationError } from "../utils/variation-selection";
-import { pieceCut, pieceSummary, sanitizePieceSpec } from "../utils/glassPieces";
+import { pieceCut, pieceExtrasTotal, pieceSummary, resolveExtrasFromCatalog, sanitizePieceSpec, type GlassExtra } from "../utils/glassPieces";
 import { advanceServiceOrderToNotaEmitida, canMoveToStage, syncLinkedStatus } from "../utils/stage-permissions";
 import { getWorkflowStagesForTenant } from "../utils/workflow-stages";
 import { cancelarNfce } from "../services/nfce/cancelar";
@@ -643,6 +643,13 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       // Peça de vidraçaria (serviço por m²): o preço vem da medida de CORTE (vão menos a sangria)
       // com a margem de segurança — sempre recalculado aqui, nunca confiado ao cliente.
       const piece = isMeasured && service.sale_unit === "m2" ? sanitizePieceSpec(pieceSpecRaw) : null;
+      if (piece?.extras?.length) {
+        // adicionais: o preço vem sempre do cadastro da loja, nunca do que o navegador mandou
+        const tenantRow = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { policies: true } });
+        const catalog = (((tenantRow?.policies ?? {}) as { glass_extras?: GlassExtra[] }).glass_extras ?? []) as GlassExtra[];
+        const resolved = resolveExtrasFromCatalog(piece.extras, catalog);
+        if (resolved.length) piece.extras = resolved; else delete piece.extras;
+      }
       if (isMeasured) {
         const cut = piece ? pieceCut(piece) : null;
         const result = computeMeasuredPrice(
@@ -653,8 +660,9 @@ export async function addServiceOrderPart(req: Request, res: Response) {
           piece ? (cut!.cutW / 1000) * (1 + (piece.waste_pct ?? 0) / 100) : Number(width) || 0,
         );
         qty = 1;
-        unitPrice = result.total;
-        totalBeforeDiscount = result.total;
+        const extrasTotal = piece ? pieceExtrasTotal(piece) : 0;
+        unitPrice = Math.round((result.total + extrasTotal) * 100) / 100;
+        totalBeforeDiscount = unitPrice;
         dimensionsLabel = piece ? `${pieceSummary(piece)} · ${cut!.areaBilled.toFixed(2)}m²` : result.label;
         pieceForPart = piece;
       } else {

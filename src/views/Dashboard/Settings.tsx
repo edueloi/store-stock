@@ -1,5 +1,7 @@
 import GlassDefaultsSettings from "../../components/GlassDefaultsSettings";
 import GlassOptionsSettings from "../../components/GlassOptionsSettings";
+import GlassExtrasSettings from "../../components/GlassExtrasSettings";
+import type { GlassExtra } from "../../lib/glassPieces";
 import React, {
   useState,
   useEffect,
@@ -5521,6 +5523,11 @@ export default function Settings({
                 <GlassOptionsSettings
                   value={(policies as StorePolicies).glass_options ?? {}}
                   onChange={(next) => setPolicies({ glass_options: next })}
+                />
+                <div className="border-t border-slate-200" />
+                <GlassExtrasSettings
+                  value={((policies as StorePolicies).glass_extras ?? []) as GlassExtra[]}
+                  onChange={(next) => setPolicies({ glass_extras: next.filter((e) => e.name.trim()) as StorePolicies["glass_extras"] })}
                 />
                 <div className="border-t border-slate-200" />
                 <GlassDefaultsSettings

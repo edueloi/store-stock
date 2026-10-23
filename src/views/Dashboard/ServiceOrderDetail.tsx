@@ -66,7 +66,7 @@ import {
 import GlassPieceFields, { draftForService, draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, type PieceDraft } from "../../components/GlassPieceFields";
 import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
-import { pieceCut, type PieceSpec } from "../../lib/glassPieces";
+import { pieceCut, pieceExtrasTotal, type PieceSpec } from "../../lib/glassPieces";
 import { printCutSheet } from "../../lib/cutSheet";
 import ProductVariationModal, { productHasVariations, type VariationOptions } from "../../components/pdv/ProductVariationModal";
 import SalePaymentForm, { SalePaymentFormState, newSalePaymentFormState, parseSalePaymentSettings, computeSalePayment, buildSalePayload } from "../../components/SalePaymentForm";
@@ -514,7 +514,7 @@ export default function ServiceOrderDetail() {
   // Preço bruto (antes do desconto do item) do item sendo montado no modal, conforme a aba/modo ativo.
   const addPartRawTotal = partNoCharge ? 0
     : addPartTab === "free" ? Math.max(0, Number(freePartPrice) || 0) * Math.max(1, partQty)
-    : isMeasuredSelection ? (measurePreview?.total ?? 0)
+    : isMeasuredSelection ? (measurePreview?.total ?? 0) + (servicePieceActive ? pieceExtrasTotal(partPieceSpec) : 0)
     : addPartTab === "services" ? (partSelectedService ? Number(partSelectedService.price) * Math.max(1, partQty) : 0)
     : partSelectedProduct ? Number(partSelectedProduct.price) * Math.max(1, partQty)
     : 0;
@@ -1812,7 +1812,7 @@ export default function ServiceOrderDetail() {
                 Peça sob medida (vidraçaria) — com desenho, sangria e margem de segurança
               </label>
             )}
-            {servicePieceActive && <GlassPieceFields draft={partPieceDraft} onChange={setPartPieceDraft} showTechnical defaults={tenant?.policies?.glass_defaults} options={tenant?.policies?.glass_options} />}
+            {servicePieceActive && <GlassPieceFields draft={partPieceDraft} onChange={setPartPieceDraft} showTechnical defaults={tenant?.policies?.glass_defaults} options={tenant?.policies?.glass_options} extrasCatalog={tenant?.policies?.glass_extras} />}
 
             {partSelectedService && isMeasuredService && !servicePieceActive && (
               partSelectedService.sale_unit === "m2" ? (

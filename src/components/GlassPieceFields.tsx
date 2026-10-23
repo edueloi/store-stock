@@ -1,8 +1,8 @@
 import GlassDrawing, { frameSwatch, glassSwatch } from "./GlassDrawing";
 import type { ReactNode } from "react";
-import { PIECE_KINDS, PIECE_SHAPES, SHAPE_KINDS, pieceCut, pieceLabel, resolveGlassOptions, shapeLabel, type GlassDefaults, type GlassOptions, type PieceKind, type PieceShape, type PieceSpec } from "../lib/glassPieces";
+import { EXTRA_MODES, PIECE_KINDS, PIECE_SHAPES, SHAPE_KINDS, extraAmount, pieceCut, pieceExtrasTotal, pieceLabel, resolveGlassOptions, shapeLabel, type GlassDefaults, type GlassExtra, type GlassOptions, type PieceExtra, type PieceKind, type PieceShape, type PieceSpec } from "../lib/glassPieces";
 
-export type { GlassDefaults, GlassOptions };
+export type { GlassDefaults, GlassExtra, GlassOptions };
 
 // Formulário da peça de vidro + desenho ao vivo. Usado no orçamento do painel e na
 // solicitação de orçamento da vitrine (por isso só Tailwind básico, sem componentes do painel).
@@ -19,6 +19,7 @@ export interface PieceDraft {
   shape: PieceShape;  // formato do vidro (peças de uma folha)
   gap_mm: string;     // sangria por lado (mm)
   waste_pct: string;  // margem de segurança (%)
+  extras?: PieceExtra[]; // adicionais escolhidos (furos, lapidação…)
 }
 
 // Sangria e margem costumam ser as mesmas em todo o trabalho: lembra os últimos valores usados neste navegador.
@@ -87,6 +88,7 @@ export function specToDraft(spec: PieceSpec): PieceDraft {
     kind: spec.kind, width_mm: String(spec.width_mm), height_mm: String(spec.height_mm), leaves: spec.leaves ?? 1,
     glass: spec.glass ?? "Incolor", thickness_mm: spec.thickness_mm ?? 8, finish: spec.finish ?? "Branco", notes: spec.notes ?? "", shape: spec.shape ?? "retangular",
     gap_mm: spec.gap_mm ? String(spec.gap_mm) : "", waste_pct: spec.waste_pct ? String(spec.waste_pct) : "",
+    extras: spec.extras ?? [],
   };
 }
 
@@ -102,6 +104,7 @@ export function draftToSpec(d: PieceDraft): PieceSpec {
     ...(d.shape !== "retangular" && SHAPE_KINDS.includes(d.kind) ? { shape: d.shape } : {}),
     ...(Number(d.gap_mm.replace(",", ".")) > 0 ? { gap_mm: Number(d.gap_mm.replace(",", ".")) } : {}),
     ...(Number(d.waste_pct.replace(",", ".")) > 0 ? { waste_pct: Number(d.waste_pct.replace(",", ".")) } : {}),
+    ...(d.extras?.length ? { extras: d.extras } : {}),
   };
 }
 
@@ -186,8 +189,8 @@ const meters = (mm: number) => `${(mm / 1000).toLocaleString("pt-BR", { minimumF
  * showTechnical: sangria e margem de segurança só aparecem para a equipe (nunca na solicitação do cliente).
  * summary: conteúdo extra no quadro da direita (ex.: valor da peça no orçamento).
  */
-export default function GlassPieceFields({ draft, onChange, showTechnical = false, defaults, options, summary }: {
-  draft: PieceDraft; onChange: (d: PieceDraft) => void; showTechnical?: boolean; defaults?: GlassDefaults; options?: GlassOptions; summary?: ReactNode;
+export default function GlassPieceFields({ draft, onChange, showTechnical = false, defaults, options, extrasCatalog, summary }: {
+  draft: PieceDraft; onChange: (d: PieceDraft) => void; showTechnical?: boolean; defaults?: GlassDefaults; options?: GlassOptions; extrasCatalog?: GlassExtra[]; summary?: ReactNode;
 }) {
   const set = <K extends keyof PieceDraft>(k: K, v: PieceDraft[K]) => onChange({ ...draft, [k]: v });
   const spec = draftToSpec(draft);
@@ -198,6 +201,20 @@ export default function GlassPieceFields({ draft, onChange, showTechnical = fals
   const hasWaste = (spec.waste_pct ?? 0) > 0;
   const glass = [spec.glass, spec.thickness_mm ? `${spec.thickness_mm} mm` : ""].filter(Boolean).join(" ");
   const allowsShape = SHAPE_KINDS.includes(draft.kind);
+  const extrasTotal = pieceExtrasTotal(spec);
+
+  // Adicionais: os cadastrados pela loja + os já gravados nesta peça que saíram do cadastro (continuam visíveis).
+  const pickedExtras = draft.extras ?? [];
+  const extraRows: PieceExtra[] = [
+    ...(extrasCatalog ?? []),
+    ...pickedExtras.filter((p) => !(extrasCatalog ?? []).some((c) => c.id === p.id)),
+  ];
+  const toggleExtra = (ex: GlassExtra) => {
+    const exists = pickedExtras.some((p) => p.id === ex.id);
+    set("extras", exists ? pickedExtras.filter((p) => p.id !== ex.id) : [...pickedExtras, { ...ex, ...(ex.mode === "per_unit" ? { qty: 1 } : {}) }]);
+  };
+  const setExtraQty = (id: string, qty: number) =>
+    set("extras", pickedExtras.map((p) => (p.id === id ? { ...p, qty: Math.min(99, Math.max(1, qty || 1)) } : p)));
 
   // Listas configuradas pela loja; o valor já escolhido continua aparecendo mesmo que tenha saído da lista.
   const opts = resolveGlassOptions(options);
@@ -290,6 +307,32 @@ export default function GlassPieceFields({ draft, onChange, showTechnical = fals
           </div>
         </Block>
 
+        {showTechnical && extraRows.length > 0 && (
+          <Block title="Adicionais" hint="somados ao valor da peça">
+            <div className="space-y-2">
+              {extraRows.map((ex) => {
+                const picked = pickedExtras.find((p) => p.id === ex.id);
+                const unit = EXTRA_MODES.find((m) => m.value === ex.mode)?.unit ?? "";
+                return (
+                  <div key={ex.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                    <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                      <input type="checkbox" className="accent-blue-600" checked={!!picked} onChange={() => toggleExtra(ex)} />
+                      <span className="truncate font-medium text-slate-700">{ex.name}</span>
+                      <span className="shrink-0 text-slate-400">R$ {Number(ex.price).toFixed(2)} {unit}</span>
+                    </label>
+                    {picked && ex.mode === "per_unit" && (
+                      <input type="number" min={1} max={99} aria-label={`Quantidade de ${ex.name}`}
+                        className="w-16 rounded-md border border-slate-300 px-2 py-1 text-center text-xs"
+                        value={picked.qty ?? 1} onChange={(e) => setExtraQty(ex.id, Number(e.target.value))} />
+                    )}
+                    {picked && <span className="w-20 text-right font-mono font-semibold text-slate-800">R$ {extraAmount(picked, spec).toFixed(2)}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </Block>
+        )}
+
         {showTechnical && (
           <Block title="Corte do vidro" tone="amber" hint="só a equipe vê">
             <div className="grid grid-cols-2 gap-3">
@@ -343,6 +386,7 @@ export default function GlassPieceFields({ draft, onChange, showTechnical = fals
               )}
               {glass && <Row name="Vidro" value={glass} />}
               {spec.finish && <Row name="Perfil" value={spec.finish} />}
+              {extrasTotal > 0 && <Row name="Adicionais" value={`R$ ${extrasTotal.toFixed(2)}`} />}
             </dl>
           </div>
         )}

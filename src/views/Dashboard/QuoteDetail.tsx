@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import GlassDrawing from "../../components/GlassDrawing";
-import GlassPieceFields, { draftForService, draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, specToDraft, type PieceDraft } from "../../components/GlassPieceFields";
-import { pieceBilledAreaM2, pieceCut, pieceLabel, pieceSummary, type GlassDefaults, type GlassOptions, type PieceSpec } from "../../lib/glassPieces";
+import GlassPieceFields, { draftForService, draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, specToDraft, type GlassExtra, type PieceDraft } from "../../components/GlassPieceFields";
+import { pieceBilledAreaM2, pieceCut, pieceExtrasTotal, pieceLabel, pieceSummary, type GlassDefaults, type GlassOptions, type PieceSpec } from "../../lib/glassPieces";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
 import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
 import { printCutSheet } from "../../lib/cutSheet";
@@ -175,7 +175,7 @@ interface Customer {
 interface Tenant {
   name: string;
   /** Padrões da loja; aqui só importa o corte de vidro (sangria e margem). */
-  policies?: { glass_defaults?: GlassDefaults; glass_options?: GlassOptions };
+  policies?: { glass_defaults?: GlassDefaults; glass_options?: GlassOptions; glass_extras?: GlassExtra[] };
   document?: string;
   logo_url?: string;
   whatsapp?: string;
@@ -622,6 +622,8 @@ export default function QuoteDetail() {
 
   const pieceSpec = draftToSpec(pieceDraft);
   const pieceCutInfo = pieceCut(pieceSpec);
+  // adicionais da peça (furos, lapidação…) entram no valor além do vidro cobrado por m²
+  const pieceExtrasAmount = pieceMode ? pieceExtrasTotal(pieceSpec) : 0;
   // Mesmo mecanismo de venda por medida do Produto, aplicado a Serviço.
   const measureServicePreview = measureService
     ? computeMeasuredPrice(
@@ -640,12 +642,12 @@ export default function QuoteDetail() {
     const next = editingPieceIdx !== null
       // edição: mantém a quantidade e recalcula o valor pela nova medida
       ? formServices.map((s, i) => i === editingPieceIdx
-        ? { ...s, price: measureServicePreview.total, dimensions_label: dimensionsLabel, piece_spec: pieceMode ? pieceSpec : null }
+        ? { ...s, price: Math.round((measureServicePreview.total + pieceExtrasAmount) * 100) / 100, dimensions_label: dimensionsLabel, piece_spec: pieceMode ? pieceSpec : null }
         : s)
       : [...formServices, {
         service_id: measureService.id,
         name: measureService.name,
-        price: measureServicePreview.total,
+        price: Math.round((measureServicePreview.total + pieceExtrasAmount) * 100) / 100,
         quantity: 1,
         dimensions_label: dimensionsLabel,
         piece_spec: pieceMode ? pieceSpec : null,
@@ -1523,6 +1525,7 @@ export default function QuoteDetail() {
                 showTechnical
                 defaults={tenant?.policies?.glass_defaults}
                 options={tenant?.policies?.glass_options}
+                extrasCatalog={tenant?.policies?.glass_extras}
                 summary={measureServicePreview && measureServicePreview.rawQuantity > 0 ? (
                   <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
                     <div className="flex items-baseline justify-between text-xs text-blue-800">
@@ -1534,9 +1537,15 @@ export default function QuoteDetail() {
                         Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)} m²
                       </p>
                     )}
+                    {pieceExtrasAmount > 0 && (
+                      <>
+                        <div className="mt-1 flex items-baseline justify-between text-xs text-blue-800"><span>Vidro</span><span className="font-mono font-semibold">R$ {measureServicePreview.total.toFixed(2)}</span></div>
+                        <div className="flex items-baseline justify-between text-xs text-blue-800"><span>Adicionais</span><span className="font-mono font-semibold">R$ {pieceExtrasAmount.toFixed(2)}</span></div>
+                      </>
+                    )}
                     <div className="mt-2 flex items-end justify-between border-t border-blue-200 pt-2">
                       <span className="text-xs font-semibold text-blue-900">Valor da peça</span>
-                      <span className="font-mono text-2xl font-bold text-blue-900">R$ {measureServicePreview.total.toFixed(2)}</span>
+                      <span className="font-mono text-2xl font-bold text-blue-900">R$ {(measureServicePreview.total + pieceExtrasAmount).toFixed(2)}</span>
                     </div>
                   </div>
                 ) : null}

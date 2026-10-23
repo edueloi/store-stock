@@ -104,6 +104,7 @@ function buildProjectHtml(quote: QuotePdfData): string {
       `Medida: <b>${p.spec.width_mm} × ${p.spec.height_mm} mm</b>${p.spec.leaves && p.spec.leaves > 1 ? ` · ${p.spec.leaves} folhas` : ""}`,
       glass ? `Vidro: ${escHtml(glass)}` : "",
       p.spec.finish ? `Perfil / ferragem: ${escHtml(p.spec.finish)}` : "",
+      p.spec.extras?.length ? `Adicionais: ${escHtml(p.spec.extras.map((e) => (e.mode === "per_unit" && (e.qty ?? 1) > 1 ? `${e.name} (${e.qty}x)` : e.name)).join(", "))}` : "",
       `Quantidade: <b>${p.qty}</b> · Área: ${(area * p.qty).toFixed(2)} m²`,
       p.spec.notes ? `<i style="color:#475569">${escHtml(p.spec.notes)}</i>` : "",
     ].filter(Boolean);
