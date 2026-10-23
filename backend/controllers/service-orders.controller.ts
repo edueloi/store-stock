@@ -139,7 +139,7 @@ function applyDiscount(amount: number, discountType: string, discountValue: numb
   return Math.max(0, Math.round((amount - discountAmt) * 100) / 100);
 }
 
-async function recomputeTotals(serviceOrderId: number) {
+export async function recomputeTotals(serviceOrderId: number) {
   const parts = await prisma.serviceOrderPart.findMany({ where: { service_order_id: serviceOrderId } });
   const partsTotal = parts.reduce((sum, p) => sum + Number(p.total), 0);
   const so = await prisma.serviceOrder.findUnique({

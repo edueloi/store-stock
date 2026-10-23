@@ -8,6 +8,7 @@ import { canMoveToStage, syncLinkedStatus } from "../utils/stage-permissions";
 import { isWorkflowStage, WORKFLOW_STAGES, GRAFICA_ONLY_STAGES } from "../utils/workflow-stages";
 import { sanitizePieceSpec } from "../utils/glassPieces";
 import { emitToTenant } from "../services/realtime.service";
+import { recomputeTotals as recomputeServiceOrderTotals } from "./service-orders.controller";
 import { buildMethodSummary } from "../utils/payment-method";
 import { computeSalePaymentTotals, assertCrediarioAllowed, createCrediarioDebt, SalePaymentError } from "../utils/sale-payment";
 
@@ -321,10 +322,12 @@ async function syncLinkedServiceOrderFromQuote(tenantId: number, quoteId: number
       customer_phone: quote.customer_phone,
       // OS convertida à mão (vidraçaria etc.) tem o atendimento editado pela equipe: não sobrescreve
       ...(opts?.overwriteIssue === false ? {} : { reported_issue: reportedIssue }),
-      subtotal: quote.subtotal,
-      total_amount: quote.total_amount,
+      // OS da gráfica espelha o orçamento; OS convertida à mão também tem peças e mão de obra próprias,
+      // então o total é recalculado (orçamento + adicionais da OS) em vez de sobrescrito.
+      ...(opts?.overwriteIssue === false ? {} : { subtotal: quote.subtotal, total_amount: quote.total_amount }),
     },
   });
+  if (opts?.overwriteIssue === false) await recomputeServiceOrderTotals(linked.id);
 }
 
 export async function updateQuoteStatus(req: Request, res: Response) {
