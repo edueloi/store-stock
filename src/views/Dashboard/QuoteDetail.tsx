@@ -49,7 +49,7 @@ import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { useToast } from "../../components/ui/Toast";
 import { cn } from "../../lib/utils";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
-import { generateQuotePDF } from "../../lib/quotePdf";
+import { generateQuotePDF, getIncludeDrawingPref, quoteHasGlassPieces, setIncludeDrawingPref } from "../../lib/quotePdf";
 import { getStoredUser } from "../../lib/session";
 import ProductVariationModal, { productHasVariations, type VariationOptions } from "../../components/pdv/ProductVariationModal";
 
@@ -773,6 +773,8 @@ export default function QuoteDetail() {
     }
   };
 
+  const [includeDrawing, setIncludeDrawing] = useState<boolean>(() => getIncludeDrawingPref());
+
   const handleDownloadPDF = async () => {
     if (!quote || !tenant) return;
     const c = selectedCustomer;
@@ -786,6 +788,7 @@ export default function QuoteDetail() {
     await generateQuotePDF(quote, tenant, {
       customer: c ? { name: c.name, phone: c.phone, email: c.email, document: c.document, address } : null,
       sellerName: getStoredUser()?.name,
+      includeDrawing,
     });
   };
 
@@ -1366,6 +1369,15 @@ export default function QuoteDetail() {
             </div>
             <div className="space-y-2 border-t border-slate-100 p-3">
               <p className="text-center text-[11px] text-emerald-700">Alterações salvas automaticamente</p>
+              {quote && quoteHasGlassPieces(quote) && (
+                <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-medium text-slate-700">
+                  <input
+                    type="checkbox" checked={includeDrawing}
+                    onChange={(e) => { setIncludeDrawing(e.target.checked); setIncludeDrawingPref(e.target.checked); }}
+                  />
+                  Incluir desenho das peças no PDF
+                </label>
+              )}
               <Button fullWidth variant="outline" size="sm" iconLeft={<Download size={14} />} onClick={handleDownloadPDF} disabled={!formItems.length && !formServices.length}>
                 Baixar PDF
               </Button>

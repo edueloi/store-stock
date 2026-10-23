@@ -64,14 +64,35 @@ export interface QuotePdfData {
 
 const escHtml = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
-/** Seção "Projeto" do PDF: desenho técnico de cada peça com as medidas combinadas com o cliente. */
-function buildProjectHtml(quote: QuotePdfData): string {
-  const pieces: { name: string; spec: PieceSpec; qty: number }[] = [
+// O desenho das peças é opcional no PDF. A escolha fica salva neste computador e vale também
+// para quem baixa o PDF direto da lista de orçamentos.
+const DRAWING_PREF_KEY = "quote_pdf_include_drawing";
+
+export function getIncludeDrawingPref(): boolean {
+  try { return localStorage.getItem(DRAWING_PREF_KEY) !== "0"; } catch { return true; }
+}
+
+export function setIncludeDrawingPref(value: boolean) {
+  try { localStorage.setItem(DRAWING_PREF_KEY, value ? "1" : "0"); } catch { /* sem armazenamento: vale só para esta tela */ }
+}
+
+function collectPieces(quote: QuotePdfData): { name: string; spec: PieceSpec; qty: number }[] {
+  return [
     ...(quote.services ?? []).filter((s) => s.piece_spec).map((s) => ({ name: s.name, spec: s.piece_spec as PieceSpec, qty: s.quantity })),
     ...quote.items
       .map((i) => ({ name: i.name, spec: glassSpecFromOptions(i.selected_options), qty: i.quantity }))
       .filter((p): p is { name: string; spec: PieceSpec; qty: number } => !!p.spec),
   ];
+}
+
+/** O orçamento tem alguma peça de vidraçaria (ou seja, existe desenho para incluir)? */
+export function quoteHasGlassPieces(quote: QuotePdfData): boolean {
+  return collectPieces(quote).length > 0;
+}
+
+/** Seção "Projeto" do PDF: desenho técnico de cada peça com as medidas combinadas com o cliente. */
+function buildProjectHtml(quote: QuotePdfData): string {
+  const pieces = collectPieces(quote);
   if (pieces.length === 0) return "";
 
   const cards = pieces.map((p, i) => {
@@ -105,7 +126,7 @@ function quoteItemUnit(dimLabel?: string | null): string {
 export async function generateQuotePDF(
   quote: QuotePdfData,
   tenant: DocumentTenant,
-  opts?: { customer?: QuotePdfCustomer | null; sellerName?: string | null },
+  opts?: { customer?: QuotePdfCustomer | null; sellerName?: string | null; includeDrawing?: boolean },
 ) {
   const brandColor = tenant.primary_color ?? "#2563eb";
   const dateStr = new Date(quote.created_at).toLocaleDateString("pt-BR");
@@ -155,7 +176,7 @@ export async function generateQuotePDF(
       })),
     ],
   );
-  const projectHtml = buildProjectHtml(quote);
+  const projectHtml = (opts?.includeDrawing ?? getIncludeDrawingPref()) ? buildProjectHtml(quote) : "";
 
   const discountAmt = quote.discount_value > 0
     ? (quote.discount_type === "percent"
