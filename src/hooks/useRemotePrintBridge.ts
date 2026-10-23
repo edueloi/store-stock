@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { identifyDesktopTerminal, onRealtime } from "../lib/realtime";
+import { getStoredToken } from "../lib/session";
 
 /**
  * Só faz sentido dentro do app desktop (Electron) já pareado — é o terminal
@@ -37,6 +38,26 @@ export function useRemotePrintBridge() {
         // O UID existe antes do pareamento, mas só um terminal já vinculado pode
         // se registrar no servidor para receber impressões remotas.
         if (cancelled || !state.paired?.id || !state.terminalUid) return;
+
+        // App novo: o próprio Electron recebe as impressões em segundo plano, com a
+        // credencial do terminal. A tela só precisa entregá-la (exige login), e NÃO deve
+        // assinar "print:requested" — senão a mesma impressão sairia duas vezes.
+        if (typeof desktop.setTerminalToken === "function") {
+          const status = await desktop.getRemotePrintStatus?.();
+          if (status?.hasToken) return;
+          const jwt = getStoredToken();
+          if (!jwt) return; // sem login ainda; tenta de novo no próximo ciclo
+          const res = await fetch("/api/desktop-terminals/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
+            body: JSON.stringify({ terminal_uid: state.terminalUid }),
+          });
+          if (!res.ok) return;
+          const { token } = await res.json();
+          if (token) await desktop.setTerminalToken(token);
+          return;
+        }
+
         identifyDesktopTerminal(state.terminalUid);
         if (subscribedTerminalUid === state.terminalUid) return;
         unsubscribe();

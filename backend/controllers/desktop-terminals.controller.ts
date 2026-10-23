@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
+import { signTerminalToken, type TerminalRequest } from "../utils/terminal-auth";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -114,6 +115,49 @@ export async function pairTerminal(req: Request, res: Response) {
     res.json({ success: true, terminal });
   } catch {
     res.status(500).json({ error: "Failed to pair terminal" });
+  }
+}
+
+// Chamado pelo painel web (usuário logado dentro do app desktop) para entregar ao Electron a
+// credencial própria do terminal. A partir dela o app recebe impressões sozinho, mesmo
+// sem ninguém logado ou com a tela do PDV fechada.
+export async function issueTerminalToken(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  const { terminal_uid } = req.body as { terminal_uid?: string };
+  if (!terminal_uid) {
+    res.status(400).json({ error: "terminal_uid é obrigatório" });
+    return;
+  }
+  try {
+    const terminal = await prisma.desktopTerminal.findFirst({
+      where: { terminal_uid, tenant_id: tenantId },
+      select: { terminal_uid: true, tenant_id: true },
+    });
+    if (!terminal) {
+      res.status(404).json({ error: "Terminal não encontrado" });
+      return;
+    }
+    res.json({ token: signTerminalToken(terminal.terminal_uid, terminal.tenant_id) });
+  } catch {
+    res.status(500).json({ error: "Failed to issue terminal token" });
+  }
+}
+
+// Chamado pelo Electron com a credencial do terminal: devolve as impressoras dele.
+export async function getMyTerminal(req: Request, res: Response) {
+  const { id } = (req as TerminalRequest).terminal;
+  try {
+    const terminal = await prisma.desktopTerminal.findUnique({
+      where: { id },
+      include: { printers: true },
+    });
+    if (!terminal) {
+      res.status(404).json({ error: "Terminal não encontrado" });
+      return;
+    }
+    res.json(terminal);
+  } catch {
+    res.status(500).json({ error: "Failed to load terminal" });
   }
 }
 

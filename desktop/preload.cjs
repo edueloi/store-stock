@@ -21,6 +21,10 @@ contextBridge.exposeInMainWorld("boxsysDesktop", {
   requestPairingCode: () => ipcRenderer.invoke("pairing:request-code"),
   checkPairingStatus: () => ipcRenderer.invoke("pairing:check-status"),
 
+  // Credencial do terminal para receber impressão remota em segundo plano
+  setTerminalToken: (token) => ipcRenderer.invoke("terminal:set-token", token),
+  getRemotePrintStatus: () => ipcRenderer.invoke("terminal:remote-print-status"),
+
   // Múltiplas impressoras deste terminal (CRUD no backend)
   listPrinters: () => ipcRenderer.invoke("printers:list"),
   createPrinter: (printer) => ipcRenderer.invoke("printers:create", printer),

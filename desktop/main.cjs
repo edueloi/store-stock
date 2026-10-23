@@ -7,6 +7,7 @@ const { autoUpdater } = require("electron-updater");
 const log = require("electron-log");
 const printerModule = require("./printer.cjs");
 const offlineDb = require("./db.cjs");
+const remotePrint = require("./remote-print.cjs");
 
 // A janela só minimiza pra bandeja ao fechar (nunca encerra o processo de verdade,
 // ver handler "close" abaixo) — sem esse lock, clicar no ícone de novo sem lembrar
@@ -65,7 +66,7 @@ function savePairedTerminal(terminal) {
 // Faz uma chamada JSON ao backend já configurado neste terminal (mesmo servidor
 // usado pelo BrowserWindow principal) — reaproveita o https nativo já usado em
 // testServer(), sem precisar de dependência HTTP nova.
-function apiRequest(method, apiPath, body, authToken) {
+function apiRequest(method, apiPath, body, authToken, extraHeaders) {
   return new Promise((resolve, reject) => {
     const { server } = readConfig();
     if (!server) { reject(new Error("Servidor não configurado")); return; }
@@ -81,6 +82,7 @@ function apiRequest(method, apiPath, body, authToken) {
           "Content-Type": "application/json",
           ...(data ? { "Content-Length": Buffer.byteLength(data) } : {}),
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          ...(extraHeaders || {}),
         },
         timeout: 10000,
       },
@@ -125,6 +127,48 @@ function apiRequestAuthed(method, apiPath, body) {
   });
 }
 
+// Chamada autenticada pela credencial do próprio terminal (não depende de usuário logado).
+function terminalRequest(method, apiPath) {
+  const { terminalUid, terminalToken } = readConfig();
+  if (!terminalUid || !terminalToken) return Promise.reject(new Error("Terminal sem credencial ainda."));
+  return apiRequest(method, apiPath, undefined, undefined, {
+    "x-terminal-uid": terminalUid,
+    "x-terminal-token": terminalToken,
+  });
+}
+
+// Impressora do terminal para um papel (role): usa a credencial do terminal e, se ela
+// ainda não existir (app recém-atualizado, ninguém logou), cai para o login da tela.
+async function findPrinterForRole(role) {
+  let mine = null;
+  try {
+    mine = await terminalRequest("GET", "/desktop-terminals/me");
+  } catch {
+    const terminal = getPairedTerminal();
+    if (!terminal?.id) return null;
+    const terminals = await apiRequestAuthed("GET", "/desktop-terminals");
+    mine = Array.isArray(terminals) ? terminals.find((t) => t.id === terminal.id) : null;
+  }
+  const printers = mine?.printers || [];
+  return printers.find((p) => p.role === role && p.is_default) || printers.find((p) => p.role === role) || null;
+}
+
+// Mantém a conexão em segundo plano com o servidor para receber impressões remotas.
+function startRemotePrint() {
+  const { server, terminalUid, terminalToken } = readConfig();
+  remotePrint.start({
+    server,
+    uid: terminalUid,
+    token: terminalToken,
+    log,
+    onPrint: async (role, text) => {
+      const printer = await findPrinterForRole(role);
+      if (!printer) return { ok: false, error: `Nenhuma impressora configurada para "${role}"` };
+      return printerModule.printReceipt(text, printer.config);
+    },
+  });
+}
+
 // ─── URL helpers ─────────────────────────────────────────────────────────────
 function normalizeServer(input) {
   let v = String(input || "").trim().toLowerCase();
@@ -160,6 +204,7 @@ function testServer(server) {
 // ─── Window ──────────────────────────────────────────────────────────────────
 let mainWindow = null;
 let tray = null;
+let startedHidden = process.argv.includes("--hidden");
 // Controla se "fechar a janela" deve realmente encerrar o processo — só true
 // quando o usuário escolhe "Sair" (menu ou bandeja) ou o SO pede pra fechar de
 // vez. Sem isso, o botão X da janela mataria o processo e nenhuma notificação
@@ -210,6 +255,9 @@ function createWindow() {
     title: "BoxSys PDV",
     icon: path.join(__dirname, "icon.png"),
     backgroundColor: "#0f172a",
+    // Aberto pelo Windows na inicialização (--hidden): fica só na bandeja, recebendo
+    // impressões; o operador abre a janela pelo ícone quando precisar.
+    show: !startedHidden,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -217,7 +265,8 @@ function createWindow() {
     },
   });
 
-  mainWindow.maximize();
+  if (!startedHidden) mainWindow.maximize();
+  startedHidden = false;
 
   // External links open in the OS browser, not inside the PDV window
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -491,14 +540,8 @@ ipcMain.handle("printer:test", async (_e, cfg) => {
 // Mantém quem já usava impressora funcionando sem precisar reconfigurar nada.
 async function resolveReceiptPrinterConfig() {
   try {
-    const terminal = getPairedTerminal();
-    if (terminal?.id) {
-      const terminals = await apiRequestAuthed("GET", "/desktop-terminals");
-      const mine = Array.isArray(terminals) ? terminals.find((t) => t.id === terminal.id) : null;
-      const printers = mine?.printers || [];
-      const printer = printers.find((p) => p.role === "receipt" && p.is_default) || printers.find((p) => p.role === "receipt");
-      if (printer) return printer.config;
-    }
+    const printer = await findPrinterForRole("receipt");
+    if (printer) return printer.config;
   } catch {
     // sem terminal pareado, sem conexão, etc. — cai pro legado abaixo
   }
@@ -516,6 +559,20 @@ ipcMain.handle("printer:open-drawer", async () => {
   if (!config) return { ok: false, error: "Nenhuma impressora térmica configurada" };
   return printerModule.openCashDrawer(config);
 });
+
+// A tela (logada) entrega a credencial do terminal emitida pelo servidor; a partir daí o
+// processo principal mantém a conexão de impressão remota sozinho.
+ipcMain.handle("terminal:set-token", (_e, token) => {
+  if (typeof token !== "string" || !token) return { ok: false };
+  if (readConfig().terminalToken !== token) writeConfig({ ...readConfig(), terminalToken: token });
+  startRemotePrint();
+  return { ok: true };
+});
+
+ipcMain.handle("terminal:remote-print-status", () => ({
+  hasToken: !!readConfig().terminalToken,
+  connected: remotePrint.isConnected(),
+}));
 
 // ─── Pairing IPC ─────────────────────────────────────────────────────────────
 ipcMain.handle("pairing:get-state", () => ({
@@ -606,11 +663,8 @@ ipcMain.handle("printers:test", async (_e, config) => printerModule.testConnecti
 // padrão do Windows via window.print() direto no renderer, não passa por aqui.
 ipcMain.handle("printers:print-by-role", async (_e, role, text) => {
   try {
-    const terminalId = requirePairedTerminalId();
-    const terminals = await apiRequestAuthed("GET", "/desktop-terminals");
-    const mine = Array.isArray(terminals) ? terminals.find((t) => t.id === terminalId) : null;
-    const printers = mine?.printers || [];
-    const printer = printers.find((p) => p.role === role && p.is_default) || printers.find((p) => p.role === role);
+    requirePairedTerminalId();
+    const printer = await findPrinterForRole(role);
     if (!printer) return { ok: false, error: `Nenhuma impressora térmica configurada para "${role}" neste terminal` };
     return printerModule.printReceipt(text, printer.config);
   } catch (err) {
@@ -677,6 +731,13 @@ app.whenReady().then(() => {
   buildMenu();
   createTray();
   createWindow();
+
+  // Receber impressões remotas exige o app rodando: abre junto com o Windows (na bandeja)
+  // e conecta ao servidor sem depender da tela/login.
+  if (app.isPackaged) {
+    app.setLoginItemSettings({ openAtLogin: true, args: ["--hidden"] });
+  }
+  startRemotePrint();
 
   // Checagem assíncrona — não atrasa a abertura da janela principal.
   checkForUpdates();

@@ -9,13 +9,20 @@ import {
   createPrinter,
   updatePrinter,
   deletePrinter,
+  issueTerminalToken,
+  getMyTerminal,
 } from "../controllers/desktop-terminals.controller";
+import { authenticateTerminal } from "../utils/terminal-auth";
 
 const router = Router();
 
 // Sem auth — chamadas feitas pelo Electron ANTES de haver usuário logado nele.
 router.post("/pairing-code", requestPairingCode);
 router.get("/pairing-status/:terminal_uid", getPairingStatus);
+
+// Credencial do próprio terminal (headers x-terminal-uid / x-terminal-token), sem usuário.
+router.get("/me", authenticateTerminal, getMyTerminal);
+router.post("/token", authenticateToken, issueTerminalToken);
 
 // Com auth — chamadas pelo painel web, usuário já logado.
 router.post("/pair", authenticateToken, pairTerminal);

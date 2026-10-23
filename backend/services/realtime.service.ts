@@ -6,6 +6,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { env } from "../config/env";
 import { prisma } from "../config/prisma";
 import type { AuthTokenPayload } from "../types/auth";
+import { verifyTerminalCredentials } from "../utils/terminal-auth";
 
 // Eventos em tempo real que o front escuta para atualizar telas sozinho, sem
 // precisar de F5 — cada tenant só recebe os próprios eventos (sala `tenant:<id>`).
@@ -41,6 +42,18 @@ export function initRealtime(httpServer: HttpServer) {
   });
 
   io.use((socket, next) => {
+    // App desktop em segundo plano: autentica pela credencial do próprio terminal,
+    // sem precisar de usuário logado.
+    if (socket.handshake.auth?.terminal_token) {
+      verifyTerminalCredentials(socket.handshake.auth.terminal_uid, socket.handshake.auth.terminal_token)
+        .then((terminal) => {
+          if (!terminal) { next(new Error("unauthorized")); return; }
+          (socket.data as { terminal?: { id: number; uid: string } }).terminal = { id: terminal.id, uid: terminal.terminal_uid };
+          next();
+        })
+        .catch(() => next(new Error("unauthorized")));
+      return;
+    }
     const token = socket.handshake.auth?.token;
     if (!token || typeof token !== "string") {
       next(new Error("unauthorized"));
@@ -56,6 +69,19 @@ export function initRealtime(httpServer: HttpServer) {
   });
 
   io.on("connection", (socket) => {
+    const nativeTerminal = (socket.data as { terminal?: { id: number; uid: string } }).terminal;
+    if (nativeTerminal) {
+      socket.join(terminalRoom(nativeTerminal.uid));
+      const touch = () => {
+        prisma.desktopTerminal
+          .update({ where: { id: nativeTerminal.id }, data: { last_seen_at: new Date() } })
+          .catch(() => {});
+      };
+      touch();
+      socket.on("terminal:heartbeat", touch);
+      return;
+    }
+
     const user = (socket.data as { user?: AuthTokenPayload }).user;
     if (user?.tenantId) {
       socket.join(`tenant:${user.tenantId}`);

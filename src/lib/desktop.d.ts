@@ -79,6 +79,10 @@ export interface BoxsysDesktopApi {
   requestPairingCode: () => Promise<PairingCodeResult>;
   checkPairingStatus: () => Promise<PairingStatusResult>;
 
+  /** Só existe em versões do app que recebem impressão remota em segundo plano. */
+  setTerminalToken?: (token: string) => Promise<{ ok: boolean }>;
+  getRemotePrintStatus?: () => Promise<{ hasToken: boolean; connected: boolean }>;
+
   // Múltiplas impressoras por terminal (cupom, OS em A4, etc.)
   listPrinters: () => Promise<{ ok: boolean; printers: DesktopPrinterRecord[]; error?: string }>;
   createPrinter: (data: {
