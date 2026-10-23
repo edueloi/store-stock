@@ -6301,19 +6301,19 @@ export default function Settings({
                     {
                       os: "Windows",
                       desc: "Windows 10 ou superior",
-                      file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV-Setup.exe",
+                      file: "https://github.com/edueloi/store-stock/releases/latest/download/StoreBoxSys-Setup.exe",
                       ext: ".exe",
                     },
                     {
                       os: "macOS",
                       desc: "Intel e Apple Silicon",
-                      file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV.dmg",
+                      file: "https://github.com/edueloi/store-stock/releases/latest/download/StoreBoxSys.dmg",
                       ext: ".dmg",
                     },
                     {
                       os: "Linux",
                       desc: "AppImage universal",
-                      file: "https://github.com/edueloi/store-stock/releases/latest/download/BoxSysPDV.AppImage",
+                      file: "https://github.com/edueloi/store-stock/releases/latest/download/StoreBoxSys.AppImage",
                       ext: ".AppImage",
                     },
                   ].map(({ os, desc, file, ext }) => (
