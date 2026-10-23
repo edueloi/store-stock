@@ -303,6 +303,94 @@ export async function closeCashSession(req: Request, res: Response) {
   }
 }
 
+const METHOD_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
+const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
+
+// Correção de um fechamento já feito (operador contou errado, digitou o valor errado…). Só o administrador
+// pode: o esperado continua sendo calculado pelas vendas; o que muda é o valor CONTADO (dinheiro e, se
+// quiser, as demais formas), com a diferença recalculada. O motivo é obrigatório e a correção fica
+// registrada no próprio fechamento (quem, quando, de quanto para quanto), nunca em silêncio.
+export async function editCashSessionClosing(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const user = (req as AuthenticatedRequest).user;
+    if (user.role !== "admin") {
+      res.status(403).json({ error: "Só o administrador pode corrigir um fechamento de caixa." });
+      return;
+    }
+    const id = Number(req.params.id);
+    const { countedAmount, countedBreakdown, reason } = req.body as {
+      countedAmount?: number;
+      countedBreakdown?: Record<string, number | null>;
+      reason?: string;
+    };
+
+    const motivo = String(reason ?? "").trim();
+    if (motivo.length < 3) {
+      res.status(400).json({ error: "Informe o motivo da correção." });
+      return;
+    }
+    const validMoney = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 10_000_000;
+    if (countedAmount !== undefined && !validMoney(countedAmount)) {
+      res.status(400).json({ error: "Valor contado inválido." });
+      return;
+    }
+
+    const session = await prisma.cashSession.findFirst({ where: { id, tenant_id: tenantId, status: "closed" } });
+    if (!session) {
+      res.status(404).json({ error: "Fechamento não encontrado (a sessão precisa estar fechada)." });
+      return;
+    }
+
+    const prevCounted = Number(session.counted_amount ?? 0);
+    const nextCounted = countedAmount !== undefined ? Math.round(countedAmount * 100) / 100 : prevCounted;
+    const breakdown = { ...((session.payment_breakdown as Record<string, Record<string, unknown>> | null) ?? {}) };
+
+    const changes: string[] = [];
+    if (Math.abs(nextCounted - prevCounted) > 0.004) changes.push(`dinheiro contado ${brl(prevCounted)} → ${brl(nextCounted)}`);
+
+    for (const [method, value] of Object.entries(countedBreakdown ?? {})) {
+      if (method === "money" || !breakdown[method]) continue; // dinheiro vai em countedAmount; só formas que existem no fechamento
+      const before = breakdown[method].counted as number | undefined;
+      if (value === null) {
+        if (before !== undefined) { delete breakdown[method].counted; delete breakdown[method].difference; changes.push(`${METHOD_LABELS[method] ?? method} contado ${brl(before)} → removido`); }
+        continue;
+      }
+      if (!validMoney(value)) { res.status(400).json({ error: `Valor contado inválido em ${METHOD_LABELS[method] ?? method}.` }); return; }
+      const next = Math.round(value * 100) / 100;
+      if (before === undefined || Math.abs(next - before) > 0.004) {
+        breakdown[method].counted = next;
+        changes.push(`${METHOD_LABELS[method] ?? method} contado ${before === undefined ? "—" : brl(before)} → ${brl(next)}`);
+      }
+    }
+
+    if (changes.length === 0) {
+      res.status(400).json({ error: "Nenhum valor foi alterado." });
+      return;
+    }
+
+    const author = await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
+    const when = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    const logLine = `[Correção em ${when} por ${author?.name ?? "administrador"}: ${changes.join("; ")}. Motivo: ${motivo.slice(0, 300)}]`;
+
+    await prisma.cashSession.update({
+      where: { id },
+      data: {
+        counted_amount: nextCounted,
+        payment_breakdown: breakdown as object,
+        closing_note: [session.closing_note, logLine].filter(Boolean).join("\n"),
+      },
+    });
+
+    // recalcula esperado e diferenças (por forma de pagamento) a partir dos valores contados já corrigidos
+    const updated = await recalculateCashSessionSummary(tenantId, id);
+    res.json({ session: updated });
+  } catch (err) {
+    console.error("[editCashSessionClosing] error:", err);
+    res.status(500).json({ error: "Falha ao corrigir o fechamento" });
+  }
+}
+
 export async function listCashSessions(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);

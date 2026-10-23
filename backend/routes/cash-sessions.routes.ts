@@ -5,6 +5,7 @@ import {
   getCurrentCashSession,
   openCashSession,
   closeCashSession,
+  editCashSessionClosing,
   listCashSessions,
   getCashSessionDetail,
 } from "../controllers/cash-sessions.controller";
@@ -16,6 +17,7 @@ router.use(authenticateToken);
 router.get("/current", getCurrentCashSession);
 router.post("/open", openCashSession);
 router.post("/:id/close", closeCashSession);
+router.put("/:id/closing", editCashSessionClosing);
 router.get("/", listCashSessions);
 router.get("/:id", getCashSessionDetail);
 

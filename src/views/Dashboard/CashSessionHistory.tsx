@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import ExcelJS from "exceljs";
 import {
   Search, Wallet, CheckCircle2, Clock, X, Loader2, User, Calendar, ChevronRight, Printer, ChevronLeft,
-  Download, FileSpreadsheet, FileText, PieChart as PieChartIcon, ListOrdered, BarChart3, DollarSign, HelpCircle,
+  Download, FileSpreadsheet, FileText, PieChart as PieChartIcon, ListOrdered, BarChart3, DollarSign, HelpCircle, Pencil,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import PageHeader from "../../components/layout/PageHeader";
 import { Button, IconButton, Input, Select, Modal, ModalFooter, Tabs, FilterLineSearch, FilterLineSegmented } from "../../components/ui";
+import { getStoredUser } from "../../lib/session";
 import Drawer from "../../components/ui/Drawer";
 import { useToast } from "../../components/ui/Toast";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
@@ -128,6 +129,17 @@ const money = (v: string | number | null | undefined) =>
 
 export default function CashSessionHistory() {
   const toast = useToast();
+  // Correção de fechamento: só o administrador (o servidor também confere)
+  const isAdmin = getStoredUser()?.role === "admin";
+  const [fixOpen, setFixOpen] = useState(false);
+  const [fixCountedCents, setFixCountedCents] = useState("");
+  const [fixMethods, setFixMethods] = useState<Record<string, string>>({});   // centavos por forma (vazio = sem valor)
+  const [fixReason, setFixReason] = useState("");
+  const [fixSaving, setFixSaving] = useState(false);
+  const [fixError, setFixError] = useState<string | null>(null);
+  const centsOf = (v: string | number | null | undefined) => (v === null || v === undefined || v === "" ? "" : String(Math.round(Number(v) * 100)));
+  const fromCents = (c: string) => (c ? Number(c) / 100 : 0);
+  const maskCents = (c: string) => fromCents(c).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const [sessions, setSessions] = useState<CashSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -816,6 +828,46 @@ export default function CashSessionHistory() {
     setShowExportModal(false);
   }
 
+  const openFix = () => {
+    if (!detail) return;
+    setFixCountedCents(centsOf(detail.counted_amount));
+    const methods: Record<string, string> = {};
+    for (const [method, entry] of Object.entries(detail.payment_breakdown ?? {})) {
+      if (method !== "money") methods[method] = centsOf(entry.counted);
+    }
+    setFixMethods(methods);
+    setFixReason("");
+    setFixError(null);
+    setFixOpen(true);
+  };
+
+  const saveFix = async () => {
+    if (!detail || fixSaving) return;
+    if (fixReason.trim().length < 3) { setFixError("Informe o motivo da correção."); return; }
+    setFixSaving(true);
+    setFixError(null);
+    try {
+      const countedBreakdown: Record<string, number | null> = {};
+      for (const [method, c] of Object.entries(fixMethods)) countedBreakdown[method] = c === "" ? null : fromCents(c);
+      const res = await fetch(`/api/cash-sessions/${detail.id}/closing`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ countedAmount: fromCents(fixCountedCents), countedBreakdown, reason: fixReason.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setFixError(data?.error || "Não foi possível corrigir o fechamento."); return; }
+      setFixOpen(false);
+      toast.success("Fechamento corrigido e registrado no histórico.");
+      await openDetail(detail.id);
+      fetch("/api/cash-sessions", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json()).then((d) => setSessions(Array.isArray(d) ? d : [])).catch(() => {});
+    } catch {
+      setFixError("Erro de conexão. Tente novamente.");
+    } finally {
+      setFixSaving(false);
+    }
+  };
+
   const openDetail = async (id: number) => {
     setDetailLoading(true);
     setDetail(null);
@@ -1181,12 +1233,64 @@ export default function CashSessionHistory() {
       </Modal>
 
       {/* Detalhe da sessão */}
+      <Modal
+        open={fixOpen}
+        onClose={() => { if (!fixSaving) setFixOpen(false); }}
+        title="Corrigir fechamento de caixa"
+        size="md"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setFixOpen(false)} disabled={fixSaving}>Cancelar</Button>
+            <Button variant="primary" onClick={saveFix} loading={fixSaving} disabled={fixSaving || fixReason.trim().length < 3}>Salvar correção</Button>
+          </ModalFooter>
+        }
+      >
+        {detail && (
+          <div className="space-y-4">
+            <p className="text-[12px] leading-relaxed text-slate-500">
+              Corrija o valor <b>contado</b> deste fechamento. O esperado continua vindo das vendas; a diferença é recalculada. A correção
+              fica registrada no fechamento (quem corrigiu, quando e de quanto para quanto).
+            </p>
+            <Input
+              label="Dinheiro contado" type="text" inputMode="numeric" addonLeft="R$" className="font-mono font-semibold"
+              value={maskCents(fixCountedCents)} onChange={(e) => setFixCountedCents(e.target.value.replace(/\D/g, ""))}
+            />
+            <div className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-[12px]">
+              <span className="text-slate-500">Esperado: <b className="font-mono text-slate-700">{money(detail.expected_amount)}</b></span>
+              <span className={cn("font-semibold", Math.abs(fromCents(fixCountedCents) - Number(detail.expected_amount)) < 0.005 ? "text-slate-500" : fromCents(fixCountedCents) > Number(detail.expected_amount) ? "text-emerald-600" : "text-rose-600")}>
+                Nova diferença: <span className="font-mono">{money(Math.round((fromCents(fixCountedCents) - Number(detail.expected_amount)) * 100) / 100)}</span>
+              </span>
+            </div>
+            {Object.keys(fixMethods).length > 0 && (
+              <div className="space-y-2">
+                <p className="text-[11px] font-semibold text-slate-500">Outras formas (opcional)</p>
+                {Object.keys(fixMethods).map((method) => (
+                  <div key={method} className="grid grid-cols-[1fr_auto] items-center gap-3">
+                    <span className="text-[12px] text-slate-600">{PM_LABEL[method] ?? method} <span className="text-slate-400">· esperado {money(detail.payment_breakdown?.[method]?.expected)}</span></span>
+                    <Input
+                      aria-label={`Contado em ${PM_LABEL[method] ?? method}`} type="text" inputMode="numeric" addonLeft="R$" className="w-32 font-mono"
+                      placeholder="—" value={fixMethods[method] === "" ? "" : maskCents(fixMethods[method])}
+                      onChange={(e) => setFixMethods((m) => ({ ...m, [method]: e.target.value.replace(/\D/g, "") }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <Input label="Motivo da correção *" type="text" maxLength={300} placeholder="Ex.: operador digitou o valor errado ao fechar" value={fixReason} onChange={(e) => setFixReason(e.target.value)} />
+            {fixError && <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">{fixError}</p>}
+          </div>
+        )}
+      </Modal>
+
       <Drawer
         open={!!(detail || detailLoading)}
         onClose={() => setDetail(null)}
         title="Sessão de Caixa"
         footer={detail && detail.status === "closed" ? (
           <ModalFooter>
+            {isAdmin && (
+              <Button variant="outline" size="sm" iconLeft={<Pencil size={14} />} onClick={openFix} title="Corrigir o valor contado deste fechamento">Corrigir fechamento</Button>
+            )}
             {remoteTerminals.map((rt) => (
               <Button key={rt.id} variant="outline" size="sm" iconLeft={<Printer size={14} />} loading={remoteSending === rt.id}
                 disabled={remoteSending !== null} onClick={() => printSessionRemote(detail, rt.id)} title="Imprimir em outro terminal">
@@ -1324,7 +1428,7 @@ export default function CashSessionHistory() {
                   <div className="text-[11px] text-slate-500"><span className="font-semibold text-slate-700">Obs. abertura:</span> {detail.opening_note}</div>
                 )}
                 {detail.closing_note && (
-                  <div className="text-[11px] text-slate-500"><span className="font-semibold text-slate-700">Obs. fechamento:</span> {detail.closing_note}</div>
+                  <div className="whitespace-pre-line break-words text-[11px] text-slate-500"><span className="font-semibold text-slate-700">Obs. fechamento:</span> {detail.closing_note}</div>
                 )}
 
                 <div className="bg-slate-50 rounded-lg border border-slate-100 p-3.5 flex items-center justify-between gap-3">
