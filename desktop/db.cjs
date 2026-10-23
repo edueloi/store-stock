@@ -98,8 +98,28 @@ function removeOp(localId) {
   return { ok: true };
 }
 
+// Traz fila pendente e cache de um banco antigo (pasta de dados anterior ao renomear o app).
+// INSERT OR IGNORE: nunca sobrescreve o que já existe no banco atual.
+function importFrom(legacyPath) {
+  db.prepare("ATTACH DATABASE ? AS legacy").run(legacyPath);
+  try {
+    const ops = db.prepare(
+      `INSERT OR IGNORE INTO pending_ops (local_id, type, payload_json, created_at, attempts, last_error)
+       SELECT local_id, type, payload_json, created_at, attempts, last_error FROM legacy.pending_ops`
+    ).run().changes;
+    const cache = db.prepare(
+      `INSERT OR IGNORE INTO cache_snapshots (key, value_json, updated_at)
+       SELECT key, value_json, updated_at FROM legacy.cache_snapshots`
+    ).run().changes;
+    return { ops, cache };
+  } finally {
+    db.exec("DETACH DATABASE legacy");
+  }
+}
+
 module.exports = {
   initDb,
+  importFrom,
   saveCache,
   getCache,
   enqueueOp,

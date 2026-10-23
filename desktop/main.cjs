@@ -10,6 +10,7 @@ const offlineDb = require("./db.cjs");
 const remotePrint = require("./remote-print.cjs");
 const webcache = require("./webcache.cjs");
 const offlineSync = require("./offline-sync.cjs");
+const legacyMigration = require("./legacy-migration.cjs");
 
 // A janela só minimiza pra bandeja ao fechar (nunca encerra o processo de verdade,
 // ver handler "close" abaixo) — sem esse lock, clicar no ícone de novo sem lembrar
@@ -749,7 +750,10 @@ app.on("second-instance", () => {
 
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
+  // Recupera vínculo/impressoras/fila do app antigo (a pasta de dados mudou com o novo nome) ANTES de ler qualquer config.
+  legacyMigration.beforeDb({ app, log });
   offlineDb.initDb(app);
+  legacyMigration.afterDb({ app, offlineDb, log });
   // Guarda o site em disco para o PDV abrir mesmo sem internet (ver webcache.cjs).
   const siteCache = webcache.install(session.defaultSession, () => readConfig().server, app.getPath("userData"));
   // Depois que a tela carregou (e foi gravada no cache), completa o resto em segundo plano.
