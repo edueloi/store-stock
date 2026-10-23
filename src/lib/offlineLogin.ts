@@ -8,10 +8,10 @@ import { cacheGet, cacheSet } from "./offlineDb";
 
 const CACHE_KEY = "offline_logins";
 const ITERATIONS = 150_000;
-// Quanto tempo o acesso offline vale sem o usuário se conectar de novo. Dentro desse prazo,
-// qualquer uso online (abrir o PDV com internet) renova; passou disso, a próxima entrada
-// precisa de internet — assim senha trocada ou usuário removido deixam de valer offline.
-export const OFFLINE_LOGIN_MAX_AGE_DAYS = 7;
+// Offline nunca para de funcionar: o acesso guardado NÃO expira por tempo. A atualização é
+// automática — a cada uso com internet o servidor reconfirma o usuário (renewLogin) e, se ele
+// recusar as credenciais (senha trocada, usuário removido), o acesso offline é apagado
+// (forgetLogin). Enquanto não houver internet, vale a última versão sincronizada.
 
 interface StoredLogin {
   salt: string;
@@ -75,12 +75,11 @@ export async function renewLogin(userId: number | undefined) {
 }
 
 // Retorna a sessão guardada se a senha confere; "unknown" se este usuário nunca entrou
-// neste computador; "wrong" se a senha não bate; "expired" se passou do prazo offline.
-export async function verifyOfflineLogin(identifier: string, password: string): Promise<StoredLogin | "unknown" | "wrong" | "expired"> {
+// neste computador; "wrong" se a senha não bate.
+export async function verifyOfflineLogin(identifier: string, password: string): Promise<StoredLogin | "unknown" | "wrong"> {
   const logins = (await cacheGet<LoginMap>(CACHE_KEY)) ?? {};
   const stored = logins[normalize(identifier)];
   if (!stored) return "unknown";
-  if (Date.now() - (stored.at ?? 0) > OFFLINE_LOGIN_MAX_AGE_DAYS * 86_400_000) return "expired";
   const hash = await derive(password, fromHex(stored.salt));
   return hash === stored.hash ? stored : "wrong";
 }
