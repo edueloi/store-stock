@@ -105,7 +105,7 @@ const inputCls = "h-11 w-full rounded-sm border border-[#c5cfdf] bg-white px-3 t
 const labelCls = "mb-1 block text-[12px] font-medium text-slate-500";
 const btn = (tone: "blue" | "green" | "red" | "navy" | "gray") =>
   cn(
-    "h-12 rounded-sm px-5 text-[13px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+    "h-12 whitespace-nowrap rounded-sm px-5 [@media(max-width:1100px)]:px-3 [@media(max-width:1100px)]:text-[12px] text-[13px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
     tone === "blue" && "bg-[#0078d4] hover:bg-[#006abd]",
     tone === "green" && "bg-[#1b7e0e] hover:bg-[#166a0b]",
     tone === "red" && "bg-[#c00000] hover:bg-[#a00000]",
@@ -145,6 +145,8 @@ function ClassicPDV() {
   const [scannerMode, setScannerMode] = useState(false);
   const [activeHeldId, setActiveHeldId] = useState<number | null>(null);
   const [saleNumber, setSaleNumber] = useState(1);
+  const [priceQuery, setPriceQuery] = useState("");
+  const [lastReceipt, setLastReceipt] = useState<string | null>(null);   // último cupom, para reimprimir
   const [selectedId, setSelectedId] = useState<string | null>(null);   // linha selecionada na lista (↑ ↓ / Del)
   const [lastAdded, setLastAdded] = useState<{ name: string; variation: string; qty: number; price: number } | null>(null);
 
@@ -166,7 +168,7 @@ function ClassicPDV() {
   const [completed, setCompleted] = useState<Completed | null>(null);
 
   // modais
-  type Modal = null | "variation" | "operator" | "held" | "discount" | "customer" | "seller" | "qty" | "confirmCancel";
+  type Modal = null | "variation" | "price" | "operator" | "held" | "discount" | "customer" | "seller" | "qty" | "confirmCancel";
   const [modal, setModal] = useState<Modal>(null);
   const [variationProduct, setVariationProduct] = useState<Product | null>(null);
   const [variationOptions, setVariationOptions] = useState<Record<string, string>>({});
@@ -337,6 +339,15 @@ function ClassicPDV() {
       ))
       .slice(0, 8);
   }, [code, products, picked, sellWithoutStock]);
+
+  // consulta de preço (F5): mostra preço e estoque sem incluir na venda
+  const priceResults = useMemo(() => {
+    const q = norm(priceQuery.trim());
+    if (!q) return [];
+    return products
+      .filter((x) => norm(x.name).includes(q) || (x.sku ?? "").toLowerCase().includes(q) || (x.barcode ?? "").toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [priceQuery, products]);
 
   const unitPrice = picked ? Number(picked.discount_price || picked.price) : 0;
   const lineTotal = unitPrice * (num(qty) || 0);
@@ -620,6 +631,7 @@ function ClassicPDV() {
     const wasNfce = emitNfce;
     const conclude = async (orderId: number, offline: boolean) => {
       const receiptText = buildReceipt(orderId);
+      setLastReceipt(receiptText);
       let nfce: string | undefined;
       if (wasNfce && !offline) {
         try {
@@ -692,6 +704,7 @@ function ClassicPDV() {
     F2: () => (screen === "sale" ? (setScannerMode((v) => !v), codeRef.current?.focus()) : (setLookup(""), setModal("customer"))),
     F3: () => (screen === "sale" ? setModal("operator") : setModal("discount")),
     F4: () => { if (screen === "sale") void openHeld(); },
+    F5: () => { if (screen === "sale") { setPriceQuery(""); setModal("price"); } },
     F6: () => (screen === "sale" ? goToPayment() : void finishSale()),
     F7: () => (screen === "sale" ? void holdSale() : setPrintReceipt((v) => !v)),
     F8: () => { if (screen === "payment") setEmitNfce((v) => !v); },
@@ -720,7 +733,7 @@ function ClassicPDV() {
       }
       if (e.ctrlKey && e.key.toLowerCase() === "p") { e.preventDefault(); setScreen("sale"); window.setTimeout(() => codeRef.current?.focus(), 0); return; }
       if (e.altKey && /^[1-5]$/.test(e.key) && s === "payment" && !m) { e.preventDefault(); handlers.current[`Alt${e.key}`]?.(); return; }
-      if (/^F(2|3|4|6|7|8|9|10)$/.test(e.key)) {
+      if (/^F(2|3|4|5|6|7|8|9|10)$/.test(e.key)) {
         e.preventDefault();
         if (m && m !== "confirmCancel") return;
         handlers.current[e.key]?.();
@@ -768,7 +781,7 @@ function ClassicPDV() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[#eef2f9] font-sans text-slate-800 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
       {/* topo */}
-      <header className="flex h-[68px] shrink-0 items-center justify-between bg-[#0b527a] px-5 text-white">
+      <header className="flex h-[68px] [@media(max-height:700px)]:h-[54px] shrink-0 items-center justify-between bg-[#0b527a] px-5 text-white">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-white/15 text-lg font-bold">B</div>
           <div className="leading-tight">
@@ -799,8 +812,8 @@ function ClassicPDV() {
 
       {/* corpo */}
       {screen === "sale" ? (
-        <main className="grid min-h-0 flex-1 grid-cols-[minmax(380px,40%)_1fr] gap-6 p-5">
-          <section className="relative">
+        <main className="grid min-h-0 flex-1 grid-cols-[minmax(380px,40%)_1fr] grid-rows-[minmax(0,1fr)] gap-6 overflow-hidden p-5 [@media(max-height:700px)]:gap-4 [@media(max-height:700px)]:p-3">
+          <section className="relative min-h-0 overflow-y-auto pr-1">
             <div className="mb-1 flex items-center justify-between">
               <label className={labelCls}>Cód. / Produto (Ctrl+P)</label>
               <label className="flex items-center gap-1.5 text-[12px] text-slate-500">
@@ -871,7 +884,7 @@ function ClassicPDV() {
               </div>
             </div>
             <button onClick={handleCodeEnter} className={cn(btn("blue"), "mt-5 w-full")}>Incluir (Enter)</button>
-            <div className="mt-6 rounded-sm border border-[#c5cfdf] bg-white p-4">
+            <div className="mt-6 [@media(max-height:700px)]:mt-3 rounded-sm border border-[#c5cfdf] bg-white p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Último item</p>
               {lastAdded ? (
                 <>
@@ -886,7 +899,7 @@ function ClassicPDV() {
                 <p className="mt-1 text-[14px] text-slate-400">Nenhum item incluído ainda.</p>
               )}
             </div>
-            <p className="mt-3 text-[12px] leading-relaxed text-slate-500">
+            <p className="mt-3 text-[12px] leading-relaxed text-slate-500 [@media(max-height:760px)]:hidden">
               Tecle o código de barras ou o código e Enter. Para várias unidades, digite <b>3*código</b>. Com o campo vazio, <b>↑ ↓</b> escolhem um item do pedido, <b>Enter</b> altera a quantidade e <b>Delete</b> remove.
             </p>
           </section>
@@ -895,7 +908,7 @@ function ClassicPDV() {
             <div className="mb-3 rounded-sm border border-[#c5cfdf] bg-white px-4 py-3 text-[13px]">
               {cart.length === 0
                 ? <span className="font-medium text-slate-500">Aguardando abertura de pedido. Inclua um produto ou retome uma venda em aberto (F4).</span>
-                : <span><b className="text-[#0b527a]">Pedido Nº {saleNumber}</b> · {new Date().toLocaleDateString("pt-BR")} · {operatorName}</span>}
+                : <span><b className="text-[#0b527a]">Pedido Nº {saleNumber}</b> · {new Date().toLocaleDateString("pt-BR")} · {operatorName}{selectedCustomer && <> · Cliente: <b>{selectedCustomer.name}</b></>}{selectedSeller && <> · Vendedor: <b>{selectedSeller.name}</b></>}</span>}
             </div>
             <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-[#c5cfdf] bg-white">
               {cart.length === 0 ? (
@@ -944,8 +957,8 @@ function ClassicPDV() {
           </section>
         </main>
       ) : (
-        <main className="grid min-h-0 flex-1 grid-cols-[minmax(420px,48%)_1fr] gap-6 p-5">
-          <section>
+        <main className="grid min-h-0 flex-1 grid-cols-[minmax(420px,48%)_1fr] grid-rows-[minmax(0,1fr)] gap-6 overflow-hidden p-5 [@media(max-height:700px)]:gap-4 [@media(max-height:700px)]:p-3">
+          <section className="min-h-0 overflow-y-auto pr-1">
             <h2 className="mb-3 text-[20px] font-semibold text-[#0b527a]">Confirmação de pagamento</h2>
             <div className="rounded-sm border border-dashed border-[#b6c3d8] p-4">
               <label className={labelCls}>Forma de pagamento <span className="text-slate-400">(Alt + número)</span></label>
@@ -1078,13 +1091,13 @@ function ClassicPDV() {
       {/* legenda de atalhos */}
       <div className="shrink-0 border-t border-[#d5deec] bg-[#e9eef7] px-5 py-1.5 text-[11px] text-slate-500">
         {screen === "sale"
-          ? <>Ctrl+P produto · <b>3*código</b> quantidade · ↑ ↓ Del itens · F2 leitor · F3 operador · F4 vendas em aberto · F6 pagamento · F7 aguardar · F9 cancelar</>
+          ? <>Ctrl+P produto · <b>3*código</b> quantidade · ↑ ↓ Del itens · F2 leitor · F3 operador · F4 vendas em aberto · F5 consultar preço · F6 pagamento · F7 aguardar · F9 cancelar</>
           : <>Alt+1…5 forma de pagamento · Enter adiciona · F2 cliente · F3 desconto · F7 recibo · F8 NFC-e · F10 vendedor · F6 finalizar · Esc volta</>}
       </div>
 
       {/* rodapé */}
-      <footer className="flex h-[88px] shrink-0 items-center justify-between gap-4 bg-white px-5">
-        <div className="flex h-[72px] items-center gap-6 rounded-r-[40px] bg-[#0b527a] pl-6 pr-10 text-white">
+      <footer className="flex h-[88px] [@media(max-height:700px)]:h-[70px] shrink-0 items-center justify-between gap-4 bg-white px-5">
+        <div className="flex h-[72px] [@media(max-height:700px)]:h-[56px] items-center gap-6 whitespace-nowrap rounded-r-[40px] bg-[#0b527a] pl-6 pr-10 text-white [@media(max-width:1100px)]:gap-4 [@media(max-width:1100px)]:pl-4 [@media(max-width:1100px)]:pr-6">
           <div className="leading-tight">
             <p className="text-[11px] uppercase text-white/60">Operador</p>
             <p className="max-w-[170px] truncate text-[14px] font-semibold">{operatorName}</p>
@@ -1101,7 +1114,7 @@ function ClassicPDV() {
             </>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 [@media(max-width:1100px)]:gap-2">
           {screen === "sale" ? (
             <>
               <button className={btn("red")} onClick={() => cart.length > 0 && setModal("confirmCancel")} disabled={cart.length === 0}>Cancelar (F9)</button>
@@ -1158,10 +1171,38 @@ function ClassicPDV() {
         </Overlay>
       )}
 
+      {modal === "price" && (
+        <Overlay title="Consultar preço" onClose={() => setModal(null)} width={560}>
+          <input
+            className={inputCls} autoFocus value={priceQuery} autoComplete="off" placeholder="Código, código de barras ou nome"
+            onChange={(e) => setPriceQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && priceResults[0]) { e.preventDefault(); if (addItem(priceResults[0], 1)) { setModal(null); resetEntry(); } }
+            }}
+          />
+          <ul className="mt-3 max-h-[52vh] divide-y divide-slate-200 overflow-auto">
+            {priceResults.map((x) => (
+              <li key={x.id} className="flex items-center justify-between gap-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-medium text-slate-800">{x.name}</p>
+                  <p className="text-[12px] text-slate-500">{x.sku ?? "sem código"}{x.barcode ? ` · ${x.barcode}` : ""} · estoque {x.track_stock === false ? "sob encomenda" : x.stock_quantity}</p>
+                </div>
+                <b className="shrink-0 text-[22px] font-semibold text-[#0b527a]">R$ {money(Number(x.discount_price || x.price))}</b>
+              </li>
+            ))}
+            {priceQuery.trim() && priceResults.length === 0 && <li className="py-6 text-center text-[14px] text-slate-400">Nenhum produto encontrado.</li>}
+          </ul>
+          <p className="mt-3 text-[12px] text-slate-500">Enter inclui o primeiro da lista na venda · Esc fecha.</p>
+        </Overlay>
+      )}
+
       {modal === "operator" && (
         <Overlay title="Operador" onClose={() => setModal(null)} width={420}>
           <p className="mb-5 text-[14px] text-slate-600">Logado como <b>{operatorName}</b>.</p>
           <div className="space-y-3">
+            {lastReceipt && window.boxsysDesktop?.printReceipt && (
+              <button className={cn(btn("navy"), "w-full")} onClick={() => { void printThermalText(lastReceipt, "Cupom").then((r) => { if (!r.ok) flash(r.error || "Falha ao imprimir."); }); setModal(null); }}>Reimprimir último cupom</button>
+            )}
             {cashSession && <button className={cn(btn("navy"), "w-full")} onClick={() => { setModal(null); setShowCloseCash(true); }}>Fechar caixa</button>}
             <button className={cn(btn("red"), "w-full")} onClick={logout}>Sair do PDV</button>
             <button className={cn(btn("gray"), "w-full")} onClick={() => setModal(null)}>Voltar (Esc)</button>
