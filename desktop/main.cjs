@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, dialog, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, dialog, shell, session } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
@@ -8,6 +8,7 @@ const log = require("electron-log");
 const printerModule = require("./printer.cjs");
 const offlineDb = require("./db.cjs");
 const remotePrint = require("./remote-print.cjs");
+const webcache = require("./webcache.cjs");
 
 // A janela só minimiza pra bandeja ao fechar (nunca encerra o processo de verdade,
 // ver handler "close" abaixo) — sem esse lock, clicar no ícone de novo sem lembrar
@@ -728,6 +729,10 @@ app.on("second-instance", () => {
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   offlineDb.initDb(app);
+  // Guarda o site em disco para o PDV abrir mesmo sem internet (ver webcache.cjs).
+  const siteCache = webcache.install(session.defaultSession, () => readConfig().server, app.getPath("userData"));
+  // Depois que a tela carregou (e foi gravada no cache), completa o resto em segundo plano.
+  setTimeout(() => siteCache.prefetchAssets().catch(() => {}), 15000);
   buildMenu();
   createTray();
   createWindow();

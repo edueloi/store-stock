@@ -20,6 +20,7 @@ import {
   removePendingSale, countPendingSales, PendingSale,
   queueCashOp, getPendingCashOps, removePendingCashOp, countPendingCashOps, PendingCashOp,
 } from "../lib/offlineDb";
+import { rememberLogin, verifyOfflineLogin } from "../lib/offlineLogin";
 import { computeMeasuredPrice, measureUnitAbbr, measureUnitLabel, parseMeasureInput } from "../utils/measurePricing";
 import { productHasStock } from "../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../lib/cashSession";
@@ -188,13 +189,29 @@ function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
     setLoading(true);
     setError("");
     try {
-      const res  = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: identifier.trim(), password }),
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identifier: identifier.trim(), password }),
+          signal: AbortSignal.timeout(8000),
+        });
+      } catch {
+        // Sem servidor/internet: entra com a verificação guardada deste computador.
+        const offline = await verifyOfflineLogin(identifier, password);
+        if (offline === "unknown") setError("Sem conexão com o servidor. Este usuário ainda não entrou neste computador — conecte à internet uma vez para liberar o acesso offline.");
+        else if (offline === "wrong") setError("Senha incorreta.");
+        else {
+          localStorage.setItem("token", offline.token);
+          localStorage.setItem("user", JSON.stringify(offline.user));
+          onLogin(offline.token);
+        }
+        return;
+      }
       const data = await res.json();
       if (res.ok) {
+        void rememberLogin(identifier, password, data.token, data.user);
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
         if (data.user?.role === "super_admin") {
