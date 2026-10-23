@@ -1,7 +1,8 @@
 import GlassDefaultsSettings from "../../components/GlassDefaultsSettings";
 import GlassOptionsSettings from "../../components/GlassOptionsSettings";
 import GlassExtrasSettings from "../../components/GlassExtrasSettings";
-import type { GlassExtra } from "../../lib/glassPieces";
+import GlassPricesSettings from "../../components/GlassPricesSettings";
+import type { GlassExtra, GlassPriceRow } from "../../lib/glassPieces";
 import React, {
   useState,
   useEffect,
@@ -5523,6 +5524,12 @@ export default function Settings({
                 <GlassOptionsSettings
                   value={(policies as StorePolicies).glass_options ?? {}}
                   onChange={(next) => setPolicies({ glass_options: next })}
+                />
+                <div className="border-t border-slate-200" />
+                <GlassPricesSettings
+                  value={((policies as StorePolicies).glass_prices ?? []) as GlassPriceRow[]}
+                  options={(policies as StorePolicies).glass_options}
+                  onChange={(next) => setPolicies({ glass_prices: next as StorePolicies["glass_prices"] })}
                 />
                 <div className="border-t border-slate-200" />
                 <GlassExtrasSettings

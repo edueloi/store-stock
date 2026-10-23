@@ -56,6 +56,23 @@ export const PIECE_KINDS: { value: PieceKind; label: string; leaves: boolean }[]
   { value: "fixo", label: "Vidro fixo / vitrô", leaves: false },
 ];
 
+/** Linha da tabela de preços da vidraçaria: preço do m² por tipo de vidro e espessura. */
+export interface GlassPriceRow { glass: string; thickness_mm?: number | null; price_m2: number }
+
+/**
+ * Preço do m² da tabela para a peça: vidro e espessura exatos; senão o vidro em "qualquer espessura";
+ * senão null (e o orçamento usa o preço por m² do serviço, como antes da tabela existir).
+ */
+export function glassTablePrice(spec: Pick<PieceSpec, "glass" | "thickness_mm">, table?: GlassPriceRow[] | null): number | null {
+  if (!table?.length || !spec.glass) return null;
+  const same = (a?: string, b?: string) => (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+  const exact = table.find((r) => same(r.glass, spec.glass) && !!r.thickness_mm && Number(r.thickness_mm) === Number(spec.thickness_mm));
+  const anyThickness = table.find((r) => same(r.glass, spec.glass) && !r.thickness_mm);
+  const row = exact ?? anyThickness;
+  const price = Number(row?.price_m2);
+  return row && price > 0 ? price : null;
+}
+
 /** Como um adicional da peça é cobrado. */
 export type ExtraMode = "fixed" | "per_unit" | "per_m2" | "per_meter";
 

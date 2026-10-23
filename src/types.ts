@@ -29,6 +29,8 @@ export interface StorePolicies {
   glass_options?: { glass_types?: string[]; thicknesses?: number[]; finishes?: string[]; kinds?: string[] };
   /** Vidraçaria: adicionais cobrados na peça (furos, lapidação, instalação…), com preço e modo de cobrança. */
   glass_extras?: { id: string; name: string; mode: "fixed" | "per_unit" | "per_m2" | "per_meter"; price: number }[];
+  /** Vidraçaria: tabela de preços do m² por tipo de vidro e espessura. */
+  glass_prices?: { glass: string; thickness_mm?: number | null; price_m2: number }[];
   storefront?: {
     checkout_mode?: "whatsapp" | "reservation" | "online" | "order_request";
     reservation_minutes?: number;

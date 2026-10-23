@@ -6,7 +6,7 @@ import { localDateString } from "../utils/date";
 import { computeMeasuredPrice } from "../utils/measurePricing";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { resolveVariationSelection, VariationError } from "../utils/variation-selection";
-import { pieceCut, pieceExtrasTotal, pieceSummary, resolveExtrasFromCatalog, sanitizePieceSpec, type GlassExtra } from "../utils/glassPieces";
+import { glassTablePrice, pieceCut, pieceExtrasTotal, pieceSummary, resolveExtrasFromCatalog, sanitizePieceSpec, type GlassExtra, type GlassPriceRow } from "../utils/glassPieces";
 import { advanceServiceOrderToNotaEmitida, canMoveToStage, syncLinkedStatus } from "../utils/stage-permissions";
 import { getWorkflowStagesForTenant } from "../utils/workflow-stages";
 import { cancelarNfce } from "../services/nfce/cancelar";
@@ -643,18 +643,22 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       // Peça de vidraçaria (serviço por m²): o preço vem da medida de CORTE (vão menos a sangria)
       // com a margem de segurança — sempre recalculado aqui, nunca confiado ao cliente.
       const piece = isMeasured && service.sale_unit === "m2" ? sanitizePieceSpec(pieceSpecRaw) : null;
-      if (piece?.extras?.length) {
-        // adicionais: o preço vem sempre do cadastro da loja, nunca do que o navegador mandou
+      let glassPrices: GlassPriceRow[] = [];
+      if (piece) {
+        // adicionais e preço do m² vêm sempre do cadastro da loja, nunca do que o navegador mandou
         const tenantRow = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { policies: true } });
-        const catalog = (((tenantRow?.policies ?? {}) as { glass_extras?: GlassExtra[] }).glass_extras ?? []) as GlassExtra[];
-        const resolved = resolveExtrasFromCatalog(piece.extras, catalog);
-        if (resolved.length) piece.extras = resolved; else delete piece.extras;
+        const policies = (tenantRow?.policies ?? {}) as { glass_extras?: GlassExtra[]; glass_prices?: GlassPriceRow[] };
+        glassPrices = policies.glass_prices ?? [];
+        if (piece.extras?.length) {
+          const resolved = resolveExtrasFromCatalog(piece.extras, policies.glass_extras ?? []);
+          if (resolved.length) piece.extras = resolved; else delete piece.extras;
+        }
       }
       if (isMeasured) {
         const cut = piece ? pieceCut(piece) : null;
         const result = computeMeasuredPrice(
           service.sale_unit as "m2" | "linear",
-          Number(service.price_per_measure) || 0,
+          (piece ? glassTablePrice(piece, glassPrices) : null) ?? (Number(service.price_per_measure) || 0),
           service.min_billable_quantity ? Number(service.min_billable_quantity) : null,
           piece ? cut!.cutH / 1000 : Number(height) || 0,
           piece ? (cut!.cutW / 1000) * (1 + (piece.waste_pct ?? 0) / 100) : Number(width) || 0,

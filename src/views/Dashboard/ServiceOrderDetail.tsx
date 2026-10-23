@@ -66,7 +66,7 @@ import {
 import GlassPieceFields, { draftForService, draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, type PieceDraft } from "../../components/GlassPieceFields";
 import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
-import { pieceCut, pieceExtrasTotal, type PieceSpec } from "../../lib/glassPieces";
+import { glassTablePrice, pieceCut, pieceExtrasTotal, type PieceSpec } from "../../lib/glassPieces";
 import { printCutSheet } from "../../lib/cutSheet";
 import ProductVariationModal, { productHasVariations, type VariationOptions } from "../../components/pdv/ProductVariationModal";
 import SalePaymentForm, { SalePaymentFormState, newSalePaymentFormState, parseSalePaymentSettings, computeSalePayment, buildSalePayload } from "../../components/SalePaymentForm";
@@ -504,7 +504,7 @@ export default function ServiceOrderDetail() {
     : isMeasuredService && partSelectedService
     ? computeMeasuredPrice(
         (partSelectedService.sale_unit as "m2" | "linear") ?? "m2",
-        Number(partSelectedService.price_per_measure) || 0,
+        (servicePieceActive ? glassTablePrice(partPieceSpec, tenant?.policies?.glass_prices) : null) ?? (Number(partSelectedService.price_per_measure) || 0),
         partSelectedService.min_billable_quantity ?? null,
         servicePieceActive ? partPieceCut.cutH / 1000 : Number(measureHeight) || 0,
         servicePieceActive ? (partPieceCut.cutW / 1000) * (1 + (partPieceSpec.waste_pct ?? 0) / 100) : Number(measureWidth) || 0,

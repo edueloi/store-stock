@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import GlassDrawing from "../../components/GlassDrawing";
 import GlassPieceFields, { draftForService, draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, specToDraft, type GlassExtra, type PieceDraft } from "../../components/GlassPieceFields";
-import { pieceBilledAreaM2, pieceCut, pieceExtrasTotal, pieceLabel, pieceSummary, type GlassDefaults, type GlassOptions, type PieceSpec } from "../../lib/glassPieces";
+import type { GlassPriceRow } from "../../lib/glassPieces";
+import { glassTablePrice, pieceBilledAreaM2, pieceCut, pieceExtrasTotal, pieceLabel, pieceSummary, type GlassDefaults, type GlassOptions, type PieceSpec } from "../../lib/glassPieces";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
 import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
 import { printCutSheet } from "../../lib/cutSheet";
@@ -177,7 +178,7 @@ interface Customer {
 interface Tenant {
   name: string;
   /** Padrões da loja; aqui só importa o corte de vidro (sangria e margem). */
-  policies?: { glass_defaults?: GlassDefaults; glass_options?: GlassOptions; glass_extras?: GlassExtra[] };
+  policies?: { glass_defaults?: GlassDefaults; glass_options?: GlassOptions; glass_extras?: GlassExtra[]; glass_prices?: GlassPriceRow[] };
   document?: string;
   logo_url?: string;
   whatsapp?: string;
@@ -626,11 +627,14 @@ export default function QuoteDetail() {
   const pieceCutInfo = pieceCut(pieceSpec);
   // adicionais da peça (furos, lapidação…) entram no valor além do vidro cobrado por m²
   const pieceExtrasAmount = pieceMode ? pieceExtrasTotal(pieceSpec) : 0;
+  // preço do m² da tabela da loja (vidro + espessura); sem linha correspondente vale o preço do serviço
+  const glassPrices = tenant?.policies?.glass_prices;
+  const tablePrice = pieceMode ? glassTablePrice(pieceSpec, glassPrices) : null;
   // Mesmo mecanismo de venda por medida do Produto, aplicado a Serviço.
   const measureServicePreview = measureService
     ? computeMeasuredPrice(
         (measureService.sale_unit as "m2" | "linear") ?? "m2",
-        Number(measureService.price_per_measure) || 0,
+        tablePrice ?? (Number(measureService.price_per_measure) || 0),
         measureService.min_billable_quantity ?? null,
         pieceMode ? pieceCutInfo.cutH / 1000 : Number(measureServiceHeight) || 0,
         // a margem de segurança aumenta a área cobrada; escalar a largura mantém o cálculo por m² exato
@@ -1536,6 +1540,14 @@ export default function QuoteDetail() {
                       <span>Área cobrada</span>
                       <span className="font-mono font-semibold">{pieceBilledAreaM2(pieceSpec).toFixed(2)} m²</span>
                     </div>
+                    {tablePrice != null ? (
+                      <div className="flex items-baseline justify-between text-xs text-blue-800">
+                        <span>Preço do m² (tabela · {pieceSpec.glass} {pieceSpec.thickness_mm} mm)</span>
+                        <span className="font-mono font-semibold">R$ {tablePrice.toFixed(2)}</span>
+                      </div>
+                    ) : (glassPrices?.length ?? 0) > 0 ? (
+                      <p className="mt-1 text-[11px] font-medium text-amber-700">Sem preço na tabela para {pieceSpec.glass} {pieceSpec.thickness_mm} mm — usando o valor do serviço.</p>
+                    ) : null}
                     {measureServicePreview.minimumApplied && (
                       <p className="mt-1 text-[11px] font-medium text-amber-700">
                         Cobrando o mínimo de {Number(measureService.min_billable_quantity).toFixed(2)} m²
