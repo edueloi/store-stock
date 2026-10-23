@@ -27,6 +27,11 @@ let socket: Socket | null = null;
 let socketToken: string | null = null;
 let desktopTerminalUid: string | null = null;
 
+// Assinaturas ativas, independentes do socket atual: quando o socket é recriado (logout/
+// login, troca de token) elas são reanexadas ao novo. Sem isso, quem assinou antes (como a
+// ponte de impressão remota do Electron) ficava preso ao socket antigo e perdia os eventos.
+const subscriptions = new Set<{ event: RealtimeEvent; handler: (payload: any) => void }>();
+
 function getSocket(): Socket | null {
   const token = getStoredToken();
   if (!token) return null;
@@ -41,20 +46,22 @@ function getSocket(): Socket | null {
     auth: { token, ...(desktopTerminalUid ? { terminal_uid: desktopTerminalUid } : {}) },
     transports: ["websocket", "polling"],
   });
+  subscriptions.forEach((sub) => socket!.on(sub.event, sub.handler));
   return socket;
 }
 
 /** Registra o Electron pareado para que o servidor entregue impressões a ele. */
 export function identifyDesktopTerminal(terminalUid: string) {
   if (!terminalUid) return;
-  const changed = desktopTerminalUid !== terminalUid;
   desktopTerminalUid = terminalUid;
-  if (!socket) return;
+  // Recria o socket se ele foi derrubado (ex.: logout ao fechar o caixa) — o bridge chama
+  // isto a cada 15s, então o terminal volta sozinho assim que houver login.
+  const s = getSocket();
+  if (!s) return;
 
-  if (changed) socket.auth = { token: socketToken, terminal_uid: terminalUid };
-  // O bridge chama este método periodicamente. Além de identificar conexões novas,
-  // isso mantém o "visto por último" fiel enquanto o Electron está aberto.
-  if (socket.connected) socket.emit("terminal:identify", terminalUid);
+  s.auth = { token: socketToken, terminal_uid: terminalUid };
+  // Além de identificar conexões novas, isso mantém o "visto por último" fiel.
+  if (s.connected) s.emit("terminal:identify", terminalUid);
 }
 
 /**
@@ -64,18 +71,22 @@ export function identifyDesktopTerminal(terminalUid: string) {
  * Ex.: useEffect(() => onRealtime("stock:changed", () => fetchProducts()), []);
  */
 export function onRealtime(event: RealtimeEvent, handler: (payload: any) => void): () => void {
+  const sub = { event, handler };
+  const before = socket;
+  subscriptions.add(sub);
   const s = getSocket();
-  if (!s) return () => {};
-  s.on(event, handler);
-  return () => { s.off(event, handler); };
+  // Socket recém-criado já recebeu todas as assinaturas (incluindo esta).
+  if (s && s === before) s.on(event, handler);
+  return () => {
+    subscriptions.delete(sub);
+    socket?.off(event, handler);
+  };
 }
 
 /** Assina vários eventos com o mesmo handler — útil quando uma tela depende de mais de um domínio. */
 export function onRealtimeAny(events: RealtimeEvent[], handler: (payload: any) => void): () => void {
-  const s = getSocket();
-  if (!s) return () => {};
-  events.forEach((event) => s.on(event, handler));
-  return () => { events.forEach((event) => s.off(event, handler)); };
+  const unsubs = events.map((event) => onRealtime(event, handler));
+  return () => unsubs.forEach((unsub) => unsub());
 }
 
 /** Chame no logout para não deixar o socket autenticado do usuário anterior pendurado. */

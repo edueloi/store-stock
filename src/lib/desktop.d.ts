@@ -6,7 +6,8 @@ export interface SerialPortInfo {
 
 export interface PrinterConfig {
   brand: "epson" | "daruma" | "star" | "tanca";
-  transport: "serial" | "network";
+  transport: "usb" | "serial" | "network";
+  usbPrinterName?: string;
   serialPort?: string;
   networkHost?: string;
   networkPort?: number;

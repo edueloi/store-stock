@@ -7,7 +7,22 @@ interface DesktopTerminal {
   id: number;
   name: string;
   last_seen_at: string;
-  printers: { id: number; label: string; role: string }[];
+  printers: {
+    id: number;
+    label: string;
+    role: string;
+    is_default?: boolean;
+    config?: { transport?: string; usbPrinterName?: string; serialPort?: string; networkHost?: string; networkPort?: number };
+  }[];
+}
+
+const ROLE_LABEL: Record<string, string> = { receipt: "Cupom", service_order: "Ordem de serviço", custom: "Personalizada" };
+
+function describeConnection(c?: DesktopTerminal["printers"][number]["config"]) {
+  if (!c) return "Sem configuração";
+  if (c.transport === "network") return `Rede ${c.networkHost ?? "?"}:${c.networkPort ?? 9100}`;
+  if (c.transport === "serial") return `Porta ${c.serialPort ?? "?"}`;
+  return `Windows: ${c.usbPrinterName ?? "?"}`;
 }
 
 const ONLINE_WINDOW_MS = 45_000;
@@ -156,6 +171,12 @@ export default function DesktopTerminalsSection() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[12px] font-semibold text-slate-900 truncate">{t.name}</p>
+                {t.printers.map((p) => (
+                  <p key={p.id} className="text-[11px] text-slate-600 mt-0.5 truncate">
+                    🖨 <span className="font-semibold">{p.label}</span> · {ROLE_LABEL[p.role] ?? p.role}
+                    {p.is_default ? " (padrão)" : ""} · {describeConnection(p.config)}
+                  </p>
+                ))}
                 <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
                   <span className={presence.online ? "w-1.5 h-1.5 rounded-full bg-emerald-500" : "w-1.5 h-1.5 rounded-full bg-slate-300"} />
                   <span className={presence.online ? "text-emerald-600" : undefined}>{presence.label}</span>

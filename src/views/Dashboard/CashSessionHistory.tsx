@@ -10,6 +10,8 @@ import {
 import PageHeader from "../../components/layout/PageHeader";
 import { Button, IconButton, Input, Select, Modal, ModalFooter, Tabs, FilterLineSearch, FilterLineSegmented } from "../../components/ui";
 import Drawer from "../../components/ui/Drawer";
+import { useToast } from "../../components/ui/Toast";
+import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 import { cn } from "../../lib/utils";
 import {
   buildCashCloseReceiptText, printThermalText, thermalThin, thermalCenter, thermalRow,
@@ -125,6 +127,7 @@ const money = (v: string | number | null | undefined) =>
   Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function CashSessionHistory() {
+  const toast = useToast();
   const [sessions, setSessions] = useState<CashSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -412,7 +415,7 @@ export default function CashSessionHistory() {
   // Mesmo cupom impresso no fechamento ao vivo (PDV.tsx) — usa a função
   // compartilhada pra reimpressão a partir daqui nunca divergir do que já
   // saiu na hora do fechamento.
-  const printSessionReceipt = async (session: CashSessionDetail) => {
+  const buildSessionReceipt = async (session: CashSessionDetail) => {
     const money2 = (v: number) => v.toFixed(2).replace(".", ",");
     const validOrders = session.orders.filter((o) => o.status !== "cancelled");
     const totalGross = validOrders.reduce((sum, o) => sum + Number(o.gross_amount ?? o.total_amount), 0);
@@ -430,8 +433,33 @@ export default function CashSessionHistory() {
 
     const tenantName = await fetchTenantName();
     const operatorName = session.closed_by_name ?? session.opened_by_name;
-    const receipt = buildCashCloseReceiptText(tenantName, operatorName, session, PM_LABEL) + extra;
-    await printThermalText(receipt, "Fechamento de Caixa");
+    return buildCashCloseReceiptText(tenantName, operatorName, session, PM_LABEL) + extra;
+  };
+
+  const printSessionReceipt = async (session: CashSessionDetail) => {
+    const result = await printThermalText(await buildSessionReceipt(session), "Fechamento de Caixa");
+    if (!result.ok) toast.error(result.error || "Não foi possível imprimir. Verifique a impressora em Configurações.");
+  };
+
+  const [remoteTerminals, setRemoteTerminals] = useState<RemotePrintTerminal[]>([]);
+  const [remoteSending, setRemoteSending] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetchRemotePrintTerminals(localStorage.getItem("token") || "")
+      .then((terminals) => setRemoteTerminals(terminals.filter((rt) => rt.printers.some((p) => p.role === "receipt"))))
+      .catch(() => {});
+  }, []);
+
+  const printSessionRemote = async (session: CashSessionDetail, terminalId: number) => {
+    setRemoteSending(terminalId);
+    try {
+      const result = await requestRemotePrint(localStorage.getItem("token") || "", terminalId, "receipt", await buildSessionReceipt(session));
+      if (!result.ok) toast.error(result.error || "Falha ao pedir impressão remota.");
+    } catch {
+      toast.error("Falha ao pedir impressão remota. Verifique sua conexão.");
+    } finally {
+      setRemoteSending(null);
+    }
   };
 
   const grandTotal = paymentByMethodBrand.reduce((a, v) => a + v.amount, 0);
@@ -1159,6 +1187,12 @@ export default function CashSessionHistory() {
         title="Sessão de Caixa"
         footer={detail && detail.status === "closed" ? (
           <ModalFooter>
+            {remoteTerminals.map((rt) => (
+              <Button key={rt.id} variant="outline" size="sm" iconLeft={<Printer size={14} />} loading={remoteSending === rt.id}
+                disabled={remoteSending !== null} onClick={() => printSessionRemote(detail, rt.id)} title="Imprimir em outro terminal">
+                {rt.name}
+              </Button>
+            ))}
             <Button variant="outline" size="sm" iconLeft={<Printer size={14} />} onClick={() => printSessionReceipt(detail)} title="Imprimir via térmica">Imprimir</Button>
           </ModalFooter>
         ) : undefined}
