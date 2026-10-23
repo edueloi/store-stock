@@ -6352,6 +6352,22 @@ export default function Settings({
                   ))}
                 </div>
 
+                {/* Caixa Clássico — mesmo instalador, escolhido na configuração inicial */}
+                <div className="bg-white border border-slate-200 rounded-lg p-5">
+                  <p className="text-[13px] font-semibold text-slate-900">Caixa Clássico (modo offline)</p>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    Tela de balcão tradicional, toda pelo teclado: código do produto, lista de itens, pagamento em tela própria
+                    e atalhos F2, F3, F4, F6, F7, F8, F9 e F10. Roda sem internet: o app baixa sozinho os produtos (sem fotos),
+                    vendedores, clientes e configurações, guarda as vendas no computador e sincroniza quando a conexão volta.
+                  </p>
+                  <ol className="mt-3 space-y-1 text-[11px] text-slate-600 list-decimal list-inside">
+                    <li>Baixe e instale o aplicativo acima (é o mesmo instalador).</li>
+                    <li>Na primeira abertura, informe o endereço da loja e escolha <span className="font-semibold">Caixa Clássico</span> em "Modo deste Terminal".</li>
+                    <li>Entre com seu usuário <span className="font-semibold">uma vez com internet</span> neste computador e vincule o terminal (PDV → Vincular Dispositivo) — daí ele também recebe impressões remotas.</li>
+                  </ol>
+                  <p className="text-[11px] text-slate-400 mt-3">Para trocar o modo depois: menu PDV → Reconfigurar Terminal.</p>
+                </div>
+
                 {/* Setup instructions */}
                 <div className="bg-slate-50 border border-slate-100 rounded-lg p-5">
                   <p className="text-[11px] font-semibold text-slate-400 mb-3">

@@ -161,6 +161,60 @@ export async function getMyTerminal(req: Request, res: Response) {
   }
 }
 
+// Campos da loja que o PDV precisa para vender (nunca certificado, tokens nem e-mail).
+const SNAPSHOT_TENANT_FIELDS = [
+  "name", "document", "phone", "whatsapp", "logo_url", "primary_color", "address", "address_street", "address_number",
+  "address_complement", "address_district", "address_city", "address_state", "address_zip", "card_fees",
+  "pass_fee_to_customer", "pass_fee_by_method", "max_installments", "enabled_brands", "crediario_interest_rate",
+  "crediario_grace_days", "require_cash_session", "print_cash_close_receipt", "logout_on_cash_close",
+  "sell_without_stock_control", "auto_print_receipt", "policies",
+] as const;
+
+// Pacote de dados para o PDV offline, baixado em segundo plano pelo app desktop com a
+// credencial do terminal (sem usuário logado): produtos LEVES (sem fotos nem descrições),
+// vendedores, clientes e configurações da loja. Nenhuma senha ou hash sai daqui.
+export async function getTerminalSnapshot(req: Request, res: Response) {
+  const { tenant_id: tenantId } = (req as TerminalRequest).terminal;
+  try {
+    const [tenant, products, sellers, customers] = await Promise.all([
+      prisma.tenant.findUnique({ where: { id: tenantId } }),
+      prisma.product.findMany({
+        where: { tenant_id: tenantId },
+        select: {
+          id: true, tenant_id: true, category_id: true, name: true, sku: true, barcode: true, price: true, discount_price: true,
+          max_discount_pct: true, stock_quantity: true, type: true, is_active: true, track_stock: true, variations: true,
+          attributes: true, skus: true, sale_unit: true, price_per_measure: true, min_billable_quantity: true,
+          measure_stock_quantity: true, measure_unit: true, ncm: true, unidade_comercial: true,
+        },
+      }),
+      prisma.seller.findMany({ where: { tenant_id: tenantId, is_active: true }, orderBy: { name: "asc" } }),
+      prisma.customer.findMany({
+        where: { tenant_id: tenantId },
+        select: { id: true, name: true, phone: true, document: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+
+    const safeTenant: Record<string, unknown> = {};
+    for (const key of SNAPSHOT_TENANT_FIELDS) safeTenant[key] = (tenant as Record<string, unknown> | null)?.[key] ?? null;
+
+    res.json({
+      generated_at: new Date().toISOString(),
+      tenant: safeTenant,
+      products: products.map((p) => ({
+        ...p,
+        // só a combinação e o estoque: as fotos de cada SKU ficam de fora (pacote leve)
+        skus: Array.isArray(p.skus) ? (p.skus as { combo: unknown; stock: unknown }[]).map((s) => ({ combo: s.combo, stock: s.stock })) : p.skus,
+      })),
+      sellers,
+      customers,
+    });
+  } catch (err) {
+    console.error("[getTerminalSnapshot]", err);
+    res.status(500).json({ error: "Failed to build terminal snapshot" });
+  }
+}
+
 export async function listTerminals(req: Request, res: Response) {
   const tenantId = getTenantId(req);
   try {

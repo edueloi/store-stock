@@ -9,6 +9,7 @@ const printerModule = require("./printer.cjs");
 const offlineDb = require("./db.cjs");
 const remotePrint = require("./remote-print.cjs");
 const webcache = require("./webcache.cjs");
+const offlineSync = require("./offline-sync.cjs");
 
 // A janela só minimiza pra bandeja ao fechar (nunca encerra o processo de verdade,
 // ver handler "close" abaixo) — sem esse lock, clicar no ícone de novo sem lembrar
@@ -180,11 +181,18 @@ function normalizeServer(input) {
 }
 
 function entryUrl(server, mode) {
-  return `https://${server}/${mode === "admin" ? "admin" : "pdv"}`;
+  const route = mode === "admin" ? "admin" : mode === "classic" ? "pdv-classico" : "pdv";
+  return `https://${server}/${route}`;
+}
+
+function normalizeMode(mode) {
+  return mode === "admin" || mode === "classic" ? mode : "pdv";
 }
 
 function windowTitle(mode) {
-  return mode === "admin" ? "Store BoxSys — Painel Completo" : "Store BoxSys — Terminal de Caixa";
+  if (mode === "admin") return "Store BoxSys — Painel Completo";
+  if (mode === "classic") return "Store BoxSys — Caixa Clássico";
+  return "Store BoxSys — Terminal de Caixa";
 }
 
 // Quick reachability test against the server
@@ -206,6 +214,7 @@ function testServer(server) {
 let mainWindow = null;
 let tray = null;
 let startedHidden = process.argv.includes("--hidden");
+let dataSync = null;
 // Controla se "fechar a janela" deve realmente encerrar o processo — só true
 // quando o usuário escolhe "Sair" (menu ou bandeja) ou o SO pede pra fechar de
 // vez. Sem isso, o botão X da janela mataria o processo e nenhuma notificação
@@ -387,6 +396,10 @@ function openPairingWindow() {
 
 // ─── Menu ────────────────────────────────────────────────────────────────────
 function buildMenu() {
+  // No Caixa Clássico a própria tela usa F2/F3/F4/F6/F7/F9/F10: o menu nativo não pode
+  // capturar essas teclas antes dela.
+  const classic = readConfig().mode === "classic";
+  const fkey = (key) => (classic ? undefined : key);
   const template = [
     {
       label: "PDV",
@@ -408,10 +421,10 @@ function buildMenu() {
         },
         { label: "Tela Cheia", accelerator: "F11", click: () => mainWindow.setFullScreen(!mainWindow.isFullScreen()) },
         { type: "separator" },
-        { label: "Abrir Gaveta", accelerator: "F4", click: () => mainWindow.webContents.send("pdv:shortcut", "open-drawer") },
-        { label: "Buscar Produto", accelerator: "F2", click: () => mainWindow.webContents.send("pdv:shortcut", "focus-search") },
-        { label: "Finalizar Venda", accelerator: "F8", click: () => mainWindow.webContents.send("pdv:shortcut", "checkout") },
-        { label: "Nova Venda / Limpar Carrinho", accelerator: "F9", click: () => mainWindow.webContents.send("pdv:shortcut", "new-sale") },
+        { label: "Abrir Gaveta", accelerator: fkey("F4"), click: () => mainWindow.webContents.send("pdv:shortcut", "open-drawer") },
+        { label: "Buscar Produto", accelerator: fkey("F2"), click: () => mainWindow.webContents.send("pdv:shortcut", "focus-search") },
+        { label: "Finalizar Venda", accelerator: fkey("F8"), click: () => mainWindow.webContents.send("pdv:shortcut", "checkout") },
+        { label: "Nova Venda / Limpar Carrinho", accelerator: fkey("F9"), click: () => mainWindow.webContents.send("pdv:shortcut", "new-sale") },
         { type: "separator" },
         {
           label: "Reconfigurar Terminal...",
@@ -473,7 +486,7 @@ function buildMenu() {
 // ─── IPC ─────────────────────────────────────────────────────────────────────
 ipcMain.handle("setup:get-current", () => {
   const { server, mode } = readConfig();
-  return { server: server || "", mode: mode === "admin" ? "admin" : "pdv" };
+  return { server: server || "", mode: normalizeMode(mode) };
 });
 
 ipcMain.handle("setup:save-server", async (_e, input, mode) => {
@@ -483,8 +496,9 @@ ipcMain.handle("setup:save-server", async (_e, input, mode) => {
   const reachable = await testServer(server);
   if (!reachable) return { ok: false, error: "Não foi possível conectar a este servidor. Verifique o endereço e sua internet." };
 
-  const resolvedMode = mode === "admin" ? "admin" : "pdv";
+  const resolvedMode = normalizeMode(mode);
   writeConfig({ ...readConfig(), server, mode: resolvedMode });
+  buildMenu(); // o modo clássico libera as teclas F2/F4/F8/F9 para a própria tela
   mainWindow.setTitle(windowTitle(resolvedMode));
   mainWindow.loadURL(entryUrl(server, resolvedMode));
   return { ok: true };
@@ -567,7 +581,14 @@ ipcMain.handle("terminal:set-token", (_e, token) => {
   if (typeof token !== "string" || !token) return { ok: false };
   if (readConfig().terminalToken !== token) writeConfig({ ...readConfig(), terminalToken: token });
   startRemotePrint();
+  dataSync?.syncNow(); // já baixa o pacote offline com a credencial recém-recebida
   return { ok: true };
+});
+
+// Força o download do pacote offline agora (botão "atualizar dados" do PDV clássico).
+ipcMain.handle("offline:sync-now", async () => {
+  if (!dataSync) return { ok: false, error: "Sincronização indisponível." };
+  return dataSync.syncNow();
 });
 
 ipcMain.handle("terminal:remote-print-status", () => ({
@@ -743,6 +764,13 @@ app.whenReady().then(() => {
     app.setLoginItemSettings({ openAtLogin: true, args: ["--hidden"] });
   }
   startRemotePrint();
+
+  // Baixa em segundo plano os dados da loja para vender offline (produtos leves, vendedores…).
+  dataSync = offlineSync.start({
+    log,
+    saveCache: (key, value) => offlineDb.saveCache(key, value),
+    fetchSnapshot: () => terminalRequest("GET", "/desktop-terminals/me/snapshot"),
+  });
 
   // Checagem assíncrona — não atrasa a abertura da janela principal.
   checkForUpdates();

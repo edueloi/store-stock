@@ -7,6 +7,7 @@ import Login from "./views/Auth/Login";
 import ForgotPassword from "./views/Auth/ForgotPassword";
 import ResetPassword from "./views/Auth/ResetPassword";
 import PDVStandalone from "./views/PDVStandalone";
+import PDVClassico from "./views/PDVClassico";
 import SuperAdminDashboard from "./views/SuperAdmin/SuperAdminDashboard";
 import SetupInvite from "./views/Auth/SetupInvite";
 import QuoteApproval from "./views/Public/QuoteApproval";
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/setup/:token" element={<SetupInvite />} />
         <Route path="/orcamento/:token" element={<QuoteApproval />} />
         <Route path="/pdv" element={<PDVStandalone />} />
+        <Route path="/pdv-classico" element={<PDVClassico />} />
         <Route path="/admin/*" element={<AdminDashboard />} />
         <Route path="/super-admin/*" element={<SuperAdminDashboard />} />
         <Route path="/s/:slug/*" element={<StoreLayout />} />

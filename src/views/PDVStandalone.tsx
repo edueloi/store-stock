@@ -165,7 +165,7 @@ function maskDoc(v: string) {
 }
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
-function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
+export function PDVLogin({ onLogin }: { onLogin: (token: string) => void }) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
