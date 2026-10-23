@@ -6296,25 +6296,13 @@ export default function Settings({
                 </div>
 
                 {/* Download cards — sempre a versão mais recente publicada no GitHub Releases */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 gap-4 max-w-sm">
                   {[
                     {
                       os: "Windows",
                       desc: "Windows 10 ou superior",
                       file: "https://github.com/edueloi/store-stock/releases/latest/download/StoreBoxSys-Setup.exe",
                       ext: ".exe",
-                    },
-                    {
-                      os: "macOS",
-                      desc: "Intel e Apple Silicon",
-                      file: "https://github.com/edueloi/store-stock/releases/latest/download/StoreBoxSys.dmg",
-                      ext: ".dmg",
-                    },
-                    {
-                      os: "Linux",
-                      desc: "AppImage universal",
-                      file: "https://github.com/edueloi/store-stock/releases/latest/download/StoreBoxSys.AppImage",
-                      ext: ".AppImage",
                     },
                   ].map(({ os, desc, file, ext }) => (
                     <button
@@ -6362,7 +6350,7 @@ export default function Settings({
                   </p>
                   <ol className="mt-3 space-y-1 text-[11px] text-slate-600 list-decimal list-inside">
                     <li>Baixe e instale o aplicativo acima (é o mesmo instalador).</li>
-                    <li>Na primeira abertura, informe o endereço da loja e escolha <span className="font-semibold">Caixa Clássico</span> em "Modo deste Terminal".</li>
+                    <li>Na primeira abertura, escolha <span className="font-semibold">Caixa Clássico</span> em "Modo deste Terminal" e clique em Conectar.</li>
                     <li>Entre com seu usuário <span className="font-semibold">uma vez com internet</span> neste computador e vincule o terminal (PDV → Vincular Dispositivo) — daí ele também recebe impressões remotas.</li>
                   </ol>
                   <p className="text-[11px] text-slate-400 mt-3">Para trocar o modo depois: menu PDV → Reconfigurar Terminal.</p>
@@ -6376,11 +6364,7 @@ export default function Settings({
                   <ol className="space-y-2 text-[12px] text-slate-600 font-medium list-decimal list-inside">
                     <li>Baixe e instale o aplicativo no computador do caixa</li>
                     <li>
-                      Na primeira abertura, informe o endereço da sua loja (ex:{" "}
-                      <span className="font-mono font-semibold text-slate-800">
-                        {window.location.hostname}
-                      </span>
-                      )
+                      Na primeira abertura, escolha o modo do computador (Terminal PDV ou Caixa Clássico) e clique em Conectar
                     </li>
                     <li>Faça login com um usuário de acesso ao PDV</li>
                     <li>

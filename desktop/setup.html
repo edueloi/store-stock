@@ -59,13 +59,16 @@
   <div class="card">
     <div class="logo">B</div>
     <h1>BoxSys</h1>
-    <p class="sub">Informe o endereço da sua loja e escolha como este computador vai usar o sistema.</p>
+    <p class="sub">Escolha como este computador vai usar o sistema.</p>
 
-    <label for="server">Endereço da Loja</label>
-    <input id="server" type="text" placeholder="minhaloja.boxsys.com.br" autofocus
-           onkeydown="if(event.key==='Enter')connect()" />
+    <!-- Todos usam o mesmo endereço: o campo só aparece em "avançado". -->
+    <div id="advanced" style="display:none">
+      <label for="server">Endereço do servidor</label>
+      <input id="server" type="text" value="store.boxsys.com.br" placeholder="store.boxsys.com.br"
+             onkeydown="if(event.key==='Enter')connect()" />
+    </div>
 
-    <label style="margin-top: 18px">Modo deste Terminal</label>
+    <label>Modo deste Terminal</label>
     <div class="mode-group">
       <div class="mode-card active" data-mode="pdv" onclick="setMode('pdv')">
         <div class="mode-title">Terminal PDV</div>
@@ -84,7 +87,7 @@
     <button class="connect" id="btn" onclick="connect()">Conectar</button>
     <div id="error" class="error"></div>
 
-    <p class="hint">Ex: vogan-store.boxsys.com.br</p>
+    <p class="hint"><a href="#" style="color:#64748b" onclick="document.getElementById('advanced').style.display='block';this.style.display='none';return false;">Avançado: alterar servidor</a></p>
   </div>
 
   <script>
@@ -118,6 +121,8 @@
       if (!window.boxsysDesktop?.getCurrentSetup) return;
       const current = await window.boxsysDesktop.getCurrentSetup();
       if (current.server) document.getElementById("server").value = current.server;
+      // servidor diferente do padrão (instalação antiga): mostra o campo para não esconder a configuração
+      if (current.server && current.server !== "store.boxsys.com.br") document.getElementById("advanced").style.display = "block";
       setMode(current.mode || "pdv");
     })();
   </script>

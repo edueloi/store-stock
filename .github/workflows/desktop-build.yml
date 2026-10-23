@@ -12,12 +12,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Só Windows: é onde os caixas rodam. macOS/Linux ficam fora para o build e a
+          # release não dependerem de plataformas que ninguém usa.
           - os: windows-latest
             args: --win
-          - os: macos-latest
-            args: --mac
-          - os: ubuntu-latest
-            args: --linux
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     defaults:
