@@ -2564,11 +2564,22 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             </Button>
           )}
           {requireCashSession && cashSession && (
-            <Button variant="outline" size="lg" onClick={() => setShowCloseCashModal(true)}
-              title="Fechar Caixa" aria-label="Fechar Caixa" iconLeft={<Wallet size={11} />}
-              className="shrink-0 px-2.5 border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-500/20 hover:text-emerald-300">
-              <span className="hidden 2xl:block">Fechar caixa</span>
-            </Button>
+            (() => {
+              const opened = new Date(cashSession.opened_at);
+              // caixa aberto em dia anterior: avisa para fechar e abrir um novo (senão as vendas de vários dias caem na mesma sessão)
+              const old = opened.toDateString() !== new Date().toDateString();
+              const since = opened.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+              return (
+                <Button variant="outline" size="lg" onClick={() => setShowCloseCashModal(true)}
+                  title={old ? `Este caixa está aberto desde ${since}. Feche e abra um novo para hoje.` : "Fechar Caixa"}
+                  aria-label="Fechar Caixa" iconLeft={<Wallet size={11} />}
+                  className={cn("shrink-0 px-2.5", old
+                    ? "border-amber-400/50 bg-amber-500/15 text-amber-300 hover:border-amber-400 hover:bg-amber-500/25 hover:text-amber-200"
+                    : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-500/20 hover:text-emerald-300")}>
+                  <span className={old ? "block" : "hidden 2xl:block"}>{old ? `Aberto desde ${since} — fechar` : "Fechar caixa"}</span>
+                </Button>
+              );
+            })()
           )}
           <Button variant="outline" size="lg" onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)" aria-label="Crediário (F6)"
             iconLeft={<Wallet size={11} />} className="shrink-0 px-2.5 border-amber-500/20 bg-amber-500/10 text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/20 hover:text-amber-300">

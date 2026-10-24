@@ -124,6 +124,26 @@ interface CashSessionDetail extends CashSession {
   orders: CashSessionOrder[];
 }
 
+// Dia local (YYYY-MM-DD) de um instante ISO. O relatório recorta pelo dia da VENDA, não pelo dia em que a
+// sessão de caixa foi aberta: um caixa pode ficar aberto por vários dias e as vendas de hoje precisam
+// aparecer no relatório de hoje mesmo que a sessão tenha sido aberta antes.
+const localDay = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+/** A sessão esteve ativa em algum momento do período? (aberta até o fim dele e ainda aberta, ou fechada dentro/depois do início) */
+const sessionOverlapsPeriod = (s: { opened_at: string; closed_at: string | null; status: string }, from: string, to: string) => {
+  if (to && localDay(s.opened_at) > to) return false;
+  if (s.status === "open" || !s.closed_at) return true;
+  return !from || localDay(s.closed_at) >= from;
+};
+
+const orderInPeriod = (o: { created_at: string }, from: string, to: string) => {
+  const day = localDay(o.created_at);
+  return (!from || day >= from) && (!to || day <= to);
+};
+
 const money = (v: string | number | null | undefined) =>
   Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -255,11 +275,7 @@ export default function CashSessionHistory() {
 
   // Aba Relatório — sempre recortada pelo filtro de período (Mês/Ano/Livre).
   const sessionsForReport = useMemo(() => {
-    return sessions.filter((s) => {
-      if (periodPreset === "all") return true;
-      const opened = s.opened_at.substring(0, 10);
-      return opened >= dateFrom && opened <= dateTo;
-    });
+    return sessions.filter((s) => periodPreset === "all" || sessionOverlapsPeriod(s, dateFrom, dateTo));
   }, [sessions, periodPreset, dateFrom, dateTo]);
 
   // Pedidos de todas as sessões do período do Relatório — carregados sob
@@ -291,7 +307,10 @@ export default function CashSessionHistory() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportIdsKey, mainTab]);
 
-  const allOrders = useMemo(() => Object.values(ordersBySession).flat(), [ordersBySession]);
+  const allOrders = useMemo(
+    () => Object.values(ordersBySession).flat().filter((o) => periodPreset === "all" || orderInPeriod(o, dateFrom, dateTo)),
+    [ordersBySession, periodPreset, dateFrom, dateTo],
+  );
 
   function computeFinanceTotals(orders: CashSessionOrder[]) {
     return orders.reduce((acc, o) => {
@@ -378,7 +397,7 @@ export default function CashSessionHistory() {
     const totals: Record<string, number> = {};
     allOrders.forEach((o) => {
       if (o.status === "cancelled") return;
-      const day = o.created_at.substring(0, 10);
+      const day = localDay(o.created_at);
       totals[day] = (totals[day] ?? 0) + Number(o.total_amount);
     });
     return Object.entries(totals).sort(([a], [b]) => a.localeCompare(b)).map(([date, total]) => ({ date, total }));
@@ -389,13 +408,7 @@ export default function CashSessionHistory() {
   // ser reaproveitado em outros recortes futuros, sem depender do estado
   // já carregado pra tela (que é sempre o período da aba Relatório).
   async function fetchSessionsAndOrdersForPeriod(from: string, to: string) {
-    const sessionsInPeriod = sessions.filter((s) => {
-      if (!from && !to) return true;
-      const opened = s.opened_at.substring(0, 10);
-      if (from && opened < from) return false;
-      if (to && opened > to) return false;
-      return true;
-    });
+    const sessionsInPeriod = sessions.filter((s) => (!from && !to) || sessionOverlapsPeriod(s, from, to));
     const pairs = await Promise.all(
       sessionsInPeriod.map((s) =>
         fetch(`/api/cash-sessions/${s.id}`, { headers: { Authorization: `Bearer ${token}` } })
@@ -404,7 +417,7 @@ export default function CashSessionHistory() {
           .catch(() => [] as CashSessionOrder[])
       )
     );
-    return { sessionsInPeriod, orders: pairs.flat() };
+    return { sessionsInPeriod, orders: pairs.flat().filter((o) => (!from && !to) || orderInPeriod(o, from, to)) };
   }
 
   const counts = useMemo(() => ({

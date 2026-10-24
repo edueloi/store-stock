@@ -795,7 +795,15 @@ function ClassicPDV() {
         </div>
         <div className="text-center leading-tight">
           <p className="text-[11px] uppercase tracking-widest text-white/60">Caixa</p>
-          <p className="text-[15px] font-semibold">{cashSession ? `Aberto às ${new Date(cashSession.opened_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}` : "Caixa Padrão"}</p>
+          {(() => {
+            if (!cashSession) return <p className="text-[15px] font-semibold">Caixa Padrão</p>;
+            const opened = new Date(cashSession.opened_at);
+            // caixa aberto em dia anterior: vendas de vários dias caem na mesma sessão e o fechamento perde o sentido
+            const old = opened.toDateString() !== new Date().toDateString();
+            return old
+              ? <p className="text-[14px] font-semibold text-amber-300" title="Feche este caixa e abra um novo para o dia de hoje">⚠ Aberto desde {opened.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} {opened.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — feche o caixa</p>
+              : <p className="text-[15px] font-semibold">Aberto às {opened.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>;
+          })()}
         </div>
         <div className="flex items-center gap-3">
           <button onClick={() => void refreshData()} disabled={refreshingData} title="Baixar produtos e dados da loja agora" className="rounded-sm border border-white/30 px-3 py-2 text-[12px] font-semibold hover:bg-white/10 disabled:opacity-50">{refreshingData ? "ATUALIZANDO…" : "↻ ATUALIZAR DADOS"}</button>
