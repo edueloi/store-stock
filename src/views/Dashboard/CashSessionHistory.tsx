@@ -447,7 +447,32 @@ export default function CashSessionHistory() {
     const totalDiscount = validOrders.reduce((sum, o) => sum + Number(o.discount_amount ?? 0), 0);
     const totalFee = validOrders.reduce((sum, o) => sum + Number(o.fee_amount ?? 0), 0);
 
-    let extra = "";
+    // Relatório completo: vendas por forma de pagamento (todas as formas, mesmo zeradas) com quantidade e valor
+    // líquido de troco — o bloco "por forma de pagamento" do fechamento só traz o que está no detalhamento salvo.
+    const byMethod: Record<string, { count: number; amount: number; brands: Record<string, number> }> = {};
+    Object.keys(PM_LABEL).forEach((m) => { byMethod[m] = { count: 0, amount: 0, brands: {} }; });
+    validOrders.forEach((o) => {
+      let change = Number(o.change_amount) || 0;
+      const seen = new Set<string>();
+      parseOrderPayments(o.payment_method).forEach((seg) => {
+        let amount = seg.amount;
+        if (seg.method === "money" && change > 0) {
+          const applied = Math.min(change, amount);
+          amount -= applied;
+          change -= applied;
+        }
+        const e = (byMethod[seg.method] ??= { count: 0, amount: 0, brands: {} });
+        e.amount += amount;
+        if (!seen.has(seg.method)) { e.count += 1; seen.add(seg.method); }
+        if (seg.brand && seg.brand !== "other") e.brands[seg.brand] = (e.brands[seg.brand] ?? 0) + amount;
+      });
+    });
+    let extra = `${thermalThin}\n${thermalCenter("VENDAS POR FORMA DE PAGTO")}\n${thermalThin}\n`;
+    Object.entries(byMethod).forEach(([m, e]) => {
+      extra += thermalRow(`${PM_LABEL[m] ?? m} (${e.count})`, `R$ ${money2(e.amount)}`) + "\n";
+      Object.entries(e.brands).forEach(([br, v]) => { extra += thermalRow(`  ${br.toUpperCase()}`, `R$ ${money2(v)}`) + "\n"; });
+    });
+    extra += thermalRow(`TOTAL VENDAS (${validOrders.length})`, `R$ ${money2(Object.values(byMethod).reduce((t, e) => t + e.amount, 0))}`) + "\n";
     if (totalDiscount > 0 || totalFee > 0) {
       extra += `${thermalThin}\n${thermalCenter("VENDAS DO PERÍODO")}\n${thermalThin}\n`;
       extra += thermalRow("Vendas (bruto)", `R$ ${money2(totalGross)}`) + "\n";
