@@ -9,6 +9,7 @@ import { Button, Alert, ContentCard, EmptyState } from "../../components/ui";
 
 interface QuoteItem {
   selected_options?: Record<string,string> | null;
+  piece_spec?: PieceSpec | null;
   id: number;
   name: string;
   quantity: number;
@@ -132,7 +133,7 @@ export default function QuoteApproval() {
                       {item.dimensions_label || `Qtd: ${item.quantity} × ${fmt(item.unit_price)}`}
                     </p>
                     {item.selected_options && <p className="mt-1 text-[11px] text-slate-500">{Object.entries(item.selected_options).filter(([key]) => !["Modelo da peça", "Largura (mm)", "Altura (mm)", "Folhas"].includes(key)).map(([key,value]) => `${key}: ${value}`).join(" · ")}</p>}
-                    {glassSpecFromOptions(item.selected_options) && <div className="mt-2 w-40"><GlassDrawing spec={glassSpecFromOptions(item.selected_options)!}/></div>}
+                    {(item.piece_spec ?? glassSpecFromOptions(item.selected_options)) && <div className="mt-2 w-40"><GlassDrawing spec={(item.piece_spec ?? glassSpecFromOptions(item.selected_options))!}/></div>}
                   </div>
                   <p className="shrink-0 font-mono font-semibold text-slate-700">{fmt(item.total)}</p>
                 </div>

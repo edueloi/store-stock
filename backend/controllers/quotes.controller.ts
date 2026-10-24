@@ -161,7 +161,7 @@ export async function createQuote(req: Request, res: Response) {
       discount_value?: number;
       validity_days?: number;
       notes?: string;
-      items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label?: string | null; selected_options?: Record<string, string> | null }>;
+      items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label?: string | null; selected_options?: Record<string, string> | null; piece_spec?: unknown }>;
       services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null; piece_spec?: unknown }>;
     };
 
@@ -178,6 +178,7 @@ export async function createQuote(req: Request, res: Response) {
       total: Math.round(i.unit_price * i.quantity * 100) / 100,
       dimensions_label: i.dimensions_label || null,
       selected_options: i.selected_options && Object.keys(i.selected_options).length ? i.selected_options : undefined,
+      piece_spec: (sanitizePieceSpec(i.piece_spec) ?? undefined) as any,
     }));
     const serviceRows = (services ?? []).map((s) => ({
       service_id: s.id,
@@ -416,7 +417,7 @@ export async function updateQuote(req: Request, res: Response) {
       discount_value?: number;
       validity_days?: number;
       notes?: string;
-      items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; dimensions_label?: string | null; selected_options?: Record<string, string> | null }>;
+      items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; dimensions_label?: string | null; selected_options?: Record<string, string> | null; piece_spec?: unknown }>;
       services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null; piece_spec?: unknown }>;
     };
 
@@ -473,6 +474,7 @@ export async function updateQuote(req: Request, res: Response) {
               total: Math.round(i.unit_price * i.quantity * 100) / 100,
               dimensions_label: i.dimensions_label || null,
               selected_options: i.selected_options && Object.keys(i.selected_options).length ? i.selected_options : undefined,
+              piece_spec: (sanitizePieceSpec(i.piece_spec) ?? undefined) as any,
             })),
           },
         }),

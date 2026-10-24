@@ -481,6 +481,11 @@ model Product {
   // Exemplos: m, cm, mm, km, m2, cm2, mm2, km2.
   measure_unit           String?  @db.VarChar(10)
 
+  // Vidraçaria: produto vendido por m² marcado como peça — no orçamento abre o desenho, medidas, sangria,
+  // margem e adicionais. piece_kind = tipo padrão; piece_defaults = {glass, thickness_mm, finish}.
+  piece_kind     String? @db.VarChar(40)
+  piece_defaults Json?
+
   // --- Dados fiscais ---
   ncm                String?  @db.VarChar(8)
   cest               String?  @db.VarChar(7)
@@ -1474,6 +1479,8 @@ model QuoteItem {
   dimensions_label String?
   // Variação escolhida (ex.: {"Tamanho":"M"}) — vira OrderItem.selected_options ao converter em venda
   selected_options Json?
+  // Peça de vidraçaria vinda de um produto por m² (tipo, medidas, vidro, sangria, adicionais...): vira o desenho no orçamento.
+  piece_spec       Json?
 
   quote Quote @relation(fields: [quote_id], references: [id], onDelete: Cascade)
 

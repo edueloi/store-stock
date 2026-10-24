@@ -11,6 +11,29 @@ import { emitToTenant } from "../services/realtime.service";
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
 }
+// Peça de vidraçaria: só produto por m² pode ser peça, e o tipo precisa ser um dos conhecidos.
+function glassPieceFields(saleUnit: string, kind: unknown, defaults: unknown) {
+  const validKind = saleUnit === "m2" && PIECE_KINDS.some((k) => k.value === kind) ? String(kind) : null;
+  if (!validKind) return { piece_kind: null, piece_defaults: Prisma.DbNull };
+  const d = (defaults && typeof defaults === "object" ? defaults : {}) as Record<string, unknown>;
+  const clean: Record<string, string | number> = {};
+  if (typeof d.glass === "string" && d.glass.trim()) clean.glass = d.glass.trim().slice(0, 60);
+  if (typeof d.finish === "string" && d.finish.trim()) clean.finish = d.finish.trim().slice(0, 60);
+  const thickness = Math.round(Number(d.thickness_mm));
+  if (thickness > 0 && thickness <= 30) clean.thickness_mm = thickness;
+  return { piece_kind: validKind, piece_defaults: Object.keys(clean).length ? clean : Prisma.DbNull };
+}
+
+// Só mexe nos campos da peça quando o corpo traz piece_kind (formulário completo) ou troca a unidade de venda
+// para algo que não seja m² (aí a marcação de peça deixa de valer). Atualizações parciais (estoque etc.) não tocam.
+function pieceFieldsFor(body: Record<string, unknown>, currentSaleUnit?: string | null) {
+  const hasUnit = typeof body.sale_unit === "string";
+  const saleUnit = hasUnit ? String(body.sale_unit) : (currentSaleUnit ?? "unidade");
+  if ("piece_kind" in body) return glassPieceFields(saleUnit, body.piece_kind, body.piece_defaults);
+  if (hasUnit && saleUnit !== "m2") return { piece_kind: null, piece_defaults: Prisma.DbNull };
+  return {};
+}
+
 function publicDetails(value: any) {
   if (value === undefined) return undefined;
   if (value === null) return Prisma.JsonNull;
@@ -152,7 +175,7 @@ export async function createProduct(req: Request, res: Response) {
     const {
       images, variations, attributes, skus, storefront_details,
       tenant_id: _tid, id: _id, category, category_name,
-      created_at, updated_at,
+      created_at, updated_at, piece_kind: _pk, piece_defaults: _pd,
       ...rest
     } = req.body;
 
@@ -161,6 +184,7 @@ export async function createProduct(req: Request, res: Response) {
     const product = await prisma.product.create({
       data: {
         ...rest,
+        ...pieceFieldsFor(req.body),
         // Nome do produto sempre em caixa alta — padroniza o catálogo (evita mistura
         // de maiúsculas/minúsculas entre produtos cadastrados por vias diferentes).
         ...(typeof rest.name === "string" ? { name: rest.name.toUpperCase() } : {}),
@@ -227,7 +251,7 @@ export async function updateProduct(req: Request, res: Response) {
         stock_quantity: true, min_stock: true, measure_stock_quantity: true, measure_min_stock: true,
         sku: true, barcode: true, description: true,
         is_active: true, is_featured: true, category_id: true,
-        ncm: true, cfop: true, csosn: true, cst_icms: true,
+        ncm: true, cfop: true, csosn: true, cst_icms: true, sale_unit: true,
       },
     });
 
@@ -246,7 +270,7 @@ export async function updateProduct(req: Request, res: Response) {
     const {
       images, variations, attributes, skus, storefront_details,
       tenant_id: _tid, id: _id, category, category_name,
-      created_at, updated_at,
+      created_at, updated_at, piece_kind: _pk, piece_defaults: _pd,
       ...rest
     } = req.body;
 
@@ -256,6 +280,7 @@ export async function updateProduct(req: Request, res: Response) {
       where: { id, tenant_id: tenantId },
       data: {
         ...rest,
+        ...pieceFieldsFor(req.body, existing?.sale_unit),
         // Nome do produto sempre em caixa alta — padroniza o catálogo (evita mistura
         // de maiúsculas/minúsculas entre produtos cadastrados por vias diferentes).
         ...(typeof rest.name === "string" ? { name: rest.name.toUpperCase() } : {}),

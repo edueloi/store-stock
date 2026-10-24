@@ -25,6 +25,8 @@ export interface QuotePdfItem {
   total: number;
   dimensions_label?: string | null;
   selected_options?: Record<string, string> | null;
+  /** Peça de vidraçaria (produto por m² marcado como peça): o PDF mostra o desenho e as medidas dela. */
+  piece_spec?: PieceSpec | null;
 }
 
 export interface QuotePdfService {
@@ -81,7 +83,7 @@ function collectPieces(quote: QuotePdfData): { name: string; spec: PieceSpec; qt
   return [
     ...(quote.services ?? []).filter((s) => s.piece_spec).map((s) => ({ name: s.name, spec: s.piece_spec as PieceSpec, qty: s.quantity })),
     ...quote.items
-      .map((i) => ({ name: i.name, spec: glassSpecFromOptions(i.selected_options), qty: i.quantity }))
+      .map((i) => ({ name: i.name, spec: i.piece_spec ?? glassSpecFromOptions(i.selected_options), qty: i.quantity }))
       .filter((p): p is { name: string; spec: PieceSpec; qty: number } => !!p.spec),
   ];
 }

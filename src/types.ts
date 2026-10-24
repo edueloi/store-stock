@@ -284,6 +284,9 @@ export interface Product {
   variations?: { name: string; options: { value: string; stock: number }[] }[];
   // Venda por medida (m²/metro linear) — vidraçaria/marcenaria/gráfica
   sale_unit?: 'unidade' | 'm2' | 'linear' | 'peso' | 'volume';
+  /** Vidraçaria: produto por m² marcado como peça (tipo padrão e vidro/espessura/perfil padrão). */
+  piece_kind?: string | null;
+  piece_defaults?: { glass?: string; thickness_mm?: number; finish?: string } | null;
   price_per_measure?: number;
   min_billable_quantity?: number;
   /** Saldo físico em metros ou m² para produtos vendidos por medida. */

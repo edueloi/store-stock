@@ -68,6 +68,8 @@ interface QuoteItem {
   dimensions_label?: string | null;
   /** Variação escolhida (ex.: {"Tamanho":"M"}). */
   selected_options?: Record<string, string> | null;
+  /** Peça de vidraçaria (produto por m² marcado como peça): vira o desenho e a ficha de corte. */
+  piece_spec?: PieceSpec | null;
 }
 
 interface QuoteServiceRow {
@@ -317,6 +319,9 @@ export default function QuoteDetail() {
   // Form state (mirrors quote, editable inline)
   const [productSearch, setProductSearch] = useState("");
   const [measureProduct, setMeasureProduct] = useState<Product | null>(null);
+  // Produto por m² marcado como peça de vidraçaria: abre o mesmo formulário de peça dos serviços
+  const [pieceProduct, setPieceProduct] = useState<Product | null>(null);
+  const [editingItemPieceIdx, setEditingItemPieceIdx] = useState<number | null>(null);
   const [measureHeight, setMeasureHeight] = useState("");
   const [measureWidth, setMeasureWidth] = useState("");
   const [measureService, setMeasureService] = useState<ServiceCatalog | null>(null);
@@ -510,7 +515,7 @@ export default function QuoteDetail() {
   const autosaveItems = useCallback((items: QuoteItem[], svcs: typeof formServices) => {
     autosaveField({
       items: items.map((i) => ({
-        product_id: i.product_id, name: i.name, quantity: i.quantity, unit_price: i.unit_price, dimensions_label: i.dimensions_label ?? null, selected_options: i.selected_options ?? null,
+        product_id: i.product_id, name: i.name, quantity: i.quantity, unit_price: i.unit_price, dimensions_label: i.dimensions_label ?? null, selected_options: i.selected_options ?? null, piece_spec: i.piece_spec ?? null,
       })),
       services: svcs.map((s) => ({ id: s.service_id, name: s.name, price: s.price, quantity: s.quantity, dimensions_label: s.dimensions_label ?? null, piece_spec: s.piece_spec ?? null })),
     }, "items");
@@ -537,6 +542,10 @@ export default function QuoteDetail() {
   const addProduct = (p: Product) => {
     if (productHasVariations(p) && !(p.sale_unit && p.sale_unit !== "unidade")) {
       setVariationProduct(p);
+      return;
+    }
+    if (p.sale_unit === "m2" && p.piece_kind) {
+      openProductPiece(p);
       return;
     }
     if (p.sale_unit && p.sale_unit !== "unidade") {
@@ -647,6 +656,45 @@ export default function QuoteDetail() {
         measureService.min_charge ?? null,
       )
     : null;
+
+  // Produto por m² como peça: preço do m² (tabela da loja ou do produto) × área de corte com a margem, mais os adicionais
+  const productPiecePreview = pieceProduct
+    ? computeMeasuredPrice(
+        "m2",
+        tablePrice ?? (Number(pieceProduct.price_per_measure) || 0),
+        pieceProduct.min_billable_quantity ?? null,
+        pieceCutInfo.cutH / 1000,
+        (pieceCutInfo.cutW / 1000) * (1 + (pieceSpec.waste_pct ?? 0) / 100),
+      )
+    : null;
+  const productPieceTotal = productPiecePreview ? Math.round((productPiecePreview.total + pieceExtrasAmount) * 100) / 100 : 0;
+
+  const openProductPiece = (p: Product, itemIdx: number | null = null, spec?: PieceSpec | null) => {
+    setMeasureProduct(null);
+    setPieceProduct(p);
+    setPieceMode(true);
+    setPieceDraft(spec ? specToDraft(spec) : draftForService(p, tenant?.policies?.glass_defaults));
+    setEditingItemPieceIdx(itemIdx);
+    setProductSearch("");
+  };
+
+  const closeProductPiece = () => { setPieceProduct(null); setEditingItemPieceIdx(null); setPieceMode(false); };
+
+  const addProductPiece = () => {
+    if (!pieceProduct || !productPiecePreview) return;
+    const row: QuoteItem = {
+      product_id: pieceProduct.id, name: pieceProduct.name, quantity: 1, unit_price: productPieceTotal, total: productPieceTotal,
+      dimensions_label: `${pieceSummary(pieceSpec)} · ${pieceBilledAreaM2(pieceSpec).toFixed(2)}m²`, piece_spec: pieceSpec,
+    };
+    const next = editingItemPieceIdx !== null
+      // edição: mantém a quantidade e recalcula o valor pela nova medida
+      ? formItems.map((it, i) => i === editingItemPieceIdx ? { ...row, quantity: it.quantity, total: Math.round(productPieceTotal * it.quantity * 100) / 100 } : it)
+      : [...formItems, row];
+    rememberTechnicalDefaults(pieceDraft);
+    setFormItems(next);
+    autosaveItems(next, formServices);
+    closeProductPiece();
+  };
 
   const addMeasuredService = () => {
     if (!measureService || !measureServicePreview) return;
@@ -1114,7 +1162,7 @@ export default function QuoteDetail() {
                             <p className="truncate text-xs font-medium text-slate-800">{item.name}</p>
                             {item.dimensions_label && <p className="font-mono text-[11px] text-blue-600">{item.dimensions_label}</p>}
                             {item.selected_options && <p className="mt-1 text-[11px] text-slate-500">{Object.entries(item.selected_options).filter(([key]) => !["Modelo da peça", "Largura (mm)", "Altura (mm)", "Folhas"].includes(key)).map(([key,value]) => `${key}: ${value}`).join(" · ")}</p>}
-                            {glassSpecFromOptions(item.selected_options) && <div className="mt-2 w-40 rounded border border-blue-100 bg-white"><GlassDrawing spec={glassSpecFromOptions(item.selected_options)!}/></div>}
+                            {(item.piece_spec ?? glassSpecFromOptions(item.selected_options)) && <div className="mt-2 w-40 rounded border border-blue-100 bg-white"><GlassDrawing spec={(item.piece_spec ?? glassSpecFromOptions(item.selected_options))!}/></div>}
                           </div>
                           <div className="shrink-0">
                             <span className="ds-label mb-1 block">Qtd.</span>
@@ -1137,6 +1185,12 @@ export default function QuoteDetail() {
                             onChange={(e) => updateItemPrice(idx, parseMaskedPrice(applyMoneyMask(e.target.value)))}
                           />
                           <span className="w-20 shrink-0 self-center text-right text-xs font-semibold tabular-nums text-slate-800">{fmt(item.total)}</span>
+                          {isEditable && item.piece_spec && (
+                            <IconButton size="xs" variant="ghost" aria-label="Editar peça" title="Editar medidas da peça" onClick={() => {
+                              const prod = products.find((p) => p.id === item.product_id);
+                              if (prod) openProductPiece(prod, idx, item.piece_spec);
+                            }}><Pencil size={14} /></IconButton>
+                          )}
                           {isEditable && (
                             <IconButton size="xs" variant="ghost" aria-label="Remover produto" onClick={() => removeItem(idx)}><X size={14} /></IconButton>
                           )}
@@ -1185,7 +1239,7 @@ export default function QuoteDetail() {
                   // Projeto: todas as peças do orçamento (serviços por m² e produtos de vidro vindos da vitrine).
                   const pieces: ProjectPiece[] = [
                     ...formServices.filter((s) => s.piece_spec).map((s) => ({ name: s.name, spec: s.piece_spec as PieceSpec, qty: s.quantity })),
-                    ...formItems.map((i) => ({ name: i.name, spec: glassSpecFromOptions(i.selected_options), qty: i.quantity })).filter((p): p is ProjectPiece => !!p.spec),
+                    ...formItems.map((i) => ({ name: i.name, spec: i.piece_spec ?? glassSpecFromOptions(i.selected_options), qty: i.quantity })).filter((p): p is ProjectPiece => !!p.spec),
                   ];
                   if (pieces.length === 0) return null;
                   return (
@@ -1528,6 +1582,68 @@ export default function QuoteDetail() {
               </div>
             )}
           </div>
+        )}
+      </Modal>
+
+      {/* ── Peça de vidraçaria — Produto por m² ──────────────────────────────── */}
+      <Modal
+        open={!!pieceProduct}
+        onClose={closeProductPiece}
+        size="full"
+        title={editingItemPieceIdx !== null ? `Editar peça · ${pieceProduct?.name ?? ""}` : pieceProduct?.name}
+        subtitle={pieceProduct ? "Produto por m² · peça de vidraçaria" : undefined}
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={closeProductPiece}>Cancelar</Button>
+            <Button
+              onClick={addProductPiece}
+              disabled={!productPiecePreview || productPiecePreview.rawQuantity <= 0 || pieceSpec.width_mm < 50 || pieceSpec.height_mm < 50 || pieceCutInfo.cutW < 50 || pieceCutInfo.cutH < 50}
+              iconLeft={<PlusCircle size={14} />}
+            >{editingItemPieceIdx !== null ? "Salvar peça" : "Adicionar"}</Button>
+          </ModalFooter>
+        }
+      >
+        {pieceProduct && (
+          <GlassPieceFields
+            draft={pieceDraft}
+            onChange={setPieceDraft}
+            showTechnical
+            defaults={tenant?.policies?.glass_defaults}
+            options={tenant?.policies?.glass_options}
+            extrasCatalog={tenant?.policies?.glass_extras}
+            summary={productPiecePreview && productPiecePreview.rawQuantity > 0 ? (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                <div className="flex items-baseline justify-between text-xs text-blue-800">
+                  <span>Área cobrada</span>
+                  <span className="font-mono font-semibold">{pieceBilledAreaM2(pieceSpec).toFixed(2)} m²</span>
+                </div>
+                {tablePrice != null ? (
+                  <div className="flex items-baseline justify-between text-xs text-blue-800">
+                    <span>Preço do m² (tabela · {pieceSpec.glass} {pieceSpec.thickness_mm} mm)</span>
+                    <span className="font-mono font-semibold">R$ {tablePrice.toFixed(2)}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-baseline justify-between text-xs text-blue-800">
+                    <span>Preço do m² (produto)</span>
+                    <span className="font-mono font-semibold">R$ {Number(pieceProduct.price_per_measure ?? 0).toFixed(2)}</span>
+                  </div>
+                )}
+                {productPiecePreview.minimumApplied && (
+                  <p className="mt-1 text-[11px] font-medium text-amber-700">Cobrando o mínimo de {Number(pieceProduct.min_billable_quantity).toFixed(2)} m²</p>
+                )}
+                {pieceExtrasAmount > 0 && (
+                  <>
+                    <div className="mt-1 flex items-baseline justify-between text-xs text-blue-800"><span>Vidro</span><span className="font-mono font-semibold">R$ {productPiecePreview.total.toFixed(2)}</span></div>
+                    <div className="flex items-baseline justify-between text-xs text-blue-800"><span>Adicionais</span><span className="font-mono font-semibold">R$ {pieceExtrasAmount.toFixed(2)}</span></div>
+                  </>
+                )}
+                <div className="mt-2 flex items-end justify-between border-t border-blue-200 pt-2">
+                  <span className="text-xs font-semibold text-blue-900">Valor da peça</span>
+                  <span className="font-mono text-2xl font-bold text-blue-900">R$ {productPieceTotal.toFixed(2)}</span>
+                </div>
+              </div>
+            ) : null}
+          />
         )}
       </Modal>
 

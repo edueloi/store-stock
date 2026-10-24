@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   Plus, Image as ImageIcon, Save, X, Upload, Zap, Camera, ChevronLeft, ChevronRight, GripVertical,
   Tag, Boxes, FileText, Fingerprint, FolderTree, DollarSign, Receipt, Palette, ArrowLeft,
@@ -10,7 +10,7 @@ import {
   Button, IconButton, Input, Select, Textarea, Switch, Tabs, SectionTitle, ContentCard, PanelCard, Badge, FilterLineSegmented, useToast,
 } from "../../components/ui";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
-import { PIECE_KINDS } from "../../lib/glassPieces";
+import { PIECE_KINDS, resolveGlassOptions, type GlassOptions } from "../../lib/glassPieces";
 import { glassMeasurements } from "../../../shared/glassCatalog";
 import { defaultMeasureUnit, measureUnitAbbr, measureUnitLabel, measureUnitOptions } from "../../utils/measurePricing";
 
@@ -453,6 +453,12 @@ export default function ProductForm({
 }: ProductFormProps) {
   const toast = useToast();
   const [productModalTab, setProductModalTab] = useState<ProductModalTab>("identificacao");
+  // listas de vidro/espessura/perfil que a loja cadastrou em Configurações > Vidraçaria (usadas nos padrões da peça)
+  const [glassOptions, setGlassOptions] = useState<GlassOptions | undefined>();
+  useEffect(() => {
+    fetch("/api/tenant", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      .then((r) => r.json()).then((t) => setGlassOptions(t?.policies?.glass_options)).catch(() => {});
+  }, []);
   // Campo auxiliar de UI (não é salvo no produto) — % de lucro desejada sobre o custo.
   // String pra permitir digitar livremente sem o input travar em 0.
   const [profitMarginInput, setProfitMarginInput] = useState("");
@@ -913,6 +919,50 @@ export default function ProductForm({
                       </p>
                     </div>
                   )}
+
+                  {editingProduct?.sale_unit === "m2" && (() => {
+                    const opts = resolveGlassOptions(glassOptions);
+                    const setDefault = (patch: Record<string, string | number | undefined>) =>
+                      setEditingProduct(prev => ({ ...prev!, piece_defaults: { ...(prev?.piece_defaults ?? {}), ...patch } }));
+                    return (
+                      <div className="space-y-3 rounded-lg border border-cyan-200 bg-cyan-50/60 p-3">
+                        <label className="flex items-start gap-2 text-xs font-semibold text-slate-800">
+                          <input
+                            type="checkbox" className="mt-0.5 accent-cyan-600" checked={!!editingProduct?.piece_kind}
+                            onChange={(e) => setEditingProduct(prev => ({ ...prev!, piece_kind: e.target.checked ? (prev?.piece_kind || opts.kinds[0]?.value || "janela_correr") : null }))}
+                          />
+                          <span>
+                            Este produto é uma peça de vidraçaria
+                            <span className="mt-0.5 block text-[11px] font-normal text-slate-500">
+                              No orçamento abre o desenho da peça, para informar largura e altura (mm) com vidro, espessura, sangria, margem de segurança e adicionais. O valor sai do preço por m² acima.
+                            </span>
+                          </span>
+                        </label>
+                        {editingProduct?.piece_kind && (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <Select label="Tipo de peça" value={editingProduct.piece_kind} onChange={e => setEditingProduct(prev => ({ ...prev!, piece_kind: e.target.value }))}>
+                              {PIECE_KINDS.map(k => <option key={k.value} value={k.value}>{k.label}</option>)}
+                            </Select>
+                            <Select label="Vidro padrão" value={editingProduct.piece_defaults?.glass ?? ""} onChange={e => setDefault({ glass: e.target.value || undefined })}>
+                              <option value="">Não definir</option>
+                              {opts.glassTypes.map(g => <option key={g} value={g}>{g}</option>)}
+                            </Select>
+                            <Select label="Espessura padrão" value={editingProduct.piece_defaults?.thickness_mm ?? ""} onChange={e => setDefault({ thickness_mm: e.target.value ? Number(e.target.value) : undefined })}>
+                              <option value="">Não definir</option>
+                              {opts.thicknesses.map(t => <option key={t} value={t}>{t} mm</option>)}
+                            </Select>
+                            <div className="sm:col-span-3">
+                              <Select label="Cor do perfil / ferragem padrão" value={editingProduct.piece_defaults?.finish ?? ""} onChange={e => setDefault({ finish: e.target.value || undefined })}>
+                                <option value="">Não definir</option>
+                                {opts.finishes.map(f => <option key={f} value={f}>{f}</option>)}
+                              </Select>
+                            </div>
+                            <p className="sm:col-span-3 text-[11px] text-slate-500">Os vidros, espessuras e cores desta lista vêm de Configurações &gt; Vidraçaria.</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </PanelCard>
 
                 <PanelCard title="Envio e Embalagem" description="Usado no cálculo de frete das vendas online." icon={Boxes} contentClassName="space-y-3">
