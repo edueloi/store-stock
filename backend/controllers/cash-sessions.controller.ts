@@ -303,6 +303,60 @@ export async function closeCashSession(req: Request, res: Response) {
   }
 }
 
+/**
+ * Fecha uma sessão de caixa ABERTA em nome do Sistema (caixa esquecido aberto, operador ausente…): o valor
+ * contado é lançado igual ao esperado em dinheiro, então a diferença fecha em zero, e a nota do fechamento
+ * registra quem pediu, quando e por quê. Devolve null se a sessão não existir/já estiver fechada.
+ */
+export async function closeCashSessionBySystem(tenantId: number, sessionId: number, opts: { requestedBy: string; reason: string }) {
+  const session = await prisma.cashSession.findFirst({ where: { id: sessionId, tenant_id: tenantId, status: "open" } });
+  if (!session) return null;
+
+  // recalcula o esperado a partir das vendas da sessão (mesma regra do fechamento normal)
+  const summary = await recalculateCashSessionSummary(tenantId, sessionId);
+  const expected = Number(summary?.expected_amount ?? session.opening_amount);
+
+  const when = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const note = `[Fechado pelo Sistema em ${when} a pedido de ${opts.requestedBy}: valor contado lançado igual ao esperado em dinheiro (R$ ${expected.toFixed(2).replace(".", ",")}). Motivo: ${opts.reason.slice(0, 300)}]`;
+
+  await prisma.cashSession.update({
+    where: { id: sessionId },
+    data: {
+      status: "closed",
+      closed_by_id: null,
+      closed_by_name: "Sistema",
+      closed_at: new Date(),
+      counted_amount: expected,
+      closing_note: [session.closing_note, note].filter(Boolean).join("\n"),
+    },
+  });
+  // segunda passada: preenche a diferença (zero) e o "contado" de dinheiro no detalhamento por forma de pagamento
+  return recalculateCashSessionSummary(tenantId, sessionId);
+}
+
+// Rota do administrador: fechar pelo sistema o caixa aberto de qualquer operador da loja.
+export async function systemCloseCashSession(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const user = (req as AuthenticatedRequest).user;
+    if (user.role !== "admin") {
+      res.status(403).json({ error: "Só o administrador pode fechar o caixa de outra pessoa." });
+      return;
+    }
+    const author = await prisma.user.findUnique({ where: { id: user.userId }, select: { name: true } });
+    const reason = String((req.body as { reason?: string })?.reason ?? "").trim() || "Caixa deixado aberto — fechado pelo administrador";
+    const session = await closeCashSessionBySystem(tenantId, Number(req.params.id), { requestedBy: author?.name ?? "administrador", reason });
+    if (!session) {
+      res.status(404).json({ error: "Caixa aberto não encontrado (ele pode já ter sido fechado)." });
+      return;
+    }
+    res.json({ session });
+  } catch (err) {
+    console.error("[systemCloseCashSession] error:", err);
+    res.status(500).json({ error: "Falha ao fechar o caixa pelo sistema" });
+  }
+}
+
 const METHOD_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
 const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
 

@@ -1426,6 +1426,11 @@ export default function QuoteDetail() {
               <Button fullWidth variant="outline" size="sm" iconLeft={<History size={14} />} onClick={() => setActiveTab("historico")}>
                 Histórico
               </Button>
+              {!["converted", "cancelled", "expired"].includes(quote.status) && (formItems.length > 0 || formServices.length > 0 || !!quote.service_order) && (
+                <Button fullWidth variant="primary" size="sm" loading={convertingOS} onClick={handleConvertToOS} iconLeft={<ClipboardList size={14} />}>
+                  {quote.service_order ? `Abrir OS #${quote.service_order.number}` : "Gerar OS"}
+                </Button>
+              )}
               {(quote.customer_email || selectedCustomer?.email) ? (
                 <>
                   <Button fullWidth size="sm" loading={sendingEmail} onClick={handleSendQuoteEmail} iconLeft={emailDelivery?.sent ? <Send size={14} /> : <Mail size={14} />}>
@@ -1437,11 +1442,6 @@ export default function QuoteDetail() {
                 </>
               ) : (
                 <p className="text-center text-[11px] text-amber-700">Cadastre o e-mail do cliente para enviar este orçamento.</p>
-              )}
-              {!["converted", "cancelled", "expired"].includes(quote.status) && (formItems.length > 0 || formServices.length > 0 || !!quote.service_order) && (
-                <Button fullWidth variant="primary" size="sm" loading={convertingOS} onClick={handleConvertToOS} iconLeft={<ClipboardList size={14} />}>
-                  {quote.service_order ? `Abrir OS #${quote.service_order.number}` : "Converter em OS"}
-                </Button>
               )}
               {quote.status === "orcamento_enviado" && (
                 <>

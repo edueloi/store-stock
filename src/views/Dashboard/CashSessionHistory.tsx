@@ -841,6 +841,36 @@ export default function CashSessionHistory() {
     setShowExportModal(false);
   }
 
+  // Fechar pelo sistema o caixa aberto de outra pessoa (admin)
+  const [sysCloseOpen, setSysCloseOpen] = useState(false);
+  const [sysCloseReason, setSysCloseReason] = useState("Caixa deixado aberto — fechado pelo administrador");
+  const [sysClosing, setSysClosing] = useState(false);
+  const [sysCloseError, setSysCloseError] = useState<string | null>(null);
+
+  const confirmSystemClose = async () => {
+    if (!detail || sysClosing) return;
+    setSysClosing(true);
+    setSysCloseError(null);
+    try {
+      const res = await fetch(`/api/cash-sessions/${detail.id}/system-close`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: sysCloseReason.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setSysCloseError(data?.error || "Não foi possível fechar o caixa."); return; }
+      setSysCloseOpen(false);
+      toast.success("Caixa fechado pelo sistema.");
+      await openDetail(detail.id);
+      fetch("/api/cash-sessions", { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json()).then((d) => setSessions(Array.isArray(d) ? d : [])).catch(() => {});
+    } catch {
+      setSysCloseError("Erro de conexão. Tente novamente.");
+    } finally {
+      setSysClosing(false);
+    }
+  };
+
   const openFix = () => {
     if (!detail) return;
     setFixCountedCents(centsOf(detail.counted_amount));
@@ -1247,6 +1277,31 @@ export default function CashSessionHistory() {
 
       {/* Detalhe da sessão */}
       <Modal
+        open={sysCloseOpen}
+        onClose={() => { if (!sysClosing) setSysCloseOpen(false); }}
+        title="Fechar caixa pelo sistema"
+        size="md"
+        footer={
+          <ModalFooter>
+            <Button variant="outline" onClick={() => setSysCloseOpen(false)} disabled={sysClosing}>Cancelar</Button>
+            <Button variant="danger" onClick={confirmSystemClose} loading={sysClosing} disabled={sysClosing}>Fechar caixa</Button>
+          </ModalFooter>
+        }
+      >
+        {detail && (
+          <div className="space-y-4">
+            <p className="text-[12px] leading-relaxed text-slate-600">
+              O caixa de <b>{detail.opened_by_name}</b>, aberto em {new Date(detail.opened_at).toLocaleString("pt-BR")}, será fechado em nome do <b>Sistema</b>.
+              O valor contado é lançado <b>igual ao esperado em dinheiro</b> (a diferença fica zerada) e o fechamento registra quem pediu e o motivo.
+              Depois, se precisar, dá para corrigir o valor em &quot;Corrigir fechamento&quot;.
+            </p>
+            <Input label="Motivo" type="text" maxLength={300} value={sysCloseReason} onChange={(e) => setSysCloseReason(e.target.value)} />
+            {sysCloseError && <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">{sysCloseError}</p>}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         open={fixOpen}
         onClose={() => { if (!fixSaving) setFixOpen(false); }}
         title="Corrigir fechamento de caixa"
@@ -1299,7 +1354,12 @@ export default function CashSessionHistory() {
         open={!!(detail || detailLoading)}
         onClose={() => setDetail(null)}
         title="Sessão de Caixa"
-        footer={detail && detail.status === "closed" ? (
+        footer={detail && detail.status === "open" && isAdmin ? (
+          <ModalFooter>
+            <Button variant="outline" size="sm" iconLeft={<Wallet size={14} />} onClick={() => { setSysCloseError(null); setSysCloseOpen(true); }}
+              title="Fecha este caixa em nome do Sistema, com o valor contado igual ao esperado em dinheiro">Fechar pelo sistema</Button>
+          </ModalFooter>
+        ) : detail && detail.status === "closed" ? (
           <ModalFooter>
             {isAdmin && (
               <Button variant="outline" size="sm" iconLeft={<Pencil size={14} />} onClick={openFix} title="Corrigir o valor contado deste fechamento">Corrigir fechamento</Button>
