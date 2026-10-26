@@ -7,7 +7,7 @@ import { computeMeasuredPrice } from "../utils/measurePricing";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { resolveVariationSelection, VariationError } from "../utils/variation-selection";
 import { glassTablePrice, pieceCut, pieceExtrasTotal, pieceSummary, resolveExtrasFromCatalog, sanitizePieceSpec, type GlassExtra, type GlassPriceRow } from "../utils/glassPieces";
-import { advanceServiceOrderToNotaEmitida, canMoveToStage, syncLinkedStatus } from "../utils/stage-permissions";
+import { canMoveToStage, syncLinkedStatus } from "../utils/stage-permissions";
 import { getWorkflowStagesForTenant } from "../utils/workflow-stages";
 import { cancelarNfce } from "../services/nfce/cancelar";
 import { emitToTenant } from "../services/realtime.service";
@@ -540,7 +540,9 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
     if (status !== "cancelada") {
       const fromIdx = stagesForTenant.indexOf(order.status);
       const toIdx = stagesForTenant.indexOf(status);
-      if (fromIdx === -1 || toIdx !== fromIdx + 1) {
+      // "Nota emitida" é opcional: finalizado pode ir direto para entregue (OS faturada sem nota fiscal).
+      const skipsNote = order.status === "finalizado" && status === "entregue";
+      if (fromIdx === -1 || (toIdx !== fromIdx + 1 && !skipsNote)) {
         return res.status(400).json({ error: "Só é possível avançar para a próxima etapa do fluxo" });
       }
 
@@ -1298,9 +1300,8 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
       meta: { order_id: newOrder.id },
     });
 
-    // Faturar (NFC-e das peças) avança para "nota_emitida" — não regride se a
-    // NFS-e da mão de obra já tiver avançado a etapa antes.
-    await advanceServiceOrderToNotaEmitida(id, getActor(req));
+    // Faturar gera a venda/pedido, mas NÃO é nota fiscal: a etapa "nota_emitida" só avança quando a
+    // nota é de fato emitida (NFS-e) ou quando alguém registra o avanço manualmente.
 
     // Se essa OS já tinha sido lançada em Contas a Receber (pagamento previsto pra
     // depois) e agora foi faturada (pagamento imediato capturado), a receivable

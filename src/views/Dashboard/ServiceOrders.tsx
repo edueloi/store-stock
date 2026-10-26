@@ -208,7 +208,7 @@ export default function ServiceOrders() {
   const columns: Column<ServiceOrder>[] = [
     { header: "Número", render: (o) => <span className="font-mono text-xs font-medium text-slate-700">#{String(o.number).padStart(4, "0")}</span> },
     { header: "Cliente", render: (o) => <span className="text-xs font-medium text-slate-800">{o.customer_name || "—"}</span> },
-    {
+    ...(orders.some((o) => o.has_equipment) ? [{
       header: "Equipamento",
       render: (o) => (
         <span className="text-xs text-slate-500">
@@ -217,7 +217,7 @@ export default function ServiceOrders() {
             : <span className="italic text-slate-400">Sem equipamento</span>}
         </span>
       ),
-    },
+    }] : []),
     { header: "Status", render: (o) => <Badge color={STATUS_BADGE[o.status]} size="sm" icon={STATUS_META[o.status].icon}>{STATUS_META[o.status].label}</Badge> },
     { header: "Responsável", render: (o) => <span className="text-xs text-slate-500">{o.technician_name || (o.seller_id ? sellers.find((s) => s.id === o.seller_id)?.name : "—") || "—"}</span> },
     { header: "Valor", className: "text-right", headerClassName: "text-right", render: (o) => <span className="text-xs font-semibold tabular-nums whitespace-nowrap text-slate-800">{fmt(o.total_amount)}</span> },

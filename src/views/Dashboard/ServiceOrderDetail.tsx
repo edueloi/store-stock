@@ -343,6 +343,8 @@ export default function ServiceOrderDetail() {
   const isDraft = selected?.status === "rascunho";
   // Loja sem o módulo Gráfica não vê/avança pelas etapas de arte (ver Tenant.grafica_enabled).
   const statusOrderForTenant = getStatusOrderForTenant(tenant?.grafica_enabled);
+  // "Nota emitida" só aparece no andamento quando a OS está nela (nota de fato emitida) — faturar não é emitir nota.
+  const flowStages = statusOrderForTenant.filter((st) => st !== "nota_emitida" || selected?.status === "nota_emitida");
   const customerEmail = customers.find((customer) => customer.id === selected?.customer_id)?.email;
 
   // ── Autosave ────────────────────────────────────────────────────────────
@@ -892,9 +894,9 @@ export default function ServiceOrderDetail() {
             ) : (
               <>
                 <div className="flex items-center gap-1 mb-3">
-                  {statusOrderForTenant.filter((s) => s !== "rascunho" && s !== "cancelada").map((s) => {
-                    const currentIdx = statusOrderForTenant.indexOf(selected.status);
-                    const idx = statusOrderForTenant.indexOf(s);
+                  {flowStages.filter((s) => s !== "rascunho" && s !== "cancelada").map((s) => {
+                    const currentIdx = flowStages.indexOf(selected.status);
+                    const idx = flowStages.indexOf(s);
                     const isDone = idx <= currentIdx;
                     return (
                       <div key={s} className="flex-1 flex items-center gap-1">
@@ -904,9 +906,9 @@ export default function ServiceOrderDetail() {
                   })}
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-2">
-                  {statusOrderForTenant.filter((s) => s !== "rascunho" && s !== "cancelada").map((s) => {
-                    const currentIdx = statusOrderForTenant.indexOf(selected.status);
-                    const idx = statusOrderForTenant.indexOf(s);
+                  {flowStages.filter((s) => s !== "rascunho" && s !== "cancelada").map((s) => {
+                    const currentIdx = flowStages.indexOf(selected.status);
+                    const idx = flowStages.indexOf(s);
                     const isCurrent = idx === currentIdx;
                     const isDone = idx < currentIdx;
                     return (
@@ -919,8 +921,8 @@ export default function ServiceOrderDetail() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {(() => {
-                    const currentIdx = statusOrderForTenant.indexOf(selected.status);
-                    const next = statusOrderForTenant[currentIdx + 1];
+                    const currentIdx = flowStages.indexOf(selected.status);
+                    const next = flowStages[currentIdx + 1];
                     // Faturada só pode seguir para "entregue" — as demais ações (cancelar/excluir/pular etapa) ficam bloqueadas.
                     if (selected.invoiced_order_id) {
                       return next === "entregue" ? (
