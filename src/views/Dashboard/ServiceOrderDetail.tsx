@@ -219,6 +219,8 @@ export default function ServiceOrderDetail() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  // Motivo da última tentativa de avançar etapa que falhou — fica fixo na tela (o toast some em segundos e a pessoa não sabe por que não avançou)
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [discarding, setDiscarding] = useState(false);
@@ -414,6 +416,7 @@ export default function ServiceOrderDetail() {
   // ── Status ──────────────────────────────────────────────────────────────
   const changeStatus = async (status: string, opts?: { cancel_reason?: string }) => {
     if (!selected) return;
+    setStatusError(null);
     const res = await fetch(`/api/service-orders/${selected.id}/status`, {
       method: "PUT",
       headers: authHeader(),
@@ -423,7 +426,9 @@ export default function ServiceOrderDetail() {
       await fetchOrder(true);
     } else {
       const err = await res.json().catch(() => ({}));
-      toast.error(err.error || "Falha ao atualizar status");
+      const msg = err.error || (res.status === 403 ? "Seu usuário não tem permissão para avançar esta etapa." : "Não foi possível avançar a etapa. Tente novamente.");
+      setStatusError(msg);
+      toast.error(msg);
     }
   };
 
@@ -456,6 +461,10 @@ export default function ServiceOrderDetail() {
   };
 
   const canStartService = !!customerName && (!hasEquipment || !!equipmentCategory) && !!reportedIssue;
+  // Campos obrigatórios para iniciar o atendimento: ficam em vermelho enquanto vazios (só no rascunho)
+  const reqCustomer = selected?.status === "rascunho" && !customerName;
+  const reqIssue = selected?.status === "rascunho" && !reportedIssue.trim();
+  const reqCategory = selected?.status === "rascunho" && hasEquipment && !equipmentCategory;
 
   // ── Parts ───────────────────────────────────────────────────────────────
   const isMeasuredProduct = !!partSelectedProduct?.sale_unit && partSelectedProduct.sale_unit !== "unidade";
@@ -875,7 +884,7 @@ export default function ServiceOrderDetail() {
                   Descartar rascunho
                 </Button>
                 {!canStartService && (
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] font-medium text-red-600">
                     {hasEquipment ? "Preencha cliente, categoria e detalhes do atendimento" : "Preencha cliente e detalhes do atendimento"}
                   </span>
                 )}
@@ -939,13 +948,19 @@ export default function ServiceOrderDetail() {
                     );
                   })()}
                 </div>
+                {statusError && (
+                  <div role="alert" className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-700">
+                    <span className="flex-1">Não foi possível avançar: {statusError}</span>
+                    <button type="button" className="text-red-400 hover:text-red-600" onClick={() => setStatusError(null)} aria-label="Fechar aviso">✕</button>
+                  </div>
+                )}
               </>
             )}
           </ContentCard>
 
           {/* Cliente */}
           <ContentCard padding="md" className="space-y-3">
-            <p className="text-[10px] font-semibold text-slate-400">Cliente</p>
+            <p className={`text-[10px] font-semibold ${reqCustomer ? "text-red-600" : "text-slate-400"}`}>Cliente{selected?.status === "rascunho" && <span className="text-red-600"> *</span>}{reqCustomer && <span className="font-normal"> — obrigatório</span>}</p>
             <div className="flex gap-2">
               <div className="flex-1 min-w-0">
                 <Combobox
@@ -1059,8 +1074,8 @@ export default function ServiceOrderDetail() {
             )}
 
             <div>
-              <label className="text-[10px] font-semibold text-amber-500 mb-1.5 block">Detalhes do Atendimento</label>
-              <Textarea value={reportedIssue}
+              <label className={`text-[10px] font-semibold mb-1.5 block ${reqIssue ? "text-red-600" : "text-slate-400"}`}>Detalhes do Atendimento{selected?.status === "rascunho" && <span className="text-red-600"> *</span>}{reqIssue && <span className="font-normal"> — obrigatório</span>}</label>
+              <Textarea value={reportedIssue} className={reqIssue ? "border-red-400 focus:border-red-500" : undefined}
                 onChange={(e) => setReportedIssue(e.target.value)}
                 onBlur={() => autosaveField({ reported_issue: reportedIssue || null }, "reported_issue")}
                 placeholder="Descreva a solicitação, observações ou detalhes informados pelo cliente..."
