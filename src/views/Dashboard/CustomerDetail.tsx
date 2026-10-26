@@ -11,6 +11,7 @@ import { Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Badge,
 import { useToast } from "../../components/ui/Toast";
 import { downloadHtmlAsPdf } from "../../lib/pdf";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
+import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 import { buildDebtPaymentReceiptText, buildInstallmentBookletText, buildOrderReceiptText, printThermalText, type ReceiptTenantInfo } from "../../lib/thermalReceipt";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -666,8 +667,8 @@ export default function CustomerDetail() {
     .sort((a, b) => new Date(b.payment.paid_at).getTime() - new Date(a.payment.paid_at).getTime() || b.payment.id - a.payment.id);
 
   // Reimpressão do comprovante de um pagamento de crediário (mesmo cupom emitido na baixa).
-  async function printDebtPaymentReceipt(debt: Debt, payment: DebtPayment) {
-    if (!detail) return;
+  function debtPaymentReceiptText(debt: Debt, payment: DebtPayment): string {
+    if (!detail) return "";
     const ordered = [...(debt.payments ?? [])].sort((a, b) => new Date(a.paid_at).getTime() - new Date(b.paid_at).getTime() || a.id - b.id);
     const paidUntil = ordered.slice(0, ordered.findIndex((x) => x.id === payment.id) + 1).reduce((sum, x) => sum + Number(x.amount), 0);
     const receipt = buildDebtPaymentReceiptText(tenantInfo, {
@@ -680,7 +681,68 @@ export default function CustomerDetail() {
       remainingBalance: Number(debt.amount) - paidUntil,
       paidAt: new Date(payment.paid_at),
     });
-    await printThermalText(receipt, `Recibo de pagamento — ${detail.name}`);
+    return receipt;
+  }
+
+  // Impressoras vinculadas (outros terminais com térmica): permite imprimir daqui mesmo quando este aparelho
+  // (celular/navegador) não tem impressora — o cupom sai na térmica do terminal escolhido.
+  const [remoteTerminals, setRemoteTerminals] = useState<RemotePrintTerminal[]>([]);
+  const [printMenu, setPrintMenu] = useState<string | null>(null);
+  const [remoteSending, setRemoteSending] = useState<number | null>(null);
+  useEffect(() => {
+    fetchRemotePrintTerminals(localStorage.getItem("token") || "")
+      .then((terminals) => setRemoteTerminals(terminals.filter((rt) => rt.printers.some((pr) => pr.role === "receipt"))))
+      .catch(() => {});
+  }, []);
+
+  async function printReceiptTo(text: string, title: string, terminal: RemotePrintTerminal | null) {
+    setPrintMenu(null);
+    if (!text) return;
+    if (!terminal) {
+      const result = await printThermalText(text, title);
+      if (!result.ok) toast.error(result.error || "Não foi possível imprimir. Verifique a impressora em Configurações.");
+      return;
+    }
+    setRemoteSending(terminal.id);
+    try {
+      const result = await requestRemotePrint(localStorage.getItem("token") || "", terminal.id, "receipt", text);
+      if (!result.ok) toast.error(result.error || "Falha ao pedir impressão remota.");
+      else toast.success(`Enviado para ${terminal.name}.`);
+    } catch {
+      toast.error("Falha ao pedir impressão remota. Verifique sua conexão.");
+    } finally {
+      setRemoteSending(null);
+    }
+  }
+
+  // Botão "Imprimir recibo": com impressoras vinculadas abre a lista (este aparelho + cada terminal); sem elas imprime direto.
+  function renderPrintReceipt(key: string, getText: () => string, title: string, tip: string) {
+    if (remoteTerminals.length === 0) {
+      return (
+        <Button variant="outline" size="xs" title={tip} iconLeft={<Printer size={11} />} onClick={() => printReceiptTo(getText(), title, null)}>
+          Imprimir recibo
+        </Button>
+      );
+    }
+    return (
+      <div className="relative">
+        <Button variant="outline" size="xs" title={tip} iconLeft={<Printer size={11} />} loading={remoteSending !== null && printMenu === key} onClick={() => setPrintMenu(printMenu === key ? null : key)}>
+          Imprimir recibo
+        </Button>
+        {printMenu === key && (
+          <div className="absolute right-0 z-30 mt-1 w-52 space-y-0.5 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+            <button type="button" className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50" onClick={() => printReceiptTo(getText(), title, null)}>
+              <Printer size={12} /> Neste aparelho
+            </button>
+            {remoteTerminals.map((rt) => (
+              <button key={rt.id} type="button" disabled={remoteSending !== null} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50" onClick={() => printReceiptTo(getText(), title, rt)}>
+                <Printer size={12} /> {rt.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   // Envio por e-mail (pelo modo de envio configurado na loja) do comprovante de um pagamento
@@ -796,9 +858,9 @@ export default function CustomerDetail() {
   }
 
   // Reimpressão do cupom de venda — mesmo cupom do PDV (Reimprimir Venda).
-  async function printOrderReceipt(order: Order) {
-    if (!detail) return;
-    await printThermalText(buildOrderReceiptText(tenantInfo, {
+  function orderReceiptText(order: Order): string {
+    if (!detail) return "";
+    return (buildOrderReceiptText(tenantInfo, {
       id: order.id,
       created_at: order.created_at,
       customer_name: detail.name,
@@ -809,7 +871,7 @@ export default function CustomerDetail() {
       fee_amount: order.fee_amount,
       surcharge_amount: order.surcharge_amount,
       total_amount: order.total_amount,
-    }), "Comprovante");
+    }));
   }
 
   async function printInstallmentBooklet(debt: Debt) {
@@ -1392,9 +1454,7 @@ export default function CustomerDetail() {
                                 <div className="flex shrink-0 items-center gap-1.5">
                                 {!isDiscount && (
                                   <>
-                                    <Button variant="outline" size="xs" title="Imprimir recibo deste pagamento" iconLeft={<Printer size={11} />} onClick={() => printDebtPaymentReceipt(d, p)}>
-                                      Imprimir recibo
-                                    </Button>
+                                    {renderPrintReceipt(`pay${p.id}`, () => debtPaymentReceiptText(d, p), `Recibo de pagamento — ${detail?.name ?? ""}`, "Imprimir recibo deste pagamento")}
                                     <Button variant="outline" size="xs" title="Enviar comprovante por e-mail" iconLeft={<Mail size={11} />} loading={sendingDebtEmailKey === `p${p.id}`} onClick={() => sendDebtEmail(d, p)}>
                                       Enviar por e-mail
                                     </Button>
@@ -1459,9 +1519,7 @@ export default function CustomerDetail() {
                         </span>
                         {!isDisc && (
                           <>
-                            <Button variant="outline" size="xs" iconLeft={<Printer size={11} />} onClick={() => printDebtPaymentReceipt(debt, payment)}>
-                              Imprimir recibo
-                            </Button>
+                            {renderPrintReceipt(`hist${payment.id}`, () => debtPaymentReceiptText(debt, payment), `Recibo de pagamento — ${detail?.name ?? ""}`, "Imprimir recibo deste pagamento")}
                             <Button variant="outline" size="xs" iconLeft={<Mail size={11} />} loading={sendingDebtEmailKey === `p${payment.id}`} onClick={() => sendDebtEmail(debt, payment)}>
                               Enviar por e-mail
                             </Button>
@@ -1594,9 +1652,7 @@ export default function CustomerDetail() {
                         )}
                         {o.payment_method && <Badge pill>{formatPaymentMethod(o.payment_method)}</Badge>}
                         <span className="text-[13px] font-semibold tabular-nums text-emerald-700">{fmt(Number(o.total_amount))}</span>
-                        <Button variant="outline" size="xs" iconLeft={<Printer size={11} />} onClick={() => printOrderReceipt(o)} title="Imprimir recibo da venda (mesmo cupom do PDV)">
-                          Imprimir recibo
-                        </Button>
+                        {renderPrintReceipt(`ord${o.id}`, () => orderReceiptText(o), "Comprovante", "Imprimir recibo da venda (mesmo cupom do PDV)")}
                       </div>
                     </div>
                     {o.items.length > 0 && (
