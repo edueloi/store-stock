@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Phone, Mail, MapPin, AlertTriangle, X, Plus, ChevronRight, Trash2,
@@ -687,7 +688,7 @@ export default function CustomerDetail() {
   // Impressoras vinculadas (outros terminais com térmica): permite imprimir daqui mesmo quando este aparelho
   // (celular/navegador) não tem impressora — o cupom sai na térmica do terminal escolhido.
   const [remoteTerminals, setRemoteTerminals] = useState<RemotePrintTerminal[]>([]);
-  const [printMenu, setPrintMenu] = useState<string | null>(null);
+  const [printMenu, setPrintMenu] = useState<{ key: string; top: number; right: number } | null>(null);
   const [remoteSending, setRemoteSending] = useState<number | null>(null);
   useEffect(() => {
     fetchRemotePrintTerminals(localStorage.getItem("token") || "")
@@ -695,9 +696,14 @@ export default function CustomerDetail() {
       .catch(() => {});
   }, []);
 
+  const lastPrintRef = React.useRef<{ key: string; at: number } | null>(null);
   async function printReceiptTo(text: string, title: string, terminal: RemotePrintTerminal | null) {
     setPrintMenu(null);
     if (!text) return;
+    // trava de duplo clique/duplo disparo: o mesmo cupom para o mesmo destino não sai duas vezes em 4s
+    const dupKey = `${terminal?.id ?? "local"}|${text.length}|${title}`;
+    if (lastPrintRef.current && lastPrintRef.current.key === dupKey && Date.now() - lastPrintRef.current.at < 4000) return;
+    lastPrintRef.current = { key: dupKey, at: Date.now() };
     if (!terminal) {
       const result = await printThermalText(text, title);
       if (!result.ok) toast.error(result.error || "Não foi possível imprimir. Verifique a impressora em Configurações.");
@@ -724,24 +730,36 @@ export default function CustomerDetail() {
         </Button>
       );
     }
+    const open = printMenu?.key === key;
     return (
-      <div className="relative">
-        <Button variant="outline" size="xs" title={tip} iconLeft={<Printer size={11} />} loading={remoteSending !== null && printMenu === key} onClick={() => setPrintMenu(printMenu === key ? null : key)}>
+      <>
+        <Button variant="outline" size="xs" title={tip} iconLeft={<Printer size={11} />} loading={remoteSending !== null && open}
+          onClick={(e) => {
+            if (open) { setPrintMenu(null); return; }
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            // abre para baixo; se não couber na tela, abre para cima
+            const top = r.bottom + 4 + 160 > window.innerHeight ? Math.max(8, r.top - 4 - 160) : r.bottom + 4;
+            setPrintMenu({ key, top, right: Math.max(8, window.innerWidth - r.right) });
+          }}>
           Imprimir recibo
         </Button>
-        {printMenu === key && (
-          <div className="absolute right-0 z-30 mt-1 w-52 space-y-0.5 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
-            <button type="button" className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50" onClick={() => printReceiptTo(getText(), title, null)}>
-              <Printer size={12} /> Neste aparelho
-            </button>
-            {remoteTerminals.map((rt) => (
-              <button key={rt.id} type="button" disabled={remoteSending !== null} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50" onClick={() => printReceiptTo(getText(), title, rt)}>
-                <Printer size={12} /> {rt.name}
+        {open && printMenu && createPortal(
+          <>
+            <div className="fixed inset-0 z-[9998]" onClick={() => setPrintMenu(null)} />
+            <div className="fixed z-[9999] w-52 space-y-0.5 rounded-lg border border-slate-200 bg-white p-1 shadow-lg" style={{ top: printMenu.top, right: printMenu.right }}>
+              <button type="button" className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] font-medium text-slate-700 hover:bg-slate-50" onClick={() => printReceiptTo(getText(), title, null)}>
+                <Printer size={12} /> Neste aparelho
               </button>
-            ))}
-          </div>
+              {remoteTerminals.map((rt) => (
+                <button key={rt.id} type="button" disabled={remoteSending !== null} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50" onClick={() => printReceiptTo(getText(), title, rt)}>
+                  <Printer size={12} /> {rt.name}
+                </button>
+              ))}
+            </div>
+          </>,
+          document.body,
         )}
-      </div>
+      </>
     );
   }
 

@@ -126,7 +126,16 @@ export function emitToTenant(tenantId: number | null | undefined, event: Realtim
 // Retorna false quando o terminal pareado não está conectado. Assim a API não
 // confirma uma impressão que seria inevitavelmente perdida.
 export function emitToTerminal(terminalUid: string, event: RealtimeEvent, payload: unknown = {}) {
-  if (!io || !io.sockets.adapter.rooms.get(terminalRoom(terminalUid))?.size) return false;
-  io.to(terminalRoom(terminalUid)).emit(event, payload);
+  const ids = io?.sockets.adapter.rooms.get(terminalRoom(terminalUid));
+  if (!io || !ids?.size) return false;
+  // Entrega para UM só socket da sala: se o mesmo terminal tiver mais de uma conexão (processo do Electron +
+  // tela web, app aberto duas vezes, reconexão antiga), todas receberiam o evento e a impressão sairia duplicada.
+  // Prefere a conexão nativa do Electron; entre iguais, a mais recente.
+  const sockets = Array.from(ids).map((id) => io!.sockets.sockets.get(id)).filter((s): s is NonNullable<typeof s> => !!s);
+  if (!sockets.length) return false;
+  const native = sockets.filter((s) => (s.data as { terminal?: unknown }).terminal);
+  const pool = native.length ? native : sockets;
+  pool.sort((a, b) => b.handshake.issued - a.handshake.issued);
+  pool[0].emit(event, payload);
   return true;
 }
