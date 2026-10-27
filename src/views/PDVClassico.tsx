@@ -101,15 +101,16 @@ function defaultFirstDue() {
 const isMeasured = (p: Product) => !!p.sale_unit && !["unidade", "peso", "volume"].includes(p.sale_unit);
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────
-function Overlay({ title, onClose, children, width = 520 }: { title: string; onClose: () => void; children: React.ReactNode; width?: number }) {
+function Overlay({ title, onClose, children, width = 480, hint }: { title: string; onClose: () => void; children: React.ReactNode; width?: number; hint?: string }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4" onMouseDown={onClose}>
-      <div className="max-h-[90vh] w-full overflow-auto rounded-sm bg-white p-6 shadow-2xl" style={{ maxWidth: width }} onMouseDown={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-[#0b4f75]">{title}</h2>
-          <button onClick={onClose} className="text-sm font-semibold text-slate-400 hover:text-slate-700">ESC</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-3" onMouseDown={onClose}>
+      <div className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-sm border border-[#0a3d5c] bg-white shadow-2xl" style={{ maxWidth: width }} onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex h-9 shrink-0 items-center justify-between bg-[#0a3d5c] px-3 text-white">
+          <h2 className="truncate text-[13px] font-semibold uppercase tracking-wide">{title}</h2>
+          <button onClick={onClose} className="rounded-[3px] bg-white/15 px-1.5 py-0.5 font-mono text-[10px] font-bold hover:bg-white/25">ESC</button>
         </div>
-        {children}
+        <div className="min-h-0 flex-1 overflow-auto p-3">{children}</div>
+        {hint && <div className="shrink-0 border-t border-[#d5deec] bg-[#eef2f9] px-3 py-1 text-[10px] text-slate-500">{hint}</div>}
       </div>
     </div>
   );
@@ -182,6 +183,7 @@ function ClassicPDV() {
   const [activeHeldId, setActiveHeldId] = useState<number | null>(null);
   const [saleNumber, setSaleNumber] = useState(1);
   const [priceQuery, setPriceQuery] = useState("");
+  const [pickActive, setPickActive] = useState(0); // linha destacada nas listas dos modais (preço, cliente, vendedor)
   const [lastReceipt, setLastReceipt] = useState<string | null>(null);   // último cupom, para reimprimir
   const [selectedId, setSelectedId] = useState<string | null>(null);   // linha selecionada na lista (↑ ↓ / Del)
 
@@ -208,6 +210,7 @@ function ClassicPDV() {
   // Dividir a conta entre pessoas: cada parte é cobrada em sequência (cada uma pode usar uma forma de pagamento)
   const [split, setSplit] = useState<{ shares: number[]; idx: number } | null>(null);
   const [splitPeople, setSplitPeople] = useState("2");
+  useEffect(() => { setPickActive(0); }, [modal]);
   // Depois de finalizar a venda, volta direto ao caixa livre (sem a tela de confirmação). Preferência guardada neste computador.
   const [autoReturn, setAutoReturn] = useState(() => { try { return localStorage.getItem("classic_auto_return") === "1"; } catch { return false; } });
   const toggleAutoReturn = () => setAutoReturn((v) => { try { localStorage.setItem("classic_auto_return", v ? "0" : "1"); } catch { /* sem storage: vale só nesta sessão */ } return !v; });
@@ -1241,20 +1244,20 @@ function ClassicPDV() {
 
       {/* ── modais ── */}
       {modal === "variation" && variationProduct && (
-        <Overlay title={variationProduct.name} onClose={() => setModal(null)}>
-          <div className="space-y-4">
+        <Overlay title={variationProduct.name} onClose={() => setModal(null)} width={440} hint="Escolha as opções · Enter inclui · Esc cancela">
+          <div className="space-y-3">
             {(variationProduct.attributes?.length
               ? variationProduct.attributes.map((a) => ({ name: a.name, values: a.values }))
               : (variationProduct.variations ?? []).map((v) => ({ name: v.name, values: v.options.map((o) => o.value) }))
             ).map((group) => (
               <div key={group.name}>
                 <p className={labelCls}>{group.name}</p>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5">
                   {group.values.map((val) => (
                     <button
                       key={val}
                       onClick={() => setVariationOptions((o) => ({ ...o, [group.name]: val }))}
-                      className={cn("h-10 rounded-sm border px-4 text-[13px] font-medium", variationOptions[group.name] === val ? "border-[#0078d4] bg-[#0078d4] text-white" : "border-[#c5cfdf] bg-white hover:bg-slate-50")}
+                      className={cn("h-8 rounded-sm border px-3 text-[12px] font-medium", variationOptions[group.name] === val ? "border-[#0078d4] bg-[#0078d4] text-white" : "border-[#c5cfdf] bg-white hover:bg-slate-50")}
                     >{val}</button>
                   ))}
                 </div>
@@ -1262,7 +1265,7 @@ function ClassicPDV() {
             ))}
             {(() => {
               const sku = variationProduct.skus?.find((s) => Object.entries(s.combo).every(([k, v]) => variationOptions[k] === v));
-              return sku ? <p className="text-[12px] text-slate-500">Estoque desta combinação: <b>{sku.stock}</b></p> : null;
+              return sku ? <p className="text-[11px] text-slate-500">Estoque desta combinação: <b className="font-mono">{sku.stock}</b></p> : null;
             })()}
             <button
               className={cn(btn("blue"), "w-full")} autoFocus
@@ -1279,143 +1282,174 @@ function ClassicPDV() {
       )}
 
       {modal === "price" && (
-        <Overlay title="Consultar preço" onClose={() => setModal(null)} width={560}>
+        <Overlay title="Consultar preço" onClose={() => setModal(null)} width={600} hint="↑ ↓ escolhem · Enter inclui na venda · Esc fecha">
           <input
-            className={inputCls} autoFocus value={priceQuery} autoComplete="off" placeholder="Código, código de barras ou nome"
-            onChange={(e) => setPriceQuery(e.target.value)}
+            className={cn(inputCls, "font-mono")} autoFocus value={priceQuery} autoComplete="off" placeholder="Código, código de barras ou nome"
+            onChange={(e) => { setPriceQuery(e.target.value); setPickActive(0); }}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && priceResults[0]) { e.preventDefault(); if (addItem(priceResults[0], 1)) { setModal(null); resetEntry(); } }
+              if (e.key === "ArrowDown") { e.preventDefault(); setPickActive((i) => Math.min(i + 1, priceResults.length - 1)); }
+              else if (e.key === "ArrowUp") { e.preventDefault(); setPickActive((i) => Math.max(i - 1, 0)); }
+              else if (e.key === "Enter" && priceResults[pickActive]) { e.preventDefault(); if (addItem(priceResults[pickActive], 1)) { setModal(null); resetEntry(); } }
             }}
           />
-          <ul className="mt-3 max-h-[52vh] divide-y divide-slate-200 overflow-auto">
-            {priceResults.map((x) => (
-              <li key={x.id} className="flex items-center justify-between gap-4 py-3">
+          <div className="mt-2 max-h-[52vh] overflow-auto rounded-sm border border-[#c5cfdf]">
+            {priceResults.length > 0 && (
+              <div className="sticky top-0 grid grid-cols-[1fr_72px_96px] gap-2 bg-[#dfe7f2] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                <span>Produto</span><span className="text-right">Estoque</span><span className="text-right">Preço</span>
+              </div>
+            )}
+            {priceResults.map((x, i) => (
+              <div
+                key={x.id} onMouseEnter={() => setPickActive(i)}
+                onClick={() => { if (addItem(x, 1)) { setModal(null); resetEntry(); } }}
+                className={cn("grid cursor-pointer grid-cols-[1fr_72px_96px] items-center gap-2 border-b border-slate-100 px-3 py-1.5", i === pickActive ? "bg-[#cfe4f8] shadow-[inset_3px_0_0_#0078d4]" : "hover:bg-slate-50")}
+              >
                 <div className="min-w-0">
-                  <p className="truncate text-[15px] font-medium text-slate-800">{x.name}</p>
-                  <p className="text-[12px] text-slate-500">{x.sku ?? "sem código"}{x.barcode ? ` · ${x.barcode}` : ""} · estoque {x.track_stock === false ? "sob encomenda" : x.stock_quantity}</p>
+                  <p className="truncate text-[13px] font-medium text-slate-800">{x.name}</p>
+                  <p className="truncate font-mono text-[10px] text-slate-500">{x.sku ?? "sem código"}{x.barcode ? ` · ${x.barcode}` : ""}</p>
                 </div>
-                <b className="shrink-0 text-[22px] font-semibold text-[#0b527a]">R$ {money(Number(x.discount_price || x.price))}</b>
-              </li>
+                <span className="text-right font-mono text-[12px] text-slate-600">{x.track_stock === false ? "enc." : x.stock_quantity}</span>
+                <b className="text-right font-mono text-[15px] font-semibold text-[#0a3d5c]">{money(Number(x.discount_price || x.price))}</b>
+              </div>
             ))}
-            {priceQuery.trim() && priceResults.length === 0 && <li className="py-6 text-center text-[14px] text-slate-400">Nenhum produto encontrado.</li>}
-          </ul>
-          <p className="mt-3 text-[12px] text-slate-500">Enter inclui o primeiro da lista na venda · Esc fecha.</p>
+            {priceQuery.trim() && priceResults.length === 0 && <p className="py-5 text-center text-[12px] text-slate-400">Nenhum produto encontrado.</p>}
+            {!priceQuery.trim() && <p className="py-5 text-center text-[12px] text-slate-400">Digite para consultar preço e estoque.</p>}
+          </div>
         </Overlay>
       )}
 
       {modal === "operator" && (
-        <Overlay title="Operador" onClose={() => setModal(null)} width={420}>
-          <p className="mb-5 text-[14px] text-slate-600">Logado como <b>{operatorName}</b>.</p>
-          <div className="space-y-3">
+        <Overlay title="Operador" onClose={() => setModal(null)} width={360} hint="Esc volta">
+          <p className="mb-2 text-[12px] text-slate-600">Logado como <b>{operatorName}</b></p>
+          <div className="divide-y divide-slate-200 rounded-sm border border-[#c5cfdf]">
             {lastReceipt && window.boxsysDesktop?.printReceipt && (
-              <button className={cn(btn("navy"), "w-full")} onClick={() => { void printThermalText(lastReceipt, "Cupom").then((r) => { if (!r.ok) flash(r.error || "Falha ao imprimir."); }); setModal(null); }}>Reimprimir último cupom</button>
+              <button className="flex h-10 w-full items-center px-3 text-left text-[13px] font-medium hover:bg-slate-50" onClick={() => { void printThermalText(lastReceipt, "Cupom").then((r) => { if (!r.ok) flash(r.error || "Falha ao imprimir."); }); setModal(null); }}>Reimprimir último cupom</button>
             )}
-            {cashSession && <button className={cn(btn("navy"), "w-full")} onClick={() => { setModal(null); setShowCloseCash(true); }}>Fechar caixa</button>}
-            <button className={cn(btn("red"), "w-full")} onClick={logout}>Sair do PDV</button>
-            <button className={cn(btn("gray"), "w-full")} onClick={() => setModal(null)}>Voltar (Esc)</button>
+            {cashSession && <button className="flex h-10 w-full items-center px-3 text-left text-[13px] font-medium hover:bg-slate-50" onClick={() => { setModal(null); setShowCloseCash(true); }}>Fechar caixa</button>}
+            <button className="flex h-10 w-full items-center px-3 text-left text-[13px] font-semibold text-rose-700 hover:bg-rose-50" onClick={logout}>Sair do PDV</button>
           </div>
         </Overlay>
       )}
 
       {modal === "held" && (
-        <Overlay title="Vendas em aberto" onClose={() => setModal(null)} width={620}>
-          {heldList.length === 0 ? <p className="text-[14px] text-slate-500">Nenhuma venda em aberto.</p> : (
-            <ul className="divide-y divide-slate-200">
+        <Overlay title="Vendas em aberto" onClose={() => setModal(null)} width={620} hint="Retome uma venda guardada com F7 (Aguardar)">
+          {heldList.length === 0 ? <p className="py-4 text-center text-[12px] text-slate-500">Nenhuma venda em aberto.</p> : (
+            <div className="overflow-hidden rounded-sm border border-[#c5cfdf]">
+              <div className="grid grid-cols-[56px_1fr_64px_120px_84px] gap-2 bg-[#dfe7f2] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                <span>Nº</span><span>Cliente</span><span className="text-right">Itens</span><span>Data</span><span />
+              </div>
               {heldList.map((h) => (
-                <li key={h.id} className="flex items-center justify-between py-3 text-[14px]">
-                  <span><b>#{h.number}</b> · {h.customer_name || "Consumidor"} · {h.items.length} item(ns)<span className="block text-[11px] text-slate-500">{new Date(h.created_at).toLocaleString("pt-BR")}</span></span>
-                  <button className={cn(btn("blue"), "h-10")} onClick={() => void resumeHeld(h)}>Retomar</button>
-                </li>
+                <div key={h.id} className="grid grid-cols-[56px_1fr_64px_120px_84px] items-center gap-2 border-b border-slate-100 px-3 py-1.5 text-[12px] last:border-b-0">
+                  <b className="font-mono">#{h.number}</b>
+                  <span className="truncate">{h.customer_name || "Consumidor"}</span>
+                  <span className="text-right font-mono">{h.items.length}</span>
+                  <span className="font-mono text-[11px] text-slate-500">{new Date(h.created_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+                  <button className={cn(btn("blue"), "h-7 px-2 text-[11px]")} onClick={() => void resumeHeld(h)}>Retomar</button>
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </Overlay>
       )}
 
       {modal === "discount" && (
-        <Overlay title="Acréscimos e descontos" onClose={() => setModal(null)} width={460}>
-          <div className="space-y-4">
+        <Overlay title="Acréscimos e descontos" onClose={() => setModal(null)} width={400} hint="Ao aplicar, os pagamentos já lançados são limpos para recalcular o valor a pagar">
+          <div className="space-y-3">
             <div>
               <label className={labelCls}>Desconto</label>
               <div className="flex gap-2">
-                <input className={inputCls} value={discount} inputMode="decimal" autoFocus onChange={(e) => setDiscount(e.target.value)} />
-                <select className={cn(inputCls, "w-24")} value={discountMode} onChange={(e) => setDiscountMode(e.target.value as "R$" | "%")}><option>R$</option><option>%</option></select>
+                <input className={cn(inputCls, "text-right font-mono")} value={discount} inputMode="decimal" autoFocus onFocus={(e) => e.target.select()} onChange={(e) => setDiscount(e.target.value)} />
+                <select className={cn(inputCls, "w-20")} value={discountMode} onChange={(e) => setDiscountMode(e.target.value as "R$" | "%")}><option>R$</option><option>%</option></select>
               </div>
               {cartMaxDiscountPct != null && <p className="mt-1 text-[11px] text-slate-500">Desconto máximo neste pedido: {cartMaxDiscountPct}%</p>}
             </div>
             <div>
               <label className={labelCls}>Acréscimo</label>
               <div className="flex gap-2">
-                <input className={inputCls} value={surcharge} inputMode="decimal" onChange={(e) => setSurcharge(e.target.value)} />
-                <select className={cn(inputCls, "w-24")} value={surchargeMode} onChange={(e) => setSurchargeMode(e.target.value as "R$" | "%")}><option>R$</option><option>%</option></select>
+                <input className={cn(inputCls, "text-right font-mono")} value={surcharge} inputMode="decimal" onFocus={(e) => e.target.select()} onChange={(e) => setSurcharge(e.target.value)} />
+                <select className={cn(inputCls, "w-20")} value={surchargeMode} onChange={(e) => setSurchargeMode(e.target.value as "R$" | "%")}><option>R$</option><option>%</option></select>
               </div>
             </div>
             <button className={cn(btn("blue"), "w-full")} onClick={() => { setModal(null); setPayAmount(""); setPayments([]); window.setTimeout(() => payRef.current?.focus(), 50); }}>Aplicar</button>
-            <p className="text-[11px] text-slate-500">Ao aplicar, os pagamentos já lançados são limpos para recalcular o valor a pagar.</p>
           </div>
         </Overlay>
       )}
 
-      {(modal === "customer" || modal === "seller") && (
-        <Overlay title={modal === "customer" ? "Referenciar cliente" : "Vendedor"} onClose={() => setModal(null)}>
-          <input className={inputCls} autoFocus placeholder="Buscar…" value={lookup} onChange={(e) => setLookup(e.target.value)} />
-          <ul className="mt-3 max-h-[50vh] divide-y divide-slate-200 overflow-auto">
-            <li>
-              <button className="w-full px-2 py-3 text-left text-[14px] text-slate-500 hover:bg-slate-50"
-                onClick={() => { if (modal === "customer") setCustomerId(null); else setSellerId(null); setModal(null); }}>
-                {modal === "customer" ? "Consumidor final (sem cliente)" : "Sem vendedor"}
-              </button>
-            </li>
-            {(modal === "customer"
-              ? customers.filter((c) => !lookupLower || norm(c.name).includes(lookupLower) || (c.document ?? "").includes(lookup) || (c.phone ?? "").includes(lookup)).slice(0, 40)
-              : sellers.filter((s) => !lookupLower || norm(s.name).includes(lookupLower))
-            ).map((row) => (
-              <li key={row.id}>
-                <button className="w-full px-2 py-3 text-left text-[14px] hover:bg-slate-50"
-                  onClick={() => { if (modal === "customer") setCustomerId(row.id); else setSellerId(row.id); setModal(null); }}>
-                  {row.name}
-                  {"document" in row && row.document && <span className="ml-2 text-[12px] text-slate-500">{row.document}</span>}
+      {(modal === "customer" || modal === "seller") && (() => {
+        const isCustomer = modal === "customer";
+        const rows: { id: number | null; name: string; extra?: string }[] = [
+          { id: null, name: isCustomer ? "Consumidor final (sem cliente)" : "Sem vendedor" },
+          ...(isCustomer
+            ? customers.filter((c) => !lookupLower || norm(c.name).includes(lookupLower) || (c.document ?? "").includes(lookup) || (c.phone ?? "").includes(lookup)).slice(0, 40).map((c) => ({ id: c.id, name: c.name, extra: c.document || c.phone }))
+            : sellers.filter((s) => !lookupLower || norm(s.name).includes(lookupLower)).map((s) => ({ id: s.id, name: s.name }))),
+        ];
+        const choose = (id: number | null) => { if (isCustomer) setCustomerId(id); else setSellerId(id); setModal(null); };
+        return (
+          <Overlay title={isCustomer ? "Referenciar cliente" : "Vendedor"} onClose={() => setModal(null)} width={460} hint="Digite para buscar · ↑ ↓ escolhem · Enter seleciona · Esc fecha">
+            <input
+              className={inputCls} autoFocus placeholder="Buscar…" value={lookup}
+              onChange={(e) => { setLookup(e.target.value); setPickActive(0); }}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowDown") { e.preventDefault(); setPickActive((i) => Math.min(i + 1, rows.length - 1)); }
+                else if (e.key === "ArrowUp") { e.preventDefault(); setPickActive((i) => Math.max(i - 1, 0)); }
+                else if (e.key === "Enter" && rows[pickActive]) { e.preventDefault(); choose(rows[pickActive].id); }
+              }}
+            />
+            <div className="mt-2 max-h-[50vh] overflow-auto rounded-sm border border-[#c5cfdf]">
+              {rows.map((row, i) => (
+                <button
+                  key={row.id ?? "none"} onMouseEnter={() => setPickActive(i)} onClick={() => choose(row.id)}
+                  className={cn("flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-1.5 text-left text-[13px] last:border-b-0", i === pickActive ? "bg-[#cfe4f8] shadow-[inset_3px_0_0_#0078d4]" : "hover:bg-slate-50", row.id === null && "text-slate-500")}
+                >
+                  <span className="truncate">{row.name}</span>
+                  {row.extra && <span className="shrink-0 font-mono text-[11px] text-slate-500">{row.extra}</span>}
                 </button>
-              </li>
-            ))}
-          </ul>
-        </Overlay>
-      )}
+              ))}
+            </div>
+          </Overlay>
+        );
+      })()}
 
       {modal === "split" && (
-        <Overlay title="Dividir pagamento" onClose={() => setModal(null)} width={420}>
-          <p className="mb-3 text-[13px] text-slate-600">Valor a dividir: <b className="font-mono">R$ {money(remaining)}</b></p>
-          <label className={labelCls}>Quantas pessoas?</label>
-          <input
-            className={cn(inputCls, "font-mono")} autoFocus value={splitPeople} inputMode="numeric" onFocus={(e) => e.target.select()}
-            onChange={(e) => setSplitPeople(e.target.value.replace(/\D/g, "").slice(0, 2))}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); startSplit(); } }}
-          />
+        <Overlay title="Dividir pagamento" onClose={() => setModal(null)} width={380} hint="Quando não dá exato, as primeiras pessoas pagam 1 centavo a mais · cada uma escolhe a própria forma de pagamento">
+          <div className="grid grid-cols-[1fr_96px] items-end gap-3">
+            <div>
+              <label className={labelCls}>Valor a dividir</label>
+              <p className="flex h-9 items-center rounded-sm bg-[#0b2234] px-3 font-mono text-[16px] font-semibold text-[#7dff9b]">R$ {money(remaining)}</p>
+            </div>
+            <div>
+              <label className={labelCls}>Pessoas</label>
+              <input
+                className={cn(inputCls, "text-center font-mono text-[15px] font-semibold")} autoFocus value={splitPeople} inputMode="numeric" onFocus={(e) => e.target.select()}
+                onChange={(e) => setSplitPeople(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); startSplit(); } }}
+              />
+            </div>
+          </div>
           {(() => {
             const n = Math.floor(num(splitPeople));
-            if (!(n >= 2 && n <= 20)) return null;
+            if (!(n >= 2 && n <= 20)) return <p className="mt-3 text-[11px] text-slate-500">Informe de 2 a 20 pessoas.</p>;
             const shares = splitShares(remaining, n);
             return (
-              <ul className="mt-3 max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-sm border border-[#c5cfdf] text-[12px]">
+              <div className="mt-3 max-h-44 overflow-y-auto rounded-sm border border-[#c5cfdf] text-[12px]">
                 {shares.map((v, i) => (
-                  <li key={i} className="flex items-center justify-between px-3 py-1.5">
+                  <div key={i} className={cn("flex items-center justify-between border-b border-slate-100 px-3 py-1 last:border-b-0", i % 2 && "bg-[#f6f8fc]")}>
                     <span>Pessoa {i + 1}</span>
                     <b className="font-mono">R$ {money(v)}</b>
-                  </li>
+                  </div>
                 ))}
-              </ul>
+              </div>
             );
           })()}
-          <p className="mt-2 text-[11px] text-slate-500">Quando não dá exato, as primeiras pessoas pagam 1 centavo a mais. Cada uma escolhe a própria forma de pagamento.</p>
           <button className={cn(btn("blue"), "mt-3 w-full")} onClick={startSplit}>Começar (Enter)</button>
         </Overlay>
       )}
 
       {modal === "qty" && editingItem && (
-        <Overlay title="Alterar quantidade" onClose={() => setModal(null)} width={380}>
-          <p className="mb-3 text-[14px] text-slate-600">{editingItem.name}</p>
+        <Overlay title="Alterar quantidade" onClose={() => setModal(null)} width={340} hint="Enter confirma · Esc cancela">
+          <p className="mb-2 truncate text-[12px] font-medium text-slate-700">{editingItem.name}</p>
           <input
-            className={inputCls} autoFocus value={editQty} inputMode="decimal" onFocus={(e) => e.target.select()}
+            className={cn(inputCls, "text-center font-mono text-[16px] font-semibold")} autoFocus value={editQty} inputMode="decimal" onFocus={(e) => e.target.select()}
             onChange={(e) => setEditQty(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== "Enter") return;
@@ -1427,14 +1461,13 @@ function ClassicPDV() {
               setModal(null);
             }}
           />
-          <p className="mt-2 text-[11px] text-slate-500">Tecle Enter para confirmar.</p>
         </Overlay>
       )}
 
       {modal === "confirmCancel" && (
-        <Overlay title="Cancelar venda?" onClose={() => setModal(null)} width={420}>
-          <p className="mb-5 text-[14px] text-slate-600">Todos os itens e pagamentos desta venda serão descartados.</p>
-          <div className="flex gap-3">
+        <Overlay title="Cancelar venda?" onClose={() => setModal(null)} width={360} hint="Enter cancela a venda · Esc volta">
+          <p className="mb-3 text-[12px] text-slate-600">Todos os itens e pagamentos desta venda serão descartados.</p>
+          <div className="flex gap-2">
             <button className={cn(btn("gray"), "flex-1")} onClick={() => setModal(null)}>Voltar</button>
             <button className={cn(btn("red"), "flex-1")} autoFocus onClick={() => void cancelSale()}>Cancelar venda</button>
           </div>
@@ -1442,20 +1475,30 @@ function ClassicPDV() {
       )}
 
       {completed && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="w-full max-w-md rounded-sm bg-white p-8 text-center shadow-2xl">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-3xl text-emerald-600">✓</div>
-            <h2 className="text-2xl font-semibold text-[#0b527a]">{completed.offline ? "Venda salva (offline)" : "Venda confirmada"}</h2>
-            <p className="mt-1 text-[13px] text-slate-500">{completed.offline ? "Será sincronizada quando a internet voltar." : `Pedido #${String(completed.orderId).padStart(5, "0")}`}</p>
-            <p className="mt-5 text-[13px] text-slate-500">Total</p>
-            <p className="text-[34px] font-semibold text-slate-800">R$ {money(completed.total)}</p>
-            {completed.change > 0 && <p className="mt-1 text-[18px] font-semibold text-emerald-600">Troco: R$ {money(completed.change)}</p>}
-            {completed.nfce && <p className="mt-3 text-[12px] text-slate-600">{completed.nfce}</p>}
-            <div className="mt-6 flex gap-3">
-              {window.boxsysDesktop?.printReceipt && (
-                <button className={cn(btn("navy"), "flex-1")} onClick={() => printThermalText(completed.receiptText, "Cupom")}>Imprimir (P)</button>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/55 p-3">
+          <div className="w-full max-w-sm overflow-hidden rounded-sm border border-[#0a3d5c] bg-white shadow-2xl">
+            <div className="flex h-9 items-center justify-between bg-[#1b7e0e] px-3 text-white">
+              <h2 className="text-[13px] font-semibold uppercase tracking-wide">{completed.offline ? "Venda salva (offline)" : "Venda confirmada"}</h2>
+              <span className="font-mono text-[11px]">{completed.offline ? "sincroniza depois" : `#${String(completed.orderId).padStart(5, "0")}`}</span>
+            </div>
+            <div className="p-3">
+              <div className="rounded-sm bg-[#0b2234] px-4 py-2 text-white">
+                <p className="text-[10px] font-bold uppercase tracking-[.2em] text-sky-300/80">Total</p>
+                <p className="font-mono text-[34px] font-semibold leading-tight tabular-nums text-[#7dff9b]">R$ {money(completed.total)}</p>
+              </div>
+              {completed.change > 0 && (
+                <div className="mt-2 flex items-center justify-between rounded-sm border border-emerald-300 bg-emerald-50 px-3 py-1.5">
+                  <span className="text-[12px] font-bold tracking-wide text-emerald-800">TROCO</span>
+                  <span className="font-mono text-[22px] font-semibold text-emerald-700">R$ {money(completed.change)}</span>
+                </div>
               )}
-              <button className={cn(btn("green"), "flex-1")} autoFocus onClick={closeCompleted}>Nova venda (Enter)</button>
+              {completed.nfce && <p className="mt-2 text-[11px] text-slate-600">{completed.nfce}</p>}
+              <div className="mt-3 flex gap-2">
+                {window.boxsysDesktop?.printReceipt && (
+                  <button className={cn(btn("navy"), "flex-1")} onClick={() => printThermalText(completed.receiptText, "Cupom")}>Imprimir (P)</button>
+                )}
+                <button className={cn(btn("green"), "flex-1")} autoFocus onClick={closeCompleted}>Nova venda (Enter)</button>
+              </div>
             </div>
           </div>
         </div>
