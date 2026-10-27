@@ -1087,6 +1087,7 @@ function ClassicPDV() {
                 <p className="text-[13px]"><b>A pagar:</b> <span className="ml-1.5 font-mono text-[24px] font-semibold text-[#0a3d5c]">R$ {money(remaining)}</span></p>
                 <button onClick={addPayment} className={btn("blue")}>Adicionar (Enter)</button>
               </div>
+              <p className="mt-2 text-[11px] text-slate-500">Pagamento dividido: digite um valor menor, tecle Enter e escolha outra forma (Alt+1…5) para o restante.</p>
             </div>
 
             {shownChange > 0 && (
