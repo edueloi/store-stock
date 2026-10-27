@@ -71,7 +71,11 @@ interface Completed {
 
 const money = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const num = (v: string) => {
-  const n = Number(String(v).replace(/\./g, "").replace(",", "."));
+  let t = String(v).trim();
+  // vírgula = formato BR (ponto é milhar); só ponto com 1–2 casas no fim = decimal do teclado numérico ("394.70"); demais pontos = milhar
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  else if (!/^\d+\.\d{1,2}$/.test(t)) t = t.replace(/\./g, "");
+  const n = Number(t);
   return Number.isFinite(n) ? n : 0;
 };
 const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
@@ -101,17 +105,39 @@ function Overlay({ title, onClose, children, width = 520 }: { title: string; onC
   );
 }
 
-const inputCls = "h-11 w-full rounded-sm border border-[#c5cfdf] bg-white px-3 text-[15px] text-slate-800 outline-none focus:border-[#0078d4] focus:ring-2 focus:ring-[#0078d4]/20 disabled:bg-slate-100 disabled:text-slate-400 read-only:bg-slate-100";
-const labelCls = "mb-1 block text-[12px] font-medium text-slate-500";
+const inputCls = "h-9 w-full rounded-sm border border-[#c5cfdf] bg-white px-2.5 text-[14px] text-slate-800 outline-none focus:border-[#0078d4] focus:ring-2 focus:ring-[#0078d4]/20 disabled:bg-slate-100 disabled:text-slate-400 read-only:bg-slate-100";
+const labelCls = "mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500";
 const btn = (tone: "blue" | "green" | "red" | "navy" | "gray") =>
   cn(
-    "h-12 whitespace-nowrap rounded-sm px-5 [@media(max-width:1100px)]:px-3 [@media(max-width:1100px)]:text-[12px] text-[13px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+    "h-9 whitespace-nowrap rounded-sm px-4 text-[12px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
     tone === "blue" && "bg-[#0078d4] hover:bg-[#006abd]",
     tone === "green" && "bg-[#1b7e0e] hover:bg-[#166a0b]",
     tone === "red" && "bg-[#c00000] hover:bg-[#a00000]",
     tone === "navy" && "bg-[#44519c] hover:bg-[#394585]",
     tone === "gray" && "bg-slate-500 hover:bg-slate-600",
   );
+
+// Botão da barra de comandos: tecla de função + nome da ação, como nos PDVs de terminal.
+function FKey({ k, label, onClick, tone = "gray", strong, active, disabled, badge }: {
+  k: string; label: string; onClick: () => void; tone?: "gray" | "red" | "green"; strong?: boolean; active?: boolean; disabled?: boolean; badge?: number | null;
+}) {
+  return (
+    <button
+      type="button" onClick={onClick} disabled={disabled}
+      className={cn(
+        "flex h-9 items-center gap-2 whitespace-nowrap rounded-sm border px-2.5 text-[12px] font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-45",
+        strong && "px-4",
+        tone === "gray" && (active ? "border-[#0078d4] bg-[#e1effb] text-[#005a9e]" : "border-[#b4c1d6] bg-white text-slate-700 hover:border-[#0078d4] hover:text-[#0078d4]"),
+        tone === "red" && "border-[#a40000] bg-[#c00000] text-white hover:bg-[#a00000]",
+        tone === "green" && "border-[#14630a] bg-[#1b7e0e] text-white hover:bg-[#166a0b]",
+      )}
+    >
+      <kbd className={cn("rounded-[3px] px-1.5 py-0.5 font-mono text-[10px] font-bold", tone === "gray" ? "bg-slate-200 text-slate-600" : "bg-black/20 text-white")}>{k}</kbd>
+      {label}
+      {badge ? <span className="rounded-full bg-amber-400 px-1.5 text-[10px] font-bold text-slate-900">{badge}</span> : null}
+    </button>
+  );
+}
 
 // ─── Tela ────────────────────────────────────────────────────────────────────
 function ClassicPDV() {
@@ -778,171 +804,186 @@ function ClassicPDV() {
   const selectedSeller = sellers.find((s) => s.id === sellerId);
   const lookupLower = norm(lookup);
 
+  const stamp = (iso: string) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const heldBadge = heldCount > 0 ? heldCount : null;
+
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#eef2f9] font-sans text-slate-800 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
+    <div className="flex h-screen flex-col overflow-hidden bg-[#e6ebf3] font-sans text-[13px] text-slate-800 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
       {/* topo */}
-      <header className="flex h-[68px] [@media(max-height:700px)]:h-[54px] shrink-0 items-center justify-between bg-[#0b527a] px-5 text-white">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-white/15 text-lg font-bold">B</div>
-          <div className="leading-tight">
-            <p className="text-[15px] font-semibold">{tenantName}</p>
-            <p className={cn("flex items-center gap-1.5 text-[11px] font-medium", isOnline ? "text-emerald-300" : "text-amber-300")}>
-              <i className={cn("h-1.5 w-1.5 rounded-full", isOnline ? "bg-emerald-400" : "bg-amber-400")} />
-              {isOnline ? "Online" : "Modo offline"}{pendingCount > 0 && ` · ${pendingCount} para sincronizar`}
-              {dataAt && <span className="text-white/60"> · dados de {new Date(dataAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>}
+      <header className="flex h-11 shrink-0 items-center justify-between gap-3 bg-[#0a3d5c] px-3 text-white">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-white/15 text-[14px] font-bold">B</div>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-[13px] font-semibold">{tenantName}</p>
+            <p className={cn("flex items-center gap-1.5 truncate text-[10px] font-medium", isOnline ? "text-emerald-300" : "text-amber-300")}>
+              <i className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isOnline ? "bg-emerald-400" : "bg-amber-400")} />
+              {isOnline ? "Online" : "Modo offline"}{pendingCount > 0 && ` · ${pendingCount} p/ sincronizar`}
+              {dataAt && <span className="hidden text-white/55 sm:inline"> · dados de {stamp(dataAt)}</span>}
             </p>
           </div>
         </div>
-        <div className="text-center leading-tight">
-          <p className="text-[11px] uppercase tracking-widest text-white/60">Caixa</p>
+        <div className="hidden text-center leading-tight md:block">
           {(() => {
-            if (!cashSession) return <p className="text-[15px] font-semibold">Caixa Padrão</p>;
+            if (!cashSession) return <p className="text-[12px] font-semibold">CAIXA PADRÃO</p>;
             const opened = new Date(cashSession.opened_at);
             // caixa aberto em dia anterior: vendas de vários dias caem na mesma sessão e o fechamento perde o sentido
             const old = opened.toDateString() !== new Date().toDateString();
             return old
-              ? <p className="text-[14px] font-semibold text-amber-300" title="Feche este caixa e abra um novo para o dia de hoje">⚠ Aberto desde {opened.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} {opened.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })} — feche o caixa</p>
-              : <p className="text-[15px] font-semibold">Aberto às {opened.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>;
+              ? <p className="text-[12px] font-semibold text-amber-300" title="Feche este caixa e abra um novo para o dia de hoje">⚠ CAIXA ABERTO DESDE {opened.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} {stamp(cashSession.opened_at)} — FECHE O CAIXA</p>
+              : <p className="text-[12px] font-semibold tracking-wide">CAIXA ABERTO · {stamp(cashSession.opened_at)}</p>;
           })()}
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => void refreshData()} disabled={refreshingData} title="Baixar produtos e dados da loja agora" className="rounded-sm border border-white/30 px-3 py-2 text-[12px] font-semibold hover:bg-white/10 disabled:opacity-50">{refreshingData ? "ATUALIZANDO…" : "↻ ATUALIZAR DADOS"}</button>
-          <button onClick={() => setModal("operator")} className="rounded-sm border border-white/30 px-3 py-2 text-[12px] font-semibold hover:bg-white/10">OPERADOR (F3)</button>
-          <button onClick={logout} className="rounded-sm border border-white/30 px-3 py-2 text-[12px] font-semibold hover:bg-white/10">✕ SAIR DO PDV</button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <button onClick={() => void refreshData()} disabled={refreshingData} title="Baixar produtos e dados da loja agora" className="h-7 rounded-sm border border-white/25 px-2.5 text-[11px] font-semibold hover:bg-white/10 disabled:opacity-50">{refreshingData ? "ATUALIZANDO…" : <>↻<span className="hidden lg:inline"> ATUALIZAR DADOS</span></>}</button>
+          <button onClick={() => setModal("operator")} className="h-7 rounded-sm border border-white/25 px-2.5 text-[11px] font-semibold hover:bg-white/10"><span className="hidden lg:inline">OPERADOR </span>(F3)</button>
+          <button onClick={logout} className="h-7 rounded-sm border border-white/25 px-2.5 text-[11px] font-semibold hover:bg-white/10">✕<span className="hidden lg:inline"> SAIR</span></button>
         </div>
       </header>
 
+      {/* faixa do pedido */}
+      <div className="flex shrink-0 items-center gap-x-4 gap-y-0.5 overflow-hidden border-b border-[#c9d3e3] bg-white px-3 py-1.5 text-[12px]">
+        <span className={cn("shrink-0 rounded-sm px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white", screen === "sale" ? "bg-[#0078d4]" : "bg-[#1b7e0e]")}>{screen === "sale" ? "Venda" : "Pagamento"}</span>
+        {cart.length === 0 && screen === "sale"
+          ? <span className="truncate text-slate-500">Caixa livre — inclua um produto ou retome uma venda em aberto (F4).</span>
+          : (
+            <span className="flex min-w-0 flex-wrap items-center gap-x-4 text-slate-600">
+              <b className="font-mono text-[#0a3d5c]">Pedido Nº {saleNumber}</b>
+              <span className="hidden sm:inline">{new Date().toLocaleDateString("pt-BR")}</span>
+              <span className="truncate">Operador: <b>{operatorName}</b></span>
+              <span className="truncate">Cliente: <b>{selectedCustomer?.name ?? "Balcão"}</b></span>
+              {selectedSeller && <span className="truncate">Vendedor: <b>{selectedSeller.name}</b></span>}
+            </span>
+          )}
+      </div>
+
       {notice && (
-        <div className={cn("absolute left-1/2 top-[78px] z-[60] -translate-x-1/2 rounded-sm px-5 py-3 text-[13px] font-semibold text-white shadow-lg", notice.tone === "ok" ? "bg-emerald-600" : "bg-rose-600")}>
+        <div className={cn("absolute left-1/2 top-14 z-[60] -translate-x-1/2 rounded-sm px-4 py-2 text-[13px] font-semibold text-white shadow-lg", notice.tone === "ok" ? "bg-emerald-600" : "bg-rose-600")}>
           {notice.text}
         </div>
       )}
 
       {/* corpo */}
       {screen === "sale" ? (
-        <main className="grid min-h-0 flex-1 grid-cols-[minmax(380px,40%)_1fr] grid-rows-[minmax(0,1fr)] gap-6 overflow-hidden p-5 [@media(max-height:700px)]:gap-4 [@media(max-height:700px)]:p-3">
-          <section className="relative min-h-0 overflow-y-auto pr-1">
-            <div className="mb-1 flex items-center justify-between">
-              <label className={labelCls}>Cód. / Produto (Ctrl+P)</label>
-              <label className="flex items-center gap-1.5 text-[12px] text-slate-500">
-                <input type="checkbox" checked={scannerMode} onChange={(e) => setScannerMode(e.target.checked)} /> Leitor de código de barras (F2)
-              </label>
-            </div>
-            <input
-              ref={codeRef} className={inputCls} value={code} autoComplete="off"
-              placeholder={scannerMode ? "Bipe o código de barras…" : "Digite o código, código de barras ou nome"}
-              onChange={(e) => { setCode(e.target.value); setPicked(null); setActiveSuggestion(0); }}
-              onKeyDown={(e) => {
-                // campo vazio e sem sugestões: as setas percorrem os itens do pedido e Delete remove o selecionado
-                if (!code && !picked && cart.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Delete")) {
-                  e.preventDefault();
-                  const at = cart.findIndex((i) => i.cartItemId === selectedId);
-                  if (e.key === "Delete") {
-                    if (at >= 0) {
-                      const removed = cart[at];
-                      const rest = cart.filter((_, idx) => idx !== at);
-                      setCart(rest);
-                      setSelectedId(rest.length ? rest[Math.min(at, rest.length - 1)].cartItemId : null);
-                      flash(`Item removido: ${removed.name}`, "ok");
+        <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(320px,35%)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+          <section className="relative flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
+            <div className="relative rounded-sm border border-[#c5cfdf] bg-white p-3">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <label className={labelCls}>Cód. / Produto <span className="text-slate-400">(Ctrl+P)</span></label>
+                <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                  <input type="checkbox" checked={scannerMode} onChange={(e) => setScannerMode(e.target.checked)} /> Leitor (F2)
+                </label>
+              </div>
+              <input
+                ref={codeRef} className={cn(inputCls, "font-mono")} value={code} autoComplete="off"
+                placeholder={scannerMode ? "Bipe o código de barras…" : "Código, código de barras ou nome"}
+                onChange={(e) => { setCode(e.target.value); setPicked(null); setActiveSuggestion(0); }}
+                onKeyDown={(e) => {
+                  // campo vazio e sem sugestões: as setas percorrem os itens do pedido e Delete remove o selecionado
+                  if (!code && !picked && cart.length > 0 && (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Delete")) {
+                    e.preventDefault();
+                    const at = cart.findIndex((i) => i.cartItemId === selectedId);
+                    if (e.key === "Delete") {
+                      if (at >= 0) {
+                        const removed = cart[at];
+                        const rest = cart.filter((_, idx) => idx !== at);
+                        setCart(rest);
+                        setSelectedId(rest.length ? rest[Math.min(at, rest.length - 1)].cartItemId : null);
+                        flash(`Item removido: ${removed.name}`, "ok");
+                      }
+                      return;
                     }
+                    const next = e.key === "ArrowDown" ? (at < 0 ? 0 : Math.min(at + 1, cart.length - 1)) : (at < 0 ? cart.length - 1 : Math.max(at - 1, 0));
+                    setSelectedId(cart[next].cartItemId);
                     return;
                   }
-                  const next = e.key === "ArrowDown" ? (at < 0 ? 0 : Math.min(at + 1, cart.length - 1)) : (at < 0 ? cart.length - 1 : Math.max(at - 1, 0));
-                  setSelectedId(cart[next].cartItemId);
-                  return;
-                }
-                if (e.key === "Enter") { e.preventDefault(); handleCodeEnter(); }
-                else if (e.key === "ArrowDown") { e.preventDefault(); setActiveSuggestion((i) => Math.min(i + 1, suggestions.length - 1)); }
-                else if (e.key === "ArrowUp") { e.preventDefault(); setActiveSuggestion((i) => Math.max(i - 1, 0)); }
-              }}
-            />
-            {suggestions.length > 0 && (
-              <ul className="absolute z-20 mt-1 w-full overflow-hidden rounded-sm border border-[#c5cfdf] bg-white shadow-lg">
-                {suggestions.map((p, i) => (
-                  <li
-                    key={p.id}
-                    onMouseEnter={() => setActiveSuggestion(i)}
-                    onMouseDown={(e) => { e.preventDefault(); setPicked(p); setCode(p.name); window.setTimeout(() => document.getElementById("classic-qty")?.focus(), 0); }}
-                    className={cn("flex cursor-pointer items-center justify-between px-3 py-2 text-[13px]", i === activeSuggestion ? "bg-[#0078d4] text-white" : "hover:bg-slate-50")}
-                  >
-                    <span className="truncate">{p.sku ? `${p.sku} · ` : ""}{p.name}</span>
-                    <span className="ml-3 shrink-0 font-semibold">R$ {money(Number(p.discount_price || p.price))}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+                  if (e.key === "Enter") { e.preventDefault(); handleCodeEnter(); }
+                  else if (e.key === "ArrowDown") { e.preventDefault(); setActiveSuggestion((i) => Math.min(i + 1, suggestions.length - 1)); }
+                  else if (e.key === "ArrowUp") { e.preventDefault(); setActiveSuggestion((i) => Math.max(i - 1, 0)); }
+                }}
+              />
+              {suggestions.length > 0 && (
+                <ul className="absolute left-3 right-3 z-20 mt-1 max-h-72 overflow-y-auto rounded-sm border border-[#c5cfdf] bg-white shadow-lg">
+                  {suggestions.map((p, i) => (
+                    <li
+                      key={p.id}
+                      onMouseEnter={() => setActiveSuggestion(i)}
+                      onMouseDown={(e) => { e.preventDefault(); setPicked(p); setCode(p.name); window.setTimeout(() => document.getElementById("classic-qty")?.focus(), 0); }}
+                      className={cn("flex cursor-pointer items-center justify-between px-3 py-1.5 text-[12px]", i === activeSuggestion ? "bg-[#0078d4] text-white" : "hover:bg-slate-50")}
+                    >
+                      <span className="truncate">{p.sku ? `${p.sku} · ` : ""}{p.name}</span>
+                      <span className="ml-3 shrink-0 font-mono font-semibold">R$ {money(Number(p.discount_price || p.price))}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-            <div className="mt-5 grid grid-cols-3 gap-3">
-              <div>
-                <label className={labelCls}>Quantidade</label>
-                <input
-                  id="classic-qty" className={inputCls} value={qty} inputMode="decimal"
-                  onChange={(e) => setQty(e.target.value)}
-                  onFocus={(e) => e.target.select()}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCodeEnter(); } }}
-                />
+              <div className="mt-3 grid grid-cols-[0.7fr_1fr_1.2fr] gap-2">
+                <div>
+                  <label className={labelCls}>Qtde.</label>
+                  <input
+                    id="classic-qty" className={cn(inputCls, "font-mono")} value={qty} inputMode="decimal"
+                    onChange={(e) => setQty(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCodeEnter(); } }}
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Unitário</label>
+                  <input className={cn(inputCls, "text-right font-mono")} value={money(unitPrice)} readOnly tabIndex={-1} />
+                </div>
+                <div>
+                  <label className={labelCls}>Total</label>
+                  <input className={cn(inputCls, "text-right font-mono font-semibold")} value={money(lineTotal)} readOnly tabIndex={-1} />
+                </div>
               </div>
-              <div>
-                <label className={labelCls}>Valor Unitário</label>
-                <input className={inputCls} value={money(unitPrice)} readOnly tabIndex={-1} />
-              </div>
-              <div>
-                <label className={labelCls}>Valor Total</label>
-                <input className={inputCls} value={money(lineTotal)} readOnly tabIndex={-1} />
-              </div>
+              <button onClick={handleCodeEnter} className={cn(btn("blue"), "mt-3 w-full")}>Incluir (Enter)</button>
             </div>
-            <button onClick={handleCodeEnter} className={cn(btn("blue"), "mt-5 w-full")}>Incluir (Enter)</button>
-            <div className="mt-6 [@media(max-height:700px)]:mt-3 rounded-sm border border-[#c5cfdf] bg-white p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Último item</p>
+
+            <div className="rounded-sm border border-[#c5cfdf] bg-white px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Último item</p>
               {lastAdded ? (
-                <>
-                  <p className="mt-1 text-[20px] font-semibold leading-snug text-slate-800">{lastAdded.name}</p>
-                  {lastAdded.variation && <p className="text-[12px] text-slate-500">{lastAdded.variation}</p>}
-                  <p className="mt-2 flex items-baseline justify-between text-[14px] text-slate-500">
-                    <span>{lastAdded.qty} × R$ {money(lastAdded.price)}</span>
-                    <b className="text-[24px] font-semibold text-[#0b527a]">R$ {money(lastAdded.qty * lastAdded.price)}</b>
-                  </p>
-                </>
+                <div className="mt-0.5 flex items-baseline justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-[14px] font-semibold text-slate-800">{lastAdded.name}</p>
+                    <p className="font-mono text-[11px] text-slate-500">{lastAdded.variation ? `${lastAdded.variation} · ` : ""}{lastAdded.qty} × R$ {money(lastAdded.price)}</p>
+                  </div>
+                  <b className="shrink-0 font-mono text-[18px] font-semibold text-[#0a3d5c]">R$ {money(lastAdded.qty * lastAdded.price)}</b>
+                </div>
               ) : (
-                <p className="mt-1 text-[14px] text-slate-400">Nenhum item incluído ainda.</p>
+                <p className="mt-0.5 text-[12px] text-slate-400">Nenhum item incluído ainda.</p>
               )}
             </div>
-            <p className="mt-3 text-[12px] leading-relaxed text-slate-500 [@media(max-height:760px)]:hidden">
+            <p className="hidden text-[11px] leading-relaxed text-slate-500 xl:block [@media(max-height:760px)]:!hidden">
               Tecle o código de barras ou o código e Enter. Para várias unidades, digite <b>3*código</b>. Com o campo vazio, <b>↑ ↓</b> escolhem um item do pedido, <b>Enter</b> altera a quantidade e <b>Delete</b> remove.
             </p>
           </section>
 
-          <section className="flex min-h-0 flex-col">
-            <div className="mb-3 rounded-sm border border-[#c5cfdf] bg-white px-4 py-3 text-[13px]">
-              {cart.length === 0
-                ? <span className="font-medium text-slate-500">Aguardando abertura de pedido. Inclua um produto ou retome uma venda em aberto (F4).</span>
-                : <span><b className="text-[#0b527a]">Pedido Nº {saleNumber}</b> · {new Date().toLocaleDateString("pt-BR")} · {operatorName}{selectedCustomer && <> · Cliente: <b>{selectedCustomer.name}</b></>}{selectedSeller && <> · Vendedor: <b>{selectedSeller.name}</b></>}</span>}
-            </div>
+          <section className="flex min-h-[260px] flex-col gap-3 lg:min-h-0">
             <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-[#c5cfdf] bg-white">
               {cart.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-[20px] text-slate-400">
-                  {loading ? "Carregando produtos…" : <>Seu caixa está <b className="mx-1 text-[#0078d4]">livre</b> no momento!</>}
+                <div className="flex h-full min-h-[160px] items-center justify-center px-4 text-center text-[clamp(16px,2vw,22px)] text-slate-400">
+                  {loading ? "Carregando produtos…" : <>Caixa <b className="mx-1.5 text-[#0078d4]">livre</b></>}
                 </div>
               ) : (
-                <table className="w-full text-[13px]">
-                  <thead className="sticky top-0 bg-white text-[11px] uppercase text-slate-400">
-                    <tr className="border-b border-dashed border-slate-300">
-                      <th className="w-10 px-3 py-3 text-left">#</th><th className="px-2 text-left">Qtde.</th><th className="px-2 text-left">Cód.</th><th className="px-2 text-left">Produto ({cart.length})</th>
-                      <th className="px-2 text-right">Valor unitário</th><th className="px-2 text-right">Valor total</th><th className="w-20" />
+                <table className="w-full border-collapse text-[12px]">
+                  <thead className="sticky top-0 z-10 bg-[#dfe7f2] text-[10px] uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="w-9 px-2 py-1.5 text-left">#</th><th className="hidden px-2 text-left sm:table-cell">Cód.</th><th className="px-2 text-left">Produto ({cart.length})</th>
+                      <th className="px-2 text-right">Qtde.</th><th className="hidden px-2 text-right sm:table-cell">Unitário</th><th className="px-2 text-right">Total</th><th className="w-16" />
                     </tr>
                   </thead>
                   <tbody>
                     {cart.map((i, idx) => (
                       <tr
                         key={i.cartItemId} onClick={() => setSelectedId(i.cartItemId)}
-                        className={cn("cursor-pointer border-b border-dashed border-slate-200", i.cartItemId === selectedId ? "bg-[#e6f1fb] shadow-[inset_3px_0_0_#0078d4]" : "hover:bg-slate-50")}
+                        className={cn("cursor-pointer border-b border-slate-200", i.cartItemId === selectedId ? "bg-[#cfe4f8] shadow-[inset_3px_0_0_#0078d4]" : idx % 2 ? "bg-[#f6f8fc] hover:bg-[#eaf1fa]" : "hover:bg-[#eaf1fa]")}
                       >
-                        <td className="px-3 py-3 text-[12px] text-slate-400">{idx + 1}</td>
-                        <td className="px-2 py-3 font-medium">{i.quantity}</td>
-                        <td className="px-2 text-slate-500">{i.sku ?? ""}</td>
-                        <td className="px-2">{i.name}{i.variationLabel && <span className="block text-[11px] text-slate-500">{i.variationLabel}</span>}</td>
-                        <td className="px-2 text-right">R$ {money(i.price)}</td>
-                        <td className="px-2 text-right font-semibold">R$ {money(i.price * i.quantity)}</td>
+                        <td className="px-2 py-1.5 font-mono text-[11px] text-slate-400">{String(idx + 1).padStart(2, "0")}</td>
+                        <td className="hidden px-2 font-mono text-[11px] text-slate-500 sm:table-cell">{i.sku ?? ""}</td>
+                        <td className="px-2 py-1.5 font-medium">{i.name}{i.variationLabel && <span className="block text-[10px] font-normal text-slate-500">{i.variationLabel}</span>}</td>
+                        <td className="px-2 text-right font-mono">{i.quantity}</td>
+                        <td className="hidden px-2 text-right font-mono sm:table-cell">{money(i.price)}</td>
+                        <td className="px-2 text-right font-mono font-semibold">{money(i.price * i.quantity)}</td>
                         <td className="px-2 text-right">
                           <button title="Alterar quantidade" className="mr-2 text-[#0078d4]" onClick={(e) => { e.stopPropagation(); setEditingItem(i); setEditQty(String(i.quantity)); setModal("qty"); }}>✎</button>
                           <button title="Remover" className="text-rose-600" onClick={(e) => { e.stopPropagation(); setCart((prev) => prev.filter((x) => x.cartItemId !== i.cartItemId)); }}>✕</button>
@@ -953,191 +994,183 @@ function ClassicPDV() {
                 </table>
               )}
             </div>
-            {cart.length > 0 && (
-              <div className="mt-3 flex items-center justify-between rounded-sm bg-[#0b527a] px-5 py-3 text-white">
-                <div className="leading-tight">
-                  <p className="text-[16px] font-medium">SUBTOTAL</p>
-                  <p className="text-[12px] text-white/70">{cart.length} {cart.length === 1 ? "item" : "itens"} · {cart.reduce((a, i) => a + i.quantity, 0)} un.</p>
-                </div>
-                <span className="text-[36px] font-semibold leading-none">R$ {money(subtotal)}</span>
+            <div className="flex shrink-0 items-center justify-between gap-3 rounded-sm bg-[#0b2234] px-4 py-2 text-white">
+              <div className="leading-tight">
+                <p className="text-[10px] font-bold uppercase tracking-[.2em] text-sky-300/80">Subtotal</p>
+                <p className="font-mono text-[11px] text-white/60">{cart.length} {cart.length === 1 ? "item" : "itens"} · {cart.reduce((a, i) => a + i.quantity, 0)} un.</p>
               </div>
-            )}
+              <span className="font-mono text-[clamp(28px,4.2vw,46px)] font-semibold leading-none tabular-nums text-[#7dff9b]">R$ {money(subtotal)}</span>
+            </div>
           </section>
         </main>
       ) : (
-        <main className="grid min-h-0 flex-1 grid-cols-[minmax(420px,48%)_1fr] grid-rows-[minmax(0,1fr)] gap-6 overflow-hidden p-5 [@media(max-height:700px)]:gap-4 [@media(max-height:700px)]:p-3">
-          <section className="min-h-0 overflow-y-auto pr-1">
-            <h2 className="mb-3 text-[20px] font-semibold text-[#0b527a]">Confirmação de pagamento</h2>
-            <div className="rounded-sm border border-dashed border-[#b6c3d8] p-4">
+        <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(340px,44%)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
+          <section className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
+            <div className="rounded-sm border border-[#c5cfdf] bg-white p-3">
               <label className={labelCls}>Forma de pagamento <span className="text-slate-400">(Alt + número)</span></label>
-              <div className="mb-4 grid grid-cols-5 gap-2">
+              <div className="mb-3 grid grid-cols-5 gap-1.5">
                 {PAY_ORDER.map((m, idx) => (
                   <button
                     key={m} type="button" onClick={() => pickPayMethod(m)}
-                    className={cn("flex h-[52px] flex-col items-center justify-center rounded-sm border text-[12px] font-semibold transition-colors",
+                    className={cn("flex h-11 flex-col items-center justify-center rounded-sm border text-[11px] font-semibold leading-tight transition-colors",
                       payMethod === m ? "border-[#0078d4] bg-[#0078d4] text-white" : "border-[#c5cfdf] bg-white text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]")}
                   >
-                    <span className="text-[10px] font-medium opacity-70">Alt+{idx + 1}</span>
+                    <span className="font-mono text-[9px] font-medium opacity-70">Alt+{idx + 1}</span>
                     {PM_SHORT[m]}
                   </button>
                 ))}
               </div>
-              <div className="grid grid-cols-[0.7fr_1fr] gap-3">
+              <div className="grid grid-cols-[0.7fr_1fr] gap-2">
                 <div>
-                  <label className={labelCls}>Parcelas:</label>
+                  <label className={labelCls}>Parcelas</label>
                   <input
-                    className={inputCls} type="number" min={1} max={maxInstallments} value={payInstallments}
+                    className={cn(inputCls, "font-mono")} type="number" min={1} max={maxInstallments} value={payInstallments}
                     disabled={payMethod !== "credit" && payMethod !== "crediario"}
                     onChange={(e) => setPayInstallments(Math.max(1, Math.min(maxInstallments, Number(e.target.value) || 1)))}
                   />
                 </div>
                 <div>
-                  <label className={labelCls}>Valor recebido:</label>
+                  <label className={labelCls}>Valor recebido</label>
                   <input
-                    ref={payRef} className={inputCls} value={payAmount} inputMode="decimal" placeholder="R$"
+                    ref={payRef} className={cn(inputCls, "text-right font-mono text-[15px] font-semibold")} value={payAmount} inputMode="decimal" placeholder="0,00"
                     onChange={(e) => setPayAmount(e.target.value)} onFocus={(e) => e.target.select()}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (remaining <= 0.004 && payments.length > 0) void finishSale(); else addPayment(); } }}
                   />
                 </div>
               </div>
               {payMethod === "money" && remaining > 0 && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="text-[12px] font-medium text-slate-500">Valor rápido:</span>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-medium text-slate-500">Rápido:</span>
                   <button type="button" onClick={() => { setPayAmount(remaining.toFixed(2).replace(".", ",")); payRef.current?.focus(); }}
-                    className="h-8 rounded-sm border border-[#c5cfdf] bg-white px-3 text-[12px] font-semibold text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]">Exato</button>
+                    className="h-7 rounded-sm border border-[#c5cfdf] bg-white px-2.5 text-[11px] font-semibold text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]">Exato</button>
                   {[10, 20, 50, 100, 200].map((v) => (
                     <button key={v} type="button" onClick={() => { setPayAmount(v.toFixed(2).replace(".", ",")); payRef.current?.focus(); }}
-                      className="h-8 rounded-sm border border-[#c5cfdf] bg-white px-3 text-[12px] font-semibold text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]">R$ {v}</button>
+                      className="h-7 rounded-sm border border-[#c5cfdf] bg-white px-2.5 font-mono text-[11px] font-semibold text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]">{v}</button>
                   ))}
                 </div>
               )}
               {(payMethod === "debit" || payMethod === "credit") && (
-                <div className="mt-3 w-1/2">
-                  <label className={labelCls}>Bandeira:</label>
+                <div className="mt-2 w-1/2 min-w-[150px]">
+                  <label className={labelCls}>Bandeira</label>
                   <select className={inputCls} value={payBrand} onChange={(e) => setPayBrand(e.target.value as CardBrand)}>
                     {BRANDS.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
                   </select>
                 </div>
               )}
-              <div className="mt-4 flex items-center justify-between">
-                <p className="text-[15px]"><b>A pagar:</b> <span className="ml-2 text-[26px] font-semibold text-[#0b527a]">R$ {money(remaining)}</span></p>
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-[13px]"><b>A pagar:</b> <span className="ml-1.5 font-mono text-[24px] font-semibold text-[#0a3d5c]">R$ {money(remaining)}</span></p>
                 <button onClick={addPayment} className={btn("blue")}>Adicionar (Enter)</button>
               </div>
             </div>
 
             {shownChange > 0 && (
-              <div className="mt-4 flex items-center justify-between rounded-sm border border-emerald-300 bg-emerald-50 px-5 py-3">
-                <span className="text-[15px] font-semibold text-emerald-800">TROCO</span>
-                <span className="text-[34px] font-semibold leading-none text-emerald-700">R$ {money(shownChange)}</span>
+              <div className="flex items-center justify-between rounded-sm border border-emerald-300 bg-emerald-50 px-4 py-2">
+                <span className="text-[13px] font-bold tracking-wide text-emerald-800">TROCO</span>
+                <span className="font-mono text-[30px] font-semibold leading-none text-emerald-700">R$ {money(shownChange)}</span>
               </div>
             )}
 
             {payments.length > 0 && (
-              <ul className="mt-4 divide-y divide-slate-200 rounded-sm border border-[#c5cfdf] bg-white">
+              <ul className="divide-y divide-slate-200 rounded-sm border border-[#c5cfdf] bg-white">
                 {payments.map((p) => (
-                  <li key={p.id} className="flex items-center justify-between px-4 py-3 text-[14px]">
-                    <span>
+                  <li key={p.id} className="flex items-center justify-between px-3 py-2 text-[12px]">
+                    <span className="font-medium">
                       {PM_SHORT[p.method]}
                       {(p.method === "debit" || p.method === "credit") && ` · ${BRANDS.find((b) => b.key === p.cardBrand)?.label}`}
                       {p.method === "credit" && p.installments > 1 && ` · ${p.installments}x`}
                       {p.method === "crediario" && p.crediarioInstallments > 1 && ` · ${p.crediarioInstallments}x`}
                     </span>
-                    <span className="flex items-center gap-4">
-                      <b>R$ {money(num(p.amount))}</b>
-                      <button className="text-rose-600" onClick={() => setPayments((prev) => prev.filter((x) => x.id !== p.id))}>✕</button>
+                    <span className="flex items-center gap-3">
+                      <b className="font-mono">R$ {money(num(p.amount))}</b>
+                      <button className="text-rose-600" title="Remover pagamento" onClick={() => setPayments((prev) => prev.filter((x) => x.id !== p.id))}>✕</button>
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-            <div className="mt-5 flex flex-wrap gap-5 text-[13px] text-slate-600">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={printReceipt} onChange={(e) => setPrintReceipt(e.target.checked)} /> Imprimir recibo (F7)</label>
-              <label className="flex items-center gap-2"><input type="checkbox" checked={emitNfce} disabled={!isOnline} onChange={(e) => setEmitNfce(e.target.checked)} /> Emitir NFC-e (F8){!isOnline && " — só online"}</label>
-            </div>
           </section>
 
-          <section className="flex min-h-0 flex-col">
-            <h2 className="mb-3 text-[20px] font-semibold text-[#0b527a]">Itens do pedido <span className="text-[13px] font-medium text-slate-500">- Nº {saleNumber}</span></h2>
+          <section className="flex min-h-[240px] flex-col gap-3 lg:min-h-0">
             <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-[#c5cfdf] bg-white">
-              <table className="w-full text-[13px]">
-                <thead className="text-[11px] uppercase text-slate-400">
-                  <tr className="border-b border-dashed border-slate-300"><th className="px-4 py-3 text-left">Qtde.</th><th className="px-2 text-left">Produto ({cart.length})</th><th className="px-2 text-right">Unitário</th><th className="px-4 text-right">Total</th></tr>
+              <table className="w-full border-collapse text-[12px]">
+                <thead className="sticky top-0 bg-[#dfe7f2] text-[10px] uppercase tracking-wide text-slate-500">
+                  <tr><th className="px-3 py-1.5 text-left">Qtde.</th><th className="px-2 text-left">Produto ({cart.length})</th><th className="hidden px-2 text-right sm:table-cell">Unitário</th><th className="px-3 text-right">Total</th></tr>
                 </thead>
                 <tbody>
-                  {cart.map((i) => (
-                    <tr key={i.cartItemId} className="border-b border-dashed border-slate-200">
-                      <td className="px-4 py-2.5">{i.quantity}</td>
-                      <td className="px-2">{i.name}{i.variationLabel && <span className="block text-[11px] text-slate-500">{i.variationLabel}</span>}</td>
-                      <td className="px-2 text-right">R$ {money(i.price)}</td>
-                      <td className="px-4 text-right font-semibold">R$ {money(i.price * i.quantity)}</td>
+                  {cart.map((i, idx) => (
+                    <tr key={i.cartItemId} className={cn("border-b border-slate-200", idx % 2 && "bg-[#f6f8fc]")}>
+                      <td className="px-3 py-1.5 font-mono">{i.quantity}</td>
+                      <td className="px-2 font-medium">{i.name}{i.variationLabel && <span className="block text-[10px] font-normal text-slate-500">{i.variationLabel}</span>}</td>
+                      <td className="hidden px-2 text-right font-mono sm:table-cell">{money(i.price)}</td>
+                      <td className="px-3 text-right font-mono font-semibold">{money(i.price * i.quantity)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="mt-3 space-y-1.5 text-[13px]">
-              <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>R$ {money(subtotal)}</span></div>
-              {discountValue > 0 && <div className="flex justify-between text-rose-600"><span>Desconto{discountExceeds && " (limitado ao máximo permitido)"}</span><span>- R$ {money(discountValue)}</span></div>}
-              {surchargeValue > 0 && <div className="flex justify-between text-slate-500"><span>Acréscimo</span><span>+ R$ {money(surchargeValue)}</span></div>}
-              {passedFee > 0 && <div className="flex justify-between text-slate-500"><span>Taxa da maquininha</span><span>+ R$ {money(passedFee)}</span></div>}
-              <div className="flex justify-between pt-2">
-                <button className="font-medium text-[#0078d4] underline" onClick={() => setModal("discount")}>+ Acréscimos e descontos (F3)</button>
-                <button className="font-medium text-[#0078d4] underline" onClick={() => { setLookup(""); setModal("customer"); }}>+ Referenciar cliente (F2)</button>
+            <div className="shrink-0 rounded-sm bg-[#0b2234] px-4 py-2 text-white">
+              <div className="space-y-0.5 font-mono text-[11px] text-white/65">
+                <div className="flex justify-between"><span>Subtotal</span><span>R$ {money(subtotal)}</span></div>
+                {discountValue > 0 && <div className="flex justify-between text-rose-300"><span>Desconto{discountExceeds && " (limitado ao máximo)"}</span><span>- R$ {money(discountValue)}</span></div>}
+                {surchargeValue > 0 && <div className="flex justify-between"><span>Acréscimo</span><span>+ R$ {money(surchargeValue)}</span></div>}
+                {passedFee > 0 && <div className="flex justify-between"><span>Taxa da maquininha</span><span>+ R$ {money(passedFee)}</span></div>}
               </div>
-              {(selectedCustomer || selectedSeller) && (
-                <p className="pt-1 text-slate-600">
-                  {selectedCustomer && <>Cliente: <b>{selectedCustomer.name}</b></>}
-                  {selectedCustomer && selectedSeller && " · "}
-                  {selectedSeller && <>Vendedor: <b>{selectedSeller.name}</b></>}
-                </p>
-              )}
+              <div className="mt-1 flex items-end justify-between gap-3 border-t border-white/15 pt-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-[.2em] text-sky-300/80">Total a pagar</p>
+                <span className="font-mono text-[clamp(26px,3.6vw,40px)] font-semibold leading-none tabular-nums text-[#7dff9b]">R$ {money(total)}</span>
+              </div>
+              <div className="mt-1.5 grid grid-cols-3 gap-2 border-t border-white/15 pt-1.5 font-mono text-[11px]">
+                <div><p className="text-[9px] uppercase tracking-wider text-white/50">Pago</p><p className="text-[13px] font-semibold">R$ {money(paid)}</p></div>
+                <div><p className="text-[9px] uppercase tracking-wider text-white/50">Falta</p><p className="text-[13px] font-semibold">R$ {money(remaining)}</p></div>
+                <div><p className="text-[9px] uppercase tracking-wider text-white/50">Troco</p><p className="text-[13px] font-semibold">R$ {money(change)}</p></div>
+              </div>
             </div>
           </section>
         </main>
       )}
 
-      {/* legenda de atalhos */}
-      <div className="shrink-0 border-t border-[#d5deec] bg-[#e9eef7] px-5 py-1.5 text-[11px] text-slate-500">
-        {screen === "sale"
-          ? <>Ctrl+P produto · <b>3*código</b> quantidade · ↑ ↓ Del itens · F2 leitor · F3 operador · F4 vendas em aberto · F5 consultar preço · F6 pagamento · F7 aguardar · F9 cancelar</>
-          : <>Alt+1…5 forma de pagamento · Enter adiciona · F2 cliente · F3 desconto · F7 recibo · F8 NFC-e · F10 vendedor · F6 finalizar · Esc volta</>}
-      </div>
-
-      {/* rodapé */}
-      <footer className="flex h-[88px] [@media(max-height:700px)]:h-[70px] shrink-0 items-center justify-between gap-4 bg-white px-5">
-        <div className="flex h-[72px] [@media(max-height:700px)]:h-[56px] items-center gap-6 whitespace-nowrap rounded-r-[40px] bg-[#0b527a] pl-6 pr-10 text-white [@media(max-width:1100px)]:gap-4 [@media(max-width:1100px)]:pl-4 [@media(max-width:1100px)]:pr-6">
-          <div className="leading-tight">
-            <p className="text-[11px] uppercase text-white/60">Operador</p>
-            <p className="max-w-[170px] truncate text-[14px] font-semibold">{operatorName}</p>
+      {/* barra de comandos (teclas de função) */}
+      <footer className="shrink-0 border-t border-[#b9c6da] bg-[#d9e2ef] px-3 py-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {screen === "sale" ? (
+              <>
+                <FKey k="F4" label="Em aberto" badge={heldBadge} onClick={() => void openHeld()} />
+                <FKey k="F5" label="Preço" onClick={() => { setPriceQuery(""); setModal("price"); }} />
+                <FKey k="F2" label="Leitor" active={scannerMode} onClick={() => handlers.current.F2?.()} />
+                <FKey k="F3" label="Operador" onClick={() => setModal("operator")} />
+              </>
+            ) : (
+              <>
+                <FKey k="F2" label="Cliente" onClick={() => { setLookup(""); setModal("customer"); }} />
+                <FKey k="F10" label="Vendedor" onClick={() => { setLookup(""); setModal("seller"); }} />
+                <FKey k="F3" label="Desconto" onClick={() => setModal("discount")} />
+                <FKey k="F7" label="Recibo" active={printReceipt} onClick={() => setPrintReceipt((v) => !v)} />
+                <FKey k="F8" label={isOnline ? "NFC-e" : "NFC-e (online)"} active={emitNfce} disabled={!isOnline} onClick={() => setEmitNfce((v) => !v)} />
+              </>
+            )}
           </div>
-          {screen === "sale" ? (
-            <button onClick={() => void openHeld()} className="border-l border-white/30 pl-6 text-left text-[13px] font-semibold uppercase leading-tight hover:text-white/80">
-              Vendas em aberto (F4){heldCount > 0 && <span className="ml-2 rounded-full bg-amber-400 px-2 py-0.5 text-[11px] text-slate-900">{heldCount}</span>}
-            </button>
-          ) : (
-            <>
-              <div className="border-l border-white/30 pl-6 leading-tight"><p className="text-[11px] uppercase text-white/60">Pagamentos</p><p className="text-[16px] font-semibold">R$ {money(paid)}</p></div>
-              <div className="leading-tight"><p className="text-[11px] uppercase text-white/60">Troco</p><p className="text-[16px] font-semibold">R$ {money(change)}</p></div>
-              <div className="leading-tight"><p className="text-[11px] uppercase text-white/60">Total</p><p className="text-[16px] font-semibold">R$ {money(total)}</p></div>
-            </>
-          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {screen === "sale" ? (
+              <>
+                <FKey k="F9" label="Cancelar" tone="red" disabled={cart.length === 0} onClick={() => cart.length > 0 && setModal("confirmCancel")} />
+                <FKey k="F7" label="Aguardar" disabled={cart.length === 0} onClick={() => void holdSale()} />
+                <FKey k="F6" label="Pagamento" tone="green" strong disabled={cart.length === 0} onClick={goToPayment} />
+              </>
+            ) : (
+              <>
+                <FKey k="Esc" label="Voltar" onClick={() => setScreen("sale")} />
+                <FKey k="F9" label="Cancelar" tone="red" onClick={() => setModal("confirmCancel")} />
+                <FKey k="F6" label={finishing ? "Finalizando…" : "Finalizar"} tone="green" strong disabled={!canFinish || finishing} onClick={() => void finishSale()} />
+              </>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-3 [@media(max-width:1100px)]:gap-2">
-          {screen === "sale" ? (
-            <>
-              <button className={btn("red")} onClick={() => cart.length > 0 && setModal("confirmCancel")} disabled={cart.length === 0}>Cancelar (F9)</button>
-              <button className={btn("blue")} onClick={() => void holdSale()} disabled={cart.length === 0}>Aguardar (F7)</button>
-              <button className={btn("green")} onClick={goToPayment} disabled={cart.length === 0}>Pagamento (F6)</button>
-            </>
-          ) : (
-            <>
-              <button className={btn("blue")} onClick={() => { setLookup(""); setModal("seller"); }}>Vendedor (F10)</button>
-              <button className={btn("blue")} onClick={() => { setLookup(""); setModal("customer"); }}>Cliente (F2)</button>
-              <button className={btn("red")} onClick={() => setModal("confirmCancel")}>Cancelar (F9)</button>
-              <button className={btn("green")} onClick={() => void finishSale()} disabled={!canFinish || finishing}>{finishing ? "Finalizando…" : "Finalizar (F6)"}</button>
-            </>
-          )}
-        </div>
+        <p className="mt-1 hidden text-[10px] text-slate-500 lg:block">
+          {screen === "sale"
+            ? <>Ctrl+P produto · <b>3*código</b> quantidade · ↑ ↓ Del itens · Operador: <b>{operatorName}</b></>
+            : <>Alt+1…5 forma de pagamento · Enter adiciona · Esc volta · Operador: <b>{operatorName}</b></>}
+        </p>
       </footer>
 
       {/* ── modais ── */}
