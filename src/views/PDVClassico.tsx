@@ -3,7 +3,7 @@ import { Product } from "../types";
 import { cn } from "../lib/utils";
 import { productHasStock } from "../utils/productStock";
 import {
-  cacheGet, cacheSet, countPendingCashOps, countPendingSales, getPendingSales, queueCashOp, queueSale, type PendingSale,
+  cacheGet, cacheSet, countPendingCashOps, countPendingSales, getPendingCashOps, getPendingSales, queueCashOp, queueSale, removePendingCashOp, removePendingSale, type PendingSale,
 } from "../lib/offlineDb";
 import { syncPendingOps } from "../lib/pdvSync";
 import { renewLogin } from "../lib/offlineLogin";
@@ -205,11 +205,14 @@ function ClassicPDV() {
   const [completed, setCompleted] = useState<Completed | null>(null);
 
   // modais
-  type Modal = null | "split" | "variation" | "price" | "operator" | "held" | "discount" | "customer" | "seller" | "qty" | "confirmCancel";
+  type Modal = null | "pending" | "split" | "variation" | "price" | "operator" | "held" | "discount" | "customer" | "seller" | "qty" | "confirmCancel";
   const [modal, setModal] = useState<Modal>(null);
   // Dividir a conta entre pessoas: cada parte é cobrada em sequência (cada uma pode usar uma forma de pagamento)
   const [split, setSplit] = useState<{ shares: number[]; idx: number } | null>(null);
   const [splitPeople, setSplitPeople] = useState("2");
+  // Fila offline: o que ainda não subiu para o servidor e por que (último erro recebido)
+  const [pendingList, setPendingList] = useState<{ kind: "sale" | "cash"; id: string; label: string; createdAt: string; attempts: number; lastError?: string }[]>([]);
+  const [syncingNow, setSyncingNow] = useState(false);
   useEffect(() => { setPickActive(0); }, [modal]);
   // Depois de finalizar a venda, volta direto ao caixa livre (sem a tela de confirmação). Preferência guardada neste computador.
   const [autoReturn, setAutoReturn] = useState(() => { try { return localStorage.getItem("classic_auto_return") === "1"; } catch { return false; } });
@@ -357,10 +360,18 @@ function ClassicPDV() {
   }, [token]);
 
   // ── sincronização offline ──────────────────────────────────────────────────
+  const loadPendingList = useCallback(async () => {
+    const [sales, cashOps] = await Promise.all([getPendingSales(), getPendingCashOps()]);
+    setPendingList([
+      ...sales.map((x) => ({ kind: "sale" as const, id: x.localId, label: `Venda · R$ ${money(Number(x.total) || 0)}${x.customerName ? ` · ${x.customerName}` : ""}`, createdAt: x.createdAt, attempts: x.attempts ?? 0, lastError: x.lastError })),
+      ...cashOps.map((x) => ({ kind: "cash" as const, id: x.localId, label: x.type === "cash_open" ? `Abertura de caixa · R$ ${money(x.openingAmount ?? 0)}` : `Fechamento de caixa · R$ ${money(x.countedAmount ?? 0)}`, createdAt: x.createdAt, attempts: x.attempts ?? 0, lastError: x.lastError })),
+    ].sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+  }, []);
   const syncNow = useCallback(async () => {
     if (!token || !navigator.onLine) return;
     const result = await syncPendingOps(token);
     refreshPending();
+    void loadPendingList();
     if (result.sessionIdByLocalId.size > 0) {
       setCashSession((s) => {
         if (!s?.localId || !result.sessionIdByLocalId.has(s.localId)) return s;
@@ -373,7 +384,7 @@ function ClassicPDV() {
       flash(`${result.synced} registro${result.synced > 1 ? "s" : ""} sincronizado${result.synced > 1 ? "s" : ""}!`, "ok");
       void refreshData(); // traz o estoque já atualizado pelo servidor
     }
-  }, [token, refreshPending, flash, refreshData]);
+  }, [token, refreshPending, flash, refreshData, loadPendingList]);
 
   useEffect(() => {
     const goOnline = () => { setIsOnline(true); syncNow(); };
@@ -889,7 +900,12 @@ function ClassicPDV() {
             <p className="truncate text-[13px] font-semibold">{tenantName}</p>
             <p className={cn("flex items-center gap-1.5 truncate text-[10px] font-medium", isOnline ? "text-emerald-300" : "text-amber-300")}>
               <i className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isOnline ? "bg-emerald-400" : "bg-amber-400")} />
-              {isOnline ? "Online" : "Modo offline"}{pendingCount > 0 && ` · ${pendingCount} p/ sincronizar`}
+              {isOnline ? "Online" : "Modo offline"}
+              {pendingCount > 0 && (
+                <button type="button" title="Ver o que falta sincronizar e por quê" className="underline decoration-dotted underline-offset-2 hover:text-white" onClick={() => { void loadPendingList(); setModal("pending"); }}>
+                  · {pendingCount} p/ sincronizar
+                </button>
+              )}
               {dataAt && <span className="hidden text-white/55 sm:inline"> · dados de {stamp(dataAt)}</span>}
             </p>
           </div>
@@ -1409,6 +1425,50 @@ function ClassicPDV() {
           </Overlay>
         );
       })()}
+
+      {modal === "pending" && (
+        <Overlay title="Pendências de sincronização" onClose={() => setModal(null)} width={640} hint="Vendas e caixas feitos offline sobem sozinhos quando há internet · se o servidor recusar, o motivo aparece aqui">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-[12px] text-slate-600">{pendingList.length === 0 ? "Tudo sincronizado." : `${pendingList.length} registro(s) aguardando.`} {isOnline ? "" : "Sem internet no momento."}</p>
+            <button className={cn(btn("blue"), "h-7 px-3 text-[11px]")} disabled={syncingNow || !isOnline || pendingList.length === 0}
+              onClick={async () => { setSyncingNow(true); try { await syncNow(); await loadPendingList(); } finally { setSyncingNow(false); } }}>
+              {syncingNow ? "Enviando…" : "Tentar agora"}
+            </button>
+          </div>
+          {pendingList.length > 0 && (
+            <div className="max-h-[52vh] overflow-auto rounded-sm border border-[#c5cfdf]">
+              {pendingList.map((it) => {
+                const err = it.lastError ?? "";
+                // erros que não se resolvem sozinhos: o servidor recusa sempre, tentar de novo não adianta
+                const hopeless = /não encontrado|nao encontrado|inválid|invalid/i.test(err);
+                return (
+                  <div key={it.id} className="border-b border-slate-100 px-3 py-2 last:border-b-0">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-medium">{it.label}</p>
+                        <p className="font-mono text-[10px] text-slate-500">{new Date(it.createdAt).toLocaleString("pt-BR")} · {it.attempts} tentativa(s)</p>
+                      </div>
+                      <button className="shrink-0 rounded-sm border border-rose-300 px-2 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50"
+                        onClick={async () => {
+                          if (!window.confirm("Descartar este registro? Ele NÃO será enviado ao servidor e não poderá ser recuperado.")) return;
+                          if (it.kind === "sale") await removePendingSale(it.id); else await removePendingCashOp(it.id);
+                          refreshPending(); void loadPendingList();
+                        }}>Descartar</button>
+                    </div>
+                    {err && (
+                      <p className="mt-1 rounded-sm bg-rose-50 px-2 py-1 text-[11px] text-rose-700">
+                        <b>Servidor recusou:</b> {err}
+                        {hopeless && " — o item desta venda não existe nesta loja (venda feita com produtos de outra loja). Não vai sincronizar sozinha: descarte."}
+                      </p>
+                    )}
+                    {!err && it.attempts === 0 && <p className="mt-1 text-[11px] text-slate-500">Aguardando o próximo envio.</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Overlay>
+      )}
 
       {modal === "split" && (
         <Overlay title="Dividir pagamento" onClose={() => setModal(null)} width={380} hint="Quando não dá exato, as primeiras pessoas pagam 1 centavo a mais · cada uma escolhe a própria forma de pagamento">
