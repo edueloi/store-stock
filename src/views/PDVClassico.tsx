@@ -78,6 +78,16 @@ const num = (v: string) => {
   const n = Number(t);
   return Number.isFinite(n) ? n : 0;
 };
+// Loja (tenantId) do usuário logado, lida do próprio token — sem rede.
+function tokenTenantId(token: string | null): number | null {
+  try {
+    const part = (token ?? "").split(".")[1];
+    if (!part) return null;
+    const json = JSON.parse(decodeURIComponent(escape(atob(part.replace(/-/g, "+").replace(/_/g, "/")))));
+    const id = Number(json?.tenantId ?? json?.tenant_id);
+    return Number.isFinite(id) && id > 0 ? id : null;
+  } catch { return null; }
+}
 const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 function defaultFirstDue() {
@@ -242,6 +252,22 @@ function ClassicPDV() {
       cacheGet<Customer[]>("customers"), cacheGet<{ at: string }>("snapshot_meta"), getPendingSales(),
     ]);
     if (!Array.isArray(p) || p.length === 0) return false;
+    // O pacote local é da loja a que o terminal está vinculado. Se quem logou é de OUTRA loja, os produtos
+    // do pacote não existem para ele e a venda seria recusada ("Produto não encontrado"): ignora o pacote
+    // e usa os dados da loja do usuário direto da API.
+    const userTenant = tokenTenantId(localStorage.getItem("token"));
+    const packTenant = Number((t as { id?: number } | null)?.id);
+    if (userTenant && Number.isFinite(packTenant) && packTenant > 0 && packTenant !== userTenant) return false;
+    // Pacote antigo sem o id da loja: com internet, confere pelo nome da loja do usuário (/api/tenant).
+    if (userTenant && !(packTenant > 0) && navigator.onLine && t?.name) {
+      try {
+        const res = await fetch("/api/tenant", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, signal: AbortSignal.timeout(4000) });
+        if (res.ok) {
+          const mine = await res.json();
+          if (mine?.name && String(mine.name).trim().toLowerCase() !== String(t.name).trim().toLowerCase()) return false;
+        }
+      } catch { /* sem rede: segue com o pacote local */ }
+    }
     // vendas feitas offline que ainda não subiram não estão no estoque do servidor: abate aqui
     const used = new Map<number, number>();
     for (const sale of pending) {

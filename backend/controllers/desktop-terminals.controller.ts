@@ -163,7 +163,7 @@ export async function getMyTerminal(req: Request, res: Response) {
 
 // Campos da loja que o PDV precisa para vender (nunca certificado, tokens nem e-mail).
 const SNAPSHOT_TENANT_FIELDS = [
-  "name", "document", "phone", "whatsapp", "logo_url", "primary_color", "address", "address_street", "address_number",
+  "id", "name", "document", "phone", "whatsapp", "logo_url", "primary_color", "address", "address_street", "address_number",
   "address_complement", "address_district", "address_city", "address_state", "address_zip", "card_fees",
   "pass_fee_to_customer", "pass_fee_by_method", "max_installments", "enabled_brands", "crediario_interest_rate",
   "crediario_grace_days", "require_cash_session", "print_cash_close_receipt", "logout_on_cash_close",

@@ -142,7 +142,7 @@ export function ClassicLogin({ onLogin }: { onLogin: (token: string) => void }) 
         <p className="mt-1 text-[13px] text-slate-500">Informe seu usuário e senha para abrir o caixa.</p>
 
         <div className="mt-6">
-          <label className={labelCls}>Usuário ou e-mail</label>
+          <label className={labelCls}>Usuário</label>
           <input className={inputCls} value={identifier} autoFocus autoComplete="username" placeholder="ex.: joyce.antunes" onChange={(e) => setIdentifier(e.target.value)} />
         </div>
         <div className="mt-4">
