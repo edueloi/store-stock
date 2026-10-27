@@ -204,8 +204,11 @@ function ClassicPDV() {
   const [completed, setCompleted] = useState<Completed | null>(null);
 
   // modais
-  type Modal = null | "variation" | "price" | "operator" | "held" | "discount" | "customer" | "seller" | "qty" | "confirmCancel";
+  type Modal = null | "split" | "variation" | "price" | "operator" | "held" | "discount" | "customer" | "seller" | "qty" | "confirmCancel";
   const [modal, setModal] = useState<Modal>(null);
+  // Dividir a conta entre pessoas: cada parte é cobrada em sequência (cada uma pode usar uma forma de pagamento)
+  const [split, setSplit] = useState<{ shares: number[]; idx: number } | null>(null);
+  const [splitPeople, setSplitPeople] = useState("2");
   const [variationProduct, setVariationProduct] = useState<Product | null>(null);
   const [variationOptions, setVariationOptions] = useState<Record<string, string>>({});
   const [heldList, setHeldList] = useState<HeldSale[]>([]);
@@ -512,6 +515,13 @@ function ClassicPDV() {
   const total = Math.round((baseTotal + passedFee) * 100) / 100;
   const paid = payments.reduce((s, p) => s + num(p.amount), 0);
   const remaining = Math.max(0, Math.round((total - paid) * 100) / 100);
+  // Divide em centavos inteiros: as primeiras pessoas pagam 1 centavo a mais quando a divisão não é exata.
+  const splitShares = (value: number, people: number) => {
+    const cents = Math.round(value * 100);
+    const base = Math.floor(cents / people);
+    const extra = cents - base * people;
+    return Array.from({ length: people }, (_, i) => (base + (i < extra ? 1 : 0)) / 100);
+  };
   const moneyPaid = payments.filter((p) => p.method === "money").reduce((s, p) => s + num(p.amount), 0);
   const change = moneyPaid > 0 && paid >= total ? Math.round((moneyPaid - (total - (paid - moneyPaid))) * 100) / 100 : 0;
   const canFinish = cart.length > 0 && total > 0 && remaining <= 0.004;
@@ -539,6 +549,8 @@ function ClassicPDV() {
     newSale();
     setSaleNumber((n) => Math.max(1, n - 1));
   };
+
+  useEffect(() => { if (screen !== "payment" || remaining <= 0.004) setSplit(null); }, [screen, remaining]);
 
   const goToPayment = () => {
     if (cart.length === 0) { flash("Inclua ao menos um produto."); return; }
@@ -622,8 +634,28 @@ function ClassicPDV() {
       installments: payMethod === "credit" ? payInstallments : 1, amount: amount.toFixed(2),
       crediarioInstallments: payMethod === "crediario" ? payInstallments : 1, crediarioFirstDueDate: defaultFirstDue(),
     }]);
-    const left = Math.max(0, remaining - amount);
-    setPayAmount(left > 0 ? left.toFixed(2).replace(".", ",") : "");
+    const left = Math.max(0, Math.round((remaining - amount) * 100) / 100);
+    if (split && left > 0.004 && split.idx + 1 < split.shares.length) {
+      // próxima pessoa: a parte dela (a última leva o que sobrar)
+      const nextIdx = split.idx + 1;
+      const share = nextIdx === split.shares.length - 1 ? left : Math.min(split.shares[nextIdx], left);
+      setSplit({ ...split, idx: nextIdx });
+      setPayAmount(share.toFixed(2).replace(".", ","));
+    } else {
+      if (split) setSplit(null);
+      setPayAmount(left > 0 ? left.toFixed(2).replace(".", ",") : "");
+    }
+  };
+
+  const startSplit = () => {
+    const n = Math.floor(num(splitPeople));
+    if (!(n >= 2 && n <= 20)) { flash("Informe de 2 a 20 pessoas."); return; }
+    if (remaining <= 0.004) { flash("Não há valor restante para dividir."); return; }
+    const shares = splitShares(remaining, n);
+    setSplit({ shares, idx: 0 });
+    setPayAmount(shares[0].toFixed(2).replace(".", ","));
+    setModal(null);
+    window.setTimeout(() => payRef.current?.focus(), 50);
   };
 
   const finishSale = async () => {
@@ -755,7 +787,7 @@ function ClassicPDV() {
   handlers.current = {
     F2: () => (screen === "sale" ? (setScannerMode((v) => !v), codeRef.current?.focus()) : (setLookup(""), setModal("customer"))),
     F3: () => (screen === "sale" ? setModal("operator") : setModal("discount")),
-    F4: () => { if (screen === "sale") void openHeld(); },
+    F4: () => { if (screen === "sale") void openHeld(); else if (remaining > 0.004) { setSplitPeople(split ? String(split.shares.length) : "2"); setModal("split"); } },
     F5: () => { if (screen === "sale") { setPriceQuery(""); setModal("price"); } },
     F6: () => (screen === "sale" ? goToPayment() : void finishSale()),
     F7: () => (screen === "sale" ? void holdSale() : setPrintReceipt((v) => !v)),
@@ -1083,6 +1115,12 @@ function ClassicPDV() {
                   </select>
                 </div>
               )}
+              {split && (
+                <div className="mt-3 flex items-center justify-between gap-2 rounded-sm border border-[#0078d4] bg-[#e1effb] px-3 py-1.5 text-[12px] text-[#005a9e]">
+                  <span>Dividindo em <b>{split.shares.length}</b> · pessoa <b>{split.idx + 1}</b> de {split.shares.length} · parte <b className="font-mono">R$ {money(split.shares[split.idx])}</b></span>
+                  <button type="button" className="font-semibold underline" onClick={() => { setSplit(null); setPayAmount(remaining > 0 ? remaining.toFixed(2).replace(".", ",") : ""); }}>cancelar divisão</button>
+                </div>
+              )}
               <div className="mt-3 flex items-center justify-between gap-3">
                 <p className="text-[13px]"><b>A pagar:</b> <span className="ml-1.5 font-mono text-[24px] font-semibold text-[#0a3d5c]">R$ {money(remaining)}</span></p>
                 <button onClick={addPayment} className={btn("blue")}>Adicionar (Enter)</button>
@@ -1170,6 +1208,7 @@ function ClassicPDV() {
             ) : (
               <>
                 <FKey k="F2" label="Cliente" onClick={() => { setLookup(""); setModal("customer"); }} />
+                <FKey k="F4" label="Dividir" active={!!split} disabled={remaining <= 0.004} onClick={() => handlers.current.F4?.()} />
                 <FKey k="F10" label="Vendedor" onClick={() => { setLookup(""); setModal("seller"); }} />
                 <FKey k="F3" label="Desconto" onClick={() => setModal("discount")} />
                 <FKey k="F7" label="Recibo" active={printReceipt} onClick={() => setPrintReceipt((v) => !v)} />
@@ -1340,6 +1379,35 @@ function ClassicPDV() {
               </li>
             ))}
           </ul>
+        </Overlay>
+      )}
+
+      {modal === "split" && (
+        <Overlay title="Dividir pagamento" onClose={() => setModal(null)} width={420}>
+          <p className="mb-3 text-[13px] text-slate-600">Valor a dividir: <b className="font-mono">R$ {money(remaining)}</b></p>
+          <label className={labelCls}>Quantas pessoas?</label>
+          <input
+            className={cn(inputCls, "font-mono")} autoFocus value={splitPeople} inputMode="numeric" onFocus={(e) => e.target.select()}
+            onChange={(e) => setSplitPeople(e.target.value.replace(/\D/g, "").slice(0, 2))}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); startSplit(); } }}
+          />
+          {(() => {
+            const n = Math.floor(num(splitPeople));
+            if (!(n >= 2 && n <= 20)) return null;
+            const shares = splitShares(remaining, n);
+            return (
+              <ul className="mt-3 max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-sm border border-[#c5cfdf] text-[12px]">
+                {shares.map((v, i) => (
+                  <li key={i} className="flex items-center justify-between px-3 py-1.5">
+                    <span>Pessoa {i + 1}</span>
+                    <b className="font-mono">R$ {money(v)}</b>
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
+          <p className="mt-2 text-[11px] text-slate-500">Quando não dá exato, as primeiras pessoas pagam 1 centavo a mais. Cada uma escolhe a própria forma de pagamento.</p>
+          <button className={cn(btn("blue"), "mt-3 w-full")} onClick={startSplit}>Começar (Enter)</button>
         </Overlay>
       )}
 
