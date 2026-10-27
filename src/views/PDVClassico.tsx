@@ -184,7 +184,6 @@ function ClassicPDV() {
   const [priceQuery, setPriceQuery] = useState("");
   const [lastReceipt, setLastReceipt] = useState<string | null>(null);   // último cupom, para reimprimir
   const [selectedId, setSelectedId] = useState<string | null>(null);   // linha selecionada na lista (↑ ↓ / Del)
-  const [lastAdded, setLastAdded] = useState<{ name: string; variation: string; qty: number; price: number } | null>(null);
 
   // pagamento
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
@@ -209,6 +208,9 @@ function ClassicPDV() {
   // Dividir a conta entre pessoas: cada parte é cobrada em sequência (cada uma pode usar uma forma de pagamento)
   const [split, setSplit] = useState<{ shares: number[]; idx: number } | null>(null);
   const [splitPeople, setSplitPeople] = useState("2");
+  // Depois de finalizar a venda, volta direto ao caixa livre (sem a tela de confirmação). Preferência guardada neste computador.
+  const [autoReturn, setAutoReturn] = useState(() => { try { return localStorage.getItem("classic_auto_return") === "1"; } catch { return false; } });
+  const toggleAutoReturn = () => setAutoReturn((v) => { try { localStorage.setItem("classic_auto_return", v ? "0" : "1"); } catch { /* sem storage: vale só nesta sessão */ } return !v; });
   const [variationProduct, setVariationProduct] = useState<Product | null>(null);
   const [variationOptions, setVariationOptions] = useState<Record<string, string>>({});
   const [heldList, setHeldList] = useState<HeldSale[]>([]);
@@ -224,9 +226,9 @@ function ClassicPDV() {
   }, [token]);
   const operatorName = user?.name || user?.email || "Operador";
 
-  const flash = useCallback((text: string, tone: "ok" | "err" = "err") => {
+  const flash = useCallback((text: string, tone: "ok" | "err" = "err", ms = 3500) => {
     setNotice({ text, tone });
-    window.setTimeout(() => setNotice((n) => (n?.text === text ? null : n)), 3500);
+    window.setTimeout(() => setNotice((n) => (n?.text === text ? null : n)), ms);
   }, []);
 
   const logout = useCallback(() => {
@@ -434,7 +436,6 @@ function ClassicPDV() {
     setCart((prev) => existing
       ? prev.map((i) => i.cartItemId === cartItemId ? { ...i, quantity: wanted } : i)
       : [...prev, { ...product, price: Number(product.discount_price || product.price), quantity, cartItemId, selectedOptions: options, variationLabel }]);
-    setLastAdded({ name: product.name, variation: variationLabel, qty: quantity, price: Number(product.discount_price || product.price) });
     setSelectedId(cartItemId);
     return true;
   }, [cart, flash, sellWithoutStock]);
@@ -727,6 +728,16 @@ function ClassicPDV() {
       if (printReceipt && window.boxsysDesktop?.printReceipt) {
         printThermalText(receiptText, "Cupom").then((res) => { if (!res.ok) flash(res.error || "Falha ao imprimir o recibo."); });
       }
+      if (autoReturn) {
+        // volta ao caixa livre: o troco (e o aviso da NFC-e) ficam num aviso fixo por alguns segundos
+        const parts = [offline ? "Venda salva (offline)" : `Venda #${String(orderId).padStart(5, "0")} finalizada`, `Total R$ ${money(total)}`];
+        if (change > 0) parts.push(`TROCO R$ ${money(change)}`);
+        if (nfce) parts.push(nfce);
+        newSale();
+        setFinishing(false);
+        flash(parts.join(" · "), "ok", change > 0 ? 9000 : 4500);
+        return;
+      }
       setCompleted({ orderId, offline, total, change: change > 0 ? change : 0, receiptText, nfce });
       setFinishing(false);
     };
@@ -997,20 +1008,6 @@ function ClassicPDV() {
               <button onClick={handleCodeEnter} className={cn(btn("blue"), "mt-3 w-full")}>Incluir (Enter)</button>
             </div>
 
-            <div className="rounded-sm border border-[#c5cfdf] bg-white px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Último item</p>
-              {lastAdded ? (
-                <div className="mt-0.5 flex items-baseline justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-[14px] font-semibold text-slate-800">{lastAdded.name}</p>
-                    <p className="font-mono text-[11px] text-slate-500">{lastAdded.variation ? `${lastAdded.variation} · ` : ""}{lastAdded.qty} × R$ {money(lastAdded.price)}</p>
-                  </div>
-                  <b className="shrink-0 font-mono text-[18px] font-semibold text-[#0a3d5c]">R$ {money(lastAdded.qty * lastAdded.price)}</b>
-                </div>
-              ) : (
-                <p className="mt-0.5 text-[12px] text-slate-400">Nenhum item incluído ainda.</p>
-              )}
-            </div>
             <p className="hidden text-[11px] leading-relaxed text-slate-500 xl:block [@media(max-height:760px)]:!hidden">
               Tecle o código de barras ou o código e Enter. Para várias unidades, digite <b>3*código</b>. Com o campo vazio, <b>↑ ↓</b> escolhem um item do pedido, <b>Enter</b> altera a quantidade e <b>Delete</b> remove.
             </p>
@@ -1125,7 +1122,10 @@ function ClassicPDV() {
                 <p className="text-[13px]"><b>A pagar:</b> <span className="ml-1.5 font-mono text-[24px] font-semibold text-[#0a3d5c]">R$ {money(remaining)}</span></p>
                 <button onClick={addPayment} className={btn("blue")}>Adicionar (Enter)</button>
               </div>
-              <p className="mt-2 text-[11px] text-slate-500">Pagamento dividido: digite um valor menor, tecle Enter e escolha outra forma (Alt+1…5) para o restante.</p>
+              <label className="mt-2 flex items-center gap-2 text-[12px] text-slate-600">
+                <input type="checkbox" checked={autoReturn} onChange={toggleAutoReturn} /> Ao finalizar, voltar direto ao caixa livre
+              </label>
+              <p className="mt-1 text-[11px] text-slate-500">Pagamento dividido: digite um valor menor, tecle Enter e escolha outra forma (Alt+1…5) para o restante.</p>
             </div>
 
             {shownChange > 0 && (
