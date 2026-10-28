@@ -25,6 +25,15 @@ const useMedia = (query: string) => {
   return match;
 };
 
+// Cor de destaque do cardápio: a da loja quando é legível (nem muito escura nem sem brilho); senão o dourado padrão.
+const luminance = (hex: string) => { const n = parseInt(hex.slice(1), 16); return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; };
+const pickAccent = (color?: string | null, template?: string | null) => {
+  if (template === "adega") return "#d9a62e";
+  const m = /^#?([0-9a-f]{6})$/i.exec((color || "").trim());
+  return m && luminance(`#${m[1]}`) >= 0.28 ? `#${m[1]}` : "#c9a227";
+};
+const inkFor = (hex: string) => (luminance(hex) > 0.6 ? "#1a1405" : "#ffffff");
+
 // Cardápio digital: tela própria (não é o site/catálogo), com três entradas:
 //  /cardapio              → delivery (entrega ou retirada)
 //  /cardapio/mesa/:n      → pedido na mesa (QR)
@@ -221,8 +230,8 @@ export default function DigitalMenu() {
   };
 
   // ---- render ----
-  const accent = tenant?.primary_color && tenant.primary_color !== "#000000" ? tenant.primary_color : "#c9a227";
-  const styleVars = { ["--mnu-accent" as string]: tenant?.template_id === "adega" ? "#d9a62e" : accent } as React.CSSProperties;
+  const accent = pickAccent(tenant?.primary_color, tenant?.template_id);
+  const styleVars = { ["--mnu-accent" as string]: accent, ["--mnu-accent-ink" as string]: inkFor(accent) } as React.CSSProperties;
   if (state.loading) return <div className="mnu"><div className="mnu-off">Carregando cardápio…</div></div>;
   if (state.error || !tenant) return <div className="mnu"><div className="mnu-off">{state.error || "Cardápio indisponível."}</div></div>;
   if (!tenant.food_enabled) return <div className="mnu"><div className="mnu-off">O cardápio digital desta loja ainda não está ativo.</div></div>;
