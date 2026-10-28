@@ -9,6 +9,7 @@ import { createStoreOrderPdf } from "../services/store-order-pdf.service";
 import { baseTemplate, sendPlatformEmail } from "../services/mailer.service";
 import { escapeHtml } from "../utils/html-escape";
 import { env } from "../config/env";
+import { emitToTenant } from "../services/realtime.service";
 import { sanitizeStorefrontHeadings } from "../../shared/storefrontHeadings";
 import {
   buildTenantAccessUrl,
@@ -103,6 +104,7 @@ function publicTenant(tenant: any) {
     bestseller_limit: tenant.bestseller_limit,
     business_hours: tenant.business_hours,
     sell_without_stock_control: Boolean(tenant.sell_without_stock_control),
+    food_enabled: Boolean(tenant.food_enabled),
     policies: sanitizeStorefrontHeadings(tenant.policies),
     public_url: buildTenantAccessUrl(tenant.subdomain || tenant.slug),
   };
@@ -410,6 +412,99 @@ export async function reserveStoreCart(req: Request, res: Response) {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Não foi possível reservar os itens agora." });
+  }
+}
+
+/**
+ * Pedido feito pelo cardápio digital (QR Code da mesa) de estabelecimentos alimentícios.
+ * Vira uma COMANDA aberta (HeldSale) identificada pela mesa: novos pedidos da mesma mesa
+ * são somados à comanda que já está aberta, e a equipe fecha a conta no PDV
+ * (Vendas Abertas / Comandas). O estoque dos itens é separado no momento do pedido.
+ */
+export async function createTableOrder(req: Request, res: Response) {
+  try {
+    const { tenantId, mesa, items, customer } = req.body as {
+      tenantId: number;
+      mesa: string | number;
+      items: Array<{ product_id: number; quantity: number; selected_options?: Record<string, string> }>;
+      customer?: { name?: string };
+    };
+    const table = String(mesa ?? "").trim().slice(0, 20);
+    if (!tenantId || !table || !Array.isArray(items) || !items.length || items.length > 40) {
+      return res.status(400).json({ error: "Pedido inválido." });
+    }
+    const tenant = await prisma.tenant.findUnique({ where: { id: Number(tenantId) } });
+    if (!tenant || !getTenantAccessState(tenant).allowed) return res.status(404).json({ error: "Loja não encontrada." });
+    if (!tenant.food_enabled) return res.status(400).json({ error: "Esta loja não recebe pedidos por mesa." });
+
+    const trackStock = !tenant.sell_without_stock_control;
+    const rows: { product_id: number; name: string; quantity: number; unit_price: number; selected_options: Record<string, string> | null }[] = [];
+    for (const item of items) {
+      const quantity = Number(item.quantity);
+      const product = await prisma.product.findFirst({ where: { id: Number(item.product_id), tenant_id: tenant.id, is_active: true } });
+      if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
+        return res.status(409).json({ error: "Um dos itens não está mais disponível." });
+      }
+      if (trackStock && product.track_stock !== false && product.stock_quantity < quantity) {
+        return res.status(409).json({ error: `Estoque insuficiente para ${product.name}: restam ${Math.max(0, product.stock_quantity)} un.` });
+      }
+      rows.push({
+        product_id: product.id,
+        name: product.name,
+        quantity,
+        unit_price: Number(product.discount_price ?? product.price),
+        selected_options: item.selected_options ?? null,
+      });
+    }
+
+    const guest = String(customer?.name ?? "").trim().slice(0, 60);
+    const label = `Mesa ${table}${guest ? ` · ${guest}` : ""}`;
+
+    // Comanda já aberta para esta mesa? Soma os itens nela em vez de abrir outra.
+    const existing = await prisma.heldSale.findFirst({
+      where: { tenant_id: tenant.id, status: "held", snapshot: { path: "$.table", equals: table } },
+      orderBy: { id: "desc" },
+    });
+
+    let heldSale;
+    if (existing) {
+      heldSale = await prisma.heldSale.update({
+        where: { id: existing.id },
+        data: {
+          customer_name: guest && !String(existing.customer_name ?? "").includes(guest) ? `${existing.customer_name ?? `Mesa ${table}`} · ${guest}` : existing.customer_name,
+          items: { create: rows },
+        },
+      });
+    } else {
+      const latest = await prisma.heldSale.findFirst({ where: { tenant_id: tenant.id }, orderBy: { number: "desc" }, select: { number: true } });
+      heldSale = await prisma.heldSale.create({
+        data: {
+          tenant_id: tenant.id,
+          number: (latest?.number || 0) + 1,
+          customer_name: label,
+          notes: `Pedido pelo QR Code — Mesa ${table}`,
+          snapshot: { source: "table_qr", table, stock_tracked: trackStock },
+          items: { create: rows },
+        },
+      });
+    }
+
+    if (trackStock) {
+      for (const row of rows) {
+        await decrementProductStock(row.product_id, row.quantity, row.selected_options);
+        await prisma.stockMovement.create({
+          data: { tenant_id: tenant.id, product_id: row.product_id, quantity: -row.quantity, type: "held_sale_out", reason: `Comanda #${heldSale.number} — Mesa ${table}` },
+        });
+      }
+    }
+
+    emitToTenant(tenant.id, "order:updated", { heldSaleId: heldSale.id });
+    emitToTenant(tenant.id, "stock:changed", { heldSaleId: heldSale.id });
+    const total = rows.reduce((sum, r) => sum + r.unit_price * r.quantity, 0);
+    res.status(201).json({ comanda_id: heldSale.id, number: heldSale.number, table, total, appended: Boolean(existing) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Não foi possível enviar o pedido agora." });
   }
 }
 

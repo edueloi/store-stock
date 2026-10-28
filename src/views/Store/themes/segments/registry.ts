@@ -254,6 +254,23 @@ export const segmentThemes = {
     featured: "Peças selecionadas",
     cart: "Sua seleção",
   },
+  adega: {
+    name: "Adega Noturna",
+    group: "Sabores & Presentes",
+    tag: "Adegas, Bebidas & Conveniência",
+    desc: "Adega noturna em preto e dourado, com cardápio denso, cartões de bebida gelada e pedido rápido pelo WhatsApp.",
+    accent: "#d9a62e",
+    bg: "#0b0b0c",
+    ink: "#f4ecd8",
+    surface: "#141416",
+    layout: "editorial",
+    hero: "Gelada, na hora e na sua porta.",
+    sub: "Cervejas, destilados, vinhos, gelo, carvão e conveniência para a sua noite.",
+    catalog: "O cardápio da adega",
+    categories: "Escolha sua bebida",
+    featured: "Mais pedidos",
+    cart: "Seu pedido",
+  },
   tech: {
     name: "Tecnologia Pro",
     group: "Tecnologia",
@@ -288,6 +305,7 @@ export const addedSegmentIds: SegmentId[] = [
   "pharmacy",
   "care",
   "hospital",
+  "adega",
 ];
 export const segmentModelCards = addedSegmentIds.map((id) => {
   const t = segmentThemes[id];

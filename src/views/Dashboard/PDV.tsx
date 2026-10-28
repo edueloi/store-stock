@@ -2021,7 +2021,7 @@ export default function PDV() {
               iconLeft={<ShoppingBag size={11}  />} className="shrink-0 px-2 min-[1800px]:px-3">
               <span className="hidden min-[1800px]:inline">Consignado</span>
             </Button>
-            <Button variant="outline" size="lg" onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas" aria-label="Vendas Abertas"
+            <Button variant="outline" size="lg" onClick={() => setShowHeldSalesDrawer(true)} title={getStoredUser()?.food_enabled ? "Comandas" : "Vendas Abertas"} aria-label={getStoredUser()?.food_enabled ? "Comandas" : "Vendas Abertas"}
               iconLeft={<Clock size={11} />} className="relative shrink-0 px-2 min-[1800px]:px-3">
               <span className="hidden min-[1800px]:inline">Vendas Abertas</span>
               {openHeldSalesCount > 0 && (

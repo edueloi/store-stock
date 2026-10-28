@@ -263,6 +263,7 @@ export async function updateManagedTenant(req: Request, res: Response) {
     name,
     fluxoProducaoEnabled,
     graficaEnabled,
+    foodEnabled,
     planId,
   } = req.body;
 
@@ -288,6 +289,7 @@ export async function updateManagedTenant(req: Request, res: Response) {
         subscription_amount: planId !== undefined && selectedPlan ? selectedPlan.price : subscriptionAmount !== undefined ? Number(subscriptionAmount) || 0 : undefined,
         fluxo_producao_enabled: planId !== undefined && selectedPlan ? selectedFeatures.includes("fluxo_producao") : fluxoProducaoEnabled !== undefined ? !!fluxoProducaoEnabled : undefined,
         grafica_enabled: planId !== undefined && selectedPlan ? selectedFeatures.includes("grafica") : graficaEnabled !== undefined ? !!graficaEnabled : undefined,
+        food_enabled: foodEnabled !== undefined ? !!foodEnabled : undefined,
       },
       include: {
         plan: { select: { id: true, name: true, color: true } },

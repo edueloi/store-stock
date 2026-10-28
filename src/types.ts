@@ -165,6 +165,7 @@ export interface Tenant {
   auto_print_receipt?: boolean;
   fluxo_producao_enabled?: boolean;
   grafica_enabled?: boolean;
+  food_enabled?: boolean;
   plan_features?: string[] | null;
   status?: 'pending_setup' | 'trial' | 'active' | 'suspended';
   trial_days?: number;
@@ -227,6 +228,8 @@ export interface User {
   // Idem, para as etapas "Aguardando arte"/"Arte finalizada" da Ordem de Serviço —
   // ver Tenant.grafica_enabled.
   grafica_enabled?: boolean;
+  // Módulo de estabelecimento alimentício (comandas + cardápio QR) — ver Tenant.food_enabled.
+  food_enabled?: boolean;
   plan_features?: string[] | null;
 }
 

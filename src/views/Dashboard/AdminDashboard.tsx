@@ -45,6 +45,7 @@ import {
   Send,
   Link2,
   SlidersHorizontal,
+  QrCode as QrCodeIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -63,6 +64,7 @@ import Inventory from "./Inventory"; // This will be "Catálogo"
 import Stock from "./Stock"; // This will be "Estoque"
 import PDV from "./PDV";
 import Orders from "./Orders";
+import CardapioQr from "./CardapioQr";
 import NfceInvoices from "./NfceInvoices";
 import TerminalTransactions from "./TerminalTransactions";
 import Finance from "./Finance";
@@ -833,6 +835,7 @@ export default function AdminDashboard() {
         { icon: ShoppingCart,    label: "PDV — Caixa",   path: "/admin/pdv",             key: "pdv" },
         { icon: Wallet,          label: "Fluxo de Caixa", path: "/admin/finance",        key: "finance" },
         { icon: Receipt,         label: "Pedidos",        path: "/admin/orders",         key: "orders" },
+        { icon: QrCodeIcon,      label: "Comandas e QR",  path: "/admin/cardapio-qr",    key: "cardapio_qr" },
         { icon: FileCheck,       label: "Notas Fiscais",  path: "/admin/notas-fiscais",  key: "notas_fiscais" },
         { icon: Terminal,        label: "Maquininhas",    path: "/admin/maquininhas",    key: "maquininhas" },
         { icon: FileText,        label: "Orçamentos",     path: "/admin/orcamentos",     key: "orcamentos" },
@@ -907,7 +910,7 @@ export default function AdminDashboard() {
   const currentUser = getStoredUser();
   const allowedMenus = currentUser?.menus ?? [];
   const planFeatures = currentUser?.plan_features;
-  const alwaysAvailable = ["dashboard", "settings", "my_store", "tour", "meu_perfil"];
+  const alwaysAvailable = ["dashboard", "settings", "my_store", "tour", "meu_perfil", "cardapio_qr"];
   const canSeeMenu = (key: string) => {
     const isIncludedInPlan = !Array.isArray(planFeatures) || alwaysAvailable.includes(key) || planFeatures.includes(key);
     return isIncludedInPlan && (currentUser?.role === "admin" || allowedMenus.includes(key) || key === "tour" || key === "meu_perfil");
@@ -917,6 +920,7 @@ export default function AdminDashboard() {
   // independente de role/permissão individual) — some do menu pra todo mundo se desligado.
   const tenantModuleGate: Record<string, boolean> = {
     fluxo_producao: !!currentUser?.fluxo_producao_enabled,
+    cardapio_qr: !!currentUser?.food_enabled,
   };
   const isTenantModuleEnabled = (key: string) => tenantModuleGate[key] ?? true;
 
@@ -1259,6 +1263,7 @@ export default function AdminDashboard() {
               <Route path="customers/:id" element={<CustomerDetail />} />
               <Route path="suppliers" element={<Suppliers />} />
               <Route path="orders" element={<Orders />} />
+              <Route path="cardapio-qr" element={<CardapioQr />} />
               <Route path="notas-fiscais" element={<NfceInvoices />} />
               <Route path="maquininhas" element={<TerminalTransactions />} />
               <Route path="finance" element={<Finance />} />

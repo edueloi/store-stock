@@ -89,6 +89,9 @@ model Tenant {
   // só faz sentido pra lojas do ramo gráfico; para os demais ramos (roupa, eletrônicos,
   // etc.) essas etapas ficam ocultas e inacessíveis mesmo para admin.
   grafica_enabled        Boolean @default(false)
+  // Estabelecimento alimentício (adega, bar, lanchonete, conveniência): libera comandas e o
+  // cardápio digital por QR Code. Liberado manualmente pelo Super Admin.
+  food_enabled           Boolean @default(false)
 
   status              String    @default("active")
   trial_days          Int       @default(30)

@@ -10,6 +10,7 @@ import Button, { IconButton } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { Badge } from "../ui/Badge";
 import { useToast } from "../ui/Toast";
+import { getStoredUser } from "../../lib/session";
 
 interface HeldSalesDrawerProps {
   open: boolean;
@@ -38,6 +39,7 @@ export default function HeldSalesDrawer({ open, onClose, token, onResume }: Held
   const [busyId, setBusyId] = useState<number | null>(null);
   const [cancelTarget, setCancelTarget] = useState<HeldSale | null>(null);
   const toast = useToast();
+  const food = !!getStoredUser()?.food_enabled;
 
   const load = () => {
     setLoading(true);
@@ -97,8 +99,8 @@ export default function HeldSalesDrawer({ open, onClose, token, onResume }: Held
             className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
               <div>
-                <h2 className="font-semibold text-slate-900 text-[15px]">Vendas Abertas</h2>
-                <p className="text-[11px] text-slate-500">Retome ou cancele uma venda em espera</p>
+                <h2 className="font-semibold text-slate-900 text-[15px]">{food ? "Comandas" : "Vendas Abertas"}</h2>
+                <p className="text-[11px] text-slate-500">{food ? "Abra a comanda para somar itens e fechar a conta" : "Retome ou cancele uma venda em espera"}</p>
               </div>
               <IconButton variant="ghost" size="md" onClick={onClose} aria-label="Fechar" className="h-9 w-9"><X size={18} /></IconButton>
             </div>
@@ -112,7 +114,7 @@ export default function HeldSalesDrawer({ open, onClose, token, onResume }: Held
               {loading ? (
                 <div className="flex items-center justify-center h-32"><Loader2 size={20} className="animate-spin text-slate-300" /></div>
               ) : filtered.length === 0 ? (
-                <div className="text-center py-10 text-[11px] font-semibold text-slate-400">Nenhuma venda em espera</div>
+                <div className="text-center py-10 text-[11px] font-semibold text-slate-400">{food ? "Nenhuma comanda aberta" : "Nenhuma venda em espera"}</div>
               ) : (
                 filtered.map((s) => {
                   const isExpanded = expandedId === s.id;
