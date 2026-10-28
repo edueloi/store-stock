@@ -416,23 +416,29 @@ export async function reserveStoreCart(req: Request, res: Response) {
 }
 
 /**
- * Pedido feito pelo cardápio digital (QR Code da mesa) de estabelecimentos alimentícios.
- * Vira uma COMANDA aberta (HeldSale) identificada pela mesa: novos pedidos da mesma mesa
- * são somados à comanda que já está aberta, e a equipe fecha a conta no PDV
- * (Vendas Abertas / Comandas). O estoque dos itens é separado no momento do pedido.
+ * Pedido feito pelo CARDÁPIO DIGITAL (QR Code) de estabelecimentos alimentícios — produto
+ * separado do site/catálogo. Vira uma COMANDA aberta (HeldSale):
+ *  - mode "mesa": identificada pela mesa; novos pedidos da mesma mesa somam na comanda aberta;
+ *  - mode "balcao": uma comanda nova por pedido, identificada pelo nome do cliente.
+ * A equipe fecha a conta no PDV (Comandas). O estoque dos itens é separado no pedido.
  */
 export async function createTableOrder(req: Request, res: Response) {
   try {
-    const { tenantId, mesa, items, customer } = req.body as {
+    const { tenantId, mesa, mode: rawMode, items, customer, note } = req.body as {
       tenantId: number;
-      mesa: string | number;
-      items: Array<{ product_id: number; quantity: number; selected_options?: Record<string, string> }>;
-      customer?: { name?: string };
+      mesa?: string | number;
+      mode?: "mesa" | "balcao";
+      items: Array<{ product_id: number; quantity: number; selected_options?: Record<string, string>; note?: string }>;
+      customer?: { name?: string; phone?: string };
+      note?: string;
     };
+    const mode: "mesa" | "balcao" = rawMode === "balcao" ? "balcao" : "mesa";
     const table = String(mesa ?? "").trim().slice(0, 20);
-    if (!tenantId || !table || !Array.isArray(items) || !items.length || items.length > 40) {
+    if (!tenantId || (mode === "mesa" && !table) || !Array.isArray(items) || !items.length || items.length > 40) {
       return res.status(400).json({ error: "Pedido inválido." });
     }
+    const guestName = String(customer?.name ?? "").trim().slice(0, 60);
+    if (mode === "balcao" && !guestName) return res.status(400).json({ error: "Informe seu nome para o pedido." });
     const tenant = await prisma.tenant.findUnique({ where: { id: Number(tenantId) } });
     if (!tenant || !getTenantAccessState(tenant).allowed) return res.status(404).json({ error: "Loja não encontrada." });
     if (!tenant.food_enabled) return res.status(400).json({ error: "Esta loja não recebe pedidos por mesa." });
@@ -448,23 +454,28 @@ export async function createTableOrder(req: Request, res: Response) {
       if (trackStock && product.track_stock !== false && product.stock_quantity < quantity) {
         return res.status(409).json({ error: `Estoque insuficiente para ${product.name}: restam ${Math.max(0, product.stock_quantity)} un.` });
       }
+      const itemNote = String(item.note ?? "").trim().slice(0, 140);
       rows.push({
         product_id: product.id,
-        name: product.name,
+        name: itemNote ? `${product.name} — obs: ${itemNote}` : product.name,
         quantity,
         unit_price: Number(product.discount_price ?? product.price),
         selected_options: item.selected_options ?? null,
       });
     }
 
-    const guest = String(customer?.name ?? "").trim().slice(0, 60);
-    const label = `Mesa ${table}${guest ? ` · ${guest}` : ""}`;
+    const guest = guestName;
+    const orderNote = String(note ?? "").trim().slice(0, 200);
+    const label = mode === "balcao" ? `Balcão · ${guest}` : `Mesa ${table}${guest ? ` · ${guest}` : ""}`;
+    const source = mode === "balcao" ? "Balcão" : `Mesa ${table}`;
 
-    // Comanda já aberta para esta mesa? Soma os itens nela em vez de abrir outra.
-    const existing = await prisma.heldSale.findFirst({
-      where: { tenant_id: tenant.id, status: "held", snapshot: { path: "$.table", equals: table } },
-      orderBy: { id: "desc" },
-    });
+    // Mesa: comanda já aberta para esta mesa? Soma os itens nela em vez de abrir outra.
+    const existing = mode === "mesa"
+      ? await prisma.heldSale.findFirst({
+          where: { tenant_id: tenant.id, status: "held", snapshot: { path: "$.table", equals: table } },
+          orderBy: { id: "desc" },
+        })
+      : null;
 
     let heldSale;
     if (existing) {
@@ -482,8 +493,9 @@ export async function createTableOrder(req: Request, res: Response) {
           tenant_id: tenant.id,
           number: (latest?.number || 0) + 1,
           customer_name: label,
-          notes: `Pedido pelo QR Code — Mesa ${table}`,
-          snapshot: { source: "table_qr", table, stock_tracked: trackStock },
+          customer_phone: String(customer?.phone ?? "").replace(/\D/g, "").slice(0, 15) || null,
+          notes: `Pedido pelo cardápio digital — ${source}${orderNote ? ` · ${orderNote}` : ""}`,
+          snapshot: { source: "table_qr", mode, ...(mode === "mesa" ? { table } : {}), stock_tracked: trackStock },
           items: { create: rows },
         },
       });
@@ -493,7 +505,7 @@ export async function createTableOrder(req: Request, res: Response) {
       for (const row of rows) {
         await decrementProductStock(row.product_id, row.quantity, row.selected_options);
         await prisma.stockMovement.create({
-          data: { tenant_id: tenant.id, product_id: row.product_id, quantity: -row.quantity, type: "held_sale_out", reason: `Comanda #${heldSale.number} — Mesa ${table}` },
+          data: { tenant_id: tenant.id, product_id: row.product_id, quantity: -row.quantity, type: "held_sale_out", reason: `Comanda #${heldSale.number} — ${source}` },
         });
       }
     }
@@ -501,7 +513,141 @@ export async function createTableOrder(req: Request, res: Response) {
     emitToTenant(tenant.id, "order:updated", { heldSaleId: heldSale.id });
     emitToTenant(tenant.id, "stock:changed", { heldSaleId: heldSale.id });
     const total = rows.reduce((sum, r) => sum + r.unit_price * r.quantity, 0);
-    res.status(201).json({ comanda_id: heldSale.id, number: heldSale.number, table, total, appended: Boolean(existing) });
+    res.status(201).json({ comanda_id: heldSale.id, number: heldSale.number, mode, table: mode === "mesa" ? table : null, total, appended: Boolean(existing) });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Não foi possível enviar o pedido agora." });
+  }
+}
+
+type MenuSettings = {
+  accepts?: { mesa?: boolean; balcao?: boolean; delivery?: boolean; pickup?: boolean };
+  delivery?: {
+    fee_mode?: "fixed" | "neighborhood";
+    fixed_fee?: number;
+    free_above?: number;
+    min_order?: number;
+    neighborhoods?: Array<{ name?: string; fee?: number }>;
+    eta?: string;
+  };
+  pickup_eta?: string;
+  payments?: { pix?: boolean; money?: boolean; card?: boolean };
+};
+
+function menuSettings(tenant: { policies: unknown }): MenuSettings {
+  return ((tenant.policies as Record<string, unknown> | null)?.menu || {}) as MenuSettings;
+}
+
+/**
+ * Pedido do CARDÁPIO DIGITAL. Mesa e balcão viram comanda aberta (createTableOrder); entrega e
+ * retirada viram um pedido pendente (aparece em Pedidos), com taxa de entrega calculada no servidor
+ * a partir da configuração do cardápio (taxa fixa ou por bairro, frete grátis acima de X, mínimo).
+ */
+export async function createMenuOrder(req: Request, res: Response) {
+  const mode = String(req.body?.mode || "mesa");
+  if (mode === "mesa" || mode === "balcao") return createTableOrder(req, res);
+  if (mode !== "delivery" && mode !== "pickup") return res.status(400).json({ error: "Modo de pedido inválido." });
+
+  try {
+    const { tenantId, items, customer, address, payment, note } = req.body as {
+      tenantId: number;
+      items: Array<{ product_id: number; quantity: number; note?: string }>;
+      customer?: { name?: string; phone?: string };
+      address?: { street?: string; number?: string; district?: string; complement?: string; reference?: string };
+      payment?: { method?: string; change_for?: number };
+      note?: string;
+    };
+    if (!tenantId || !Array.isArray(items) || !items.length || items.length > 40) return res.status(400).json({ error: "Pedido inválido." });
+    const tenant = await prisma.tenant.findUnique({ where: { id: Number(tenantId) } });
+    if (!tenant || !getTenantAccessState(tenant).allowed) return res.status(404).json({ error: "Loja não encontrada." });
+    if (!tenant.food_enabled) return res.status(400).json({ error: "Esta loja não recebe pedidos pelo cardápio." });
+
+    const cfg = menuSettings(tenant);
+    const accepts = { mesa: true, balcao: true, pickup: true, delivery: false, ...(cfg.accepts || {}) };
+    if (!accepts[mode]) return res.status(400).json({ error: mode === "delivery" ? "Esta loja não faz entregas pelo cardápio." : "A retirada não está disponível." });
+
+    const name = String(customer?.name ?? "").trim().slice(0, 80);
+    const phone = digits(customer?.phone);
+    if (!name || phone.length < 10) return res.status(422).json({ error: "Informe seu nome e um WhatsApp válido." });
+
+    const payMethod = String(payment?.method || "");
+    const allowedPay = { pix: true, money: true, card: true, ...(cfg.payments || {}) } as Record<string, boolean>;
+    if (!["pix", "money", "card"].includes(payMethod) || !allowedPay[payMethod]) return res.status(422).json({ error: "Escolha uma forma de pagamento disponível." });
+
+    const trackStock = !tenant.sell_without_stock_control;
+    const rows: Array<{ product_id: number; quantity: number; unit_price: number; dimensions_label: string | null; name: string }> = [];
+    let subtotal = 0;
+    let gross = 0;
+    for (const item of items) {
+      const quantity = Number(item.quantity);
+      const product = await prisma.product.findFirst({ where: { id: Number(item.product_id), tenant_id: tenant.id, is_active: true } });
+      if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) return res.status(409).json({ error: "Um dos itens não está mais disponível." });
+      if (trackStock && product.track_stock !== false && product.stock_quantity < quantity) {
+        return res.status(409).json({ error: `Estoque insuficiente para ${product.name}: restam ${Math.max(0, product.stock_quantity)} un.` });
+      }
+      const unit = Number(product.discount_price ?? product.price);
+      subtotal += unit * quantity;
+      gross += Number(product.price) * quantity;
+      rows.push({ product_id: product.id, quantity, unit_price: unit, dimensions_label: String(item.note ?? "").trim().slice(0, 140) || null, name: product.name });
+    }
+    subtotal = Math.round(subtotal * 100) / 100;
+    gross = Math.round(gross * 100) / 100;
+
+    const delivery = cfg.delivery || {};
+    let fee = 0;
+    let addressText = "Retirada na loja";
+    let district = "";
+    if (mode === "delivery") {
+      const street = String(address?.street ?? "").trim().slice(0, 120);
+      const number = String(address?.number ?? "").trim().slice(0, 20);
+      district = String(address?.district ?? "").trim().slice(0, 80);
+      if (!street || !number || !district) return res.status(422).json({ error: "Informe rua, número e bairro para a entrega." });
+      const minOrder = Math.max(0, Number(delivery.min_order) || 0);
+      if (minOrder > 0 && subtotal < minOrder) return res.status(422).json({ error: `Pedido mínimo para entrega: R$ ${minOrder.toFixed(2).replace(".", ",")}.` });
+      if (delivery.fee_mode === "neighborhood") {
+        const hood = (delivery.neighborhoods || []).find((n) => String(n.name || "").trim().toLowerCase() === district.toLowerCase());
+        if (!hood) return res.status(422).json({ error: "Ainda não entregamos neste bairro." });
+        fee = Math.max(0, Number(hood.fee) || 0);
+      } else {
+        fee = Math.max(0, Number(delivery.fixed_fee) || 0);
+      }
+      const freeAbove = Math.max(0, Number(delivery.free_above) || 0);
+      if (freeAbove > 0 && subtotal >= freeAbove) fee = 0;
+      addressText = [`${street}, ${number}`, district, String(address?.complement ?? "").trim().slice(0, 80), address?.reference ? `Ref.: ${String(address.reference).trim().slice(0, 100)}` : ""].filter(Boolean).join(" · ");
+    }
+    const total = Math.round((subtotal + fee) * 100) / 100;
+    const changeFor = payMethod === "money" && Number(payment?.change_for) > total ? Math.round(Number(payment?.change_for) * 100) / 100 : null;
+
+    const order = await prisma.order.create({
+      data: {
+        tenant_id: tenant.id,
+        customer_name: name,
+        customer_phone: phone,
+        customer_address: addressText,
+        total_amount: total,
+        gross_amount: Math.round((gross + fee) * 100) / 100,
+        discount_amount: Math.max(0, Math.round((gross - subtotal) * 100) / 100),
+        status: "pending",
+        sales_channel: "menu",
+        delivery_method: mode,
+        shipping_amount: fee,
+        payment_method: payMethod === "pix" ? "pix" : payMethod === "money" ? "cash_on_delivery" : "card_on_delivery",
+        storefront_details: { source: "menu", mode, district: district || null, change_for: changeFor, note: String(note ?? "").trim().slice(0, 200) || null, eta: (mode === "delivery" ? delivery.eta : cfg.pickup_eta) || null, stock_tracked: trackStock },
+        items: { create: rows.map(({ name: _n, ...r }) => r) },
+      },
+    });
+
+    if (trackStock) {
+      for (const row of rows) {
+        await decrementProductStock(row.product_id, row.quantity, null);
+        await prisma.stockMovement.create({
+          data: { tenant_id: tenant.id, product_id: row.product_id, quantity: -row.quantity, type: "sale", reason: `Pedido #${order.id} — cardápio digital` },
+        });
+      }
+    }
+    emitToTenant(tenant.id, "order:created", { orderId: order.id });
+    emitToTenant(tenant.id, "stock:changed", { orderId: order.id });
+    res.status(201).json({ order_id: order.id, mode, subtotal, fee, total, eta: (mode === "delivery" ? delivery.eta : cfg.pickup_eta) || null });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Não foi possível enviar o pedido agora." });

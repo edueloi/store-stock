@@ -1,0 +1,139 @@
+/* Cardápio digital — tela própria, separada do site. Prefixo .mnu- */
+.mnu {
+  --mnu-accent: #d9a62e;
+  --mnu-accent-ink: #15110a;
+  --mnu-bg: #f6f5f2;
+  --mnu-card: #ffffff;
+  --mnu-ink: #1d1b16;
+  --mnu-soft: #6b665c;
+  --mnu-line: #e6e2d8;
+  --mnu-ok: #1f9d55;
+  --mnu-danger: #d64545;
+  min-height: 100vh;
+  background: var(--mnu-bg);
+  color: var(--mnu-ink);
+  font-family: "Inter", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding-bottom: 96px;
+  box-sizing: border-box;
+}
+.mnu[data-theme="dark"] {
+  --mnu-bg: #0b0b0c;
+  --mnu-card: #151517;
+  --mnu-ink: #f4ecd8;
+  --mnu-soft: #a9a191;
+  --mnu-line: rgba(244, 236, 216, 0.12);
+}
+.mnu *, .mnu *::before, .mnu *::after { box-sizing: border-box; }
+.mnu button { font-family: inherit; cursor: pointer; }
+.mnu img { display: block; }
+.mnu-wrap { width: 100%; max-width: 760px; margin: 0 auto; padding: 0 16px; }
+
+/* ---- Capa ---- */
+.mnu-cover { position: relative; height: 168px; background: linear-gradient(135deg, var(--mnu-accent), #1d1b16); overflow: hidden; }
+.mnu-cover img { width: 100%; height: 100%; object-fit: cover; }
+.mnu-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.35), transparent 60%); }
+.mnu-head { position: relative; margin-top: -44px; padding-bottom: 14px; }
+.mnu-logo { width: 84px; height: 84px; border-radius: 22px; border: 4px solid var(--mnu-bg); background: var(--mnu-card); object-fit: cover; box-shadow: 0 6px 22px rgba(0,0,0,.18); display: grid; place-items: center; font-weight: 800; font-size: 28px; color: var(--mnu-accent); }
+.mnu-title { margin: 10px 0 2px; font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
+.mnu-sub { margin: 0; color: var(--mnu-soft); font-size: 14px; line-height: 1.45; }
+.mnu-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.mnu-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border: 1px solid var(--mnu-line); border-radius: 999px; background: var(--mnu-card); color: var(--mnu-soft); font-size: 12px; font-weight: 600; text-decoration: none; }
+.mnu-chip b { color: var(--mnu-ink); }
+.mnu-chip.is-accent { background: var(--mnu-accent); border-color: var(--mnu-accent); color: var(--mnu-accent-ink); }
+
+/* ---- Modo de pedido ---- */
+.mnu-modes { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; margin: 14px 0 4px; }
+.mnu-mode { display: grid; gap: 2px; justify-items: center; padding: 11px 6px; border: 1.5px solid var(--mnu-line); border-radius: 14px; background: var(--mnu-card); color: var(--mnu-ink); font-size: 13px; font-weight: 700; }
+.mnu-mode small { color: var(--mnu-soft); font-size: 11px; font-weight: 500; }
+.mnu-mode.is-on { border-color: var(--mnu-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mnu-accent) 25%, transparent); }
+.mnu-info { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--mnu-accent) 14%, var(--mnu-card)); font-size: 13px; line-height: 1.5; }
+
+/* ---- Busca e categorias ---- */
+.mnu-bar { position: sticky; top: 0; z-index: 30; background: var(--mnu-bg); border-bottom: 1px solid var(--mnu-line); padding: 10px 0 8px; }
+.mnu-search { position: relative; }
+.mnu-search input { width: 100%; height: 44px; padding: 0 14px 0 40px; border: 1.5px solid var(--mnu-line); border-radius: 14px; background: var(--mnu-card); color: var(--mnu-ink); font-size: 15px; outline: none; }
+.mnu-search input:focus { border-color: var(--mnu-accent); }
+.mnu-search svg { position: absolute; left: 13px; top: 13px; color: var(--mnu-soft); }
+.mnu-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 2px; scrollbar-width: none; }
+.mnu-tabs::-webkit-scrollbar { display: none; }
+.mnu-tab { flex: none; padding: 8px 15px; border: 1.5px solid transparent; border-radius: 999px; background: transparent; color: var(--mnu-soft); font-size: 14px; font-weight: 700; white-space: nowrap; }
+.mnu-tab.is-on { background: var(--mnu-accent); color: var(--mnu-accent-ink); }
+
+/* ---- Seções e itens ---- */
+.mnu-section { padding-top: 22px; scroll-margin-top: 130px; }
+.mnu-section h2 { margin: 0 0 12px; font-size: 19px; font-weight: 800; letter-spacing: -0.01em; }
+.mnu-rail { display: flex; align-items: flex-start; gap: 12px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; scrollbar-width: none; }
+.mnu-rail::-webkit-scrollbar { display: none; }
+.mnu-feat { flex: none; width: 150px; scroll-snap-align: start; border: 1px solid var(--mnu-line); border-radius: 16px; background: var(--mnu-card); overflow: hidden; text-align: left; padding: 0; color: inherit; }
+.mnu-feat-img { aspect-ratio: 1; background: var(--mnu-line); }
+.mnu-feat-img img { width: 100%; height: 100%; object-fit: cover; }
+.mnu-feat-body { padding: 9px 11px 12px; display: grid; gap: 3px; }
+.mnu-feat-body strong { font-size: 13px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mnu-grid { display: grid; gap: 10px; }
+.mnu-item { display: grid; grid-template-columns: 1fr 104px; gap: 12px; width: 100%; padding: 12px; border: 1px solid var(--mnu-line); border-radius: 16px; background: var(--mnu-card); color: inherit; text-align: left; align-items: center; }
+.mnu-item:hover { border-color: color-mix(in srgb, var(--mnu-accent) 55%, var(--mnu-line)); }
+.mnu-item.is-out { opacity: .55; }
+.mnu-item-txt { display: grid; gap: 5px; min-width: 0; }
+.mnu-item-txt strong { font-size: 15px; line-height: 1.25; }
+.mnu-item-txt p { margin: 0; color: var(--mnu-soft); font-size: 13px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mnu-price { display: flex; align-items: baseline; gap: 7px; font-weight: 800; font-size: 15px; }
+.mnu-price s { color: var(--mnu-soft); font-weight: 500; font-size: 12px; }
+.mnu-price.is-promo { color: var(--mnu-ok); }
+.mnu-item-img { position: relative; width: 104px; height: 104px; border-radius: 14px; background: var(--mnu-line); }
+.mnu-item-img img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
+.mnu-item-img .mnu-ph { width: 100%; height: 100%; display: grid; place-items: center; color: var(--mnu-soft); }
+.mnu-add { position: absolute; right: -6px; bottom: -6px; width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--mnu-card); background: var(--mnu-accent); color: var(--mnu-accent-ink); display: grid; place-items: center; }
+.mnu-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; background: var(--mnu-danger); color: #fff; font-size: 11px; font-weight: 700; }
+.mnu-empty { padding: 40px 12px; text-align: center; color: var(--mnu-soft); }
+
+/* ---- Sacola flutuante ---- */
+.mnu-bagbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: linear-gradient(0deg, var(--mnu-bg) 70%, transparent); }
+.mnu-bagbtn { width: 100%; max-width: 728px; margin: 0 auto; height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; border: 0; border-radius: 16px; background: var(--mnu-accent); color: var(--mnu-accent-ink); font-size: 16px; font-weight: 800; box-shadow: 0 10px 30px color-mix(in srgb, var(--mnu-accent) 40%, transparent); }
+.mnu-bagbtn span { display: inline-flex; align-items: center; gap: 9px; }
+
+/* ---- Sheets (produto / sacola) ---- */
+.mnu-overlay { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; justify-content: center; }
+.mnu-sheet { width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto; background: var(--mnu-bg); color: var(--mnu-ink); border-radius: 22px 22px 0 0; padding-bottom: calc(18px + env(safe-area-inset-bottom)); animation: mnu-up .22s ease-out; }
+@keyframes mnu-up { from { transform: translateY(30px); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (min-width: 700px) { .mnu-overlay { align-items: center; } .mnu-sheet { border-radius: 22px; max-height: 88vh; } }
+.mnu-sheet-top { position: relative; }
+.mnu-sheet-img { aspect-ratio: 16 / 10; background: var(--mnu-line); }
+.mnu-sheet-img img { width: 100%; height: 100%; object-fit: cover; }
+.mnu-x { position: absolute; top: 12px; right: 12px; width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; display: grid; place-items: center; z-index: 2; }
+.mnu-sheet-body { padding: 16px 18px 0; display: grid; gap: 14px; }
+.mnu-sheet-body h3 { margin: 0; font-size: 21px; font-weight: 800; }
+.mnu-sheet-body p { margin: 0; color: var(--mnu-soft); font-size: 14px; line-height: 1.5; }
+.mnu-label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; }
+.mnu-label > span { color: var(--mnu-soft); font-weight: 600; font-size: 12px; }
+.mnu-input, .mnu-textarea, .mnu-select { width: 100%; padding: 0 13px; height: 46px; border: 1.5px solid var(--mnu-line); border-radius: 12px; background: var(--mnu-card); color: var(--mnu-ink); font-size: 15px; outline: none; font-family: inherit; }
+.mnu-textarea { height: 76px; padding: 11px 13px; resize: none; }
+.mnu-input:focus, .mnu-textarea:focus, .mnu-select:focus { border-color: var(--mnu-accent); }
+.mnu-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.mnu-foot { display: flex; gap: 12px; align-items: center; padding: 6px 18px 0; }
+.mnu-qty { display: inline-flex; align-items: center; border: 1.5px solid var(--mnu-line); border-radius: 14px; background: var(--mnu-card); }
+.mnu-qty button { width: 40px; height: 44px; border: 0; background: transparent; color: var(--mnu-ink); display: grid; place-items: center; }
+.mnu-qty b { min-width: 28px; text-align: center; font-size: 16px; }
+.mnu-cta { flex: 1; height: 50px; border: 0; border-radius: 14px; background: var(--mnu-accent); color: var(--mnu-accent-ink); font-size: 16px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; padding: 0 16px; }
+.mnu-cta:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---- Sacola ---- */
+.mnu-bag-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 6px; }
+.mnu-bag-head h3 { margin: 0; font-size: 21px; font-weight: 800; }
+.mnu-line { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--mnu-line); }
+.mnu-line strong { font-size: 14px; }
+.mnu-line small { display: block; color: var(--mnu-soft); margin-top: 2px; }
+.mnu-line .mnu-qty button { width: 34px; height: 36px; }
+.mnu-sum { display: grid; gap: 6px; padding: 12px 0; font-size: 14px; }
+.mnu-sum div { display: flex; justify-content: space-between; }
+.mnu-sum .is-total { font-size: 18px; font-weight: 800; padding-top: 8px; border-top: 1px dashed var(--mnu-line); }
+.mnu-pay { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mnu-pay button { padding: 11px 6px; border: 1.5px solid var(--mnu-line); border-radius: 12px; background: var(--mnu-card); color: var(--mnu-ink); font-size: 13px; font-weight: 700; }
+.mnu-pay button.is-on { border-color: var(--mnu-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mnu-accent) 25%, transparent); }
+.mnu-err { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--mnu-danger) 14%, var(--mnu-card)); color: var(--mnu-danger); font-size: 13px; font-weight: 600; }
+.mnu-done { padding: 34px 20px 8px; text-align: center; display: grid; gap: 10px; justify-items: center; }
+.mnu-done .ok { width: 68px; height: 68px; border-radius: 50%; background: var(--mnu-ok); color: #fff; display: grid; place-items: center; }
+.mnu-done h3 { margin: 0; font-size: 22px; font-weight: 800; }
+.mnu-done p { margin: 0; color: var(--mnu-soft); font-size: 14px; line-height: 1.5; }
+.mnu-btn { height: 48px; padding: 0 22px; border: 0; border-radius: 14px; background: var(--mnu-accent); color: var(--mnu-accent-ink); font-size: 15px; font-weight: 800; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
+.mnu-btn.is-ghost { background: transparent; border: 1.5px solid var(--mnu-line); color: var(--mnu-ink); }
+.mnu-off { padding: 80px 24px; text-align: center; color: var(--mnu-soft); }

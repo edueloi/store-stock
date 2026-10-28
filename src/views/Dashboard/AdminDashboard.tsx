@@ -835,7 +835,7 @@ export default function AdminDashboard() {
         { icon: ShoppingCart,    label: "PDV — Caixa",   path: "/admin/pdv",             key: "pdv" },
         { icon: Wallet,          label: "Fluxo de Caixa", path: "/admin/finance",        key: "finance" },
         { icon: Receipt,         label: "Pedidos",        path: "/admin/orders",         key: "orders" },
-        { icon: QrCodeIcon,      label: "Comandas e QR",  path: "/admin/cardapio-qr",    key: "cardapio_qr" },
+        { icon: QrCodeIcon,      label: "Cardápio digital", path: "/admin/cardapio-qr",    key: "cardapio_qr" },
         { icon: FileCheck,       label: "Notas Fiscais",  path: "/admin/notas-fiscais",  key: "notas_fiscais" },
         { icon: Terminal,        label: "Maquininhas",    path: "/admin/maquininhas",    key: "maquininhas" },
         { icon: FileText,        label: "Orçamentos",     path: "/admin/orcamentos",     key: "orcamentos" },

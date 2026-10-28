@@ -14,9 +14,12 @@ import QuoteApproval from "./views/Public/QuoteApproval";
 import { getStoredUser } from "./lib/session";
 import { isTenantSubdomainHost } from "./views/Store/store-routing";
 import { useRemotePrintBridge } from "./hooks/useRemotePrintBridge";
+import DigitalMenu from "./views/Menu/DigitalMenu";
 
 function HostAwareEntry() {
   if (isTenantSubdomainHost()) {
+    // Cardápio digital: tela própria, separada do site da loja.
+    if (window.location.pathname.startsWith("/cardapio")) return <DigitalMenu />;
     return <StoreLayout />;
   }
 
@@ -52,6 +55,7 @@ export default function App() {
         <Route path="/pdv-classico" element={<PDVClassico />} />
         <Route path="/admin/*" element={<AdminDashboard />} />
         <Route path="/super-admin/*" element={<SuperAdminDashboard />} />
+        <Route path="/s/:slug/cardapio" element={<DigitalMenu />} />
         <Route path="/s/:slug/*" element={<StoreLayout />} />
         <Route path="/*" element={<HostAwareEntry />} />
       </Routes>
