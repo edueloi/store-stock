@@ -33,7 +33,6 @@ export interface BuildCancelamentoNfseInput {
   chaveAcesso: string; // chave de acesso da NFS-e a cancelar (50 dígitos)
   cnpj?: string;
   cpf?: string;
-  nSeqEvento?: number; // sequência do evento pra essa chave, default 1
   cMotivo: MotivoCancelamentoNfse;
   xMotivo: string; // justificativa, 15-255 caracteres
   environment: "homologacao" | "producao";
@@ -49,7 +48,6 @@ export interface BuildCancelamentoNfseResult {
 // análogo ao envEvento da NFC-e mas com layout próprio (infPedReg/e101101).
 export function buildCancelamentoNfseXml(input: BuildCancelamentoNfseInput): BuildCancelamentoNfseResult {
   const { chaveAcesso, cnpj, cpf, cMotivo, xMotivo, environment } = input;
-  const nSeqEvento = input.nSeqEvento ?? 1;
 
   const justificativa = xMotivo.trim().slice(0, 255);
   if (justificativa.length < 15) {
@@ -60,22 +58,22 @@ export function buildCancelamentoNfseXml(input: BuildCancelamentoNfseInput): Bui
   const cpfDigits = onlyDigits(cpf);
   const isCnpj = cnpjDigits.length > 0;
 
-  // Id do evento: "e101101" + chave de acesso (50) + sequência (2), mesmo padrão de
-  // idDPS/idEvento — identificador único referenciado pela assinatura digital.
-  const idEvento = `${TP_EVENTO_CANCELAMENTO}${chaveAcesso}${String(nSeqEvento).padStart(2, "0")}`;
+  // Id do evento: "PRE" + chave de acesso (50) + tipo do evento (6) — o XSD (TSIdPedRegEvt)
+  // exige o padrão PRE[0-9]{56}; acrescentar o nº do pedido ao Id é rejeitado.
+  const idEvento = `PRE${chaveAcesso}${TP_EVENTO_CANCELAMENTO.slice(1)}`;
 
   const dhEvento = formatDateTimeWithOffset(new Date());
 
   const doc = create({ version: "1.0", encoding: "UTF-8" })
-    .ele("pedRegEvento", { xmlns: "http://www.sped.fazenda.gov.br/nfse" });
-  const infPedReg = doc.ele("infPedReg", { Id: idEvento, versao: "1.00" });
+    .ele("pedRegEvento", { xmlns: "http://www.sped.fazenda.gov.br/nfse", versao: "1.00" });
+  const infPedReg = doc.ele("infPedReg", { Id: idEvento });
 
   infPedReg.ele("tpAmb").txt(environment === "producao" ? "1" : "2");
   infPedReg.ele("verAplic").txt("1.0.0");
   infPedReg.ele("dhEvento").txt(dhEvento);
-  infPedReg.ele("CNPJ_CPF_autor").txt(isCnpj ? cnpjDigits : cpfDigits);
+  // Autor: CNPJAutor ou CPFAutor (escolha). nPedRegEvento saiu do leiaute atual.
+  infPedReg.ele(isCnpj ? "CNPJAutor" : "CPFAutor").txt(isCnpj ? cnpjDigits : cpfDigits);
   infPedReg.ele("chNFSe").txt(chaveAcesso);
-  infPedReg.ele("nPedRegEvento").txt(String(nSeqEvento));
 
   const e101101 = infPedReg.ele("e101101");
   e101101.ele("xDesc").txt("Cancelamento de NFS-e");

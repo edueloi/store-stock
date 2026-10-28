@@ -361,7 +361,8 @@ export async function deleteNfse(req: Request, res: Response) {
       res.status(404).json({ error: "NFS-e não encontrada para esta ordem de serviço" });
       return;
     }
-    if (invoice.status === "authorized") {
+    // Nota de teste (homologação) não tem valor fiscal: pode ser apagada mesmo autorizada.
+    if (invoice.status === "authorized" && invoice.environment !== "homologacao") {
       res.status(400).json({ error: "NFS-e autorizada não pode ser excluída." });
       return;
     }

@@ -11,7 +11,7 @@ import {
 import PageHeader from "../../components/layout/PageHeader";
 import { NfceInvoice, NfceStatus, NfseInvoice, NfseStatus } from "../../types";
 import { cn } from "../../lib/utils";
-import { Modal, Button, IconButton, Input, Textarea, Select, Tabs, FilterLineSearch, FilterLineSegmented } from "../../components/ui";
+import { Modal, ModalFooter, Button, IconButton, Input, Textarea, Select, Tabs, FilterLineSearch, FilterLineSegmented } from "../../components/ui";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
@@ -716,7 +716,7 @@ function NfceTabContent() {
         subtitle={cancelTarget ? `Nota nº ${cancelTarget.number} · Prazo de ${PRAZO_CANCELAMENTO_MINUTOS} min após autorização` : undefined}
         size="sm"
         footer={
-          <>
+          <ModalFooter>
             <Button variant="secondary" onClick={() => setCancelTarget(null)} disabled={cancelling}>Voltar</Button>
             <Button
               variant="danger"
@@ -726,7 +726,7 @@ function NfceTabContent() {
             >
               Confirmar Cancelamento
             </Button>
-          </>
+          </ModalFooter>
         }
       >
         <div className="space-y-3">
@@ -751,7 +751,7 @@ function NfceTabContent() {
         subtitle={productionTarget ? `Pedido #${String(productionTarget.order_id).padStart(6, "0")} — nota atual é só teste (Homologação)` : undefined}
         size="sm"
         footer={
-          <>
+          <ModalFooter>
             <Button variant="secondary" onClick={() => setProductionTarget(null)} disabled={emittingProduction}>Voltar</Button>
             <Button
               onClick={handleEmitProduction}
@@ -760,7 +760,7 @@ function NfceTabContent() {
             >
               Emitir de Produção
             </Button>
-          </>
+          </ModalFooter>
         }
       >
         <div className="space-y-3">
@@ -784,7 +784,7 @@ function NfceTabContent() {
         subtitle={whatsappNumberTarget ? `Pedido #${String(whatsappNumberTarget.order_id).padStart(6, "0")} não tem telefone de cliente cadastrado` : undefined}
         size="sm"
         footer={
-          <>
+          <ModalFooter>
             <Button variant="secondary" onClick={() => setWhatsappNumberTarget(null)} disabled={sendingWhatsapp !== null}>Voltar</Button>
             <Button
               onClick={() => whatsappNumberTarget && handleSendWhatsapp(whatsappNumberTarget, whatsappNumberInput.replace(/\D/g, ""))}
@@ -793,7 +793,7 @@ function NfceTabContent() {
             >
               Enviar
             </Button>
-          </>
+          </ModalFooter>
         }
       >
         <div className="space-y-3">
@@ -831,12 +831,12 @@ function NfceTabContent() {
         subtitle={deleteTarget ? `Pedido #${String(deleteTarget.order_id).padStart(6, "0")}` : undefined}
         size="sm"
         footer={
-          <>
+          <ModalFooter>
             <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>Voltar</Button>
             <Button variant="danger" onClick={handleDelete} disabled={deleting} loading={deleting}>
               Excluir
             </Button>
-          </>
+          </ModalFooter>
         }
       >
         <div className="space-y-3">
@@ -1394,6 +1394,11 @@ function NfseTabContent() {
                             </Button>
                           </>
                         )}
+                        {inv.status === "authorized" && inv.environment === "homologacao" && (
+                          <Button variant="outline" size="sm" onClick={() => { setDeleteTarget(inv); setDeleteError(null); }} title="Nota de teste (sem valor fiscal)">
+                            <Trash2 size={12} /> Excluir
+                          </Button>
+                        )}
                         {inv.status === "authorized" && (
                           <>
                             <Button variant="primary" size="sm" onClick={() => handleDownloadPdf(inv)}>
@@ -1527,12 +1532,12 @@ function NfseTabContent() {
         subtitle={deleteTarget ? `Ordem de Serviço #${String(deleteTarget.service_order_id).padStart(6, "0")}` : undefined}
         size="sm"
         footer={
-          <>
+          <ModalFooter>
             <Button variant="secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>Voltar</Button>
             <Button variant="danger" onClick={handleDelete} disabled={deleting} loading={deleting}>
               Excluir
             </Button>
-          </>
+          </ModalFooter>
         }
       >
         <div className="space-y-3">
@@ -1555,7 +1560,7 @@ function NfseTabContent() {
         subtitle={cancelTarget ? `Nota nº ${cancelTarget.numero}` : undefined}
         size="sm"
         footer={
-          <>
+          <ModalFooter>
             <Button variant="secondary" onClick={() => setCancelTarget(null)} disabled={cancelling}>Voltar</Button>
             <Button
               variant="danger"
@@ -1565,7 +1570,7 @@ function NfseTabContent() {
             >
               Confirmar Cancelamento
             </Button>
-          </>
+          </ModalFooter>
         }
       >
         <div className="space-y-3">
@@ -1590,7 +1595,7 @@ function NfseTabContent() {
         subtitle="OS não tem telefone de cliente cadastrado"
         size="sm"
         footer={
-          <>
+          <ModalFooter>
             <Button variant="secondary" onClick={() => setWhatsappNumberTarget(null)} disabled={sendingWhatsapp !== null}>Voltar</Button>
             <Button
               onClick={() => whatsappNumberTarget && handleSendWhatsapp(whatsappNumberTarget, whatsappNumberInput.replace(/\D/g, ""))}
@@ -1599,7 +1604,7 @@ function NfseTabContent() {
             >
               Enviar
             </Button>
-          </>
+          </ModalFooter>
         }
       >
         <div className="space-y-3">
@@ -1615,7 +1620,7 @@ function NfseTabContent() {
         subtitle="Cliente sem e-mail fiscal cadastrado"
         size="sm"
         footer={
-          <>
+          <ModalFooter>
             <Button variant="secondary" onClick={() => setEmailTarget(null)} disabled={sendingEmail !== null}>Voltar</Button>
             <Button
               onClick={() => emailTarget && handleSendEmail(emailTarget, emailInput.trim())}
@@ -1624,7 +1629,7 @@ function NfseTabContent() {
             >
               Enviar PDF
             </Button>
-          </>
+          </ModalFooter>
         }
       >
         <div className="space-y-3">
@@ -1661,7 +1666,7 @@ function NfseTabContent() {
         subtitle="Emite uma nota de serviço sem precisar abrir uma Ordem de Serviço"
         size="sm"
         footer={
-          <>
+          <ModalFooter>
             <Button variant="secondary" onClick={() => setShowAvulsaModal(false)} disabled={avulsaEmitting}>Voltar</Button>
             <Button
               onClick={handleEmitAvulsa}
@@ -1670,7 +1675,7 @@ function NfseTabContent() {
             >
               Emitir NFS-e
             </Button>
-          </>
+          </ModalFooter>
         }
       >
         <div className="space-y-3">
