@@ -76,6 +76,8 @@ function parsePayments(pm?: string | null) {
   });
 }
 
+const STEPS = ["1. Itens", "2. Troca (opcional)", "3. Confirmar"];
+
 const REASONS = ["Não gostou", "Tamanho/modelo errado", "Defeito de fábrica", "Pedido errado", "Outro"];
 
 // Modal de devolução/troca. Cada item do pedido é marcado com a quantidade e o destino
@@ -93,6 +95,7 @@ export default function OrderReturnModal({
   const [refundMode, setRefundMode] = useState<"credit" | "cash">(customerId ? "credit" : "cash");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [step, setStep] = useState(0);
 
   const [exchangeOn, setExchangeOn] = useState(false);
   const [catalog, setCatalog] = useState<CatalogProduct[] | null>(null);
@@ -262,7 +265,7 @@ export default function OrderReturnModal({
   };
 
   return (
-    <Modal isOpen onClose={onClose} size="lg" zIndex={610}
+    <Modal isOpen onClose={onClose} size="2xl" zIndex={610}
       title={<span className="inline-flex items-center gap-2"><RotateCcw size={15} className="text-amber-600" />Devolver / Trocar</span>}
       subtitle={`Pedido #${String(orderId).padStart(6, "0")}${customerName ? ` · ${customerName}` : ""}`}
       footer={
@@ -282,14 +285,40 @@ export default function OrderReturnModal({
             </div>
           </div>
           <ModalFooter align="between">
-            <Button size="sm" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button size="sm" onClick={handleConfirm} loading={submitting} disabled={!hasAnyLine} iconLeft={<CheckCircle2 size={14} />}>
-              Confirmar {exchangeOn && exchange.length > 0 ? "troca" : "devolução"}
-            </Button>
+            <Button size="sm" variant="outline" onClick={() => (step === 0 ? onClose() : setStep(step - 1))}>{step === 0 ? "Cancelar" : "Voltar"}</Button>
+            {step < 2 ? (
+              <Button size="sm" onClick={() => setStep(step + 1)} disabled={!hasAnyLine}>
+                {step === 0 ? (exchangeOn ? "Próximo" : "Próximo") : "Revisar"}
+              </Button>
+            ) : (
+              <Button size="sm" onClick={handleConfirm} loading={submitting} disabled={!hasAnyLine} iconLeft={<CheckCircle2 size={14} />}>
+                Confirmar {exchangeOn && exchange.length > 0 ? "troca" : "devolução"}
+              </Button>
+            )}
           </ModalFooter>
         </div>
       }>
       <div className="space-y-4">
+        <ol className="flex items-center gap-2">
+          {STEPS.map((label, i) => {
+            const reachable = i === 0 || hasAnyLine;
+            return (
+              <li key={label} className="flex flex-1 items-center gap-2">
+                <button type="button" disabled={!reachable} onClick={() => setStep(i)}
+                  className={cn("flex flex-1 items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+                    step === i ? "border-amber-400 bg-amber-50" : i < step ? "border-emerald-300 bg-emerald-50" : "border-slate-200 hover:bg-slate-50")}>
+                  <span className={cn("flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
+                    step === i ? "bg-amber-500 text-white" : i < step ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-600")}>
+                    {i < step ? <CheckCircle2 size={12} /> : i + 1}
+                  </span>
+                  <span className="text-xs font-semibold text-slate-800">{label}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+
+        {step === 0 && (<div className="space-y-4">
         <Alert variant={isWithinDeadline ? "success" : "warning"}>
           Vendido há {daysSinceOrder} {daysSinceOrder === 1 ? "dia" : "dias"} —
           {" "}{isWithinDeadline ? `dentro do prazo de devolução (${deadline} dias)` : `fora do prazo de devolução (${deadline} dias). Você ainda pode confirmar por exceção.`}
@@ -326,7 +355,7 @@ export default function OrderReturnModal({
         {/* 1. O que está voltando */}
         <section className="space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold text-slate-800">1. O que o cliente está devolvendo</h4>
+            <h4 className="text-xs font-semibold text-slate-800">O que o cliente está devolvendo</h4>
             <div className="flex gap-1">
               <Button variant="outline" size="xs" onClick={() => markAll(true)}>Tudo p/ estoque</Button>
               <Button variant="outline" size="xs" onClick={() => markAll(false)}>Tudo descarte</Button>
@@ -382,7 +411,7 @@ export default function OrderReturnModal({
 
         {/* 2. Motivo */}
         <section className="space-y-2">
-          <h4 className="text-xs font-semibold text-slate-800">2. Motivo</h4>
+          <h4 className="text-xs font-semibold text-slate-800">Motivo</h4>
           <div className="flex flex-wrap gap-1.5">
             {REASONS.map((r) => (
               <button key={r} type="button" onClick={() => setReason(reason === r ? "" : r)}
@@ -395,10 +424,13 @@ export default function OrderReturnModal({
           <Textarea rows={2} value={reasonNote} onChange={(e) => setReasonNote(e.target.value)} placeholder="Observação (opcional)" />
         </section>
 
+        </div>)}
+
+        {step === 1 && (<div className="space-y-4">
         {/* 3. Troca por outro produto */}
         <section className="space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold text-slate-800">3. Troca por outro produto</h4>
+            <h4 className="text-xs font-semibold text-slate-800">Trocar por outro produto?</h4>
             <button type="button" role="switch" aria-checked={exchangeOn} onClick={() => setExchangeOn((v) => !v)}
               className={cn("relative h-5 w-9 rounded-full transition-colors", exchangeOn ? "bg-amber-500" : "bg-slate-300")}>
               <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all", exchangeOn ? "left-[18px]" : "left-0.5")} />
@@ -461,9 +493,30 @@ export default function OrderReturnModal({
           )}
         </section>
 
+        </div>)}
+
+        {step === 2 && (<div className="space-y-4">
+        <div className="space-y-1.5 rounded-lg border border-slate-200 p-3">
+          <h4 className="text-xs font-semibold text-slate-800">Resumo</h4>
+          {returnableItems.filter((i) => (lines[i.id]?.quantity ?? 0) > 0).map((i) => (
+            <div key={i.id} className="flex items-center justify-between gap-2 text-xs text-slate-700">
+              <span className="min-w-0 truncate">{lines[i.id]!.quantity}x {i.product_name}
+                <span className="ml-1 text-[11px] text-slate-500">{!i.product_id ? "(avulso)" : lines[i.id]!.restock ? "→ estoque" : "→ descarte"}</span>
+              </span>
+              <span className="tabular-nums">{money(lines[i.id]!.quantity * Number(i.unit_price || 0))}</span>
+            </div>
+          ))}
+          {(reason || reasonNote.trim()) && <p className="text-[11px] text-slate-500">Motivo: {[reason, reasonNote.trim()].filter(Boolean).join(" — ")}</p>}
+          {exchangeOn && exchange.length > 0 && (
+            <div className="border-t border-slate-100 pt-1.5 text-xs text-slate-700">
+              <p className="font-medium">Troca por: {exchange.map((l) => `${l.quantity}x ${l.product.name}`).join(", ")}</p>
+              <p className="font-semibold">{difference > 0 ? `Cliente paga a diferença: ${money(difference)}` : difference < 0 ? `Sobra para o cliente: ${money(Math.abs(difference))}` : "Troca equivalente"}</p>
+            </div>
+          )}
+        </div>
         {/* 4. Como devolver o valor */}
         <section className="space-y-2">
-          <h4 className="text-xs font-semibold text-slate-800">4. Valor devolvido</h4>
+          <h4 className="text-xs font-semibold text-slate-800">Como devolver o valor</h4>
           <div className="grid grid-cols-2 gap-2">
             <button type="button" disabled={!customerId} onClick={() => setRefundMode("credit")}
               className={cn("rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-40",
@@ -480,6 +533,8 @@ export default function OrderReturnModal({
           </div>
           {!customerId && <Alert variant="warning">Venda sem cliente identificado — o valor é devolvido em dinheiro na hora.</Alert>}
         </section>
+
+        </div>)}
 
         {error && <Alert variant="error">{error}</Alert>}
       </div>
