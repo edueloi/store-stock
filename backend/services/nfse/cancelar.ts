@@ -55,7 +55,7 @@ export async function cancelarNfse(
       environment,
       method: "POST",
       path: `/nfse/${invoice.chave_acesso}/eventos`,
-      body: { pedRegEventoXmlGZipB64: gzipBase64(signedXml) },
+      body: { pedidoRegistroEventoXmlGZipB64: gzipBase64(signedXml) },
       pfxPath: tenant.nfce_cert_path,
       pfxPassword: tenant.nfce_cert_password,
       timeoutMs: env.nfceTimeoutMs,
