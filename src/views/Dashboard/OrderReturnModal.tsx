@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { RotateCcw, CheckCircle2, Minus, Plus, Search, Trash2, PackageCheck, PackageX, Banknote, Wallet, ArrowLeftRight } from "lucide-react";
+import { RotateCcw, CheckCircle2, Minus, Plus, Search, Trash2, PackageCheck, PackageX, Banknote, Wallet, ArrowLeftRight, ScanBarcode, CreditCard, UserRound } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
 import { Alert, Button, Input, Modal, ModalFooter, Textarea } from "../../components/ui";
 
 interface ReturnableItem {
@@ -9,6 +10,9 @@ interface ReturnableItem {
   quantity: number;
   unit_price: number | string;
   returned_quantity?: number;
+  product_id?: number | null;
+  barcode?: string | null;
+  sku?: string | null;
 }
 
 export interface OrderReturnResult {
@@ -24,6 +28,8 @@ interface OrderReturnModalProps {
   orderCreatedAt: string;
   customerId?: number | null;
   customerName?: string | null;
+  paymentMethod?: string | null;
+  orderTotal?: number | string;
   items: ReturnableItem[];
   returnDeadlineDays?: number | null;
   onClose: () => void;
@@ -41,6 +47,8 @@ interface CatalogProduct {
   price: number | string;
   stock_quantity: number;
   sale_unit?: string | null;
+  barcode?: string | null;
+  sku?: string | null;
 }
 
 interface ExchangeLine {
@@ -50,6 +58,24 @@ interface ExchangeLine {
 
 const money = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
 
+const METHOD_LABELS: Record<string, string> = {
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário",
+  to_confirm: "A combinar", cash_on_delivery: "Dinheiro na entrega", card_on_delivery: "Cartão na entrega",
+};
+
+// payment_method: "credit-visa-3:120.5|pix:30" → segmentos legíveis
+function parsePayments(pm?: string | null) {
+  if (!pm) return [] as { method: string; label: string; amount: number | null }[];
+  return pm.split("|").map((seg) => {
+    const [methodPart, amountStr] = seg.split(":");
+    const [method = "money", brand, inst] = methodPart.split("-");
+    const brandTxt = brand && brand !== "other" ? ` ${brand.toUpperCase()}` : "";
+    const instTxt = inst && Number(inst) > 1 ? ` em ${inst}x` : "";
+    const amount = amountStr && Number.isFinite(parseFloat(amountStr)) ? parseFloat(amountStr) : null;
+    return { method, label: `${METHOD_LABELS[method] ?? method}${brandTxt}${instTxt}`, amount };
+  });
+}
+
 const REASONS = ["Não gostou", "Tamanho/modelo errado", "Defeito de fábrica", "Pedido errado", "Outro"];
 
 // Modal de devolução/troca. Cada item do pedido é marcado com a quantidade e o destino
@@ -58,7 +84,7 @@ const REASONS = ["Não gostou", "Tamanho/modelo errado", "Defeito de fábrica", 
 // POST /api/orders/:id/returns (estoque, StockMovement, estorno financeiro e crédito
 // são feitos no backend — ver createOrderReturn em orders.controller.ts).
 export default function OrderReturnModal({
-  orderId, orderCreatedAt, customerId, customerName, items, returnDeadlineDays, onClose, onSuccess,
+  orderId, orderCreatedAt, customerId, customerName, paymentMethod, orderTotal, items, returnDeadlineDays, onClose, onSuccess,
 }: OrderReturnModalProps) {
   const token = () => localStorage.getItem("token");
   const [lines, setLines] = useState<Record<number, ReturnLineState>>({});
@@ -72,6 +98,16 @@ export default function OrderReturnModal({
   const [catalog, setCatalog] = useState<CatalogProduct[] | null>(null);
   const [query, setQuery] = useState("");
   const [exchange, setExchange] = useState<ExchangeLine[]>([]);
+
+  const payments = useMemo(() => parsePayments(paymentMethod), [paymentMethod]);
+  const payHint = useMemo(() => {
+    const m = payments.map((p) => p.method);
+    const hints: string[] = [];
+    if (m.includes("crediario")) hints.push("Parte desta venda ficou no crediário: o cliente ainda pode estar devendo. Devolver em dinheiro só vale pelo que ele já pagou.");
+    if (m.includes("credit") || m.includes("debit")) hints.push("Pago no cartão: o estorno do valor na maquininha/adquirente é feito por fora do sistema.");
+    if (m.includes("pix")) hints.push("Pago no PIX: devolva o valor por PIX ao cliente.");
+    return hints.join(" ");
+  }, [payments]);
 
   const returnableItems = items.filter((i) => i.quantity - (i.returned_quantity ?? 0) > 0);
   const availableOf = (i: ReturnableItem) => i.quantity - (i.returned_quantity ?? 0);
@@ -109,6 +145,7 @@ export default function OrderReturnModal({
       const q = l?.quantity ?? 0;
       if (q <= 0) return;
       total += q * Number(item.unit_price || 0);
+      if (!item.product_id) return;
       if (l?.restock ?? true) restockQty += q; else discardQty += q;
     });
     return { restockQty, discardQty, total: Math.round(total * 100) / 100 };
@@ -116,7 +153,7 @@ export default function OrderReturnModal({
 
   const exchangeTotal = Math.round(exchange.reduce((s, l) => s + Number(l.product.price || 0) * l.quantity, 0) * 100) / 100;
   const difference = exchangeOn && exchange.length > 0 ? Math.round((exchangeTotal - summary.total) * 100) / 100 : 0;
-  const hasAnyLine = summary.restockQty + summary.discardQty > 0;
+  const hasAnyLine = summary.total > 0;
 
   const results = useMemo(() => {
     if (!catalog) return [];
@@ -138,6 +175,43 @@ export default function OrderReturnModal({
       .map((l) => (l.product.id === id ? { ...l, quantity: l.quantity + delta } : l))
       .filter((l) => l.quantity > 0));
   };
+
+  const [scanCode, setScanCode] = useState("");
+  const [scanMsg, setScanMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const norm = (v?: string | null) => (v ?? "").trim().toLowerCase();
+
+  // Código bipado: primeiro procura entre os itens da venda (devolução); se a troca estiver
+  // ligada e o código não for de um item da venda, procura no catálogo (produto novo).
+  const handleScan = (raw: string) => {
+    const code = norm(raw);
+    if (!code) return;
+    const hit = returnableItems.find((i) => norm(i.barcode) === code || norm(i.sku) === code);
+    if (hit) {
+      const current = lines[hit.id]?.quantity ?? 0;
+      if (current >= availableOf(hit)) {
+        setScanMsg({ ok: false, text: `${hit.product_name}: já marcou tudo que pode devolver (${availableOf(hit)})` });
+      } else {
+        setQty(hit, current + 1);
+        setScanMsg({ ok: true, text: `${hit.product_name} — ${current + 1} de ${availableOf(hit)} marcado(s) para devolução` });
+      }
+      return;
+    }
+    if (exchangeOn) {
+      const prod = catalog?.find((p) => norm(p.barcode) === code || norm(p.sku) === code);
+      if (prod) {
+        addExchange(prod);
+        setScanMsg({ ok: true, text: `${prod.name} adicionado à troca` });
+        return;
+      }
+    }
+    setScanMsg({ ok: false, text: `Código ${raw} não encontrado ${exchangeOn ? "nesta venda nem no catálogo" : "nesta venda"}` });
+  };
+
+  useBarcodeScanner({
+    onScan: handleScan,
+    searchFields: [{ id: "return-scan-input", getValue: () => scanCode, setValue: setScanCode }],
+  });
 
   const handleConfirm = async () => {
     setSubmitting(true);
@@ -188,7 +262,7 @@ export default function OrderReturnModal({
   };
 
   return (
-    <Modal isOpen onClose={onClose} position="right" size="md" zIndex={610}
+    <Modal isOpen onClose={onClose} size="lg" zIndex={610}
       title={<span className="inline-flex items-center gap-2"><RotateCcw size={15} className="text-amber-600" />Devolver / Trocar</span>}
       subtitle={`Pedido #${String(orderId).padStart(6, "0")}${customerName ? ` · ${customerName}` : ""}`}
       footer={
@@ -221,6 +295,34 @@ export default function OrderReturnModal({
           {" "}{isWithinDeadline ? `dentro do prazo de devolução (${deadline} dias)` : `fora do prazo de devolução (${deadline} dias). Você ainda pode confirmar por exceção.`}
         </Alert>
 
+        {/* Como a venda foi paga */}
+        <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800">
+              <UserRound size={13} />{customerId ? customerName || "Cliente" : "Sem cliente (venda balcão)"}
+            </span>
+            {orderTotal !== undefined && <span className="tabular-nums text-slate-600">Total da venda: <strong>{money(Number(orderTotal) || 0)}</strong></span>}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <CreditCard size={13} className="text-slate-500" />
+            {payments.length === 0 && <span className="text-[11px] text-slate-500">Forma de pagamento não informada</span>}
+            {payments.map((p, i) => (
+              <span key={i} className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-700 ring-1 ring-slate-200">
+                {p.label}{p.amount !== null ? ` · ${money(p.amount)}` : ""}
+              </span>
+            ))}
+          </div>
+          {payHint && <p className="text-[11px] leading-relaxed text-slate-600">{payHint}</p>}
+        </div>
+
+        {/* Leitor de código de barras */}
+        <div className="space-y-1">
+          <Input id="return-scan-input" size="sm" value={scanCode} onChange={(e) => setScanCode(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleScan(scanCode); setScanCode(""); } }}
+            placeholder="Bipe o código de barras (ou digite e Enter) para marcar o item" iconLeft={<ScanBarcode size={13} />} />
+          {scanMsg && <p className={cn("text-[11px] font-medium", scanMsg.ok ? "text-emerald-700" : "text-rose-600")}>{scanMsg.text}</p>}
+        </div>
+
         {/* 1. O que está voltando */}
         <section className="space-y-2">
           <div className="flex items-center justify-between">
@@ -242,6 +344,7 @@ export default function OrderReturnModal({
             const restock = line?.restock ?? true;
             const price = Number(item.unit_price || 0);
             const active = qty > 0;
+            const isAvulso = !item.product_id;
             return (
               <div key={item.id} className={cn("space-y-2 rounded-lg border p-3 transition-colors", active ? "border-amber-300 bg-amber-50/40" : "border-slate-200")}>
                 <div className="flex items-start justify-between gap-2">
@@ -263,10 +366,14 @@ export default function OrderReturnModal({
                     <button type="button" aria-label="Aumentar" className="h-8 w-8 text-slate-600 hover:bg-slate-100" onClick={() => setQty(item, qty + 1)}><Plus size={13} className="mx-auto" /></button>
                   </div>
                   <Button size="xs" variant="outline" onClick={() => setQty(item, available)}>Todos ({available})</Button>
+                  {isAvulso ? (
+                    <span className="flex-1 rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] text-slate-600">Item avulso — não controla estoque, só devolve o valor</span>
+                  ) : (
                   <div className={cn("flex min-w-[220px] flex-1 gap-1", !active && "pointer-events-none opacity-40")}>
                     <Button size="xs" className="flex-1" variant={restock ? "success" : "outline"} iconLeft={<PackageCheck size={12} />} onClick={() => setRestock(item.id, true)}>Volta ao estoque</Button>
                     <Button size="xs" className="flex-1" variant={!restock ? "danger" : "outline"} iconLeft={<PackageX size={12} />} onClick={() => setRestock(item.id, false)}>Descarte (defeito)</Button>
                   </div>
+                  )}
                 </div>
               </div>
             );

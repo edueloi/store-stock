@@ -83,6 +83,9 @@ interface OrderDetail extends Order {
     quantity: number;
     unit_price: number;
     returned_quantity?: number;
+    product_id?: number | null;
+    barcode?: string | null;
+    sku?: string | null;
     selected_options?: Record<string, string> | null;
   }>;
   services?: Array<{
@@ -2254,6 +2257,8 @@ ${
           orderCreatedAt={selectedOrder.created_at}
           customerId={selectedOrder.customer_id}
           customerName={selectedOrder.customer_name}
+          paymentMethod={selectedOrder.payment_method}
+          orderTotal={selectedOrder.total_amount}
           items={selectedOrder.items}
           returnDeadlineDays={tenant?.return_deadline_days}
           onClose={() => setShowReturnModal(false)}

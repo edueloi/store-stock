@@ -111,7 +111,7 @@ export async function listOrders(req: Request, res: Response) {
       take: limit,
       include: {
         items: {
-          include: { product: { select: { name: true, image_url: true } } },
+          include: { product: { select: { name: true, image_url: true, barcode: true, sku: true } } },
         },
         services: true,
         nfce_invoice: { select: { status: true, access_key: true } },
@@ -225,7 +225,7 @@ export async function getOrderById(req: Request, res: Response) {
       where: { id: Number(req.params.id), tenant_id: getTenantId(req) },
       include: {
         items: {
-          include: { product: { select: { name: true, image_url: true } } },
+          include: { product: { select: { name: true, image_url: true, barcode: true, sku: true } } },
         },
         services: true,
       },
@@ -242,6 +242,8 @@ export async function getOrderById(req: Request, res: Response) {
         ...item,
         product_name: item.product?.name ?? item.name,
         image_url: item.product?.image_url ?? null,
+        barcode: item.product?.barcode ?? null,
+        sku: item.product?.sku ?? null,
       })),
       services: order.services.map((svc) => ({
         id: svc.id,
