@@ -1415,9 +1415,11 @@ function NfseTabContent() {
                                 {sendingWhatsapp === inv.service_order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
                               </Button>
                             )}
-                            <Button variant="outline" size="sm" onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }} className="text-rose-600 border-rose-200 hover:bg-rose-50">
-                              <Ban size={12} /> Cancelar
-                            </Button>
+                            {inv.environment !== "homologacao" && (
+                              <Button variant="outline" size="sm" onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }} className="text-rose-600 border-rose-200 hover:bg-rose-50">
+                                <Ban size={12} /> Cancelar
+                              </Button>
+                            )}
                           </>
                         )}
                       </div>
@@ -1528,7 +1530,7 @@ function NfseTabContent() {
       <Modal
         open={!!deleteTarget}
         onClose={() => { if (!deleting) { setDeleteTarget(null); setDeleteError(null); } }}
-        title="Excluir tentativa de NFS-e"
+        title={deleteTarget?.status === "authorized" ? "Excluir nota de teste" : "Excluir tentativa de NFS-e"}
         subtitle={deleteTarget ? `Ordem de Serviço #${String(deleteTarget.service_order_id).padStart(6, "0")}` : undefined}
         size="sm"
         footer={
@@ -1542,8 +1544,10 @@ function NfseTabContent() {
       >
         <div className="space-y-3">
           <p className="text-xs text-slate-500">
-            Remove esta tentativa de emissão (rejeitada/com erro) para permitir reemitir do zero.
-            A ordem de serviço em si não é afetada — permanece no histórico normalmente.
+            {deleteTarget?.status === "authorized"
+              ? "Nota de teste (homologação): não tem valor fiscal e não precisa ser cancelada. Esta ação remove a nota do sistema."
+              : "Remove esta tentativa de emissão (rejeitada/com erro) para permitir reemitir do zero."}
+            {" "}A ordem de serviço em si não é afetada — permanece no histórico normalmente.
           </p>
           {deleteError && (
             <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5 text-[11px] font-semibold text-rose-600">
