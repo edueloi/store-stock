@@ -7,6 +7,7 @@ import { cancelarNfce } from "../services/nfce/cancelar";
 import { emitToTenant } from "../services/realtime.service";
 import { recalculateCashSessionSummary } from "./cash-sessions.controller";
 import { adjustStoreCheckoutStock } from "../services/store-checkout-stock";
+import { finalizeSaleOrder, SaleError } from "./sales.controller";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -700,11 +701,20 @@ export async function createOrderReturn(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const orderId = Number(req.params.id);
-    const { items, reason, refund_mode } = req.body as {
+    const { items, reason, refund_mode, exchange } = req.body as {
       items: OrderReturnLineInput[];
       reason?: string;
       // "cash": o valor é devolvido na hora (sem gerar crédito para o cliente)
       refund_mode?: "credit" | "cash";
+      // Troca: produtos novos que o cliente leva. O valor devolvido abate o total deles e o
+      // cliente paga só a diferença (payments); se sobrar, a sobra segue refund_mode.
+      exchange?: {
+        items: { product_id: number; quantity: number }[];
+        payments?: { method: string; amount: number; brand?: string; installments?: number }[];
+        crediario_installments?: number;
+        crediario_first_due_date?: string;
+        change_amount?: number;
+      };
     };
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -731,6 +741,92 @@ export async function createOrderReturn(req: Request, res: Response) {
         error: "Só é possível devolver itens de um pedido já efetivado",
       });
       return;
+    }
+
+    // Troca: valida e precifica os produtos novos e o pagamento da diferença ANTES de
+    // registrar a devolução, para não deixá-la pela metade se a venda nova não puder sair.
+    const exchangeLines: { id: number; quantity: number; price: number; name: string }[] = [];
+    let exchangeTotal = 0;
+    let exchangeCashSessionId: number | null = null;
+    let exchangePaymentString = "money";
+    if (exchange && Array.isArray(exchange.items) && exchange.items.length > 0) {
+      const wanted = exchange.items;
+      if (wanted.some((l) => !Number.isInteger(l.quantity) || l.quantity <= 0 || !Number.isInteger(l.product_id))) {
+        res.status(422).json({ error: "Produtos da troca com quantidade inválida" });
+        return;
+      }
+      const products = await prisma.product.findMany({
+        where: { id: { in: wanted.map((l) => l.product_id) }, tenant_id: tenantId },
+        select: { id: true, name: true, price: true, sale_unit: true, stock_quantity: true, track_stock: true },
+      });
+      const productById = new Map(products.map((p) => [p.id, p]));
+      const tenantCfg = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { require_cash_session: true, sell_without_stock_control: true },
+      });
+      for (const l of wanted) {
+        const prod = productById.get(l.product_id);
+        if (!prod) {
+          res.status(422).json({ error: "Produto da troca não encontrado" });
+          return;
+        }
+        if (prod.sale_unit && prod.sale_unit !== "unidade") {
+          res.status(422).json({ error: `"${prod.name}" é vendido por medida — lance essa venda no PDV` });
+          return;
+        }
+        if (!tenantCfg?.sell_without_stock_control && prod.track_stock !== false && l.quantity > prod.stock_quantity) {
+          res.status(409).json({ error: `Estoque insuficiente para "${prod.name}" (disponível: ${prod.stock_quantity})` });
+          return;
+        }
+        exchangeLines.push({ id: prod.id, quantity: l.quantity, price: Number(prod.price), name: prod.name });
+      }
+      exchangeTotal = Math.round(exchangeLines.reduce((sum, l) => sum + l.price * l.quantity, 0) * 100) / 100;
+
+      const openSession = await prisma.cashSession.findFirst({
+        where: { tenant_id: tenantId, status: "open" },
+        orderBy: { id: "desc" },
+        select: { id: true },
+      });
+      exchangeCashSessionId = openSession?.id ?? null;
+      if (tenantCfg?.require_cash_session && !exchangeCashSessionId) {
+        res.status(409).json({ error: "Abra o caixa antes de registrar uma troca." });
+        return;
+      }
+
+      // Quanto o cliente precisa pagar: total novo menos o valor devolvido (mesmo cálculo da transação).
+      const previewItems = await prisma.orderItem.findMany({
+        where: { id: { in: items.map((l) => l.order_item_id) }, order_id: orderId },
+        select: { id: true, unit_price: true },
+      });
+      const returnedPreview = Math.round(
+        previewItems.reduce((sum, oi) => sum + Number(oi.unit_price) * (items.find((l) => l.order_item_id === oi.id)?.quantity ?? 0), 0) * 100,
+      ) / 100;
+      const expectedToPay = Math.max(0, Math.round((exchangeTotal - returnedPreview) * 100) / 100);
+      if (expectedToPay > 0.009) {
+        const allowed = ["money", "pix", "debit", "credit", "crediario"];
+        const pays = (exchange.payments ?? []).filter((pm) => Number(pm.amount) > 0);
+        if (pays.length === 0 || pays.some((pm) => !allowed.includes(pm.method))) {
+          res.status(422).json({ error: "Informe como o cliente vai pagar a diferença da troca" });
+          return;
+        }
+        const paidSum = Math.round(pays.reduce((sum, pm) => sum + Number(pm.amount), 0) * 100) / 100;
+        if (Math.abs(paidSum - expectedToPay) > 0.01) {
+          res.status(422).json({ error: `Os pagamentos somam R$ ${paidSum.toFixed(2)}, mas a diferença é R$ ${expectedToPay.toFixed(2)}` });
+          return;
+        }
+        if (pays.some((pm) => pm.method === "crediario") && !order.customer_id) {
+          res.status(422).json({ error: "Crediário exige cliente identificado nesta venda" });
+          return;
+        }
+        exchangePaymentString = pays
+          .map((pm) => {
+            const brand = String(pm.brand || "other").replace(/[^a-z0-9]/gi, "").toLowerCase() || "other";
+            const inst = Math.max(1, Math.floor(Number(pm.installments) || 1));
+            const token = pm.method === "debit" ? `debit-${brand}` : pm.method === "credit" ? `credit-${brand}-${inst}` : pm.method;
+            return `${token}:${Number(pm.amount).toFixed(2)}`;
+          })
+          .join("|");
+      }
     }
 
     const actor = getActor(req);
@@ -819,31 +915,39 @@ export async function createOrderReturn(req: Request, res: Response) {
       }
       creditAmount = Math.round(creditAmount * 100) / 100;
 
-      const finance = await tx.finance.create({
-        data: {
-          tenant_id: tenantId,
-          type: "expense",
-          description: `Devolução — Pedido #${orderId}`,
-          amount: creditAmount,
-          source: "order_return",
-          order_id: orderId,
-          date: localDateString(),
-        },
-      });
+      // Troca: o valor devolvido que cobre os produtos novos não sai do caixa nem vira
+      // crédito — é abatido da venda nova. Só a sobra (se houver) é estorno/crédito.
+      const offset = exchangeLines.length > 0 ? Math.min(exchangeTotal, creditAmount) : 0;
+      const remainder = Math.round((creditAmount - offset) * 100) / 100;
+
+      const finance =
+        remainder > 0 || exchangeLines.length === 0
+          ? await tx.finance.create({
+              data: {
+                tenant_id: tenantId,
+                type: "expense",
+                description: `Devolução — Pedido #${orderId}`,
+                amount: remainder,
+                source: "order_return",
+                order_id: orderId,
+                date: localDateString(),
+              },
+            })
+          : null;
 
       let credit: { id: number; amount: number } | null = null;
-      if (order.customer_id && creditAmount > 0 && refund_mode !== "cash") {
+      if (order.customer_id && remainder > 0 && refund_mode !== "cash") {
         const created = await tx.customerCredit.create({
           data: {
             tenant_id: tenantId,
             customer_id: order.customer_id,
-            amount: creditAmount,
-            balance: creditAmount,
+            amount: remainder,
+            balance: remainder,
             source: "order_return",
             order_return_id: orderReturn.id,
           },
         });
-        credit = { id: created.id, amount: creditAmount };
+        credit = { id: created.id, amount: remainder };
       }
 
       await tx.orderReturn.update({
@@ -861,14 +965,14 @@ export async function createOrderReturn(req: Request, res: Response) {
           meta: {
             order_return_id: orderReturn.id,
             credit_amount: creditAmount,
-            finance_id: finance.id,
+            finance_id: finance?.id ?? null,
             credit_id: credit?.id ?? null,
             refund_mode: refund_mode === "cash" ? "cash" : "credit",
           },
         },
       });
 
-      return { orderReturnId: orderReturn.id, creditAmount, credit };
+      return { orderReturnId: orderReturn.id, creditAmount, credit, offset, remainder };
     });
 
     emitToTenant(tenantId, "order:returned", { orderId });
@@ -879,7 +983,54 @@ export async function createOrderReturn(req: Request, res: Response) {
         customerId: order.customer_id,
       });
 
-    res.json({ success: true, ...result });
+    // Troca: lança a venda dos produtos novos, com o valor devolvido como desconto e o
+    // cliente pagando só a diferença nas formas informadas.
+    let exchangeOrderId: number | null = null;
+    let toPay = 0;
+    if (exchangeLines.length > 0) {
+      toPay = Math.round((exchangeTotal - result.offset) * 100) / 100;
+      try {
+        const sale = await finalizeSaleOrder({
+          tenantId,
+          items: exchangeLines.map((l) => ({ id: l.id, quantity: l.quantity, price: l.price })),
+          customerId: order.customer_id ?? undefined,
+          customerName: order.customer_name || undefined,
+          totalAmount: toPay,
+          discount: result.offset,
+          paymentMethod: toPay > 0.009 ? exchangePaymentString : "money",
+          sellerId: order.seller_id ?? undefined,
+          decrementStock: true,
+          cashSessionId: exchangeCashSessionId,
+          crediarioInstallments: exchange?.crediario_installments,
+          crediarioFirstDueDate: exchange?.crediario_first_due_date,
+          changeAmount: Number(exchange?.change_amount) > 0 ? Number(exchange?.change_amount) : undefined,
+        });
+        exchangeOrderId = sale.orderId;
+        await prisma.orderAction.create({
+          data: {
+            tenant_id: tenantId,
+            order_id: orderId,
+            action: "exchanged",
+            actor,
+            note: `Troca — venda #${sale.orderId}`,
+            meta: { exchange_order_id: sale.orderId, order_return_id: result.orderReturnId, offset: result.offset, paid: toPay },
+          },
+        });
+        emitToTenant(tenantId, "order:created", { orderId: sale.orderId });
+        emitToTenant(tenantId, "stock:changed", { orderId: sale.orderId });
+        emitToTenant(tenantId, "finance:changed", { orderId: sale.orderId });
+      } catch (saleErr) {
+        console.error("[createOrderReturn] venda da troca falhou:", saleErr);
+        const detail = saleErr instanceof SaleError ? saleErr.message : "erro inesperado";
+        res.status(500).json({
+          error: `A devolução foi registrada, mas a venda dos produtos novos falhou (${detail}). Lance os produtos novos como venda no PDV.`,
+          return_registered: true,
+        });
+        return;
+      }
+    }
+
+    res.json({ success: true, ...result, exchange_order_id: exchangeOrderId, to_pay: toPay });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
     if (msg.startsWith("ITEM_NOT_FOUND")) {

@@ -2282,9 +2282,9 @@ ${
             <Button variant="outline" onClick={() => { setShowReturnModal(false); setReturnResult(null); }}>
               Fechar
             </Button>
-            {returnResult && (returnResult.credit || returnResult.exchange.length > 0) && selectedOrder && (
+            {returnResult?.credit && selectedOrder && (
               <Button onClick={() => navigate(`/admin/pdv?customerId=${selectedOrder.customer_id}${returnResult.credit ? `&creditId=${returnResult.credit.id}` : ""}`)}>
-                {returnResult.exchange.length > 0 ? "Ir para o PDV" : "Usar crédito agora"}
+                Usar crédito agora
               </Button>
             )}
           </ModalFooter>
@@ -2308,11 +2308,14 @@ ${
                   <p key={i}>{e.quantity}x {e.name} — R$ {(e.quantity * e.price).toFixed(2)}</p>
                 ))}
                 <p className="mt-2 font-semibold">
-                  {returnResult.difference > 0 ? `Cliente paga a diferença: R$ ${returnResult.difference.toFixed(2)}`
+                  {returnResult.difference > 0 ? `Cliente pagou a diferença: R$ ${returnResult.toPay.toFixed(2)}`
                     : returnResult.difference < 0 ? `Sobra para o cliente: R$ ${Math.abs(returnResult.difference).toFixed(2)}`
                     : "Troca equivalente, sem diferença"}
                 </p>
-                <p className="mt-1 text-[11px] text-slate-500">Lance a saída dos produtos novos como uma venda no PDV.</p>
+                {returnResult.change > 0 && <p className="font-semibold text-emerald-700">Troco: R$ {returnResult.change.toFixed(2)}</p>}
+                {returnResult.exchangeOrderId && (
+                  <p className="mt-1 text-[11px] text-slate-500">Venda dos produtos novos lançada: #{String(returnResult.exchangeOrderId).padStart(6, "0")} (estoque já baixado).</p>
+                )}
               </div>
             )}
           </div>

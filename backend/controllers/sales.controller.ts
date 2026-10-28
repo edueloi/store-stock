@@ -90,7 +90,7 @@ interface FinalizeSaleParams {
 // Order/OrderItem/OrderService, débito de estoque (opcional), Finance, fidelidade e NFC-e.
 // Usado tanto pelo PDV normal (createSale) quanto pelo faturamento de consignação, para
 // garantir que ambos os caminhos produzam exatamente o mesmo resultado.
-async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId: number }> {
+export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId: number }> {
   const {
     tenantId, items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod,
     discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,

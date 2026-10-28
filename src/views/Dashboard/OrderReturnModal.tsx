@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { RotateCcw, CheckCircle2, Minus, Plus, Search, Trash2, PackageCheck, PackageX, Banknote, Wallet, ArrowLeftRight, ScanBarcode, CreditCard, UserRound } from "lucide-react";
 import { cn } from "../../lib/utils";
+import ExchangePaymentForm, { checkPayLines, newPayLine, payLinesPayload, type PayLine } from "./ExchangePaymentForm";
 import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
 import { Alert, Button, Input, Modal, ModalFooter, Textarea } from "../../components/ui";
 
@@ -21,6 +22,9 @@ export interface OrderReturnResult {
   refundMode: "credit" | "cash";
   exchange: { name: string; quantity: number; price: number }[];
   difference: number; // > 0 cliente paga · < 0 sobra para o cliente · 0 troca equivalente
+  exchangeOrderId: number | null; // venda criada para os produtos novos
+  toPay: number; // quanto o cliente pagou de diferença
+  change: number; // troco devolvido (pagamento em dinheiro)
 }
 
 interface OrderReturnModalProps {
@@ -96,6 +100,7 @@ export default function OrderReturnModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
+  const [payLines, setPayLines] = useState<PayLine[]>([newPayLine()]);
 
   const [exchangeOn, setExchangeOn] = useState(false);
   const [catalog, setCatalog] = useState<CatalogProduct[] | null>(null);
@@ -157,6 +162,10 @@ export default function OrderReturnModal({
   const exchangeTotal = Math.round(exchange.reduce((s, l) => s + Number(l.product.price || 0) * l.quantity, 0) * 100) / 100;
   const difference = exchangeOn && exchange.length > 0 ? Math.round((exchangeTotal - summary.total) * 100) / 100 : 0;
   const hasAnyLine = summary.total > 0;
+  const hasExchange = exchangeOn && exchange.length > 0;
+  const due = hasExchange && difference > 0 ? difference : 0;
+  const payCheck = checkPayLines(payLines, due, !!customerId);
+  const payOk = due <= 0.009 || payCheck.ok;
 
   const results = useMemo(() => {
     if (!catalog) return [];
@@ -243,7 +252,19 @@ export default function OrderReturnModal({
       const res = await fetch(`/api/orders/${orderId}/returns`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ items: payloadItems, reason: finalReason || undefined, refund_mode: refundMode }),
+        body: JSON.stringify({
+          items: payloadItems,
+          reason: finalReason || undefined,
+          refund_mode: refundMode,
+          exchange: hasExchange
+            ? {
+                items: exchange.map((l) => ({ product_id: l.product.id, quantity: l.quantity })),
+                payments: due > 0.009 ? payLinesPayload(payLines, due) : [],
+                crediario_installments: payCheck.crediarioInstallments,
+                change_amount: payCheck.change || undefined,
+              }
+            : undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -256,6 +277,9 @@ export default function OrderReturnModal({
         refundMode,
         exchange: exchangeOn ? exchange.map((l) => ({ name: l.product.name, quantity: l.quantity, price: Number(l.product.price || 0) })) : [],
         difference,
+        exchangeOrderId: data.exchange_order_id ?? null,
+        toPay: Number(data.to_pay) || 0,
+        change: payCheck.change,
       });
     } catch {
       setError("Erro de conexão ao registrar devolução");
@@ -291,7 +315,7 @@ export default function OrderReturnModal({
                 {step === 0 ? (exchangeOn ? "Próximo" : "Próximo") : "Revisar"}
               </Button>
             ) : (
-              <Button size="sm" onClick={handleConfirm} loading={submitting} disabled={!hasAnyLine} iconLeft={<CheckCircle2 size={14} />}>
+              <Button size="sm" onClick={handleConfirm} loading={submitting} disabled={!hasAnyLine || !payOk} iconLeft={<CheckCircle2 size={14} />}>
                 Confirmar {exchangeOn && exchange.length > 0 ? "troca" : "devolução"}
               </Button>
             )}
@@ -514,7 +538,12 @@ export default function OrderReturnModal({
             </div>
           )}
         </div>
-        {/* 4. Como devolver o valor */}
+        {/* 4. Como devolver o valor / pagar a diferença */}
+        {hasExchange && due > 0.009 ? (
+          <ExchangePaymentForm due={due} hasCustomer={!!customerId} lines={payLines} onChange={setPayLines} />
+        ) : hasExchange && difference === 0 ? (
+          <Alert variant="success">Troca equivalente: o valor devolvido cobre exatamente os produtos novos. Nada a pagar nem a devolver.</Alert>
+        ) : (
         <section className="space-y-2">
           <h4 className="text-xs font-semibold text-slate-800">Como devolver o valor</h4>
           <div className="grid grid-cols-2 gap-2">
@@ -531,8 +560,12 @@ export default function OrderReturnModal({
               <span className="mt-0.5 block text-[11px] text-slate-500">Estorno na hora, sem crédito</span>
             </button>
           </div>
+          {hasExchange && difference < 0 && (
+            <Alert variant="info">Os produtos novos ({money(exchangeTotal)}) abatem o valor devolvido. Sobram {money(Math.abs(difference))} para o cliente.</Alert>
+          )}
           {!customerId && <Alert variant="warning">Venda sem cliente identificado — o valor é devolvido em dinheiro na hora.</Alert>}
         </section>
+        )}
 
         </div>)}
 
