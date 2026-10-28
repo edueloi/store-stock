@@ -113,8 +113,8 @@ export default function CardapioQr() {
 
   const count = Math.max(1, Math.min(60, Number(tables) || 1));
   const menuUrl = `${baseUrl}/cardapio`;
-  const urlFor = (mesa: number | string) => `${menuUrl}?mesa=${encodeURIComponent(String(mesa))}`;
-  const balcaoUrl = `${menuUrl}?balcao=1`;
+  const urlFor = (mesa: number | string) => `${menuUrl}/mesa/${encodeURIComponent(String(mesa))}`;
+  const balcaoUrl = `${menuUrl}/balcao`;
   const mesas = useMemo(() => Array.from({ length: count }, (_, i) => i + 1), [count]);
 
   const copy = async (key: string, text: string) => {
@@ -154,13 +154,20 @@ export default function CardapioQr() {
 
         {/* Links */}
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-          <h3 className="text-sm font-semibold text-slate-800">Link do cardápio</h3>
-          <div className="flex flex-wrap items-center gap-2">
-            <code className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">{baseUrl ? menuUrl : "carregando…"}</code>
-            <Button variant="outline" iconLeft={copied === "menu" ? <Check size={14} /> : <Copy size={14} />} onClick={() => copy("menu", menuUrl)} disabled={!baseUrl}>{copied === "menu" ? "Copiado" : "Copiar"}</Button>
-            <a href={baseUrl ? menuUrl : "#"} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"><ExternalLink size={13} /> Abrir cardápio</a>
-          </div>
-          <p className="text-xs text-slate-500">Use este link no Instagram, no WhatsApp e no Google. Para entrega e retirada o cliente escolhe o modo dentro do cardápio.</p>
+          <h3 className="text-sm font-semibold text-slate-800">Os 3 cardápios</h3>
+          {[
+            { key: "delivery", label: "Delivery (entrega e retirada)", url: menuUrl, on: cfg.accepts.delivery || cfg.accepts.pickup, hint: "Use no Instagram, WhatsApp e Google." },
+            { key: "balcao", label: "Balcão", url: balcaoUrl, on: cfg.accepts.balcao, hint: "QR no balcão: o cliente pede e retira." },
+            { key: "mesa", label: "Mesa", url: urlFor("1"), on: cfg.accepts.mesa, hint: "Um QR por mesa (veja abaixo). Exemplo: mesa 1." },
+          ].map((m) => (
+            <div key={m.key} className="flex flex-wrap items-center gap-2">
+              <span className="w-56 text-xs font-medium text-slate-700">{m.label}{!m.on && <span className="ml-1 text-rose-500">(desligado)</span>}</span>
+              <code className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-700">{baseUrl ? m.url : "carregando…"}</code>
+              <Button variant="outline" iconLeft={copied === m.key ? <Check size={14} /> : <Copy size={14} />} onClick={() => copy(m.key, m.url)} disabled={!baseUrl}>{copied === m.key ? "Copiado" : "Copiar"}</Button>
+              <a href={baseUrl ? m.url : "#"} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50"><ExternalLink size={13} /> Abrir</a>
+              <span className="text-[11px] text-slate-500">{m.hint}</span>
+            </div>
+          ))}
         </section>
 
         {/* Configuração */}

@@ -55,7 +55,7 @@ export default function App() {
         <Route path="/pdv-classico" element={<PDVClassico />} />
         <Route path="/admin/*" element={<AdminDashboard />} />
         <Route path="/super-admin/*" element={<SuperAdminDashboard />} />
-        <Route path="/s/:slug/cardapio" element={<DigitalMenu />} />
+        <Route path="/s/:slug/cardapio/*" element={<DigitalMenu />} />
         <Route path="/s/:slug/*" element={<StoreLayout />} />
         <Route path="/*" element={<HostAwareEntry />} />
       </Routes>

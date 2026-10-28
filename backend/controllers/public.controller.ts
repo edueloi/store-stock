@@ -424,9 +424,10 @@ export async function reserveStoreCart(req: Request, res: Response) {
  */
 export async function createTableOrder(req: Request, res: Response) {
   try {
-    const { tenantId, mesa, mode: rawMode, items, customer, note } = req.body as {
+    const { tenantId, mesa, people, mode: rawMode, items, customer, note } = req.body as {
       tenantId: number;
       mesa?: string | number;
+      people?: number;
       mode?: "mesa" | "balcao";
       items: Array<{ product_id: number; quantity: number; selected_options?: Record<string, string>; note?: string }>;
       customer?: { name?: string; phone?: string };
@@ -442,6 +443,8 @@ export async function createTableOrder(req: Request, res: Response) {
     const tenant = await prisma.tenant.findUnique({ where: { id: Number(tenantId) } });
     if (!tenant || !getTenantAccessState(tenant).allowed) return res.status(404).json({ error: "Loja não encontrada." });
     if (!tenant.food_enabled) return res.status(400).json({ error: "Esta loja não recebe pedidos por mesa." });
+    const acceptsTable = { mesa: true, balcao: true, ...(menuSettings(tenant).accepts || {}) };
+    if (!acceptsTable[mode]) return res.status(400).json({ error: mode === "mesa" ? "O pedido pela mesa não está ativo nesta loja." : "O pedido pelo balcão não está ativo nesta loja." });
 
     const trackStock = !tenant.sell_without_stock_control;
     const rows: { product_id: number; name: string; quantity: number; unit_price: number; selected_options: Record<string, string> | null }[] = [];
@@ -466,6 +469,7 @@ export async function createTableOrder(req: Request, res: Response) {
 
     const guest = guestName;
     const orderNote = String(note ?? "").trim().slice(0, 200);
+    const peopleCount = Math.max(0, Math.min(30, Math.floor(Number(people) || 0)));
     const label = mode === "balcao" ? `Balcão · ${guest}` : `Mesa ${table}${guest ? ` · ${guest}` : ""}`;
     const source = mode === "balcao" ? "Balcão" : `Mesa ${table}`;
 
@@ -494,7 +498,7 @@ export async function createTableOrder(req: Request, res: Response) {
           number: (latest?.number || 0) + 1,
           customer_name: label,
           customer_phone: String(customer?.phone ?? "").replace(/\D/g, "").slice(0, 15) || null,
-          notes: `Pedido pelo cardápio digital — ${source}${orderNote ? ` · ${orderNote}` : ""}`,
+          notes: `Pedido pelo cardápio digital — ${source}${mode === "mesa" && peopleCount ? ` · ${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"}` : ""}${orderNote ? ` · ${orderNote}` : ""}`,
           snapshot: { source: "table_qr", mode, ...(mode === "mesa" ? { table } : {}), stock_tracked: trackStock },
           items: { create: rows },
         },
