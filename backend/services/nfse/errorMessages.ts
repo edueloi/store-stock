@@ -25,6 +25,15 @@ export function explicarErroNfse(descricao: unknown, complemento: unknown): stri
   const original = [d, c].filter(Boolean).join(" — ");
   const texto = `${d} ${c}`;
 
+  if (/sem identificação do tomador.*cancelad/i.test(texto)) {
+    return (
+      "Esta nota foi emitida sem identificar o cliente (CPF/CNPJ do tomador) e a prefeitura deste município não permite cancelar nota assim. " +
+      "Se for nota de teste, use o botão Excluir. Em notas reais, informe sempre o CPF/CNPJ do cliente ao emitir.
+
+Detalhe técnico: " + original
+    );
+  }
+
   // Campo enviado fora de lugar / faltando (validação do XSD do governo)
   const invalido = /has invalid child element '([\w]+)'.*?expected: (.*)/i.exec(texto);
   if (invalido) {

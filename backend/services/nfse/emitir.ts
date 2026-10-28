@@ -139,8 +139,8 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
     if (!result.ok) {
       // Schema real (NFSePostResponseErro): { erros: [{ Codigo, Descricao, Complemento }] }
       // (a resposta real vem com maiúscula inicial, diferente do swagger documentado em minúsculo)
-      const data = (result.data ?? {}) as { erros?: Array<Record<string, unknown>> };
-      const erros = Array.isArray(data.erros) ? data.erros : [];
+      const data = (result.data ?? {}) as { erros?: Array<Record<string, unknown>>; erro?: Array<Record<string, unknown>> };
+      const erros = Array.isArray(data.erros) ? data.erros : Array.isArray(data.erro) ? data.erro : [];
       const primeiro = erros[0];
       const codigo = primeiro?.Codigo ?? primeiro?.codigo;
       const descricao = primeiro?.Descricao ?? primeiro?.descricao;

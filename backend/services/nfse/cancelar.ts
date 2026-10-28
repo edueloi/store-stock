@@ -7,6 +7,7 @@ import { decryptSecret } from "../../utils/secretCrypto";
 import { buildCancelamentoNfseXml, type MotivoCancelamentoNfse } from "./eventoXmlBuilder";
 import { loadPfx, assinarPedRegEvento } from "../nfce/signer";
 import { callNfseRest, gzipBase64, type NfseEnvironment } from "./restClient";
+import { explicarErroNfse } from "./errorMessages";
 
 export interface CancelarNfseResult {
   success: boolean;
@@ -66,13 +67,14 @@ export async function cancelarNfse(
         `[cancelarNfse] POST /nfse/{chave}/eventos rejeitado — status=${result.statusCode} tenant=${tenant.id} serviceOrder=${serviceOrderId}`,
         result.error || result.raw?.slice(0, 1000) || "(sem corpo)",
       );
-      const data = (result.data ?? {}) as { erros?: Array<Record<string, unknown>> };
-      const erros = Array.isArray(data.erros) ? data.erros : [];
+      // A resposta traz a lista em "erros" ou "erro" (singular), conforme o endpoint.
+      const data = (result.data ?? {}) as { erros?: Array<Record<string, unknown>>; erro?: Array<Record<string, unknown>> };
+      const erros = Array.isArray(data.erros) ? data.erros : Array.isArray(data.erro) ? data.erro : [];
       const primeiro = erros[0];
       const descricao = primeiro?.Descricao ?? primeiro?.descricao;
       const complemento = primeiro?.Complemento ?? primeiro?.complemento;
       const rejectionReason = descricao
-        ? [descricao, complemento].filter(Boolean).join(" — ")
+        ? explicarErroNfse(descricao, complemento)
         : (result.error || result.raw || `Falha na comunicação com o Sistema Nacional NFS-e (HTTP ${result.statusCode})`);
       return { success: false, error: rejectionReason };
     }
