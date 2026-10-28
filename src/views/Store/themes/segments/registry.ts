@@ -271,6 +271,23 @@ export const segmentThemes = {
     featured: "Mais pedidos",
     cart: "Seu pedido",
   },
+  adega_clara: {
+    name: "Adega Brisa",
+    group: "Sabores & Presentes",
+    tag: "Adega Clara, Vinhos & Bebidas",
+    desc: "Adega em creme e vinho, com fotos em luz natural, abertura editorial, carrossel de produtos e uma sacola própria para bons encontros.",
+    accent: "#6b273d",
+    bg: "#fcfaf6",
+    ink: "#302a28",
+    surface: "#ffffff",
+    layout: "editorial",
+    hero: "Bons encontros. Melhores brindes.",
+    sub: "Bebidas e descobertas para acompanhar os seus melhores momentos.",
+    catalog: "Uma boa escolha espera por você.",
+    categories: "O que vamos abrir hoje?",
+    featured: "Os queridinhos da casa",
+    cart: "Sua seleção de bons momentos",
+  },
   tech: {
     name: "Tecnologia Pro",
     group: "Tecnologia",
@@ -306,6 +323,7 @@ export const addedSegmentIds: SegmentId[] = [
   "care",
   "hospital",
   "adega",
+  "adega_clara",
 ];
 export const segmentModelCards = addedSegmentIds.map((id) => {
   const t = segmentThemes[id];

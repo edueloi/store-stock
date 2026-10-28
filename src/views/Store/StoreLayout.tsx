@@ -48,6 +48,7 @@ import { restoreStoreCart, serializeStoreCart, storeCartKey } from "../../lib/st
 import { lazy, Suspense } from "react";
 import { useStoreFx } from "../../components/store/fx";
 const AdegaCart = lazy(() => import("./themes/adega/Cart"));
+const BrisaCart = lazy(() => import("./themes/adega-clara/Cart"));
 const StoreQuoteRequest = lazy(() => import("./pages/StoreQuoteRequest"));
 const VitraQuoteBuilder = lazy(() => import("./themes/vidracaria/QuoteBuilder"));
 const StrideCheckout = lazy(() => import("./themes/stride/StoreCheckout"));
@@ -574,7 +575,7 @@ function StoreLayoutInner() {
   cartRef.current = cart;
   const [hydratedCartTenant, setHydratedCartTenant] = useState<number | null>(null);
   useEffect(() => {
-    if (!storeData || !["stride", "adega"].includes(templateId || "") || hydratedCartTenant === storeData.tenant.id) return;
+    if (!storeData || !["stride", "adega", "adega_clara"].includes(templateId || "") || hydratedCartTenant === storeData.tenant.id) return;
     try {
       const restored = restoreStoreCart(localStorage.getItem(storeCartKey(storeData.tenant.id)),storeData.products,storeTracksStock(storeData.tenant));
       cartRef.current = restored;
@@ -583,7 +584,7 @@ function StoreLayoutInner() {
     setHydratedCartTenant(storeData.tenant.id);
   },[storeData?.tenant.id,templateId,hydratedCartTenant]);
   useEffect(() => {
-    if (!["stride", "adega"].includes(templateId || "") || !storeData || hydratedCartTenant !== storeData.tenant.id) return;
+    if (!["stride", "adega", "adega_clara"].includes(templateId || "") || !storeData || hydratedCartTenant !== storeData.tenant.id) return;
     try { localStorage.setItem(storeCartKey(storeData.tenant.id),serializeStoreCart(cart)); } catch { /* Sem espaço local. */ }
   },[cart,hydratedCartTenant,storeData?.tenant.id,templateId]);
   const pageFxRef = useRef<HTMLElement>(null);
@@ -617,7 +618,7 @@ function StoreLayoutInner() {
       }
     }
     const variationImages = getVariationImages(product, options || {});
-    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books', 'agro', 'feed', 'garden', 'electric', 'toys', 'variety', 'aura', 'coffee', 'nexus_tech', 'gadget'].includes(templateId || '');
+    const editorialTheme = ['urban', 'fragrance', 'beauty', 'street', 'streetwear', 'tech', 'books', 'agro', 'feed', 'garden', 'electric', 'toys', 'variety', 'aura', 'coffee', 'nexus_tech', 'gadget', 'adega_clara'].includes(templateId || '');
     const usesDiscountPrice = isSegment(templateId || '') || editorialTheme;
     const storefrontPrice = editorialTheme && Number(product.discount_price) <= 0
       ? product.price
@@ -1941,7 +1942,7 @@ function StoreLayoutInner() {
         )}
 
         {/* WhatsApp Widget */}
-        {storefront.show_whatsapp_widget !== false && templateId !== "adega" && (
+        {storefront.show_whatsapp_widget !== false && !["adega", "adega_clara"].includes(templateId || "") && (
           <WhatsAppWidget
             whatsapp={storeData.tenant.whatsapp || ""}
             storeName={storeData.tenant.name}
@@ -1951,7 +1952,7 @@ function StoreLayoutInner() {
 
         {/* ── CART DRAWER ─────────────────────────────────────────── */}
         <AnimatePresence>
-          {isCartOpen && templateId !== "adega" && (
+          {isCartOpen && !["adega", "adega_clara"].includes(templateId || "") && (
             <>
               <motion.div
                 initial={{ opacity: 0 }}
@@ -2387,8 +2388,17 @@ function StoreLayoutInner() {
           checkoutMessage={checkoutMessage}
         /></Suspense>}
 
+        {templateId === "adega_clara" && <Suspense fallback={null}><BrisaCart
+          isOpen={isCartOpen}
+          checkout={cartCheckoutForm}
+          onCheckout={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" || isOrderRequest ? openCheckout : handleWhatsAppCheckout}
+          busy={reservationState.loading}
+          message={reservationState.message}
+          checkoutMessage={checkoutMessage}
+        /></Suspense>}
+
         {/* Mobile floating cart */}
-        {cart.length > 0 && !isCartOpen && templateId !== "adega" && (
+        {cart.length > 0 && !isCartOpen && !["adega", "adega_clara"].includes(templateId || "") && (
           <motion.div
             initial={{ y: 100 }}
             animate={{ y: 0 }}
