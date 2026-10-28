@@ -45,7 +45,7 @@ import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal
 import { printThermalText, buildOrderReceiptText } from "../../lib/thermalReceipt";
 import { buildWarrantyDocumentHtml } from "../../lib/warrantyDocument";
 import { Printer } from "lucide-react";
-import OrderReturnModal from "./OrderReturnModal";
+import OrderReturnModal, { type OrderReturnResult } from "./OrderReturnModal";
 import OrderShippingLabel from "../../components/orders/OrderShippingLabel";
 import OrdersPageTour, { type OrdersPageTourHandle } from "../../components/onboarding/OrdersPageTour";
 import {
@@ -448,7 +448,7 @@ export default function Orders() {
   const [cancelledBy, setCancelledBy] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
-  const [returnResult, setReturnResult] = useState<{ credit: { id: number; amount: number } | null; creditAmount: number } | null>(null);
+  const [returnResult, setReturnResult] = useState<OrderReturnResult | null>(null);
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -2277,24 +2277,40 @@ ${
             <Button variant="outline" onClick={() => { setShowReturnModal(false); setReturnResult(null); }}>
               Fechar
             </Button>
-            {returnResult?.credit && selectedOrder && (
-              <Button onClick={() => navigate(`/admin/pdv?customerId=${selectedOrder.customer_id}&creditId=${returnResult.credit!.id}`)}>
-                Usar crédito agora
+            {returnResult && (returnResult.credit || returnResult.exchange.length > 0) && selectedOrder && (
+              <Button onClick={() => navigate(`/admin/pdv?customerId=${selectedOrder.customer_id}${returnResult.credit ? `&creditId=${returnResult.credit.id}` : ""}`)}>
+                {returnResult.exchange.length > 0 ? "Ir para o PDV" : "Usar crédito agora"}
               </Button>
             )}
           </ModalFooter>
         }
       >
         {returnResult && selectedOrder && (
-          returnResult.credit ? (
-            <Alert variant="info">
-              Crédito de R$ {returnResult.credit.amount.toFixed(2)} gerado para {selectedOrder.customer_name || "o cliente"}.
-            </Alert>
-          ) : (
-            <p className="text-xs leading-relaxed text-slate-500">
-              Valor devolvido em dinheiro/estorno — sem cliente identificado nesta venda para vincular um crédito.
-            </p>
-          )
+          <div className="space-y-3">
+            {returnResult.credit ? (
+              <Alert variant="info">
+                Crédito de R$ {returnResult.credit.amount.toFixed(2)} gerado para {selectedOrder.customer_name || "o cliente"}.
+              </Alert>
+            ) : (
+              <Alert variant="success">
+                R$ {returnResult.creditAmount.toFixed(2)} devolvido em dinheiro/estorno ao cliente.
+              </Alert>
+            )}
+            {returnResult.exchange.length > 0 && (
+              <div className="rounded-lg border border-slate-200 p-3 text-xs text-slate-700">
+                <p className="mb-1 font-semibold text-slate-800">Produtos da troca</p>
+                {returnResult.exchange.map((e, i) => (
+                  <p key={i}>{e.quantity}x {e.name} — R$ {(e.quantity * e.price).toFixed(2)}</p>
+                ))}
+                <p className="mt-2 font-semibold">
+                  {returnResult.difference > 0 ? `Cliente paga a diferença: R$ ${returnResult.difference.toFixed(2)}`
+                    : returnResult.difference < 0 ? `Sobra para o cliente: R$ ${Math.abs(returnResult.difference).toFixed(2)}`
+                    : "Troca equivalente, sem diferença"}
+                </p>
+                <p className="mt-1 text-[11px] text-slate-500">Lance a saída dos produtos novos como uma venda no PDV.</p>
+              </div>
+            )}
+          </div>
         )}
       </Modal>
 

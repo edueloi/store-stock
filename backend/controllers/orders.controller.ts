@@ -698,9 +698,11 @@ export async function createOrderReturn(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const orderId = Number(req.params.id);
-    const { items, reason } = req.body as {
+    const { items, reason, refund_mode } = req.body as {
       items: OrderReturnLineInput[];
       reason?: string;
+      // "cash": o valor é devolvido na hora (sem gerar crédito para o cliente)
+      refund_mode?: "credit" | "cash";
     };
 
     if (!Array.isArray(items) || items.length === 0) {
@@ -828,7 +830,7 @@ export async function createOrderReturn(req: Request, res: Response) {
       });
 
       let credit: { id: number; amount: number } | null = null;
-      if (order.customer_id && creditAmount > 0) {
+      if (order.customer_id && creditAmount > 0 && refund_mode !== "cash") {
         const created = await tx.customerCredit.create({
           data: {
             tenant_id: tenantId,
@@ -859,6 +861,7 @@ export async function createOrderReturn(req: Request, res: Response) {
             credit_amount: creditAmount,
             finance_id: finance.id,
             credit_id: credit?.id ?? null,
+            refund_mode: refund_mode === "cash" ? "cash" : "credit",
           },
         },
       });
