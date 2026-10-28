@@ -78,7 +78,7 @@
 .adg-hero.has-banner .adg-hero-glow { display: none; }
 .adg-hero-copy { position: relative; z-index: 1; display: grid; gap: 14px; justify-items: start; max-width: 640px; padding: 24px 20px 28px; }
 .adg-hero-logo { width: 84px; height: 84px; object-fit: contain; border-radius: 16px; background: rgba(11, 11, 12, 0.6); padding: 6px; border: 1px solid var(--adg-line); }
-.adg-hero h1 { font-size: clamp(46px, 11vw, 96px); line-height: 0.92; font-weight: 800; background: linear-gradient(180deg, var(--adg-cream) 30%, var(--adg-gold-light)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.adg-hero h1 { font-size: clamp(46px, 11vw, 96px); line-height: 0.92; font-weight: 800; color: var(--adg-cream); text-shadow: 0 2px 28px rgba(217, 166, 46, 0.35); }
 .adg-hero p { margin: 0; max-width: 520px; font-size: 16px; line-height: 1.5; color: #d8cfb9; }
 .adg-hero-cta { display: flex; flex-wrap: wrap; gap: 10px; }
 .adg-slider { --hs-radius: 20px; --hs-accent: var(--adg-gold); --hs-height: clamp(300px, 46vw, 540px); max-width: none; font-family: "Barlow", sans-serif; }
@@ -203,7 +203,7 @@
 /* ---------- Sobre ---------- */
 .adg-about-hero { display: grid; gap: 24px; padding-top: 32px; }
 .adg-about-copy { display: grid; gap: 16px; justify-items: start; align-content: center; }
-.adg-about-copy h1 { font-size: clamp(46px, 10vw, 96px); line-height: 0.92; font-weight: 800; background: linear-gradient(180deg, var(--adg-cream) 30%, var(--adg-gold-light)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.adg-about-copy h1 { font-size: clamp(46px, 10vw, 96px); line-height: 0.92; font-weight: 800; color: var(--adg-cream); text-shadow: 0 2px 28px rgba(217, 166, 46, 0.35); }
 .adg-about-copy p { margin: 0; max-width: 560px; line-height: 1.6; color: #d8cfb9; }
 .adg-about-art { display: grid; place-items: center; aspect-ratio: 4 / 3; border: 1px solid var(--adg-line); border-radius: 20px; overflow: hidden; background: radial-gradient(circle at 50% 40%, #2a261c, var(--adg-surface) 70%); color: var(--adg-gold); box-shadow: var(--adg-glow); }
 .adg-about-art img { width: 100%; height: 100%; object-fit: cover; }
