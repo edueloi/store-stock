@@ -62,7 +62,7 @@ export default function OrderReturnModal({
   const totalCredit = returnableItems.reduce((sum, item) => {
     const line = lines[item.id];
     const qty = Number(line?.quantity) || 0;
-    return sum + qty * item.unit_price;
+    return sum + qty * Number(item.unit_price || 0);
   }, 0);
 
   const hasAnyLine = Object.values(lines).some((l) => (Number(l.quantity) || 0) > 0);
@@ -95,7 +95,7 @@ export default function OrderReturnModal({
         setError(data.error || "Falha ao registrar devolução");
         return;
       }
-      onSuccess({ credit: data.credit, creditAmount: data.creditAmount });
+      onSuccess({ credit: data.credit ? { ...data.credit, amount: Number(data.credit.amount) } : null, creditAmount: Number(data.creditAmount) || 0 });
     } catch {
       setError("Erro de conexão ao registrar devolução");
     } finally {
@@ -146,7 +146,7 @@ export default function OrderReturnModal({
                       {(item.returned_quantity ?? 0) > 0 && <span className="ml-1 text-amber-600">({item.returned_quantity} já devolvido)</span>}
                     </p>
                   </div>
-                  <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-700">R$ {item.unit_price.toFixed(2)}</span>
+                  <span className="shrink-0 text-[11px] font-semibold tabular-nums text-slate-700">R$ {Number(item.unit_price || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Input aria-label={`Quantidade a devolver de ${item.product_name}`} type="number" min={0} max={available} step={1} size="sm" wrapperClassName="w-20"
