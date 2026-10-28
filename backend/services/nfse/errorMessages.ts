@@ -28,9 +28,7 @@ export function explicarErroNfse(descricao: unknown, complemento: unknown): stri
   if (/sem identificação do tomador.*cancelad/i.test(texto)) {
     return (
       "Esta nota foi emitida sem identificar o cliente (CPF/CNPJ do tomador) e a prefeitura deste município não permite cancelar nota assim. " +
-      "Se for nota de teste, use o botão Excluir. Em notas reais, informe sempre o CPF/CNPJ do cliente ao emitir.
-
-Detalhe técnico: " + original
+      "Se for nota de teste, use o botão Excluir. Em notas reais, informe sempre o CPF/CNPJ do cliente ao emitir.\n\nDetalhe técnico: " + original
     );
   }
 
