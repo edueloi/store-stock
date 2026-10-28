@@ -2,7 +2,7 @@ import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import {
-  Bike, Check, Clock, MapPin, Minus, Phone, Plus, Search, ShoppingBag, Store, Trash2, UtensilsCrossed, X, Instagram,
+  Bike, Check, MapPin, Minus, Phone, Plus, Search, ShoppingBag, Store, Trash2, UtensilsCrossed, X, Instagram,
 } from "lucide-react";
 import "./menu.css";
 
@@ -144,7 +144,7 @@ export default function DigitalMenu() {
       by.set(key, [...(by.get(key) || []), p]);
     }
     const out: { id: string; name: string; items: MenuProduct[] }[] = [];
-    for (const c of categories) if (by.has(c.id)) out.push({ id: `c${c.id}`, name: c.name, items: by.get(c.id)! });
+    for (const c of [...categories].sort((a, b) => a.id - b.id)) if (by.has(c.id)) out.push({ id: `c${c.id}`, name: c.name, items: by.get(c.id)! });
     if (by.has("none")) out.push({ id: "none", name: "Outros", items: by.get("none")! });
     return out;
   }, [filtered, categories]);
@@ -295,7 +295,7 @@ export default function DigitalMenu() {
                     {delivery.fee_mode === "neighborhood" ? "Taxa de entrega por bairro" : `Taxa de entrega ${money(Math.max(0, Number(delivery.fixed_fee) || 0))}`}
                     {minOrder > 0 && <> · pedido mínimo <b>{money(minOrder)}</b></>}
                     {freeAbove > 0 && <> · <b>frete grátis</b> acima de {money(freeAbove)}</>}
-                    {delivery.eta && <> · <Clock size={12} style={{ verticalAlign: "-2px" }} /> {delivery.eta}</>}
+                    {delivery.eta && <> · tempo estimado <b>{delivery.eta}</b></>}
                   </div>
                 )}
               </>
