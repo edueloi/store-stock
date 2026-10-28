@@ -47,6 +47,7 @@ import { restoreStoreCart, serializeStoreCart, storeCartKey } from "../../lib/st
 // ── Store pages (lazy-loaded per theme)
 import { lazy, Suspense } from "react";
 import { useStoreFx } from "../../components/store/fx";
+const AdegaCart = lazy(() => import("./themes/adega/Cart"));
 const StoreQuoteRequest = lazy(() => import("./pages/StoreQuoteRequest"));
 const VitraQuoteBuilder = lazy(() => import("./themes/vidracaria/QuoteBuilder"));
 const StrideCheckout = lazy(() => import("./themes/stride/StoreCheckout"));
@@ -469,7 +470,6 @@ function StoreLayoutInner() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [megaMenuOpen, setMegaMenuOpen] = useState(false);
-  const [tableName, setTableName] = useState("");
   const [reservationState, setReservationState] = useState<{
     loading: boolean;
     message: string | null;
@@ -574,7 +574,7 @@ function StoreLayoutInner() {
   cartRef.current = cart;
   const [hydratedCartTenant, setHydratedCartTenant] = useState<number | null>(null);
   useEffect(() => {
-    if (!storeData || templateId !== "stride" || hydratedCartTenant === storeData.tenant.id) return;
+    if (!storeData || !["stride", "adega"].includes(templateId || "") || hydratedCartTenant === storeData.tenant.id) return;
     try {
       const restored = restoreStoreCart(localStorage.getItem(storeCartKey(storeData.tenant.id)),storeData.products,storeTracksStock(storeData.tenant));
       cartRef.current = restored;
@@ -583,7 +583,7 @@ function StoreLayoutInner() {
     setHydratedCartTenant(storeData.tenant.id);
   },[storeData?.tenant.id,templateId,hydratedCartTenant]);
   useEffect(() => {
-    if (templateId !== "stride" || !storeData || hydratedCartTenant !== storeData.tenant.id) return;
+    if (!["stride", "adega"].includes(templateId || "") || !storeData || hydratedCartTenant !== storeData.tenant.id) return;
     try { localStorage.setItem(storeCartKey(storeData.tenant.id),serializeStoreCart(cart)); } catch { /* Sem espaço local. */ }
   },[cart,hydratedCartTenant,storeData?.tenant.id,templateId]);
   const pageFxRef = useRef<HTMLElement>(null);
@@ -672,47 +672,6 @@ function StoreLayoutInner() {
   const checkoutMode = storefront.checkout_mode || "whatsapp";
   const isOrderRequest = checkoutMode === "order_request";
   const hideStorePrices = isOrderRequest || storefront.hide_prices === true;
-  // Cardápio digital: o QR Code da mesa abre a loja com ?mesa=N e o pedido vira uma comanda aberta.
-  const mesa = (() => {
-    try {
-      const key = `store_mesa_${storeData?.tenant.id ?? "x"}`;
-      const fromUrl = (new URLSearchParams(location.search).get("mesa") || "").trim().slice(0, 20);
-      if (fromUrl) sessionStorage.setItem(key, fromUrl);
-      return fromUrl || sessionStorage.getItem(key) || "";
-    } catch {
-      return "";
-    }
-  })();
-  const isTableOrder = !!mesa && storeData?.tenant.food_enabled === true;
-
-  const handleTableOrder = async () => {
-    if (!storeData || reservationState.loading) return;
-    setReservationState({ loading: true, message: null });
-    try {
-      const response = await fetch("/api/public/table-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tenantId: storeData.tenant.id,
-          mesa,
-          items: cart.map((item) => ({ product_id: item.id, quantity: item.quantity, selected_options: item.selectedOptions })),
-          customer: { name: tableName.trim() },
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Não foi possível enviar o pedido.");
-      setCart([]);
-      setReservationState({
-        loading: false,
-        message: `Pedido enviado para a Mesa ${mesa}! A equipe já recebeu (comanda #${data.number}). Pode pedir mais quando quiser.`,
-      });
-    } catch (error) {
-      setReservationState({
-        loading: false,
-        message: error instanceof Error ? error.message : "Não foi possível enviar o pedido.",
-      });
-    }
-  };
 
   const handleWhatsAppCheckout = () => {
     const lines = cart.map((i) => {
@@ -999,6 +958,55 @@ function StoreLayoutInner() {
       setSearchQuery("");
     }
   };
+
+  const cartCheckoutForm = checkoutOpen && cart.length > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between"><div><p className="text-xs font-black text-slate-900">{isOrderRequest ? "Dados da solicitação" : "Dados para fechar o pedido"}</p><p className="text-[10px] text-slate-500">{isOrderRequest ? "A fábrica confirmará prazo, produção e pagamento pelo WhatsApp." : "A loja confirmará pagamento e entrega."}</p></div><button onClick={() => setCheckoutOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={16} /></button></div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input value={checkoutForm.name} onChange={(e) => setCheckoutForm((current) => ({ ...current, name: e.target.value }))} className="col-span-2 h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Seu nome *" />
+                        <input value={checkoutForm.phone} onBlur={lookupCustomerRecognition} onChange={(e) => { setCheckoutForm((current) => ({ ...current, phone: formatStorePhone(e.target.value) })); setCustomerRecognition({ status: "idle", rewards: [] }); setSelectedLoyaltyRewardId(null); }} inputMode="tel" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="WhatsApp *" />
+                        {isOrderRequest && <input value={checkoutForm.email} onChange={(e) => setCheckoutForm((current) => ({ ...current, email: e.target.value }))} type="email" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="E-mail (opcional)" />}
+                        {!isOrderRequest && <>
+                        <input value={checkoutForm.document} onBlur={lookupCompanyDocument} onChange={(e) => setCheckoutForm((current) => ({ ...current, document: formatStoreDocument(e.target.value) }))} inputMode="numeric" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CPF ou CNPJ" />
+                        <input value={checkoutForm.cep} onBlur={() => loadCheckoutOptions()} onChange={(e) => setCheckoutForm((current) => ({ ...current, cep: formatStoreCep(e.target.value) }))} inputMode="numeric" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CEP para entrega" />
+                        <input value={checkoutForm.address} onChange={(e) => setCheckoutForm((current) => ({ ...current, address: e.target.value }))} className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Endereço / referência" />
+                        </>}
+                      </div>
+                      {isOrderRequest && customerRecognition.status !== "idle" && (
+                        <div className={cn("rounded-xl border px-3 py-2.5", customerRecognition.status === "recognized" ? "border-emerald-200 bg-emerald-50" : customerRecognition.status === "loading" ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50")}>
+                          {customerRecognition.status === "loading" && <p className="text-[10px] font-bold text-amber-700">Consultando benefícios do seu cadastro...</p>}
+                          {customerRecognition.status === "not_found" && <p className="text-[10px] font-medium text-slate-500">Ainda não encontramos um cadastro com este WhatsApp.</p>}
+                          {customerRecognition.status === "error" && <p className="text-[10px] font-medium text-slate-500">Não foi possível consultar os benefícios agora. Você pode seguir com a solicitação.</p>}
+                          {customerRecognition.status === "recognized" && <>
+                            <p className="text-[11px] font-black text-emerald-800">Olá, {customerRecognition.firstName || "cliente"}! Cadastro reconhecido.</p>
+                            {customerRecognition.rewards.length > 0 ? <>
+                              <p className="mt-0.5 text-[10px] leading-relaxed text-emerald-700">Escolha um benefício para vincular à encomenda. A fábrica confere o resgate ao confirmar o pedido.</p>
+                              <div className="mt-2 space-y-1.5">
+                                {customerRecognition.rewards.map((reward) => {
+                                  const selected = selectedLoyaltyRewardId === reward.id;
+                                  const value = reward.discount_type === "percent" ? `${reward.discount_value}%` : `R$ ${reward.discount_value.toFixed(2).replace(".", ",")}`;
+                                  return <button key={reward.id} type="button" onClick={() => setSelectedLoyaltyRewardId(selected ? null : reward.id)} className={cn("flex w-full items-center justify-between rounded-lg border px-2.5 py-2 text-left transition-colors", selected ? "border-emerald-600 bg-white text-emerald-900" : "border-emerald-200 bg-white/70 text-emerald-800")}>
+                                    <span className="text-[10px] font-bold">{reward.name}</span>
+                                    <span className="text-[10px] font-black">{value} de desconto</span>
+                                  </button>;
+                                })}
+                              </div>
+                            </> : <p className="mt-0.5 text-[10px] text-emerald-700">Seu cadastro foi reconhecido. Não há desconto disponível neste momento.</p>}
+                          </>}
+                        </div>
+                      )}
+                      {!isOrderRequest && <><div className="grid grid-cols-2 gap-2">
+                        {checkoutOptions?.delivery.pickup_available && <button type="button" onClick={() => setCheckoutForm((current) => ({ ...current, deliveryType: "pickup" }))} className={cn("rounded-lg border px-3 py-2 text-[10px] font-bold", checkoutForm.deliveryType === "pickup" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")}>Retirar na loja</button>}
+                        {checkoutOptions?.delivery.delivery_available && <button type="button" onClick={() => setCheckoutForm((current) => ({ ...current, deliveryType: "delivery" }))} className={cn("rounded-lg border px-3 py-2 text-[10px] font-bold", checkoutForm.deliveryType === "delivery" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")}>Entrega {checkoutOptions.delivery.delivery_fee ? `R$ ${Number(checkoutOptions.delivery.delivery_fee).toFixed(2)}` : "grátis"}</button>}
+                      </div>
+                      <select value={checkoutForm.paymentMethod} onChange={(e) => setCheckoutForm((current) => ({ ...current, paymentMethod: e.target.value }))} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs">
+                        {checkoutOptions?.payment_methods.pix && <option value="pix">PIX — confirmar com a loja</option>}
+                        {checkoutOptions?.payment_methods.cash_on_delivery && <option value="cash_on_delivery">Dinheiro na entrega</option>}
+                        {checkoutOptions?.payment_methods.card_on_delivery && <option value="card_on_delivery">Cartão na entrega</option>}
+                      </select>
+                      </>}<button onClick={isOrderRequest ? handleOrderRequest : handleOnlineCheckout} disabled={checkoutLoading} style={{ backgroundColor: style.accent }} className="h-11 w-full rounded-xl text-xs font-black uppercase tracking-wider text-white disabled:opacity-60">{checkoutLoading ? "Enviando solicitação..." : isOrderRequest ? "Enviar solicitação de encomenda" : "Confirmar pedido"}</button>
+                    </div>
+                  );
 
   const ctx: StoreContextValue = {
     tenant: storeData.tenant,
@@ -1933,7 +1941,7 @@ function StoreLayoutInner() {
         )}
 
         {/* WhatsApp Widget */}
-        {storefront.show_whatsapp_widget !== false && (
+        {storefront.show_whatsapp_widget !== false && templateId !== "adega" && (
           <WhatsAppWidget
             whatsapp={storeData.tenant.whatsapp || ""}
             storeName={storeData.tenant.name}
@@ -1943,7 +1951,7 @@ function StoreLayoutInner() {
 
         {/* ── CART DRAWER ─────────────────────────────────────────── */}
         <AnimatePresence>
-          {isCartOpen && (
+          {isCartOpen && templateId !== "adega" && (
             <>
               <motion.div
                 initial={{ opacity: 0 }}
@@ -2229,54 +2237,7 @@ function StoreLayoutInner() {
                       </div>
                     ))
                   )}
-                  {checkoutOpen && cart.length > 0 && (
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3">
-                      <div className="flex items-center justify-between"><div><p className="text-xs font-black text-slate-900">{isOrderRequest ? "Dados da solicitação" : "Dados para fechar o pedido"}</p><p className="text-[10px] text-slate-500">{isOrderRequest ? "A fábrica confirmará prazo, produção e pagamento pelo WhatsApp." : "A loja confirmará pagamento e entrega."}</p></div><button onClick={() => setCheckoutOpen(false)} className="text-slate-400 hover:text-slate-700"><X size={16} /></button></div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input value={checkoutForm.name} onChange={(e) => setCheckoutForm((current) => ({ ...current, name: e.target.value }))} className="col-span-2 h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Seu nome *" />
-                        <input value={checkoutForm.phone} onBlur={lookupCustomerRecognition} onChange={(e) => { setCheckoutForm((current) => ({ ...current, phone: formatStorePhone(e.target.value) })); setCustomerRecognition({ status: "idle", rewards: [] }); setSelectedLoyaltyRewardId(null); }} inputMode="tel" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="WhatsApp *" />
-                        {isOrderRequest && <input value={checkoutForm.email} onChange={(e) => setCheckoutForm((current) => ({ ...current, email: e.target.value }))} type="email" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="E-mail (opcional)" />}
-                        {!isOrderRequest && <>
-                        <input value={checkoutForm.document} onBlur={lookupCompanyDocument} onChange={(e) => setCheckoutForm((current) => ({ ...current, document: formatStoreDocument(e.target.value) }))} inputMode="numeric" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CPF ou CNPJ" />
-                        <input value={checkoutForm.cep} onBlur={() => loadCheckoutOptions()} onChange={(e) => setCheckoutForm((current) => ({ ...current, cep: formatStoreCep(e.target.value) }))} inputMode="numeric" className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="CEP para entrega" />
-                        <input value={checkoutForm.address} onChange={(e) => setCheckoutForm((current) => ({ ...current, address: e.target.value }))} className="h-10 rounded-lg border border-slate-200 px-3 text-xs" placeholder="Endereço / referência" />
-                        </>}
-                      </div>
-                      {isOrderRequest && customerRecognition.status !== "idle" && (
-                        <div className={cn("rounded-xl border px-3 py-2.5", customerRecognition.status === "recognized" ? "border-emerald-200 bg-emerald-50" : customerRecognition.status === "loading" ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-slate-50")}>
-                          {customerRecognition.status === "loading" && <p className="text-[10px] font-bold text-amber-700">Consultando benefícios do seu cadastro...</p>}
-                          {customerRecognition.status === "not_found" && <p className="text-[10px] font-medium text-slate-500">Ainda não encontramos um cadastro com este WhatsApp.</p>}
-                          {customerRecognition.status === "error" && <p className="text-[10px] font-medium text-slate-500">Não foi possível consultar os benefícios agora. Você pode seguir com a solicitação.</p>}
-                          {customerRecognition.status === "recognized" && <>
-                            <p className="text-[11px] font-black text-emerald-800">Olá, {customerRecognition.firstName || "cliente"}! Cadastro reconhecido.</p>
-                            {customerRecognition.rewards.length > 0 ? <>
-                              <p className="mt-0.5 text-[10px] leading-relaxed text-emerald-700">Escolha um benefício para vincular à encomenda. A fábrica confere o resgate ao confirmar o pedido.</p>
-                              <div className="mt-2 space-y-1.5">
-                                {customerRecognition.rewards.map((reward) => {
-                                  const selected = selectedLoyaltyRewardId === reward.id;
-                                  const value = reward.discount_type === "percent" ? `${reward.discount_value}%` : `R$ ${reward.discount_value.toFixed(2).replace(".", ",")}`;
-                                  return <button key={reward.id} type="button" onClick={() => setSelectedLoyaltyRewardId(selected ? null : reward.id)} className={cn("flex w-full items-center justify-between rounded-lg border px-2.5 py-2 text-left transition-colors", selected ? "border-emerald-600 bg-white text-emerald-900" : "border-emerald-200 bg-white/70 text-emerald-800")}>
-                                    <span className="text-[10px] font-bold">{reward.name}</span>
-                                    <span className="text-[10px] font-black">{value} de desconto</span>
-                                  </button>;
-                                })}
-                              </div>
-                            </> : <p className="mt-0.5 text-[10px] text-emerald-700">Seu cadastro foi reconhecido. Não há desconto disponível neste momento.</p>}
-                          </>}
-                        </div>
-                      )}
-                      {!isOrderRequest && <><div className="grid grid-cols-2 gap-2">
-                        {checkoutOptions?.delivery.pickup_available && <button type="button" onClick={() => setCheckoutForm((current) => ({ ...current, deliveryType: "pickup" }))} className={cn("rounded-lg border px-3 py-2 text-[10px] font-bold", checkoutForm.deliveryType === "pickup" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")}>Retirar na loja</button>}
-                        {checkoutOptions?.delivery.delivery_available && <button type="button" onClick={() => setCheckoutForm((current) => ({ ...current, deliveryType: "delivery" }))} className={cn("rounded-lg border px-3 py-2 text-[10px] font-bold", checkoutForm.deliveryType === "delivery" ? "border-blue-600 bg-blue-50 text-blue-700" : "border-slate-200 text-slate-600")}>Entrega {checkoutOptions.delivery.delivery_fee ? `R$ ${Number(checkoutOptions.delivery.delivery_fee).toFixed(2)}` : "grátis"}</button>}
-                      </div>
-                      <select value={checkoutForm.paymentMethod} onChange={(e) => setCheckoutForm((current) => ({ ...current, paymentMethod: e.target.value }))} className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs">
-                        {checkoutOptions?.payment_methods.pix && <option value="pix">PIX — confirmar com a loja</option>}
-                        {checkoutOptions?.payment_methods.cash_on_delivery && <option value="cash_on_delivery">Dinheiro na entrega</option>}
-                        {checkoutOptions?.payment_methods.card_on_delivery && <option value="card_on_delivery">Cartão na entrega</option>}
-                      </select>
-                      </>}<button onClick={isOrderRequest ? handleOrderRequest : handleOnlineCheckout} disabled={checkoutLoading} style={{ backgroundColor: style.accent }} className="h-11 w-full rounded-xl text-xs font-black uppercase tracking-wider text-white disabled:opacity-60">{checkoutLoading ? "Enviando solicitação..." : isOrderRequest ? "Enviar solicitação de encomenda" : "Confirmar pedido"}</button>
-                    </div>
-                  )}
+                  {cartCheckoutForm}
                 </div>
 
                 {cart.length > 0 && (
@@ -2356,17 +2317,8 @@ function StoreLayoutInner() {
                         minutos.
                       </p>
                     )}
-                    {isTableOrder && (
-                      <input
-                        value={tableName}
-                        onChange={(e) => setTableName(e.target.value)}
-                        maxLength={60}
-                        placeholder={`Seu nome (opcional) · Mesa ${mesa}`}
-                        className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-xs text-slate-900"
-                      />
-                    )}
                     <button
-                      onClick={isTableOrder ? handleTableOrder : checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" || isOrderRequest ? openCheckout : handleWhatsAppCheckout}
+                      onClick={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" || isOrderRequest ? openCheckout : handleWhatsAppCheckout}
                       disabled={reservationState.loading}
                       style={
                         isUrban ? { backgroundColor: style.accent } : undefined
@@ -2390,9 +2342,7 @@ function StoreLayoutInner() {
                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                       </svg>}
                       {reservationState.loading
-                        ? (isTableOrder ? "Enviando pedido..." : "Reservando itens...")
-                        : isTableOrder
-                          ? `Enviar pedido da mesa ${mesa}`
+                        ? "Reservando itens..."
                         : checkoutMode === "reservation"
                           ? "Reservar itens agora"
                           : checkoutMode === "online" ? "Continuar para checkout" : isOrderRequest ? "Enviar solicitação" : "Fechar pedido via WhatsApp"}
@@ -2411,9 +2361,7 @@ function StoreLayoutInner() {
                               : "text-slate-400",
                       )}
                     >
-                      {isTableOrder
-                        ? "Seu pedido vai direto para a equipe. A conta é fechada no caixa."
-                        : checkoutMode === "reservation"
+                      {checkoutMode === "reservation"
                         ? "Reserva de estoque segura. Frete e pagamento serão definidos com a loja."
                         : checkoutMode === "online" ? "Informe entrega e pagamento para enviar o pedido à loja." : isOrderRequest ? "Não reservamos nem baixamos estoque: a fábrica confirma produção e prazo após receber sua solicitação." : "Você revisa tudo com a equipe antes de confirmar o pedido."}
                     </p>
@@ -2430,8 +2378,17 @@ function StoreLayoutInner() {
           )}
         </AnimatePresence>
 
+        {templateId === "adega" && <Suspense fallback={null}><AdegaCart
+          isOpen={isCartOpen}
+          checkout={cartCheckoutForm}
+          onCheckout={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" || isOrderRequest ? openCheckout : handleWhatsAppCheckout}
+          busy={reservationState.loading}
+          message={reservationState.message}
+          checkoutMessage={checkoutMessage}
+        /></Suspense>}
+
         {/* Mobile floating cart */}
-        {cart.length > 0 && !isCartOpen && (
+        {cart.length > 0 && !isCartOpen && templateId !== "adega" && (
           <motion.div
             initial={{ y: 100 }}
             animate={{ y: 0 }}

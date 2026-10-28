@@ -258,7 +258,7 @@ export const segmentThemes = {
     name: "Adega Noturna",
     group: "Sabores & Presentes",
     tag: "Adegas, Bebidas & Conveniência",
-    desc: "Adega noturna em preto e dourado, com cardápio denso, cartões de bebida gelada e pedido rápido pelo WhatsApp.",
+    desc: "Adega em tons escuros e dourado, com campanhas em tela cheia, carrossel de produtos e sacola exclusiva para brindar do seu jeito.",
     accent: "#d9a62e",
     bg: "#0b0b0c",
     ink: "#f4ecd8",

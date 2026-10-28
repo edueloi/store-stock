@@ -172,8 +172,12 @@ export function hoursLines(hours?: Record<string, { open: string; close: string;
     .map(([k, v]) => ({ day: DAYS[k.toLowerCase()]?.[1] || k, text: v.closed ? "Fechado" : `${v.open} às ${v.close}` }));
 }
 
-export const whatsappLink = (n?: string, text?: string) =>
-  n ? `https://wa.me/${n.replace(/\D/g, "")}${text ? `?text=${encodeURIComponent(text)}` : ""}` : "";
+export const whatsappLink = (n?: string, text?: string) => {
+  let digits = (n || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
+  return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+};
 
 /** Chips decorativos usados apenas quando a loja ainda não tem categorias com produtos. */
 export const FALLBACK_CHIPS = ["Cervejas", "Destilados", "Vinhos", "Refrigerantes", "Gelo", "Carvão", "Conveniência"];

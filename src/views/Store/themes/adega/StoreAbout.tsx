@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import { Clock, MapPin, MessageCircle, Truck, Wine } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { hoursLines, productImage, useKit, whatsappLink } from "./kit";
+import { hoursLines, useKit, whatsappLink } from "./kit";
+import { ADEGA_WINE } from "./Hero";
 import "./styles.css";
 
 export default function StoreAbout() {
@@ -9,7 +10,7 @@ export default function StoreAbout() {
   const hours = hoursLines(tenant.business_hours);
   const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
   const about = tenant.about_text || `${tenant.name} é a adega do bairro: bebida gelada, gelo, carvão e conveniência para a sua noite.`;
-  const photo = tenant.banner_url || productImage(active.find((p) => p.is_featured) || active[0]);
+  const photo = tenant.banner_url || sf.hero_slides?.[0]?.image || ADEGA_WINE;
   const policies = tenant.policies;
   const showAddress = tenant.show_address && tenant.address;
   const mapUrl = showAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tenant.address || "")}` : "";

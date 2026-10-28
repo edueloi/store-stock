@@ -1,6 +1,7 @@
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { useCatalog } from "./kit";
 import { Empty, ProductCard, SearchField } from "./parts";
+import { ADEGA_HERO } from "./Hero";
 import "./styles.css";
 
 export default function StoreCatalog() {
@@ -12,10 +13,13 @@ export default function StoreCatalog() {
   return (
     <div className="adg-page">
       <StoreSEO title={`${current ? `${current.name} | ` : ""}${title} | ${tenant.name}`} description={desc} image={tenant.banner_url || tenant.logo_url} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
-      <header className="adg-wrap adg-cat-hero">
+      <header className="adg-cat-banner">
+        <img src={tenant.banner_url || sf.hero_slides?.[0]?.image || ADEGA_HERO} alt="" />
+        <div className="adg-wrap adg-cat-hero">
         <span className="adg-kicker">Cardápio</span>
         <h1>{current ? current.name : title}</h1>
         <p>{desc}</p>
+        </div>
       </header>
       <div className="adg-wrap">
         <div className="adg-filter">
