@@ -569,3 +569,70 @@ export async function listNfse(req: Request, res: Response) {
     res.status(500).json({ error: "Failed to list NFS-e invoices" });
   }
 }
+
+const semAcento = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+async function getJson(url: string): Promise<any | null> {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json" } });
+    return r.ok ? await r.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+// Descobre o código IBGE (7 dígitos) do município: pelo CNPJ (BrasilAPI → dados da Receita) ou,
+// se não der, pelo nome da cidade + UF (lista de municípios do IBGE). Sem parâmetros usa o
+// CNPJ e o endereço já cadastrados na loja.
+export async function lookupMunicipio(req: Request, res: Response) {
+  try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: getTenantId(req) },
+      select: { document: true, address_city: true, address_state: true },
+    });
+    const cnpj = String(req.query.cnpj ?? tenant?.document ?? "").replace(/\D/g, "");
+    let cidade = String(req.query.cidade ?? "").trim();
+    let uf = String(req.query.uf ?? "").trim().toUpperCase();
+    const busca = Boolean(cidade || uf);
+
+    if (!busca && cnpj.length === 14) {
+      const emp = await getJson(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+      const code = String(emp?.codigo_municipio_ibge ?? "").replace(/\D/g, "");
+      if (code.length === 7) {
+        res.json({ codigo: code, municipio: emp.municipio ?? null, uf: emp.uf ?? null, origem: "cnpj" });
+        return;
+      }
+      cidade = String(emp?.municipio ?? "");
+      uf = String(emp?.uf ?? "");
+    }
+    if (!cidade) cidade = String(tenant?.address_city ?? "");
+    if (!uf) uf = String(tenant?.address_state ?? "").toUpperCase();
+
+    if (!cidade || uf.length !== 2) {
+      res.status(404).json({ error: "Não consegui descobrir o município. Informe a cidade e a UF para buscar." });
+      return;
+    }
+    const lista = await getJson(`https://brasilapi.com.br/api/ibge/municipios/v1/${uf}?providers=dados-abertos-br,gov,wikipedia`);
+    if (!Array.isArray(lista)) {
+      res.status(502).json({ error: "Serviço de consulta de municípios indisponível agora. Tente de novo em instantes." });
+      return;
+    }
+    const alvo = semAcento(cidade);
+    const matches = lista
+      .map((m: any) => ({ nome: String(m.nome), codigo: String(m.codigo_ibge).replace(/\D/g, "").padStart(7, "0").slice(0, 7) }))
+      .filter((m: { nome: string }) => semAcento(m.nome) === alvo || (busca && semAcento(m.nome).includes(alvo)));
+    if (matches.length === 0) {
+      res.status(404).json({ error: `Município "${cidade}/${uf}" não encontrado.` });
+      return;
+    }
+    const exato = matches.find((m: { nome: string }) => semAcento(m.nome) === alvo);
+    if (exato && !busca) {
+      res.json({ codigo: exato.codigo, municipio: exato.nome, uf, origem: "cidade" });
+      return;
+    }
+    res.json({ matches: matches.slice(0, 10).map((m: { nome: string; codigo: string }) => ({ ...m, uf })), origem: "busca" });
+  } catch (err) {
+    console.error("[lookupMunicipio]", err);
+    res.status(500).json({ error: "Falha ao consultar o município" });
+  }
+}

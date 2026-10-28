@@ -13,6 +13,7 @@ import {
   listNfse,
   sendNfseWhatsapp,
   sendNfseEmail,
+  lookupMunicipio,
 } from "../controllers/nfse.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -21,6 +22,7 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get("/", listNfse);
+router.get("/municipio", lookupMunicipio);
 router.post("/test", testNfseEmission);
 router.post("/avulsa", emitNfseAvulsa);
 router.get("/:serviceOrderId", getNfseByServiceOrder);

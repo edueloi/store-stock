@@ -217,6 +217,7 @@ function TextInput({
   className = "",
   autoComplete = "off",
   name,
+  readOnly = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -226,9 +227,11 @@ function TextInput({
   className?: string;
   autoComplete?: string;
   name?: string;
+  readOnly?: boolean;
 }) {
   return (
     <Input
+      readOnly={readOnly}
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -240,7 +243,7 @@ function TextInput({
       spellCheck={false}
       data-lpignore="true"
       data-1p-ignore="true"
-      className={cn(mono && "font-mono", className)}
+      className={cn(mono && "font-mono", readOnly && "bg-slate-50 text-slate-500 cursor-not-allowed", className)}
     />
   );
 }
@@ -1224,6 +1227,12 @@ export default function Settings({
   const [certFile, setCertFile] = useState<File | null>(null);
   const certInputRef = useRef<HTMLInputElement>(null);
   const [testingNfse, setTestingNfse] = useState(false);
+  const [numberingEdit, setNumberingEdit] = useState(false);
+  const [ibgeLoading, setIbgeLoading] = useState(false);
+  const [ibgeMsg, setIbgeMsg] = useState<string | null>(null);
+  const [ibgeCity, setIbgeCity] = useState("");
+  const [ibgeUf, setIbgeUf] = useState("");
+  const [ibgeMatches, setIbgeMatches] = useState<{ nome: string; codigo: string; uf: string }[]>([]);
   const [nfseTestResult, setNfseTestResult] = useState<{
     success: boolean;
     status?: string;
@@ -1636,6 +1645,33 @@ export default function Settings({
       );
     } finally {
       setGatewaySaving(null);
+    }
+  };
+
+  // Descobre o código IBGE: sem parâmetros usa o CNPJ da loja; com cidade/UF faz a busca manual.
+  const handleLookupIbge = async (manual = false) => {
+    setIbgeLoading(true);
+    setIbgeMsg(null);
+    setIbgeMatches([]);
+    try {
+      const qs = manual ? `?cidade=${encodeURIComponent(ibgeCity)}&uf=${encodeURIComponent(ibgeUf)}` : "";
+      const res = await fetch(`/api/nfse/municipio${qs}`, { headers: API_HEADERS() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setIbgeMsg(data?.error || "Não foi possível descobrir o município.");
+        return;
+      }
+      if (data.codigo) {
+        setT({ nfse_codigo_municipio: String(data.codigo) });
+        setIbgeMsg(`Preenchido: ${data.municipio ?? ""}${data.uf ? "/" + data.uf : ""} — ${data.codigo}. Confira e salve.`);
+      } else if (Array.isArray(data.matches)) {
+        setIbgeMatches(data.matches);
+        setIbgeMsg("Escolha o município:");
+      }
+    } catch {
+      setIbgeMsg("Erro de conexão ao consultar o município.");
+    } finally {
+      setIbgeLoading(false);
     }
   };
 
@@ -2907,7 +2943,17 @@ export default function Settings({
                       </Select>
                     </Field>
                     <div />
-                    <Field label="Série">
+                    <div className="md:col-span-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setNumberingEdit((v) => !v)}
+                        className="text-[11px] text-slate-400 hover:text-slate-600 hover:underline"
+                      >
+                        {numberingEdit ? "Ocultar numeração" : "Numeração das notas (avançado)"}
+                      </button>
+                    </div>
+                    {numberingEdit && (
+<Field label="Série">
                       <TextInput
                         value={String(tenant?.nfce_series ?? 1)}
                         onChange={(v) =>
@@ -2918,9 +2964,11 @@ export default function Settings({
                         mono
                       />
                     </Field>
-                    <Field
+)}
+                    {numberingEdit && (
+<Field
                       label="Próximo Número"
-                      hint="Numeração sequencial da NFC-e"
+                      hint="Numeração sequencial da NFC-e — o sistema incrementa a cada nota"
                     >
                       <TextInput
                         value={String(tenant?.nfce_next_number ?? 1)}
@@ -2932,6 +2980,7 @@ export default function Settings({
                         mono
                       />
                     </Field>
+)}
                     <Field label="CSC ID">
                       <TextInput
                         value={tenant?.nfce_csc_id ?? ""}
@@ -3000,6 +3049,57 @@ export default function Settings({
                         }
                         mono
                       />
+                      <div className="mt-2 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => handleLookupIbge(false)}
+                          disabled={ibgeLoading}
+                          className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50"
+                        >
+                          {ibgeLoading ? "Buscando…" : "Preencher automaticamente pelo CNPJ da loja"}
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={ibgeCity}
+                            onChange={(e) => setIbgeCity(e.target.value)}
+                            placeholder="Ou digite a cidade"
+                            className="h-8 flex-1 rounded-lg border border-slate-200 px-2 text-xs outline-none focus:border-blue-400"
+                          />
+                          <input
+                            value={ibgeUf}
+                            onChange={(e) => setIbgeUf(e.target.value.toUpperCase().slice(0, 2))}
+                            placeholder="UF"
+                            className="h-8 w-12 rounded-lg border border-slate-200 px-2 text-center text-xs uppercase outline-none focus:border-blue-400"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleLookupIbge(true)}
+                            disabled={ibgeLoading || !ibgeCity.trim() || ibgeUf.length !== 2}
+                            className="h-8 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            Buscar
+                          </button>
+                        </div>
+                        {ibgeMsg && <p className="text-xs text-slate-600">{ibgeMsg}</p>}
+                        {ibgeMatches.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5">
+                            {ibgeMatches.map((m) => (
+                              <button
+                                key={m.codigo}
+                                type="button"
+                                onClick={() => {
+                                  setT({ nfse_codigo_municipio: m.codigo });
+                                  setIbgeMatches([]);
+                                  setIbgeMsg(`Preenchido: ${m.nome}/${m.uf} — ${m.codigo}. Confira e salve.`);
+                                }}
+                                className="rounded-full border border-slate-200 px-3 py-1 text-xs hover:bg-slate-50"
+                              >
+                                {m.nome}/{m.uf} · {m.codigo}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </Field>
                     <Field
                       label="Inscrição Municipal (IM)"
@@ -3011,7 +3111,8 @@ export default function Settings({
                         mono
                       />
                     </Field>
-                    <Field label="Série">
+                    {numberingEdit && (
+<Field label="Série">
                       <TextInput
                         value={String(tenant?.nfse_serie ?? 1)}
                         onChange={(v) =>
@@ -3022,7 +3123,9 @@ export default function Settings({
                         mono
                       />
                     </Field>
-                    <Field
+)}
+                    {numberingEdit && (
+<Field
                       label="Próximo Número"
                       hint="Numeração sequencial da DPS/NFS-e"
                     >
@@ -3036,6 +3139,7 @@ export default function Settings({
                         mono
                       />
                     </Field>
+)}
                   </div>
 
                   <div className="flex items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">

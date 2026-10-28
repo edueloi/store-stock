@@ -25,12 +25,18 @@ export interface BuildDpsInput {
   descricaoServico: string;
   valorServico: number;
   tomador?: TomadorInput | null;
+  // Ambiente efetivo da emissão (o teste força homologação mesmo com a loja em produção).
+  environment?: "homologacao" | "producao";
 }
 
 export interface BuildDpsResult {
   idDPS: string;
   xml: string; // XML não assinado, pronto para assinatura
 }
+
+// NT SE/CGNFS-e 009 v1.01: a homologação já valida o leiaute novo (campo finNFSe obrigatório em
+// infDPS); a produção só vira a chave em 03/11/2026 — antes disso o XSD antigo rejeitaria o campo.
+const NT009_PRODUCAO_DESDE = Date.parse("2026-11-03T00:00:00-03:00");
 
 function onlyDigits(v: string | null | undefined): string {
   return (v ?? "").replace(/\D/g, "");
@@ -93,13 +99,16 @@ export function buildDpsXml(input: BuildDpsInput): BuildDpsResult {
   const doc = create({ version: "1.0", encoding: "UTF-8" }).ele("DPS", { xmlns: "http://www.sped.fazenda.gov.br/nfse", versao: "1.00" });
   const infDPS = doc.ele("infDPS", { Id: idDPS });
 
-  infDPS.ele("tpAmb").txt(tenant.nfse_environment === "producao" ? "1" : "2");
+  const ambiente = input.environment ?? (tenant.nfse_environment === "producao" ? "producao" : "homologacao");
+  infDPS.ele("tpAmb").txt(ambiente === "producao" ? "1" : "2");
   infDPS.ele("dhEmi").txt(dhEmi);
   infDPS.ele("verAplic").txt("1.0.0");
   infDPS.ele("serie").txt(String(serie).padStart(5, "0"));
   infDPS.ele("nDPS").txt(String(numero));
   infDPS.ele("dCompet").txt(dCompet);
   infDPS.ele("tpEmit").txt("1"); // 1 = prestador do serviço
+  // finNFSe: finalidade da NFS-e (0 = NFS-e regular). Fica entre tpEmit e cLocEmi no leiaute novo.
+  if (ambiente === "homologacao" || Date.now() >= NT009_PRODUCAO_DESDE) infDPS.ele("finNFSe").txt("0");
   infDPS.ele("cLocEmi").txt(onlyDigits(tenant.nfse_codigo_municipio));
 
   const prest = infDPS.ele("prest");

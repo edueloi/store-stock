@@ -5,6 +5,7 @@ import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
 import { buildDpsXml, type TomadorInput } from "./dpsXmlBuilder";
+import { explicarErroNfse } from "./errorMessages";
 import { loadPfx, assinarDPS } from "../nfce/signer";
 import { callNfseRest, gzipBase64, ungzipBase64, type NfseEnvironment } from "./restClient";
 import { consultarAliquotaServico } from "./parametrosMunicipais";
@@ -103,6 +104,7 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
       descricaoServico,
       valorServico,
       tomador,
+      environment,
     });
 
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);
@@ -157,7 +159,7 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
       // validação de negócio — não faz sentido jogar HTML bruto pro usuário.
       const isInfraFailure = !codigo && !result.error && result.raw && /<html/i.test(result.raw);
       const rejectionReason = codigo
-        ? [descricao, complemento].filter(Boolean).join(" — ")
+        ? explicarErroNfse(descricao, complemento)
         : isInfraFailure
           ? `O servidor do Sistema Nacional NFS-e recusou a conexão (HTTP ${result.statusCode}), sem detalhar o motivo. ` +
             "Causas mais comuns: o CNPJ/CPF do certificado ainda não foi credenciado no Sistema Nacional NFS-e " +
