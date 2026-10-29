@@ -66,7 +66,7 @@ export default function DigitalMenu() {
   if (rest[0] === "mesa") { route = "mesa"; mesa = decodeURIComponent(rest[1] || "").trim().slice(0, 20); }
   else if (rest[0] === "balcao" || query.get("balcao") !== null) route = "balcao";
   else if ((query.get("mesa") || "").trim()) { route = "mesa"; mesa = (query.get("mesa") || "").trim().slice(0, 20); }
-  const wide = desktop && route !== "mesa";
+  const wide = desktop && route === "delivery"; // sacola fixa ao lado só na entrega; balcão/mesa abrem a sacola em gaveta/folha
 
   // ---- entrada (boas-vindas de mesa/balcão) ----
   const gateKey = `menu_gate_${tid}_${route}_${mesa}`;
@@ -313,7 +313,8 @@ export default function DigitalMenu() {
     route, mode, mesa, gate, cfg, accepts, cart, subtotal, fee, total, baseFee, quote, minOrder, freeAbove, hoods, payAllowed,
     receiveNow, setReceive, form, setForm, pay, setPay, changeFor, setChangeFor, error, sending,
     canSubmit: cart.length > 0 && !sending,
-    submit, done, resetDone: () => setDone(null), changeQty,
+    submit, done, changeQty,
+    resetDone: () => { setDone(null); if (route === "balcao") { try { sessionStorage.removeItem(gateKey); } catch { /* ok */ } setGate(null); setPanel(null); } },
   };
 
   return (
@@ -368,7 +369,7 @@ export default function DigitalMenu() {
       {panel === "info" && <InfoPanel tenant={tenant} cfg={cfg} route={route} accepts={accepts} onClose={() => setPanel(null)} />}
       {panel === "orders" && <OrdersPanel orders={orders} onClose={() => setPanel(null)} />}
       {panel === "bag" && !wide && (
-        <Sheet label="Sacola" className="mnu-checkout-sheet" locked={sending} onClose={() => { setPanel(null); setDone(null); }}>
+        <Sheet label="Sacola" className="mnu-checkout-sheet" drawer locked={sending} onClose={() => { setPanel(null); setDone(null); }}>
           <Bag ctx={bagCtx} onClose={() => setPanel(null)} />
         </Sheet>
       )}

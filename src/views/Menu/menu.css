@@ -150,6 +150,10 @@
 /* Modais com corpo rolável e ações sempre disponíveis. */
 .mnu-overlay { position:fixed; inset:0; z-index:90; background:#14213166; backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; padding:24px; }
 .mnu-sheet { display:flex; flex-direction:column; width:100%; max-width:510px; max-height:calc(100dvh - 48px); background:#fff; color:var(--mnu-ink); border-radius:17px; overflow:hidden; box-shadow:0 25px 100px #11182726; outline:none; animation:mnu-appear .18s ease-out; }
+.mnu-bag-foot { display:grid; gap:8px; }
+.mnu-more { display:flex; align-items:center; justify-content:center; gap:7px; min-height:44px; }
+@keyframes mnu-fade { from { opacity:0; } to { opacity:1; } }
+@keyframes mnu-drawer { from { transform:translateX(100%); } to { transform:none; } }
 @keyframes mnu-appear { from { transform:translateY(10px); opacity:.5; } to { transform:none; opacity:1; } }
 .mnu-sheet-top { position:relative; flex:none; }
 .mnu-sheet-img { height:200px; background:#f5f6f8; overflow:hidden; }
@@ -246,25 +250,31 @@
 .mnu-gate.mnu-mesa { background:#fff; }
 .mnu-gate.mnu-mesa .mnu-gate-card { background:#fbfafb; border-color:#e7e2e5; box-shadow:none; border-radius:3px 3px 18px 18px; border-top:3px solid var(--mnu-accent); }
 @media (min-width:900px) {
- .mnu-app.mnu-balcao { display:grid; grid-template-columns:225px minmax(0,1fr); align-items:start; }
+ .mnu-app.mnu-balcao { display:grid; grid-template-columns:272px minmax(0,1fr); align-items:start; }
  .mnu-balcao > .mnu-hero { display:none; }
- .mnu-balcao > .mnu-side { display:flex; flex-direction:column; gap:21px; position:sticky; top:0; height:100dvh; padding:28px 18px 23px; background:#fff; border-right:1px solid var(--mnu-line); overflow-y:auto; scrollbar-width:thin; }
+ .mnu-balcao > .mnu-side { display:flex; flex-direction:column; gap:21px; position:sticky; top:0; height:100dvh; padding:30px 20px 24px; background:#fff; border-right:1px solid var(--mnu-line); overflow-y:auto; scrollbar-width:thin; }
  .mnu-side-brand { display:flex; flex-direction:column; gap:17px; align-items:flex-start; }
  .mnu-side .mnu-logo { width:44px; height:44px; font-size:21px; border-radius:11px; }
- .mnu-side-brand h1 { margin:7px 0 0; font-size:18px; line-height:1.4; font-weight:600; }
- .mnu-nav-label { color:#acb2bd; font-size:9px; letter-spacing:.04em; margin-top:18px; }
+ .mnu-side-brand h1 { margin:7px 0 0; font-size:21px; line-height:1.4; font-weight:600; }
+ .mnu-nav-label { color:#9aa3b0; font-size:11px; letter-spacing:.04em; margin-top:18px; }
  .mnu-side-nav { display:grid; gap:5px; }
- .mnu-nav { display:flex; align-items:center; gap:10px; width:100%; min-height:45px; background:transparent; border:0; border-radius:8px; padding:11px; color:#8a95a4 !important; font-size:11px; font-weight:500; text-align:left; }
+ .mnu-nav { display:flex; align-items:center; gap:10px; width:100%; min-height:48px; background:transparent; border:0; border-radius:9px; padding:11px 13px; color:#667386 !important; font-size:13.5px; font-weight:500; text-align:left; }
  .mnu-nav .lb { min-width:0; flex:1; line-height:1.6; }
- .mnu-nav .n { color:#a6aeb8; font-size:9px; }
+ .mnu-nav .n { color:#8f99a6; font-size:11px; }
  .mnu-nav.is-on { background:#eff2f6; color:var(--mnu-accent) !important; }
  .mnu-nav:hover { background:#f5f7f9; }
  .mnu-side-foot { margin-top:auto; display:grid; gap:7px; padding-top:40px; }
- .mnu-side-foot > div { display:flex; align-items:flex-start; gap:9px; padding:14px 7px; margin-bottom:12px; border-bottom:1px solid var(--mnu-line); font-size:10px; color:#7c899b; }
- .mnu-side-foot small { display:block; margin-top:7px; font-size:8px; color:#a3adba; line-height:1.8; }
- .mnu-side-foot > button { display:flex; align-items:center; gap:9px; width:100%; min-height:39px; border:0; border-radius:7px; padding:9px 7px; background:transparent; color:#8591a0; font-size:10px; text-align:left; }
+ .mnu-side-foot > div { display:flex; align-items:flex-start; gap:9px; padding:14px 7px; margin-bottom:12px; border-bottom:1px solid var(--mnu-line); font-size:12.5px; color:#667386; }
+ .mnu-side-foot small { display:block; margin-top:7px; font-size:10.5px; color:#a3adba; line-height:1.8; }
+ .mnu-side-foot > button { display:flex; align-items:center; gap:9px; width:100%; min-height:44px; border:0; border-radius:8px; padding:9px 10px; background:transparent; color:#667386; font-size:12.5px; text-align:left; }
  .mnu-side-foot > button:hover { background:#f5f7f9; }
  .mnu-balcao .mnu-bar { display:none; }
+ /* Balcão em tablet/notebook: sacola numa gaveta à direita, aberta pelo botão do topo. */
+ .mnu-balcao > .mnu-bagbar { display:none; }
+ .mnu-balcao .mnu-top-bag { min-height:48px; padding:10px 18px; font-size:13px; border-radius:10px; box-shadow:0 6px 18px #1118272e; }
+ .mnu-balcao .mnu-top-bag b { font-weight:700; }
+ .mnu-overlay.is-drawer { justify-content:flex-end; align-items:stretch; padding:0; background:#0f172a59; animation:mnu-fade .2s ease-out; }
+ .mnu-overlay.is-drawer .mnu-sheet { max-width:440px; height:100dvh; max-height:none; border-radius:0; box-shadow:-18px 0 60px #0f172a2e; animation:mnu-drawer .26s cubic-bezier(.2,.8,.2,1); }
  .mnu-balcao .mnu-section { scroll-margin-top:100px; }
 }
 @media (min-width:1200px) {

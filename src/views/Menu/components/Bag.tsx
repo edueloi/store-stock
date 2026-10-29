@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Phone, ShoppingBag, Store, User, UtensilsCrossed } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Phone, Plus, ShoppingBag, Store, User, UtensilsCrossed } from "lucide-react";
 import type { CartLine, MenuConfig, OrderMode, PayMethod, Receive, Route } from "../menuTypes";
 import { maskMoney, maskPhone, money } from "../menuTypes";
 import { Qty, SheetHead } from "./parts";
@@ -55,7 +55,7 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
         <h3>{ctx.done.title}</h3>
         <p>{ctx.done.text}</p>
         {ctx.done.wa && <a className="mnu-btn" href={ctx.done.wa} target="_blank" rel="noreferrer"><Phone size={16} />Falar com a loja</a>}
-        <button type="button" className="mnu-btn is-ghost" onClick={() => { ctx.resetDone(); onClose?.(); }}>{inline ? "Fazer novo pedido" : "Voltar ao cardápio"}</button>
+        <button type="button" className="mnu-btn is-ghost" onClick={() => { ctx.resetDone(); onClose?.(); }}>{route === "balcao" ? "Concluir — próximo cliente" : inline ? "Fazer novo pedido" : "Voltar ao cardápio"}</button>
       </div>
     );
   }
@@ -169,6 +169,7 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
       </div>
 
       {ctx.cart.length > 0 && <div className="mnu-foot mnu-bag-foot">
+        {!inline && onClose && !(route === "delivery" && details) && <button type="button" className="mnu-btn is-ghost mnu-more" onClick={onClose}><Plus size={16} />Adicionar mais itens</button>}
         <button type="button" className="mnu-cta" disabled={!ctx.canSubmit} onClick={route === "delivery" && !details ? () => setDetails(true) : ctx.submit}>
           <span>{ctx.sending ? "Enviando…" : route === "delivery" && !details ? "Continuar pedido" : mode === "mesa" ? `Enviar para a mesa ${ctx.mesa}` : mode === "balcao" ? "Confirmar no balcão" : mode === "delivery" ? "Confirmar entrega" : "Confirmar retirada"}</span><ArrowRight size={17} />
         </button>

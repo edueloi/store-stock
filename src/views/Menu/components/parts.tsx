@@ -24,7 +24,8 @@ export function StatusChips({ status, route, mesa }: { status: { open: boolean; 
 }
 
 /** Folha (modal) padrão: sobe do rodapé no celular e centraliza no tablet/computador. */
-export function Sheet({ children, label, onClose, locked, className = "" }: { children: ReactNode; label: string; onClose: () => void; locked?: boolean; className?: string }) {
+/** `drawer`: em telas largas vira uma gaveta à direita (a página fica esmaecida atrás); no celular continua folha de baixo. */
+export function Sheet({ children, label, onClose, locked, className = "", drawer }: { children: ReactNode; label: string; onClose: () => void; locked?: boolean; className?: string; drawer?: boolean }) {
   const dialog = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   const busy = useRef(locked);
@@ -48,7 +49,7 @@ export function Sheet({ children, label, onClose, locked, className = "" }: { ch
     return () => { document.body.style.overflow = bodyOverflow; document.removeEventListener("keydown", key); previous?.focus(); };
   }, []);
   return (
-    <div className="mnu-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && !locked) onClose(); }}>
+    <div className={`mnu-overlay${drawer ? " is-drawer" : ""}`} onMouseDown={(e) => { if (e.target === e.currentTarget && !locked) onClose(); }}>
       <div ref={dialog} className={`mnu-sheet ${className}`} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>{children}</div>
     </div>
   );
