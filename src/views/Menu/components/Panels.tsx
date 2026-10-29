@@ -97,7 +97,7 @@ function CounterGate({ tenant, onEnter, style }: { tenant: MenuTenant; style?: C
   return (
     <div className="mnu mnu-gate mnu-balcao mnu-gate-dark" style={style}>
       <form className="mnu-gate-card mnu-gate-compact" onSubmit={(e) => { e.preventDefault(); if (step === "phone") void check(); else register(); }}>
-        <div className="mnu-gate-brand"><Logo tenant={tenant} /><strong>{tenant.name}</strong></div>
+        <div className="mnu-gate-id"><Logo tenant={tenant} size={76} /><strong>{tenant.name}</strong></div>
         {step === "phone" ? (
           <>
             <div><h2>Qual o seu WhatsApp?</h2><p>Se você já é cliente, é só isso. A retirada é no balcão.</p></div>
