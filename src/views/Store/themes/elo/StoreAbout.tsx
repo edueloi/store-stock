@@ -1,0 +1,17 @@
+import { Link } from "react-router-dom";
+import { ArrowUpRight, Clock3, Heart, MapPin, MessageCircle, Shirt } from "lucide-react";
+import StoreSEO from "../../../../components/store/StoreSEO";
+import { hoursLines, useKit, whatsappLink } from "./kit";
+import { ELO_EDITORIAL } from "./Hero";
+import "./styles.css";
+
+export default function StoreAbout() {
+  const { tenant, sf, path } = useKit();
+  const title = sf.about_title || "Mais do que vestir.\nUm jeito de ser.";
+  const about = tenant.about_text || "A nossa história começa com um olhar atento aos detalhes. Às peças que fazem você se sentir bem, às combinações que surgem naturalmente e ao estilo que acompanha a vida real. Acreditamos que a melhor escolha é aquela que tem a sua essência.";
+  const photo = tenant.banner_url || sf.hero_slides?.[1]?.image || sf.hero_slides?.[0]?.image || ELO_EDITORIAL;
+  const wa = whatsappLink(tenant.whatsapp, `Olá! Gostaria de conhecer melhor a ${tenant.name}.`);
+  const hours = hoursLines(tenant.business_hours);
+  const address = tenant.show_address && tenant.address;
+  return <div className="els-page"><StoreSEO title={`${sf.about_title || "A marca"} | ${tenant.name}`} description={about} image={photo} siteName={tenant.name} url={typeof window !== "undefined" ? window.location.href : ""} /><section className="els-wrap els-about-hero"><div><span className="els-kicker">Muito prazer, {tenant.name}</span><h1>{title}</h1><p className="els-pre">{about}</p><Link className="els-btn" to={path("/catalogo")}>Encontre suas próximas escolhas <ArrowUpRight size={16} /></Link></div><div className="els-about-photo"><img src={photo} alt={`Inspiração da ${tenant.name}`} /><span>O seu jeito faz a diferença.</span></div></section><section className="els-wrap els-section"><div className="els-about-values"><div><span className="els-kicker">O que nos inspira</span><h2>Uma forma leve<br />de estar no mundo.</h2></div><article><Shirt size={25} strokeWidth={1} /><h3>Possibilidades de vestir</h3><p>Peças para encontrar novas combinações e acompanhar diferentes momentos.</p></article><article><Heart size={25} strokeWidth={1} /><h3>Proximidade em cada escolha</h3><p>Uma conversa com a equipe pode ajudar você a encontrar o que procura.</p></article></div></section><section className="els-wrap els-section els-about-info">{(wa || address || hours.length > 0) && <article><span className="els-kicker">Estamos por perto</span><h2>Vamos nos encontrar?</h2>{address && <p><MapPin size={16} />{tenant.address}</p>}{address && <a className="els-text-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(tenant.address || "")}`} target="_blank" rel="noreferrer">Ver no mapa <ArrowUpRight size={14} /></a>}{wa && <a className="els-text-link" href={wa} target="_blank" rel="noreferrer"><MessageCircle size={15} />{tenant.whatsapp}</a>}{hours.map((hour) => <p key={hour.day}><Clock3 size={14} />{hour.day}: {hour.text}</p>)}</article>}{(tenant.policies?.shipping || tenant.policies?.returns || tenant.policies?.exchange) && <article><span className="els-kicker">Para escolher com tranquilidade</span><h2>Informações da loja</h2>{tenant.policies.shipping && <div><h3>Entrega</h3><p className="els-pre">{tenant.policies.shipping}</p></div>}{tenant.policies.returns && <div><h3>Trocas e devoluções</h3><p className="els-pre">{tenant.policies.returns}</p></div>}{tenant.policies.exchange && <div><h3>Política de troca</h3><p className="els-pre">{tenant.policies.exchange}</p></div>}</article>}</section></div>;
+}

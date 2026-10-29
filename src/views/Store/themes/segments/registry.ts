@@ -16,6 +16,23 @@ export const segmentThemes = {
     featured: "No radar",
     cart: "Sua sacola",
   },
+  elo: {
+    name: "Élo Studio",
+    group: "Moda",
+    tag: "Moda Delicada & Contemporânea",
+    desc: "Boutique em branco e rosa suave, com campanha em tela cheia, coleções visuais, carrossel de peças e sacola editorial exclusiva.",
+    accent: "#8a626d",
+    bg: "#fcfcfb",
+    ink: "#38383c",
+    surface: "#ffffff",
+    layout: "editorial",
+    hero: "Vista a leveza. Sinta-se você.",
+    sub: "Peças que acompanham seus dias, com delicadeza nos detalhes e espaço para seu jeito de ser.",
+    catalog: "Encontre o seu próximo favorito.",
+    categories: "Seu estilo, em cada detalhe.",
+    featured: "Seus próximos favoritos.",
+    cart: "Sua sacola",
+  },
   agro: {
     name: "Fazenda Forte",
     group: "Agro & Pet",
@@ -311,6 +328,7 @@ export const isSegment = (id: string): id is SegmentId =>
   Object.prototype.hasOwnProperty.call(segmentThemes, id);
 export const addedSegmentIds: SegmentId[] = [
   "stride",
+  "elo",
   "agro",
   "feed",
   "garden",
