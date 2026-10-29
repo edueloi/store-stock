@@ -527,7 +527,10 @@ export async function createTableOrder(req: Request, res: Response) {
 type MenuSettings = {
   accepts?: { mesa?: boolean; balcao?: boolean; delivery?: boolean; pickup?: boolean };
   delivery?: {
-    fee_mode?: "fixed" | "neighborhood";
+    fee_mode?: "fixed" | "neighborhood" | "distance";
+    // modo "distance": taxa por faixa de km (em linha reta) do CEP da loja até o CEP do cliente
+    origin_cep?: string;
+    tiers?: Array<{ km?: number; fee?: number }>;
     fixed_fee?: number;
     free_above?: number;
     min_order?: number;
@@ -540,6 +543,97 @@ type MenuSettings = {
 
 function menuSettings(tenant: { policies: unknown }): MenuSettings {
   return ((tenant.policies as Record<string, unknown> | null)?.menu || {}) as MenuSettings;
+}
+
+// ───────── Entrega por distância (CEP → coordenadas → km em linha reta) ─────────
+type CepInfo = { cep: string; street: string; district: string; city: string; state: string; geo: { lat: number; lng: number } | null };
+const cepCache = new Map<string, { at: number; info: CepInfo | null }>();
+
+async function getJsonTimeout(url: string, headers?: Record<string, string>): Promise<any | null> {
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json", ...(headers || {}) } });
+    return r.ok ? await r.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function geocodeByText(text: string): Promise<{ lat: number; lng: number } | null> {
+  const data = await getJsonTimeout(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&countrycodes=br&format=json&limit=1`,
+    { "User-Agent": "BoxSysMenu/1.0 (contato@boxsys.com.br)" },
+  );
+  const hit = Array.isArray(data) ? data[0] : null;
+  const lat = Number(hit?.lat), lng = Number(hit?.lon);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+/** Endereço + coordenadas de um CEP (BrasilAPI → ViaCEP/Nominatim como reserva). Cache de 24h. */
+async function lookupCep(raw: unknown): Promise<CepInfo | null> {
+  const cep = digits(raw);
+  if (cep.length !== 8) return null;
+  const cached = cepCache.get(cep);
+  if (cached && Date.now() - cached.at < 24 * 3600_000) return cached.info;
+
+  let info: CepInfo | null = null;
+  const br = await getJsonTimeout(`https://brasilapi.com.br/api/cep/v2/${cep}`);
+  if (br?.cep) {
+    const lat = Number(br.location?.coordinates?.latitude), lng = Number(br.location?.coordinates?.longitude);
+    info = {
+      cep, street: String(br.street || ""), district: String(br.neighborhood || ""), city: String(br.city || ""), state: String(br.state || ""),
+      geo: Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0) ? { lat, lng } : null,
+    };
+  } else {
+    const via = await getJsonTimeout(`https://viacep.com.br/ws/${cep}/json/`);
+    if (via && !via.erro) info = { cep, street: String(via.logradouro || ""), district: String(via.bairro || ""), city: String(via.localidade || ""), state: String(via.uf || ""), geo: null };
+  }
+  if (info && !info.geo) {
+    info.geo = (await geocodeByText([info.street, info.district, info.city, info.state].filter(Boolean).join(", ")))
+      ?? (await geocodeByText([info.city, info.state].filter(Boolean).join(", ")));
+  }
+  cepCache.set(cep, { at: Date.now(), info });
+  return info;
+}
+
+function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const R = 6371, rad = (d: number) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Taxa por distância: acha a faixa (até X km) do CEP do cliente; fora da maior faixa = não entrega. */
+async function distanceFee(tenant: { address_zip?: string | null }, cfg: MenuSettings, destCep: unknown) {
+  const delivery = cfg.delivery || {};
+  const tiers = (delivery.tiers || []).map((t) => ({ km: Number(t.km), fee: Math.max(0, Number(t.fee) || 0) })).filter((t) => t.km > 0).sort((x, y) => x.km - y.km);
+  if (tiers.length === 0) return { ok: false as const, status: 422, message: "A loja ainda não definiu as faixas de entrega." };
+  const dest = await lookupCep(destCep);
+  if (!dest) return { ok: false as const, status: 422, message: "CEP não encontrado. Confira e tente de novo." };
+  const origin = await lookupCep(delivery.origin_cep || tenant.address_zip);
+  if (!origin?.geo) return { ok: false as const, status: 422, message: "A loja ainda não configurou o CEP de origem da entrega." };
+  if (!dest.geo) return { ok: false as const, status: 422, message: "Não consegui localizar esse CEP no mapa. Tente outro endereço próximo ou fale com a loja." };
+  const km = Math.round(haversineKm(origin.geo, dest.geo) * 10) / 10;
+  const tier = tiers.find((t) => km <= t.km);
+  if (!tier) return { ok: false as const, status: 422, message: `Fora da área de entrega (a ${km.toFixed(1).replace(".", ",")} km; entregamos até ${tiers[tiers.length - 1].km} km).`, dest, km };
+  return { ok: true as const, fee: tier.fee, km, dest };
+}
+
+/** Cálculo da taxa de entrega pelo CEP do cliente (usado pelo cardápio antes de fechar o pedido). */
+export async function quoteMenuDelivery(req: Request, res: Response) {
+  try {
+    const tenant = await prisma.tenant.findUnique({ where: { id: Number(req.body?.tenantId) } });
+    if (!tenant || !getTenantAccessState(tenant).allowed || !tenant.food_enabled) return res.status(404).json({ error: "Loja não encontrada." });
+    const cfg = menuSettings(tenant);
+    if (cfg.delivery?.fee_mode !== "distance") return res.status(400).json({ error: "A entrega desta loja não é calculada por CEP." });
+    const r = await distanceFee(tenant, cfg, req.body?.cep);
+    const dest = (r as { dest?: CepInfo }).dest;
+    const address = dest ? { street: dest.street, district: dest.district, city: dest.city, state: dest.state } : null;
+    if (!r.ok) return res.status(r.status).json({ error: r.message, address, distance_km: (r as { km?: number }).km ?? null });
+    res.json({ available: true, fee: r.fee, distance_km: r.km, address });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Não foi possível calcular a entrega agora." });
+  }
 }
 
 /**
@@ -557,7 +651,7 @@ export async function createMenuOrder(req: Request, res: Response) {
       tenantId: number;
       items: Array<{ product_id: number; quantity: number; note?: string }>;
       customer?: { name?: string; phone?: string };
-      address?: { street?: string; number?: string; district?: string; complement?: string; reference?: string };
+      address?: { cep?: string; street?: string; number?: string; district?: string; complement?: string; reference?: string };
       payment?: { method?: string; change_for?: number };
       note?: string;
     };
@@ -605,10 +699,17 @@ export async function createMenuOrder(req: Request, res: Response) {
       const street = String(address?.street ?? "").trim().slice(0, 120);
       const number = String(address?.number ?? "").trim().slice(0, 20);
       district = String(address?.district ?? "").trim().slice(0, 80);
-      if (!street || !number || !district) return res.status(422).json({ error: "Informe rua, número e bairro para a entrega." });
+      const byDistance = delivery.fee_mode === "distance";
+      if (!street || !number || (!byDistance && !district)) return res.status(422).json({ error: "Informe rua, número e bairro para a entrega." });
+      if (byDistance && digits(address?.cep).length !== 8) return res.status(422).json({ error: "Informe o CEP para calcular a entrega." });
       const minOrder = Math.max(0, Number(delivery.min_order) || 0);
       if (minOrder > 0 && subtotal < minOrder) return res.status(422).json({ error: `Pedido mínimo para entrega: R$ ${minOrder.toFixed(2).replace(".", ",")}.` });
-      if (delivery.fee_mode === "neighborhood") {
+      if (byDistance) {
+        const r = await distanceFee(tenant, cfg, address?.cep);
+        if (!r.ok) return res.status(r.status).json({ error: r.message });
+        fee = r.fee;
+        district = district || r.dest.district;
+      } else if (delivery.fee_mode === "neighborhood") {
         const hood = (delivery.neighborhoods || []).find((n) => String(n.name || "").trim().toLowerCase() === district.toLowerCase());
         if (!hood) return res.status(422).json({ error: "Ainda não entregamos neste bairro." });
         fee = Math.max(0, Number(hood.fee) || 0);
@@ -617,7 +718,7 @@ export async function createMenuOrder(req: Request, res: Response) {
       }
       const freeAbove = Math.max(0, Number(delivery.free_above) || 0);
       if (freeAbove > 0 && subtotal >= freeAbove) fee = 0;
-      addressText = [`${street}, ${number}`, district, String(address?.complement ?? "").trim().slice(0, 80), address?.reference ? `Ref.: ${String(address.reference).trim().slice(0, 100)}` : ""].filter(Boolean).join(" · ");
+      addressText = [`${street}, ${number}`, district, byDistance && address?.cep ? `CEP ${digits(address.cep).replace(/^(\d{5})(\d{3})$/, "$1-$2")}` : "", String(address?.complement ?? "").trim().slice(0, 80), address?.reference ? `Ref.: ${String(address.reference).trim().slice(0, 100)}` : ""].filter(Boolean).join(" · ");
     }
     const total = Math.round((subtotal + fee) * 100) / 100;
     const changeFor = payMethod === "money" && Number(payment?.change_for) > total ? Math.round(Number(payment?.change_for) * 100) / 100 : null;

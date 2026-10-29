@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Bike, Clock, Minus, Plus, ShoppingBag, Trash2, UtensilsCrossed, X } from "lucide-react";
 import type { MenuTenant, Route } from "../menuTypes";
 
@@ -24,10 +24,32 @@ export function StatusChips({ status, route, mesa }: { status: { open: boolean; 
 }
 
 /** Folha (modal) padrão: sobe do rodapé no celular e centraliza no tablet/computador. */
-export function Sheet({ children, label, onClose, locked }: { children: ReactNode; label: string; onClose: () => void; locked?: boolean }) {
+export function Sheet({ children, label, onClose, locked, className = "" }: { children: ReactNode; label: string; onClose: () => void; locked?: boolean; className?: string }) {
+  const dialog = useRef<HTMLDivElement>(null);
+  const close = useRef(onClose);
+  const busy = useRef(locked);
+  close.current = onClose;
+  busy.current = locked;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const bodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    dialog.current?.focus();
+    const key = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy.current) close.current();
+      if (event.key !== "Tab") return;
+      const nodes = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled)') || []).filter((node) => node.getClientRects().length > 0);
+      const first = nodes[0], last = nodes[nodes.length - 1];
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialog.current)) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", key);
+    return () => { document.body.style.overflow = bodyOverflow; document.removeEventListener("keydown", key); previous?.focus(); };
+  }, []);
   return (
     <div className="mnu-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && !locked) onClose(); }}>
-      <div className="mnu-sheet" role="dialog" aria-label={label}>{children}</div>
+      <div ref={dialog} className={`mnu-sheet ${className}`} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}>{children}</div>
     </div>
   );
 }

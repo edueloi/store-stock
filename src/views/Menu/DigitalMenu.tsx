@@ -8,7 +8,7 @@ import type {
 } from "./menuTypes";
 import { catStyle, lstore, money, openStatus, sstore, unitPrice } from "./menuTypes";
 import { Bag, type BagContext, type BagForm } from "./components/Bag";
-import { CategoryTabs, Hero, Sidebar } from "./components/Navigation";
+import { CategoryTabs, Hero, MenuIntro, Sidebar } from "./components/Navigation";
 import { Gate, InfoPanel, OrdersPanel } from "./components/Panels";
 import { FeaturedRail, ProductCard, ProductSheet } from "./components/Products";
 import { Sheet } from "./components/parts";
@@ -25,14 +25,8 @@ const useMedia = (query: string) => {
   return match;
 };
 
-// Cor de destaque do cardápio: a da loja quando é legível (nem muito escura nem sem brilho); senão o dourado padrão.
-const luminance = (hex: string) => { const n = parseInt(hex.slice(1), 16); return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; };
-const pickAccent = (color?: string | null, template?: string | null) => {
-  if (template === "adega") return "#d9a62e";
-  const m = /^#?([0-9a-f]{6})$/i.exec((color || "").trim());
-  return m && luminance(`#${m[1]}`) >= 0.28 ? `#${m[1]}` : "#c9a227";
-};
-const inkFor = (hex: string) => (luminance(hex) > 0.6 ? "#1a1405" : "#ffffff");
+// Os cardápios têm identidade própria, independente do tema da vitrine.
+const MENU_ACCENTS: Record<Route, string> = { delivery: "#254c45", balcao: "#27364b", mesa: "#70434e" };
 
 // Cardápio digital: tela própria (não é o site/catálogo), com três entradas:
 //  /cardapio              → delivery (entrega ou retirada)
@@ -42,7 +36,7 @@ const inkFor = (hex: string) => (luminance(hex) > 0.6 ? "#1a1405" : "#ffffff");
 export default function DigitalMenu() {
   const { slug: routeSlug } = useParams();
   const location = useLocation();
-  const wide = useMedia("(min-width: 1200px)");
+  const desktop = useMedia("(min-width: 1200px)");
   const [state, setState] = useState<{ loading: boolean; error: string | null; tenant: MenuTenant | null; categories: MenuCategory[]; products: MenuProduct[] }>({ loading: true, error: null, tenant: null, categories: [], products: [] });
 
   useEffect(() => {
@@ -72,6 +66,7 @@ export default function DigitalMenu() {
   if (rest[0] === "mesa") { route = "mesa"; mesa = decodeURIComponent(rest[1] || "").trim().slice(0, 20); }
   else if (rest[0] === "balcao" || query.get("balcao") !== null) route = "balcao";
   else if ((query.get("mesa") || "").trim()) { route = "mesa"; mesa = (query.get("mesa") || "").trim().slice(0, 20); }
+  const wide = desktop && route !== "mesa";
 
   // ---- entrada (boas-vindas de mesa/balcão) ----
   const gateKey = `menu_gate_${tid}_${route}_${mesa}`;
@@ -116,7 +111,7 @@ export default function DigitalMenu() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [products],
   );
-  const showFeatured = !q && featured.length > 0;
+  const showFeatured = route === "delivery" && !q && featured.length > 0;
 
   useEffect(() => {
     const onScroll = () => {
@@ -155,12 +150,33 @@ export default function DigitalMenu() {
   const [receive, setReceive] = useState<Receive | null>(null);
   const receiveNow: Receive = receive ?? (accepts.delivery ? "delivery" : "pickup");
   const mode: OrderMode = route === "delivery" ? receiveNow : route;
-  const [form, setFormState] = useState<BagForm>({ name: "", phone: "", street: "", number: "", district: "", complement: "", reference: "", note: "" });
+  const [form, setFormState] = useState<BagForm>({ name: "", phone: "", cep: "", street: "", number: "", district: "", complement: "", reference: "", note: "" });
   const [pay, setPay] = useState<PayMethod>("pix");
   const [changeFor, setChangeFor] = useState("");
   const setForm = (patch: Partial<BagForm>) => setFormState((f) => ({ ...f, ...patch }));
+  // Entrega por distância: o CEP vira taxa (e preenche rua/bairro) consultando o servidor.
+  const [quote, setQuote] = useState<BagContext["quote"] & { fee?: number }>({ status: "idle" });
+  const cepDigits = form.cep.replace(/\D/g, "");
+  const byDistance = delivery.fee_mode === "distance";
+  useEffect(() => {
+    if (!tenant || !byDistance || mode !== "delivery") return;
+    if (cepDigits.length !== 8) { setQuote({ status: "idle" }); return; }
+    let alive = true;
+    setQuote({ status: "loading" });
+    fetch("/api/public/menu-quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant.id, cep: cepDigits }) })
+      .then(async (r) => ({ ok: r.ok, data: await r.json().catch(() => ({})) }))
+      .then(({ ok, data }) => {
+        if (!alive) return;
+        const a = data?.address;
+        if (a) setFormState((f) => ({ ...f, street: f.street || a.street || "", district: f.district || a.district || "" }));
+        if (ok) setQuote({ status: "ok", fee: Number(data.fee) || 0, distance: Number(data.distance_km) });
+        else setQuote({ status: "error", message: data?.error || "Não foi possível calcular a entrega." });
+      })
+      .catch(() => alive && setQuote({ status: "error", message: "Não foi possível calcular a entrega agora." }));
+    return () => { alive = false; };
+  }, [tenant, byDistance, mode, cepDigits]);
   const hoodFee = delivery.fee_mode === "neighborhood" ? hoods.find((n) => String(n.name).toLowerCase() === form.district.trim().toLowerCase())?.fee : undefined;
-  const baseFee = delivery.fee_mode === "neighborhood" ? (hoodFee === undefined ? null : Math.max(0, Number(hoodFee) || 0)) : Math.max(0, Number(delivery.fixed_fee) || 0);
+  const baseFee = byDistance ? (quote.status === "ok" ? quote.fee ?? 0 : null) : delivery.fee_mode === "neighborhood" ? (hoodFee === undefined ? null : Math.max(0, Number(hoodFee) || 0)) : Math.max(0, Number(delivery.fixed_fee) || 0);
   const fee = mode === "delivery" && baseFee !== null ? (freeAbove > 0 && subtotal >= freeAbove ? 0 : baseFee) : 0;
   const total = subtotal + fee;
   const payAllowed = { pix: true, money: true, card: true, ...(cfg.payments || {}) };
@@ -185,9 +201,10 @@ export default function DigitalMenu() {
       if (form.phone.replace(/\D/g, "").length < 10) return setError("Informe um WhatsApp válido (com DDD).");
     }
     if (mode === "delivery") {
-      if (!form.street.trim() || !form.number.trim() || !form.district.trim()) return setError("Informe rua, número e bairro.");
+      if (byDistance && quote.status !== "ok") return setError(quote.status === "error" ? quote.message || "CEP fora da área de entrega." : "Informe um CEP válido para calcular a entrega.");
+      if (!form.street.trim() || !form.number.trim() || (!byDistance && !form.district.trim())) return setError(byDistance ? "Informe rua e número." : "Informe rua, número e bairro.");
       if (minOrder > 0 && subtotal < minOrder) return setError(`Pedido mínimo para entrega: ${money(minOrder)}.`);
-      if (baseFee === null) return setError("Escolha um bairro atendido.");
+      if (baseFee === null) return setError(byDistance ? "Informe o CEP para calcular a entrega." : "Escolha um bairro atendido.");
     }
     setSending(true);
     try {
@@ -201,7 +218,7 @@ export default function DigitalMenu() {
         customer: { name: guest.name, phone: guest.phone || undefined },
         note: form.note.trim() || undefined,
       };
-      if (mode === "delivery") body.address = { street: form.street, number: form.number, district: form.district, complement: form.complement, reference: form.reference };
+      if (mode === "delivery") body.address = { cep: cepDigits, street: form.street, number: form.number, district: form.district, complement: form.complement, reference: form.reference };
       if (mode === "delivery" || mode === "pickup") body.payment = { method: pay, change_for: pay === "money" ? Number(changeFor.replace(",", ".")) || undefined : undefined };
       const res = await fetch("/api/public/menu-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json().catch(() => ({}));
@@ -230,8 +247,7 @@ export default function DigitalMenu() {
   };
 
   // ---- render ----
-  const accent = pickAccent(tenant?.primary_color, tenant?.template_id);
-  const styleVars = { ["--mnu-accent" as string]: accent, ["--mnu-accent-ink" as string]: inkFor(accent) } as React.CSSProperties;
+  const styleVars = { "--mnu-accent": MENU_ACCENTS[route], "--mnu-accent-ink": "#ffffff" } as React.CSSProperties;
   if (state.loading) return <div className="mnu"><div className="mnu-off">Carregando cardápio…</div></div>;
   if (state.error || !tenant) return <div className="mnu"><div className="mnu-off">{state.error || "Cardápio indisponível."}</div></div>;
   if (!tenant.food_enabled) return <div className="mnu"><div className="mnu-off">O cardápio digital desta loja ainda não está ativo.</div></div>;
@@ -253,14 +269,14 @@ export default function DigitalMenu() {
 
   const status = openStatus(tenant.business_hours);
   const bagCtx: BagContext = {
-    route, mode, mesa, gate, cfg, accepts, cart, subtotal, fee, total, baseFee, minOrder, freeAbove, hoods, payAllowed,
+    route, mode, mesa, gate, cfg, accepts, cart, subtotal, fee, total, baseFee, quote, minOrder, freeAbove, hoods, payAllowed,
     receiveNow, setReceive, form, setForm, pay, setPay, changeFor, setChangeFor, error, sending,
     canSubmit: cart.length > 0 && !sending,
     submit, done, resetDone: () => setDone(null), changeQty,
   };
 
   return (
-    <div className={`mnu mnu-app ${wide ? "has-cart" : ""}`} style={styleVars}>
+    <div className={`mnu mnu-app mnu-${route} ${wide ? "has-cart" : ""}`} style={styleVars}>
       <Hero tenant={tenant} status={status} route={route} mesa={mesa} search={search} onSearch={setSearch} onOrders={() => setPanel("orders")} onInfo={() => setPanel("info")} />
       <Sidebar
         tenant={tenant} status={status} route={route} mesa={mesa} sections={sections} hasFeatured={showFeatured}
@@ -268,8 +284,9 @@ export default function DigitalMenu() {
       />
 
       <div className="mnu-content">
+        <MenuIntro route={route} mesa={mesa} guest={gate?.name} people={gate?.people} cfg={cfg} receive={receiveNow} accepts={accepts} onReceive={setReceive} />
         <div className="mnu-top">
-          <div className="mnu-top-search"><Search size={18} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar no cardápio..." aria-label="Buscar no cardápio" /></div>
+          <div className="mnu-top-search"><Search size={18} /><input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar no cardápio..." aria-label="Buscar no cardápio" /></div>
           {!wide && itemCount > 0 && (
             <button type="button" className="mnu-top-bag" onClick={() => setPanel("bag")}><ShoppingBag size={18} />Sacola <em>{itemCount}</em><b>{money(subtotal)}</b></button>
           )}
@@ -285,7 +302,7 @@ export default function DigitalMenu() {
               const SI = st.icon;
               return (
                 <section key={s.id} className="mnu-section" ref={(el) => { sectionRefs.current[s.id] = el; }}>
-                  <div className="mnu-sec-head"><span className="ic" style={{ background: st.tint, color: st.fg }}><SI size={16} /></span><h2>{s.name}</h2><hr /><span className="cnt">{s.items.length}</span></div>
+                  <div className="mnu-sec-head"><span className="ic"><SI size={18} strokeWidth={1.5} /></span><h2>{s.name}</h2><hr /><span className="cnt">{s.items.length} opções</span></div>
                   <div className="mnu-grid">
                     {s.items.map((p) => <ProductCard key={p.id} product={p} available={available(p)} style={st} onOpen={() => setSheet(p)} />)}
                   </div>
@@ -296,12 +313,12 @@ export default function DigitalMenu() {
         </div>
       </div>
 
-      {wide && <aside className="mnu-cart"><Bag ctx={bagCtx} inline /></aside>}
+      {wide && <aside className={`mnu-cart ${cart.length ? "is-filled" : "is-empty"}`}><Bag ctx={bagCtx} inline /></aside>}
 
       {!wide && itemCount > 0 && !panel && !sheet && (
         <div className="mnu-bagbar">
           <button type="button" className="mnu-bagbtn" onClick={() => setPanel("bag")}>
-            <span><ShoppingBag size={20} />Ver sacola <em>{itemCount}</em></span><span>{money(subtotal)}</span>
+            <span><ShoppingBag size={19} />{route === "mesa" ? "Ver pedido da mesa" : "Revisar pedido"} <em>{itemCount}</em></span><span>{money(subtotal)}</span>
           </button>
         </div>
       )}
@@ -310,7 +327,7 @@ export default function DigitalMenu() {
       {panel === "info" && <InfoPanel tenant={tenant} cfg={cfg} route={route} accepts={accepts} onClose={() => setPanel(null)} />}
       {panel === "orders" && <OrdersPanel orders={orders} onClose={() => setPanel(null)} />}
       {panel === "bag" && !wide && (
-        <Sheet label="Sacola" locked={sending} onClose={() => { setPanel(null); setDone(null); }}>
+        <Sheet label="Sacola" className="mnu-checkout-sheet" locked={sending} onClose={() => { setPanel(null); setDone(null); }}>
           <Bag ctx={bagCtx} onClose={() => setPanel(null)} />
         </Sheet>
       )}

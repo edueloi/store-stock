@@ -15,7 +15,7 @@ export function ProductCard({ product, available, style, onOpen }: {
   const promo = product.discount_price != null && Number(product.discount_price) < Number(product.price);
   const img = imageOf(product);
   return (
-    <button type="button" className={`mnu-item ${available ? "" : "is-out"}`} disabled={!available} onClick={onOpen}>
+    <button type="button" aria-label={`Ver ${product.name}`} className={`mnu-item ${img ? "has-photo" : "no-photo"} ${available ? "" : "is-out"}`} disabled={!available} onClick={onOpen}>
       <div className="mnu-item-body">
         <strong>{product.name}</strong>
         {product.description ? <p>{product.description}</p> : null}
@@ -23,7 +23,7 @@ export function ProductCard({ product, available, style, onOpen }: {
         {!available && <span className="mnu-badge">Esgotado</span>}
       </div>
       <div className="mnu-item-img">
-        {img ? <img src={img} alt="" loading="lazy" /> : <div className="mnu-ph" style={{ background: style.tint, color: style.fg }}><SI size={34} strokeWidth={1.6} /></div>}
+        {img ? <img src={img} alt="" loading="lazy" /> : <div className="mnu-ph"><SI size={26} strokeWidth={1.3} /></div>}
         {available && <span className="mnu-add"><Plus size={18} /></span>}
       </div>
     </button>
@@ -34,19 +34,19 @@ export function ProductCard({ product, available, style, onOpen }: {
 export function FeaturedRail({ products, categories, onOpen }: { products: MenuProduct[]; categories: MenuCategory[]; onOpen: (p: MenuProduct) => void }) {
   return (
     <section className="mnu-section" id="mnu-featured">
-      <div className="mnu-sec-head"><span className="ic" style={{ background: "#ffe6d3", color: "#ea580c" }}><Flame size={16} /></span><h2>Destaques</h2><hr /></div>
+      <div className="mnu-sec-head"><span className="ic"><Flame size={17} strokeWidth={1.5} /></span><h2>Vale a escolha</h2><hr /><span className="cnt">Destaques da casa</span></div>
       <div className="mnu-rail">
         {products.map((p) => {
           const fs = catStyle(categories.find((c) => c.id === p.category_id)?.name);
           const FI = fs.icon;
           const img = imageOf(p);
           return (
-            <button key={p.id} type="button" className="mnu-feat" onClick={() => onOpen(p)}>
-              <div className="mnu-feat-img" style={img ? undefined : { background: fs.tint }}>
-                {img ? <img src={img} alt="" loading="lazy" /> : <div className="mnu-ph big" style={{ color: fs.fg }}><FI size={46} strokeWidth={1.5} /></div>}
-                <span className="mnu-feat-price" style={img ? undefined : { color: fs.fg, textShadow: "none" }}>{money(unitPrice(p))}</span>
+            <button key={p.id} type="button" className={`mnu-feat ${img ? "has-photo" : "no-photo"}`} onClick={() => onOpen(p)}>
+              <div className="mnu-feat-img">
+                {img ? <img src={img} alt="" loading="lazy" /> : <div className="mnu-ph"><FI size={27} strokeWidth={1.3} /></div>}
               </div>
               <div className="mnu-feat-name">{p.name}</div>
+              <span className="mnu-feat-price">{money(unitPrice(p))}</span>
             </button>
           );
         })}
@@ -68,14 +68,15 @@ export function ProductSheet({ product, categories, onAdd, onClose }: {
   const PI = ps.icon;
   const img = imageOf(product);
   return (
-    <Sheet label={product.name} onClose={onClose}>
-      <div className="mnu-sheet-top">
+    <Sheet label={product.name} className="mnu-product-sheet" onClose={onClose}>
+      <div className={`mnu-sheet-top ${img ? "has-photo" : "no-photo"}`}>
         <button type="button" className="mnu-x" aria-label="Fechar" onClick={onClose}><X size={20} /></button>
         {img
           ? <div className="mnu-sheet-img"><img src={img} alt="" /></div>
-          : <div className="mnu-sheet-img is-ph" style={{ background: ps.tint, color: ps.fg }}><PI size={58} strokeWidth={1.4} /></div>}
+          : <div className="mnu-sheet-img is-ph"><PI size={29} strokeWidth={1.3} /></div>}
       </div>
       <div className="mnu-sheet-body">
+        <span className="mnu-eyebrow">{categories.find((category) => category.id === product.category_id)?.name || "No cardápio"}</span>
         <h3>{product.name}</h3>
         {product.description && <p>{product.description}</p>}
         <span className="mnu-price lg">{money(unitPrice(product))}</span>
@@ -85,7 +86,7 @@ export function ProductSheet({ product, categories, onAdd, onClose }: {
       </div>
       <div className="mnu-foot" style={{ marginTop: 16 }}>
         <div className="mnu-qty">
-          <button type="button" aria-label="Menos" onClick={() => setQty((q) => Math.max(1, q - 1))}><Minus size={16} /></button>
+          <button type="button" aria-label="Menos" disabled={qty <= 1} onClick={() => setQty((q) => Math.max(1, q - 1))}><Minus size={16} /></button>
           <b>{qty}</b>
           <button type="button" aria-label="Mais" onClick={() => setQty((q) => Math.min(50, q + 1))}><Plus size={16} /></button>
         </div>

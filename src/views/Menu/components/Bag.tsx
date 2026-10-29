@@ -1,9 +1,10 @@
-import { Check, Phone, ShoppingBag, User } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Phone, ShoppingBag, Store, User, UtensilsCrossed } from "lucide-react";
 import type { CartLine, MenuConfig, OrderMode, PayMethod, Receive, Route } from "../menuTypes";
 import { money } from "../menuTypes";
 import { Qty, SheetHead } from "./parts";
 
-export interface BagForm { name: string; phone: string; street: string; number: string; district: string; complement: string; reference: string; note: string }
+export interface BagForm { name: string; phone: string; cep: string; street: string; number: string; district: string; complement: string; reference: string; note: string }
 
 export interface BagContext {
   route: Route;
@@ -17,6 +18,7 @@ export interface BagContext {
   fee: number;
   total: number;
   baseFee: number | null;
+  quote: { status: "idle" | "loading" | "ok" | "error"; message?: string; distance?: number };
   minOrder: number;
   freeAbove: number;
   hoods: Array<{ name?: string; fee?: number }>;
@@ -42,6 +44,9 @@ export interface BagContext {
 export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () => void; inline?: boolean }) {
   const { mode, route, cfg, form, setForm } = ctx;
   const delivery = cfg.delivery || {};
+  const [details, setDetails] = useState(false);
+  useEffect(() => { if (!ctx.cart.length) setDetails(false); }, [ctx.cart.length]);
+  const title = route === "mesa" ? `Pedido da mesa ${ctx.mesa}` : route === "balcao" ? "Pedido do balcão" : "Seu pedido";
 
   if (ctx.done) {
     return (
@@ -58,12 +63,12 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
   return (
     <div className={inline ? "mnu-bag is-inline" : "mnu-bag"}>
       {inline
-        ? <div className="mnu-bag-head"><h3><ShoppingBag size={20} /> Sua sacola</h3></div>
-        : <SheetHead title="Sua sacola" onClose={onClose || (() => {})} />}
+        ? <div className="mnu-bag-head"><div><span className="mnu-eyebrow">{route === "balcao" ? "Confira antes de enviar" : "Sua seleção"}</span><h3><ShoppingBag size={18} />{title}</h3></div></div>
+        : <SheetHead title={title} onClose={onClose || (() => {})} />}
 
       <div className="mnu-bag-scroll">
         <div className="mnu-sheet-body" style={{ paddingTop: 0 }}>
-          {ctx.cart.length === 0 && <div className="mnu-empty-bag"><ShoppingBag size={34} strokeWidth={1.4} /><span>Sua sacola está vazia</span><small>Toque em + nos itens para adicionar.</small></div>}
+          {ctx.cart.length === 0 && <div className="mnu-empty-bag"><span className="mnu-empty-icon">{route === "mesa" ? <UtensilsCrossed size={27} strokeWidth={1.3} /> : route === "balcao" ? <Store size={27} strokeWidth={1.3} /> : <ShoppingBag size={27} strokeWidth={1.3} />}</span><h4>{route === "mesa" ? "O que vai à mesa?" : route === "balcao" ? "Vamos começar?" : "Seu próximo pedido começa aqui"}</h4><p>Escolha um item no cardápio para ver os detalhes e adicionar ao pedido.</p></div>}
           <div>
             {ctx.cart.map((l) => (
               <div key={l.key} className="mnu-line">
@@ -79,6 +84,9 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
                 <div className="mnu-note"><User size={13} style={{ verticalAlign: "-2px" }} /> {ctx.gate.name}{route === "mesa" ? ` · Mesa ${ctx.mesa} · ${ctx.gate.people} ${ctx.gate.people === 1 ? "pessoa" : "pessoas"}` : " · balcão"}</div>
               )}
 
+              {route === "delivery" && !details && <div className="mnu-checkout-preview"><Check size={16} /><p>Boa escolha.<strong>Na próxima etapa, confira como receber e a forma de pagamento.</strong></p></div>}
+              <div className="mnu-checkout-details" hidden={route === "delivery" && !details}>
+              {route === "delivery" && details && <div className="mnu-checkout-heading"><button type="button" className="mnu-checkout-back" onClick={() => setDetails(false)}><ArrowLeft size={14} /> Revisar itens</button><h4>{mode === "delivery" ? "Dados para entrega" : "Dados para retirada"}</h4></div>}
               {route === "delivery" && (
                 <>
                   {ctx.accepts.delivery && ctx.accepts.pickup && (
@@ -89,7 +97,7 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
                   )}
                   {ctx.receiveNow === "delivery" && (
                     <div className="mnu-note">
-                      {delivery.fee_mode === "neighborhood" ? "Taxa de entrega por bairro" : `Taxa de entrega ${money(Math.max(0, Number(delivery.fixed_fee) || 0))}`}
+                      {delivery.fee_mode === "distance" ? "Taxa de entrega pela distância (informe o CEP)" : delivery.fee_mode === "neighborhood" ? "Taxa de entrega por bairro" : `Taxa de entrega ${money(Math.max(0, Number(delivery.fixed_fee) || 0))}`}
                       {ctx.minOrder > 0 && <> · pedido mínimo <b>{money(ctx.minOrder)}</b></>}
                       {ctx.freeAbove > 0 && <> · <b>frete grátis</b> acima de {money(ctx.freeAbove)}</>}
                       {delivery.eta && <> · tempo estimado <b>{delivery.eta}</b></>}
@@ -102,6 +110,15 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
 
               {mode === "delivery" && (
                 <>
+                  {delivery.fee_mode === "distance" && (
+                    <div className="mnu-label">CEP de entrega
+                      <input className="mnu-input" inputMode="numeric" autoComplete="postal-code" placeholder="00000-000" maxLength={9} value={form.cep}
+                        onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 8); setForm({ cep: d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d }); }} />
+                      {ctx.quote.status === "loading" && <span>Calculando a entrega…</span>}
+                      {ctx.quote.status === "ok" && <span style={{ color: "var(--mnu-ok)", fontWeight: 700 }}>✓ {ctx.quote.distance !== undefined ? `${String(ctx.quote.distance.toFixed(1)).replace(".", ",")} km · ` : ""}entregamos no seu endereço</span>}
+                      {ctx.quote.status === "error" && <span style={{ color: "var(--mnu-danger)", fontWeight: 700 }}>{ctx.quote.message}</span>}
+                    </div>
+                  )}
                   <div className="mnu-row">
                     <label className="mnu-label">Rua<input className="mnu-input" value={form.street} onChange={(e) => setForm({ street: e.target.value })} autoComplete="address-line1" /></label>
                     <label className="mnu-label">Número<input className="mnu-input" value={form.number} onChange={(e) => setForm({ number: e.target.value })} /></label>
@@ -136,10 +153,11 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
               )}
 
               <label className="mnu-label">Observações do pedido <span>(opcional)</span><textarea className="mnu-textarea" maxLength={200} value={form.note} onChange={(e) => setForm({ note: e.target.value })} /></label>
+              </div>
 
               <div className="mnu-sum">
                 <div><span>Subtotal</span><span>{money(ctx.subtotal)}</span></div>
-                {mode === "delivery" && <div><span>Entrega</span><span>{ctx.baseFee === null ? "escolha o bairro" : ctx.fee === 0 ? "Grátis" : money(ctx.fee)}</span></div>}
+                {mode === "delivery" && <div><span>Entrega</span><span>{ctx.baseFee === null ? (delivery.fee_mode === "distance" ? "informe o CEP" : "escolha o bairro") : ctx.fee === 0 ? "Grátis" : money(ctx.fee)}</span></div>}
                 <div className="is-total"><span>Total</span><span>{money(ctx.total)}</span></div>
               </div>
               {mode === "delivery" && ctx.minOrder > 0 && ctx.subtotal < ctx.minOrder && <div className="mnu-err">Faltam {money(ctx.minOrder - ctx.subtotal)} para o pedido mínimo de entrega.</div>}
@@ -149,11 +167,11 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
         </div>
       </div>
 
-      <div className="mnu-foot mnu-bag-foot">
-        <button type="button" className="mnu-cta" disabled={!ctx.canSubmit} onClick={ctx.submit}>
-          <span>{ctx.sending ? "Enviando…" : mode === "mesa" ? `Enviar pedido da mesa ${ctx.mesa}` : "Enviar pedido"}</span><span>{money(ctx.total)}</span>
+      {ctx.cart.length > 0 && <div className="mnu-foot mnu-bag-foot">
+        <button type="button" className="mnu-cta" disabled={!ctx.canSubmit} onClick={route === "delivery" && !details ? () => setDetails(true) : ctx.submit}>
+          <span>{ctx.sending ? "Enviando…" : route === "delivery" && !details ? "Continuar pedido" : mode === "mesa" ? `Enviar para a mesa ${ctx.mesa}` : mode === "balcao" ? "Confirmar no balcão" : mode === "delivery" ? "Confirmar entrega" : "Confirmar retirada"}</span><ArrowRight size={17} />
         </button>
-      </div>
+      </div>}
     </div>
   );
 }

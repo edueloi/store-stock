@@ -1,5 +1,5 @@
 import { useState, type CSSProperties } from "react";
-import { Bike, MapPin, Minus, Phone, Plus, Store, Users } from "lucide-react";
+import { ArrowRight, Bike, MapPin, Minus, Phone, Plus, Store, Users, UtensilsCrossed } from "lucide-react";
 import type { MenuConfig, MenuTenant, PastOrder, Route } from "../menuTypes";
 import { DAY_LABEL, DAY_ORDER, money } from "../menuTypes";
 import { Logo, Sheet, SheetHead } from "./parts";
@@ -76,17 +76,13 @@ export function Gate({ tenant, route, mesa, onEnter, style }: {
     onEnter({ name: form.name.trim(), phone: form.phone, people: Math.max(1, form.people) });
   };
   return (
-    <div className="mnu mnu-gate" style={style}>
-      {tenant.banner_url && <div className="mnu-hero-bg" style={{ backgroundImage: `url(${tenant.banner_url})` }} />}
-      <div className="mnu-gate-card">
-        <Logo tenant={tenant} />
-        <div>
-          <h1>Bem-vindo ao {tenant.name}</h1>
-          <div className="where" style={{ marginTop: 6 }}>{route === "mesa" ? `Mesa ${mesa}` : "Pedido no balcão"}</div>
-        </div>
-        {route === "balcao" && <p>Informe seu nome para ver o cardápio e fazer seu pedido.</p>}
-        <input className="mnu-input" placeholder="Seu nome" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoComplete="name" />
-        <input className="mnu-input" placeholder="(00) 00000-0000" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} autoComplete="tel" />
+    <div className={`mnu mnu-gate mnu-${route}`} style={style}>
+      <div className="mnu-gate-layout"><div className="mnu-gate-intro"><div className="mnu-gate-brand"><Logo tenant={tenant} /><strong>{tenant.name}</strong></div><span className="mnu-eyebrow">{route === "mesa" ? "Para aproveitar à mesa" : "Simples, do pedido à retirada"}</span><h1>{route === "mesa" ? <>Sente-se.<br />A escolha é sua.</> : <>Escolha aqui.<br />Retire no balcão.</>}</h1><p>{route === "mesa" ? "Um cardápio para explorar com calma, compartilhar escolhas e aproveitar o encontro." : "Veja os produtos, monte seu pedido e acompanhe a retirada com a nossa equipe."}</p><span className="mnu-gate-channel">{route === "mesa" ? <UtensilsCrossed size={19} /> : <Store size={19} />}{route === "mesa" ? `Você está na mesa ${mesa}` : "Atendimento no estabelecimento"}</span></div>
+      <form className="mnu-gate-card" onSubmit={(event) => { event.preventDefault(); enter(); }}>
+        <span className="mnu-eyebrow">{route === "mesa" ? `Mesa ${mesa.padStart(2, "0")}` : "Pedido no balcão"}</span>
+        <div><h2>Antes de escolher,<br />como podemos chamar você?</h2><p>Seu nome ajuda a equipe a identificar o pedido.</p></div>
+        <label className="mnu-label">Seu nome<input className="mnu-input" placeholder="Como você se chama?" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoComplete="name" /></label>
+        <label className="mnu-label">WhatsApp <span>Opcional</span><input className="mnu-input" placeholder="(00) 00000-0000" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} autoComplete="tel" /></label>
         {route === "mesa" && (
           <div className="mnu-gate-people">
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Users size={16} />Pessoas na mesa</span>
@@ -97,9 +93,10 @@ export function Gate({ tenant, route, mesa, onEnter, style }: {
             </div>
           </div>
         )}
-        {error && <div className="mnu-err">{error}</div>}
-        <button type="button" className="mnu-btn" onClick={enter}>{route === "mesa" ? "Entrar no restaurante" : "Continuar"}</button>
-      </div>
+        {error && <div className="mnu-err" role="alert">{error}</div>}
+        <button type="submit" className="mnu-btn">{route === "mesa" ? "Ver cardápio da mesa" : "Começar meu pedido"}<ArrowRight size={17} /></button>
+        <small className="mnu-gate-disclaimer">{route === "mesa" ? "O pedido será vinculado à sua mesa." : "A retirada será feita no balcão da loja."}</small>
+      </form></div>
     </div>
   );
 }
