@@ -546,7 +546,9 @@ function menuSettings(tenant: { policies: unknown }): MenuSettings {
 }
 
 // ───────── Entrega por distância (CEP → coordenadas → km em linha reta) ─────────
-type CepInfo = { cep: string; street: string; district: string; city: string; state: string; geo: { lat: number; lng: number } | null };
+// precise = coordenada no nível da rua/CEP (AwesomeAPI). Sem ela, usa-se a da cidade (BrasilAPI), que só serve
+// para distinguir cidades diferentes — dentro da mesma cidade a distância ficaria 0 e por isso não é aceita.
+type CepInfo = { cep: string; street: string; district: string; city: string; state: string; geo: { lat: number; lng: number } | null; precise: boolean };
 const cepCache = new Map<string, { at: number; info: CepInfo | null }>();
 
 async function getJsonTimeout(url: string, headers?: Record<string, string>): Promise<any | null> {
@@ -558,17 +560,9 @@ async function getJsonTimeout(url: string, headers?: Record<string, string>): Pr
   }
 }
 
-async function geocodeByText(text: string): Promise<{ lat: number; lng: number } | null> {
-  const data = await getJsonTimeout(
-    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&countrycodes=br&format=json&limit=1`,
-    { "User-Agent": "BoxSysMenu/1.0 (contato@boxsys.com.br)" },
-  );
-  const hit = Array.isArray(data) ? data[0] : null;
-  const lat = Number(hit?.lat), lng = Number(hit?.lon);
-  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
-}
+const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n !== 0 ? n : null; };
 
-/** Endereço + coordenadas de um CEP (BrasilAPI → ViaCEP/Nominatim como reserva). Cache de 24h. */
+/** Endereço + coordenadas de um CEP: AwesomeAPI (rua) → BrasilAPI (cidade) → ViaCEP (só endereço). Cache de 24h. */
 async function lookupCep(raw: unknown): Promise<CepInfo | null> {
   const cep = digits(raw);
   if (cep.length !== 8) return null;
@@ -576,20 +570,24 @@ async function lookupCep(raw: unknown): Promise<CepInfo | null> {
   if (cached && Date.now() - cached.at < 24 * 3600_000) return cached.info;
 
   let info: CepInfo | null = null;
-  const br = await getJsonTimeout(`https://brasilapi.com.br/api/cep/v2/${cep}`);
-  if (br?.cep) {
-    const lat = Number(br.location?.coordinates?.latitude), lng = Number(br.location?.coordinates?.longitude);
-    info = {
-      cep, street: String(br.street || ""), district: String(br.neighborhood || ""), city: String(br.city || ""), state: String(br.state || ""),
-      geo: Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0) ? { lat, lng } : null,
-    };
-  } else {
-    const via = await getJsonTimeout(`https://viacep.com.br/ws/${cep}/json/`);
-    if (via && !via.erro) info = { cep, street: String(via.logradouro || ""), district: String(via.bairro || ""), city: String(via.localidade || ""), state: String(via.uf || ""), geo: null };
+  const aw = await getJsonTimeout(`https://cep.awesomeapi.com.br/json/${cep}`);
+  const awLat = num(aw?.lat), awLng = num(aw?.lng);
+  if (aw?.cep) {
+    info = { cep, street: String(aw.address || ""), district: String(aw.district || ""), city: String(aw.city || ""), state: String(aw.state || ""), geo: awLat && awLng ? { lat: awLat, lng: awLng } : null, precise: Boolean(awLat && awLng) };
   }
-  if (info && !info.geo) {
-    info.geo = (await geocodeByText([info.street, info.district, info.city, info.state].filter(Boolean).join(", ")))
-      ?? (await geocodeByText([info.city, info.state].filter(Boolean).join(", ")));
+  if (!info || !info.geo) {
+    const br = await getJsonTimeout(`https://brasilapi.com.br/api/cep/v2/${cep}`);
+    if (br?.cep) {
+      const lat = num(br.location?.coordinates?.latitude), lng = num(br.location?.coordinates?.longitude);
+      info = {
+        cep,
+        street: info?.street || String(br.street || ""), district: info?.district || String(br.neighborhood || ""), city: info?.city || String(br.city || ""), state: info?.state || String(br.state || ""),
+        geo: lat && lng ? { lat, lng } : null, precise: false,
+      };
+    } else if (!info) {
+      const via = await getJsonTimeout(`https://viacep.com.br/ws/${cep}/json/`);
+      if (via && !via.erro) info = { cep, street: String(via.logradouro || ""), district: String(via.bairro || ""), city: String(via.localidade || ""), state: String(via.uf || ""), geo: null, precise: false };
+    }
   }
   cepCache.set(cep, { at: Date.now(), info });
   return info;
@@ -612,6 +610,10 @@ async function distanceFee(tenant: { address_zip?: string | null }, cfg: MenuSet
   const origin = await lookupCep(delivery.origin_cep || tenant.address_zip);
   if (!origin?.geo) return { ok: false as const, status: 422, message: "A loja ainda não configurou o CEP de origem da entrega." };
   if (!dest.geo) return { ok: false as const, status: 422, message: "Não consegui localizar esse CEP no mapa. Tente outro endereço próximo ou fale com a loja." };
+  // Sem coordenada de rua, só dá para medir entre cidades diferentes; na mesma cidade a medida seria falsa.
+  if ((!origin.precise || !dest.precise) && origin.city.toLowerCase() === dest.city.toLowerCase() && origin.state === dest.state) {
+    return { ok: false as const, status: 422, message: "Não consegui medir a distância deste CEP com precisão agora. Tente de novo em instantes ou fale com a loja.", dest };
+  }
   const km = Math.round(haversineKm(origin.geo, dest.geo) * 10) / 10;
   const tier = tiers.find((t) => km <= t.km);
   if (!tier) return { ok: false as const, status: 422, message: `Fora da área de entrega (a ${km.toFixed(1).replace(".", ",")} km; entregamos até ${tiers[tiers.length - 1].km} km).`, dest, km };
