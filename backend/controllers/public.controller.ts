@@ -415,6 +415,43 @@ export async function reserveStoreCart(req: Request, res: Response) {
   }
 }
 
+/** Cardápio de balcão: reconhece o cliente pelo WhatsApp. Devolve só o primeiro nome (dado público mínimo). */
+export async function lookupMenuCustomer(req: Request, res: Response) {
+  try {
+    const tenantId = Number(req.body?.tenantId);
+    const phone = comparablePhone(req.body?.phone);
+    if (!tenantId || phone.length < 10) return res.status(422).json({ error: "Informe um WhatsApp válido." });
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant || !getTenantAccessState(tenant).allowed || !tenant.food_enabled) return res.status(404).json({ error: "Loja não encontrada." });
+    const candidates = await prisma.customer.findMany({
+      where: { tenant_id: tenant.id, status: "active", phone: { contains: phone.slice(-4) } },
+      select: { id: true, name: true, phone: true },
+    });
+    const customer = candidates.find((c) => comparablePhone(c.phone) === phone);
+    res.json(customer ? { found: true, name: customer.name.trim().split(" ")[0] } : { found: false });
+  } catch (error) {
+    console.error("lookupMenuCustomer", error);
+    res.status(500).json({ error: "Não foi possível consultar agora." });
+  }
+}
+
+/** Acha o cliente pelo WhatsApp ou cadastra um novo (nome + nascimento) a partir do cardápio. */
+async function findOrCreateMenuCustomer(tenantId: number, name: string, rawPhone: unknown, rawBirth: unknown) {
+  const phone = comparablePhone(rawPhone);
+  if (phone.length < 10) return null;
+  const candidates = await prisma.customer.findMany({
+    where: { tenant_id: tenantId, phone: { contains: phone.slice(-4) } },
+    select: { id: true, name: true, phone: true },
+  });
+  const found = candidates.find((c) => comparablePhone(c.phone) === phone);
+  if (found) return found;
+  const birth = typeof rawBirth === "string" && /^\d{4}-\d{2}-\d{2}$/.test(rawBirth) ? new Date(`${rawBirth}T12:00:00Z`) : null;
+  return prisma.customer.create({
+    data: { tenant_id: tenantId, name, phone: String(rawPhone).replace(/\D/g, ""), birth_date: birth && !Number.isNaN(birth.getTime()) ? birth : null, notes: "Cadastrado pelo cardápio digital (balcão)." },
+    select: { id: true, name: true, phone: true },
+  });
+}
+
 /**
  * Pedido feito pelo CARDÁPIO DIGITAL (QR Code) de estabelecimentos alimentícios — produto
  * separado do site/catálogo. Vira uma COMANDA aberta (HeldSale):
@@ -430,7 +467,7 @@ export async function createTableOrder(req: Request, res: Response) {
       people?: number;
       mode?: "mesa" | "balcao";
       items: Array<{ product_id: number; quantity: number; selected_options?: Record<string, string>; note?: string }>;
-      customer?: { name?: string; phone?: string };
+      customer?: { name?: string; phone?: string; birth_date?: string };
       note?: string;
     };
     const mode: "mesa" | "balcao" = rawMode === "balcao" ? "balcao" : "mesa";
@@ -467,7 +504,13 @@ export async function createTableOrder(req: Request, res: Response) {
       });
     }
 
-    const guest = guestName;
+    let guest = guestName;
+    // Balcão: cliente reconhecido (ou cadastrado agora) pelo WhatsApp; a comanda já nasce vinculada a ele.
+    let customerId: number | null = null;
+    if (mode === "balcao") {
+      const c = await findOrCreateMenuCustomer(tenant.id, guestName, customer?.phone, customer?.birth_date);
+      if (c) { customerId = c.id; guest = c.name.trim().split(" ")[0] || guestName; }
+    }
     const orderNote = String(note ?? "").trim().slice(0, 200);
     const peopleCount = Math.max(0, Math.min(30, Math.floor(Number(people) || 0)));
     const label = mode === "balcao" ? `Balcão · ${guest}` : `Mesa ${table}${guest ? ` · ${guest}` : ""}`;
@@ -496,6 +539,7 @@ export async function createTableOrder(req: Request, res: Response) {
         data: {
           tenant_id: tenant.id,
           number: (latest?.number || 0) + 1,
+          customer_id: customerId,
           customer_name: label,
           customer_phone: String(customer?.phone ?? "").replace(/\D/g, "").slice(0, 15) || null,
           notes: `Pedido pelo cardápio digital — ${source}${mode === "mesa" && peopleCount ? ` · ${peopleCount} ${peopleCount === 1 ? "pessoa" : "pessoas"}` : ""}${orderNote ? ` · ${orderNote}` : ""}`,

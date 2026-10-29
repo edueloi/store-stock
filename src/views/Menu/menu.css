@@ -441,3 +441,11 @@
  .mnu-gate-card { padding:22px 19px; }
 }
 @media (prefers-reduced-motion:reduce) { .mnu *, .mnu *::before, .mnu *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+
+/* Entrada do balcão: fundo escuro e só o WhatsApp. */
+.mnu-gate-dark { background:radial-gradient(circle at 50% 20%, #1e293b, #0b1220 70%); }
+.mnu-gate-compact { width:100%; max-width:400px; gap:20px; padding:32px; text-align:left; }
+.mnu-gate-compact .mnu-gate-brand { margin:0; }
+.mnu-gate-compact h2 { font-size:24px; }
+.mnu-gate-compact p { font-size:12.5px; }
+.mnu-input-lg { min-height:56px; font-size:20px; letter-spacing:.02em; text-align:center; }

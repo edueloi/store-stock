@@ -70,7 +70,7 @@ export default function DigitalMenu() {
 
   // ---- entrada (boas-vindas de mesa/balcão) ----
   const gateKey = `menu_gate_${tid}_${route}_${mesa}`;
-  const [gate, setGate] = useState<{ name: string; phone: string; people: number } | null>(null);
+  const [gate, setGate] = useState<{ name: string; phone: string; people: number; birth?: string } | null>(null);
   useEffect(() => {
     if (!tenant || route === "delivery") return;
     try { const saved = sstore.get(gateKey); setGate(saved ? JSON.parse(saved) : null); } catch { setGate(null); }
@@ -223,6 +223,15 @@ export default function DigitalMenu() {
   const [done, setDone] = useState<null | { title: string; text: string; wa?: string }>(null);
   const [orders, setOrders] = useState<PastOrder[]>([]);
   useEffect(() => { if (tenant) { try { setOrders(JSON.parse(lstore.get(`menu_orders_${tenant.id}`) || "[]")); } catch { setOrders([]); } } }, [tenant]);
+  // Balcão: pedido enviado, a tela volta sozinha para o início (próximo cliente) — ninguém precisa clicar.
+  useEffect(() => {
+    if (route !== "balcao" || !done) return;
+    const t = setTimeout(() => {
+      try { sessionStorage.removeItem(gateKey); } catch { /* ok */ }
+      setDone(null); setGate(null); setPanel(null);
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [route, done, gateKey]);
   const rememberOrder = (o: PastOrder) => {
     if (!tenant) return;
     const next = [o, ...orders].slice(0, 20);
@@ -245,7 +254,7 @@ export default function DigitalMenu() {
     }
     setSending(true);
     try {
-      const guest = route === "delivery" ? { name: form.name.trim(), phone: form.phone.replace(/\D/g, "") } : { name: gate?.name || "", phone: (gate?.phone || "").replace(/\D/g, "") };
+      const guest = route === "delivery" ? { name: form.name.trim(), phone: form.phone.replace(/\D/g, "") } : { name: gate?.name || "", phone: (gate?.phone || "").replace(/\D/g, ""), birth_date: gate?.birth };
       const body: Record<string, unknown> = {
         tenantId: tenant.id,
         mode,

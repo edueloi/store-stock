@@ -70,6 +70,20 @@ export const maskCep = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 8);
   return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
 };
+export const maskDate = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 8);
+  if (d.length <= 2) return d;
+  return d.length <= 4 ? `${d.slice(0, 2)}/${d.slice(2)}` : `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+};
+/** "dd/mm/aaaa" → "aaaa-mm-dd" (ou null se não for uma data de nascimento plausível). */
+export const birthIso = (v: string) => {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
+  if (!m) return null;
+  const [d, mo, y] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(y, mo - 1, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d || y < 1900 || dt > new Date()) return null;
+  return `${m[3]}-${m[2]}-${m[1]}`;
+};
 /** Dígitos viram centavos: "5000" → "50,00". */
 export const maskMoney = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 8);

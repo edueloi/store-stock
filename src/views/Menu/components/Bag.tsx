@@ -55,7 +55,7 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
         <h3>{ctx.done.title}</h3>
         <p>{ctx.done.text}</p>
         {ctx.done.wa && <a className="mnu-btn" href={ctx.done.wa} target="_blank" rel="noreferrer"><Phone size={16} />Falar com a loja</a>}
-        <button type="button" className="mnu-btn is-ghost" onClick={() => { ctx.resetDone(); onClose?.(); }}>{route === "balcao" ? "Concluir — próximo cliente" : inline ? "Fazer novo pedido" : "Voltar ao cardápio"}</button>
+        <button type="button" className="mnu-btn is-ghost" onClick={() => { ctx.resetDone(); onClose?.(); }}>{route === "balcao" ? "Fechar" : inline ? "Fazer novo pedido" : "Voltar ao cardápio"}</button>
       </div>
     );
   }
