@@ -44,15 +44,11 @@ export interface MenuTenant {
   name: string;
   whatsapp: string;
   logo_url?: string | null;
-  banner_url?: string | null;
-  hero_tagline?: string | null;
-  about_text?: string | null;
   address_street?: string | null;
   address_number?: string | null;
   address_district?: string | null;
   address_city?: string | null;
   primary_color?: string | null;
-  template_id?: string | null;
   business_hours?: Hours | null;
   food_enabled?: boolean;
   sell_without_stock_control?: boolean;

@@ -17,3 +17,7 @@ rede-itau/
 certs/
 .claude/settings.local.json
 CREDENTIALS.md
+
+# saídas geradas por scripts de verificação
+output/
+tmp/

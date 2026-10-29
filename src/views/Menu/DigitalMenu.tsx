@@ -83,6 +83,22 @@ export default function DigitalMenu() {
     try { setCart(JSON.parse(lstore.get(`menu_cart_${tenant.id}`) || "[]")); } catch { setCart([]); }
   }, [tenant]);
   useEffect(() => { if (tenant) lstore.set(`menu_cart_${tenant.id}`, JSON.stringify(cart)); }, [cart, tenant]);
+  // O carrinho fica salvo no aparelho: ao reabrir, tira o que saiu do cardápio/acabou e atualiza preços.
+  useEffect(() => {
+    if (!tenant || !products.length) return;
+    setCart((prev) => {
+      let changed = false;
+      const next = prev.flatMap((l) => {
+        const p = products.find((x) => x.id === l.product_id);
+        if (!p || !(p.track_stock === false || tenant.sell_without_stock_control || p.stock_quantity > 0)) { changed = true; return []; }
+        const price = unitPrice(p);
+        if (price !== l.price || p.name !== l.name) { changed = true; return [{ ...l, price, name: p.name }]; }
+        return [l];
+      });
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant, products]);
   const subtotal = cart.reduce((s, l) => s + l.price * l.qty, 0);
   const itemCount = cart.reduce((s, l) => s + l.qty, 0);
 
@@ -166,6 +182,14 @@ export default function DigitalMenu() {
   const [pay, setPay] = useState<PayMethod>("pix");
   const [changeFor, setChangeFor] = useState("");
   const setForm = (patch: Partial<BagForm>) => setFormState((f) => ({ ...f, ...patch }));
+  // Cliente recorrente não digita tudo de novo: nome, WhatsApp e endereço do último pedido ficam no aparelho.
+  useEffect(() => {
+    if (!tenant || route !== "delivery") return;
+    try {
+      const saved = JSON.parse(lstore.get(`menu_customer_${tenant.id}`) || "null");
+      if (saved && typeof saved === "object") setFormState((f) => ({ ...f, ...saved, note: "" }));
+    } catch { /* sem dados salvos */ }
+  }, [tenant, route]);
   // Entrega por distância: o CEP vira taxa (e preenche rua/bairro) consultando o servidor.
   const [quote, setQuote] = useState<BagContext["quote"] & { fee?: number }>({ status: "idle" });
   const cepDigits = form.cep.replace(/\D/g, "");
@@ -237,6 +261,10 @@ export default function DigitalMenu() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Não foi possível enviar o pedido.");
       setCart([]);
+      if (route === "delivery") {
+        const { name, phone, cep, street, number, district, complement, reference } = form;
+        lstore.set(`menu_customer_${tenant.id}`, JSON.stringify({ name, phone, ...(mode === "delivery" ? { cep, street, number, district, complement, reference } : {}) }));
+      }
       if (mode === "mesa") {
         rememberOrder({ id: `m${data.number}-${Date.now()}`, label: `Mesa ${mesa} · comanda #${data.number}`, total: subtotal, at: Date.now() });
         setDone({ title: "Pedido enviado!", text: `A equipe já recebeu o pedido da Mesa ${mesa} (comanda #${data.number}). Pode pedir mais quando quiser — vai tudo na mesma conta.` });
