@@ -97,7 +97,7 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
                   )}
                   {ctx.receiveNow === "delivery" && (
                     <div className="mnu-note">
-                      {delivery.fee_mode === "distance" ? "Taxa de entrega pela distância (informe o CEP)" : delivery.fee_mode === "neighborhood" ? "Taxa de entrega por bairro" : `Taxa de entrega ${money(Math.max(0, Number(delivery.fixed_fee) || 0))}`}
+                      {delivery.fee_mode === "distance" ? "Taxa de entrega pela distância (informe o CEP)" : delivery.fee_mode === "cep" ? "Taxa de entrega pelo seu CEP" : delivery.fee_mode === "neighborhood" ? "Taxa de entrega por bairro" : `Taxa de entrega ${money(Math.max(0, Number(delivery.fixed_fee) || 0))}`}
                       {ctx.minOrder > 0 && <> · pedido mínimo <b>{money(ctx.minOrder)}</b></>}
                       {ctx.freeAbove > 0 && <> · <b>frete grátis</b> acima de {money(ctx.freeAbove)}</>}
                       {delivery.eta && <> · tempo estimado <b>{delivery.eta}</b></>}
@@ -110,7 +110,7 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
 
               {mode === "delivery" && (
                 <>
-                  {delivery.fee_mode === "distance" && (
+                  {(delivery.fee_mode === "distance" || delivery.fee_mode === "cep") && (
                     <div className="mnu-label">CEP de entrega
                       <input className="mnu-input" inputMode="numeric" autoComplete="postal-code" placeholder="00000-000" maxLength={9} value={form.cep}
                         onChange={(e) => { const d = e.target.value.replace(/\D/g, "").slice(0, 8); setForm({ cep: d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d }); }} />
@@ -157,7 +157,7 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
 
               <div className="mnu-sum">
                 <div><span>Subtotal</span><span>{money(ctx.subtotal)}</span></div>
-                {mode === "delivery" && <div><span>Entrega</span><span>{ctx.baseFee === null ? (delivery.fee_mode === "distance" ? "informe o CEP" : "escolha o bairro") : ctx.fee === 0 ? "Grátis" : money(ctx.fee)}</span></div>}
+                {mode === "delivery" && <div><span>Entrega</span><span>{ctx.baseFee === null ? (delivery.fee_mode === "distance" || delivery.fee_mode === "cep" ? "informe o CEP" : "escolha o bairro") : ctx.fee === 0 ? "Grátis" : money(ctx.fee)}</span></div>}
                 <div className="is-total"><span>Total</span><span>{money(ctx.total)}</span></div>
               </div>
               {mode === "delivery" && ctx.minOrder > 0 && ctx.subtotal < ctx.minOrder && <div className="mnu-err">Faltam {money(ctx.minOrder - ctx.subtotal)} para o pedido mínimo de entrega.</div>}

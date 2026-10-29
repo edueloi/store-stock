@@ -91,6 +91,7 @@ export default function DigitalMenu() {
   const [panel, setPanel] = useState<null | "bag" | "info" | "orders">(null);
   const [activeCat, setActiveCat] = useState("");
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
+  const chosenCategory = useRef<string | null>(null);
 
   const available = (p: MenuProduct) => p.track_stock === false || !!tenant?.sell_without_stock_control || p.stock_quantity > 0;
   const q = search.trim().toLowerCase();
@@ -115,12 +116,17 @@ export default function DigitalMenu() {
 
   useEffect(() => {
     const onScroll = () => {
-      let current = "";
-      const feat = document.getElementById("mnu-featured");
-      if (feat && feat.getBoundingClientRect().top < 140) current = "featured";
+      let current = sections[0]?.id || "";
+      const threshold = window.innerWidth >= 768 ? 170 : 100;
       for (const s of sections) {
         const el = sectionRefs.current[s.id];
-        if (el && el.getBoundingClientRect().top < 140) current = s.id;
+        if (el && el.getBoundingClientRect().top < threshold) current = s.id;
+      }
+      // No fim da página, nem toda seção consegue encostar no topo da tela.
+      const chosen = chosenCategory.current && sectionRefs.current[chosenCategory.current];
+      if (chosen && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2) {
+        const rect = chosen.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) current = chosenCategory.current!;
       }
       setActiveCat(current);
     };
@@ -128,7 +134,13 @@ export default function DigitalMenu() {
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, [sections]);
-  const goTo = (id: string) => (id === "featured" ? document.getElementById("mnu-featured") : sectionRefs.current[id])?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const goTo = (id: string) => {
+    const target = id === "featured" ? document.getElementById("mnu-featured") : sectionRefs.current[id];
+    if (!target) return;
+    chosenCategory.current = id;
+    setActiveCat(id);
+    target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  };
 
   const addToCart = (product: MenuProduct, qty: number, note: string) => {
     const cleanNote = note.trim().slice(0, 140);
@@ -157,7 +169,7 @@ export default function DigitalMenu() {
   // Entrega por distância: o CEP vira taxa (e preenche rua/bairro) consultando o servidor.
   const [quote, setQuote] = useState<BagContext["quote"] & { fee?: number }>({ status: "idle" });
   const cepDigits = form.cep.replace(/\D/g, "");
-  const byDistance = delivery.fee_mode === "distance";
+  const byDistance = delivery.fee_mode === "distance" || delivery.fee_mode === "cep"; // taxa calculada pelo CEP
   useEffect(() => {
     if (!tenant || !byDistance || mode !== "delivery") return;
     if (cepDigits.length !== 8) { setQuote({ status: "idle" }); return; }
@@ -169,7 +181,7 @@ export default function DigitalMenu() {
         if (!alive) return;
         const a = data?.address;
         if (a) setFormState((f) => ({ ...f, street: f.street || a.street || "", district: f.district || a.district || "" }));
-        if (ok) setQuote({ status: "ok", fee: Number(data.fee) || 0, distance: Number(data.distance_km) });
+        if (ok) setQuote({ status: "ok", fee: Number(data.fee) || 0, distance: data.distance_km == null ? undefined : Number(data.distance_km) });
         else setQuote({ status: "error", message: data?.error || "Não foi possível calcular a entrega." });
       })
       .catch(() => alive && setQuote({ status: "error", message: "Não foi possível calcular a entrega agora." }));

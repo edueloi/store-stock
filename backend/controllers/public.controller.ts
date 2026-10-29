@@ -527,7 +527,9 @@ export async function createTableOrder(req: Request, res: Response) {
 type MenuSettings = {
   accepts?: { mesa?: boolean; balcao?: boolean; delivery?: boolean; pickup?: boolean };
   delivery?: {
-    fee_mode?: "fixed" | "neighborhood" | "distance";
+    fee_mode?: "fixed" | "neighborhood" | "distance" | "cep";
+    // modo "cep": taxa por faixa de CEP (de..até), sem depender de serviço de mapa
+    cep_zones?: Array<{ name?: string; from?: string; to?: string; fee?: number }>;
     // modo "distance": taxa por faixa de km (em linha reta) do CEP da loja até o CEP do cliente
     origin_cep?: string;
     tiers?: Array<{ km?: number; fee?: number }>;
@@ -563,14 +565,15 @@ async function getJsonTimeout(url: string, headers?: Record<string, string>): Pr
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n !== 0 ? n : null; };
 
 /** Endereço + coordenadas de um CEP: AwesomeAPI (rua) → BrasilAPI (cidade) → ViaCEP (só endereço). Cache de 24h. */
-async function lookupCep(raw: unknown): Promise<CepInfo | null> {
+async function lookupCep(raw: unknown, withGeo = true): Promise<CepInfo | null> {
   const cep = digits(raw);
   if (cep.length !== 8) return null;
-  const cached = cepCache.get(cep);
+  const cacheKey = `${cep}:${withGeo ? 1 : 0}`;
+  const cached = cepCache.get(cacheKey);
   if (cached && Date.now() - cached.at < 24 * 3600_000) return cached.info;
 
   let info: CepInfo | null = null;
-  const aw = await getJsonTimeout(`https://cep.awesomeapi.com.br/json/${cep}`);
+  const aw = withGeo ? await getJsonTimeout(`https://cep.awesomeapi.com.br/json/${cep}`) : null;
   const awLat = num(aw?.lat), awLng = num(aw?.lng);
   if (aw?.cep) {
     info = { cep, street: String(aw.address || ""), district: String(aw.district || ""), city: String(aw.city || ""), state: String(aw.state || ""), geo: awLat && awLng ? { lat: awLat, lng: awLng } : null, precise: Boolean(awLat && awLng) };
@@ -589,7 +592,7 @@ async function lookupCep(raw: unknown): Promise<CepInfo | null> {
       if (via && !via.erro) info = { cep, street: String(via.logradouro || ""), district: String(via.bairro || ""), city: String(via.localidade || ""), state: String(via.uf || ""), geo: null, precise: false };
     }
   }
-  cepCache.set(cep, { at: Date.now(), info });
+  cepCache.set(cacheKey, { at: Date.now(), info });
   return info;
 }
 
@@ -620,13 +623,33 @@ async function distanceFee(tenant: { address_zip?: string | null }, cfg: MenuSet
   return { ok: true as const, fee: tier.fee, km, dest };
 }
 
+/** Taxa por faixa de CEP (de..até): sem consulta de mapa, só comparação numérica. */
+function cepZoneFee(cfg: MenuSettings, rawCep: unknown) {
+  const cep = digits(rawCep);
+  if (cep.length !== 8) return null;
+  const zone = (cfg.delivery?.cep_zones || []).find((z) => {
+    const from = digits(z.from), to = digits(z.to);
+    return from.length === 8 && to.length === 8 && cep >= from && cep <= to;
+  });
+  return zone ? { fee: Math.max(0, Number(zone.fee) || 0), name: String(zone.name || "") } : null;
+}
+
 /** Cálculo da taxa de entrega pelo CEP do cliente (usado pelo cardápio antes de fechar o pedido). */
 export async function quoteMenuDelivery(req: Request, res: Response) {
   try {
     const tenant = await prisma.tenant.findUnique({ where: { id: Number(req.body?.tenantId) } });
     if (!tenant || !getTenantAccessState(tenant).allowed || !tenant.food_enabled) return res.status(404).json({ error: "Loja não encontrada." });
     const cfg = menuSettings(tenant);
-    if (cfg.delivery?.fee_mode !== "distance") return res.status(400).json({ error: "A entrega desta loja não é calculada por CEP." });
+    const feeMode = cfg.delivery?.fee_mode;
+    if (feeMode === "cep") {
+      const info = await lookupCep(req.body?.cep, false);
+      if (!info) return res.status(422).json({ error: "CEP não encontrado. Confira e tente de novo.", address: null });
+      const address = { street: info.street, district: info.district, city: info.city, state: info.state };
+      const zone = cepZoneFee(cfg, req.body?.cep);
+      if (!zone) return res.status(422).json({ error: "Ainda não entregamos neste CEP.", address });
+      return res.json({ available: true, fee: zone.fee, distance_km: null, address });
+    }
+    if (feeMode !== "distance") return res.status(400).json({ error: "A entrega desta loja não é calculada por CEP." });
     const r = await distanceFee(tenant, cfg, req.body?.cep);
     const dest = (r as { dest?: CepInfo }).dest;
     const address = dest ? { street: dest.street, district: dest.district, city: dest.city, state: dest.state } : null;
@@ -702,11 +725,17 @@ export async function createMenuOrder(req: Request, res: Response) {
       const number = String(address?.number ?? "").trim().slice(0, 20);
       district = String(address?.district ?? "").trim().slice(0, 80);
       const byDistance = delivery.fee_mode === "distance";
-      if (!street || !number || (!byDistance && !district)) return res.status(422).json({ error: "Informe rua, número e bairro para a entrega." });
-      if (byDistance && digits(address?.cep).length !== 8) return res.status(422).json({ error: "Informe o CEP para calcular a entrega." });
+      const byCep = delivery.fee_mode === "cep";
+      if (!street || !number || (!byDistance && !byCep && !district)) return res.status(422).json({ error: "Informe rua, número e bairro para a entrega." });
+      if ((byDistance || byCep) && digits(address?.cep).length !== 8) return res.status(422).json({ error: "Informe o CEP para calcular a entrega." });
       const minOrder = Math.max(0, Number(delivery.min_order) || 0);
       if (minOrder > 0 && subtotal < minOrder) return res.status(422).json({ error: `Pedido mínimo para entrega: R$ ${minOrder.toFixed(2).replace(".", ",")}.` });
-      if (byDistance) {
+      if (byCep) {
+        const zone = cepZoneFee(cfg, address?.cep);
+        if (!zone) return res.status(422).json({ error: "Ainda não entregamos neste CEP." });
+        fee = zone.fee;
+        if (!district) district = (await lookupCep(address?.cep, false))?.district || "";
+      } else if (byDistance) {
         const r = await distanceFee(tenant, cfg, address?.cep);
         if (!r.ok) return res.status(r.status).json({ error: r.message });
         fee = r.fee;
@@ -720,7 +749,7 @@ export async function createMenuOrder(req: Request, res: Response) {
       }
       const freeAbove = Math.max(0, Number(delivery.free_above) || 0);
       if (freeAbove > 0 && subtotal >= freeAbove) fee = 0;
-      addressText = [`${street}, ${number}`, district, byDistance && address?.cep ? `CEP ${digits(address.cep).replace(/^(\d{5})(\d{3})$/, "$1-$2")}` : "", String(address?.complement ?? "").trim().slice(0, 80), address?.reference ? `Ref.: ${String(address.reference).trim().slice(0, 100)}` : ""].filter(Boolean).join(" · ");
+      addressText = [`${street}, ${number}`, district, (byDistance || byCep) && address?.cep ? `CEP ${digits(address.cep).replace(/^(\d{5})(\d{3})$/, "$1-$2")}` : "", String(address?.complement ?? "").trim().slice(0, 80), address?.reference ? `Ref.: ${String(address.reference).trim().slice(0, 100)}` : ""].filter(Boolean).join(" · ");
     }
     const total = Math.round((subtotal + fee) * 100) / 100;
     const changeFor = payMethod === "money" && Number(payment?.change_for) > total ? Math.round(Number(payment?.change_for) * 100) / 100 : null;

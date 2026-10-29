@@ -19,14 +19,14 @@ function QrCanvas({ text, size = 160 }: { text: string; size?: number }) {
 
 interface MenuConfig {
   accepts: { mesa: boolean; balcao: boolean; pickup: boolean; delivery: boolean };
-  delivery: { fee_mode: "fixed" | "neighborhood" | "distance"; origin_cep: string; tiers: { km: number; fee: number }[]; fixed_fee: number; free_above: number; min_order: number; eta: string; neighborhoods: { name: string; fee: number }[] };
+  delivery: { fee_mode: "fixed" | "neighborhood" | "distance" | "cep"; cep_zones: { name: string; from: string; to: string; fee: number }[]; origin_cep: string; tiers: { km: number; fee: number }[]; fixed_fee: number; free_above: number; min_order: number; eta: string; neighborhoods: { name: string; fee: number }[] };
   pickup_eta: string;
   payments: { pix: boolean; money: boolean; card: boolean };
 }
 
 const DEFAULT_CFG: MenuConfig = {
   accepts: { mesa: true, balcao: true, pickup: true, delivery: false },
-  delivery: { fee_mode: "fixed", origin_cep: "", tiers: [{ km: 3, fee: 5 }, { km: 6, fee: 8 }, { km: 10, fee: 12 }], fixed_fee: 0, free_above: 0, min_order: 0, eta: "40-60 min", neighborhoods: [] },
+  delivery: { fee_mode: "fixed", cep_zones: [], origin_cep: "", tiers: [{ km: 3, fee: 5 }, { km: 6, fee: 8 }, { km: 10, fee: 12 }], fixed_fee: 0, free_above: 0, min_order: 0, eta: "40-60 min", neighborhoods: [] },
   pickup_eta: "20-30 min",
   payments: { pix: true, money: true, card: true },
 };
@@ -85,7 +85,7 @@ export default function CardapioQr() {
         const m = pol.menu || {};
         setCfg({
           accepts: { ...DEFAULT_CFG.accepts, ...(m.accepts || {}) },
-          delivery: { ...DEFAULT_CFG.delivery, ...(m.delivery || {}), neighborhoods: Array.isArray(m.delivery?.neighborhoods) ? m.delivery.neighborhoods.map((n: any) => ({ name: String(n.name || ""), fee: Number(n.fee) || 0 })) : [], tiers: Array.isArray(m.delivery?.tiers) && m.delivery.tiers.length ? m.delivery.tiers.map((t: any) => ({ km: Number(t.km) || 0, fee: Number(t.fee) || 0 })) : DEFAULT_CFG.delivery.tiers, origin_cep: String(m.delivery?.origin_cep || "") },
+          delivery: { ...DEFAULT_CFG.delivery, ...(m.delivery || {}), neighborhoods: Array.isArray(m.delivery?.neighborhoods) ? m.delivery.neighborhoods.map((n: any) => ({ name: String(n.name || ""), fee: Number(n.fee) || 0 })) : [], tiers: Array.isArray(m.delivery?.tiers) && m.delivery.tiers.length ? m.delivery.tiers.map((t: any) => ({ km: Number(t.km) || 0, fee: Number(t.fee) || 0 })) : DEFAULT_CFG.delivery.tiers, origin_cep: String(m.delivery?.origin_cep || ""), cep_zones: Array.isArray(m.delivery?.cep_zones) ? m.delivery.cep_zones.map((z: any) => ({ name: String(z.name || ""), from: String(z.from || ""), to: String(z.to || ""), fee: Number(z.fee) || 0 })) : [] },
           pickup_eta: typeof m.pickup_eta === "string" ? m.pickup_eta : DEFAULT_CFG.pickup_eta,
           payments: { ...DEFAULT_CFG.payments, ...(m.payments || {}) },
         });
@@ -102,7 +102,7 @@ export default function CardapioQr() {
     setSaving(true);
     setSaveMsg(null);
     try {
-      const cleaned: MenuConfig = { ...cfg, delivery: { ...cfg.delivery, origin_cep: cfg.delivery.origin_cep.replace(/\D/g, ""), tiers: cfg.delivery.tiers.filter((t) => t.km > 0).sort((a, b) => a.km - b.km), neighborhoods: cfg.delivery.neighborhoods.filter((n) => n.name.trim()).map((n) => ({ name: n.name.trim(), fee: n.fee })) } };
+      const cleaned: MenuConfig = { ...cfg, delivery: { ...cfg.delivery, origin_cep: cfg.delivery.origin_cep.replace(/\D/g, ""), cep_zones: cfg.delivery.cep_zones.filter((z) => z.from.replace(/\D/g, "").length === 8 && z.to.replace(/\D/g, "").length === 8).map((z) => ({ ...z, from: z.from.replace(/\D/g, ""), to: z.to.replace(/\D/g, "") })), tiers: cfg.delivery.tiers.filter((t) => t.km > 0).sort((a, b) => a.km - b.km), neighborhoods: cfg.delivery.neighborhoods.filter((n) => n.name.trim()).map((n) => ({ name: n.name.trim(), fee: n.fee })) } };
       const res = await fetch("/api/tenant", { method: "PUT", headers: headers(), body: JSON.stringify({ policies: { ...policies, menu: cleaned } }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Não foi possível salvar.");
@@ -179,6 +179,14 @@ export default function CardapioQr() {
     { id: "comandas", label: "Comandas", icon: ClipboardList, badge: comandas.length || undefined },
   ] as const;
   const isConfigTab = tab === "pedidos" || tab === "entrega" || tab === "pagamento";
+
+  const cepTester = (
+    <div className="flex flex-wrap items-end gap-2 border-t border-slate-200 pt-3">
+      <div className="w-44"><Input label="Testar um CEP (salve antes)" inputMode="numeric" placeholder="00000-000" value={testCep} onChange={(e) => setTestCep(e.target.value)} /></div>
+      <Button size="sm" variant="outline" loading={testing} disabled={testCep.replace(/\D/g, "").length !== 8 || !meta.id} onClick={testQuote}>Calcular</Button>
+      {testMsg && <span className={cn("text-xs font-medium", testMsg.ok ? "text-emerald-700" : "text-rose-600")}>{testMsg.text}</span>}
+    </div>
+  );
 
   const saveBar = (
     <div className="flex items-center gap-3 border-t border-slate-100 pt-4">
@@ -263,10 +271,10 @@ export default function CardapioQr() {
                 ) : (
                   <>
                     <div className="flex gap-2">
-                      {(["fixed", "distance", "neighborhood"] as const).map((m) => (
+                      {(["fixed", "distance", "cep", "neighborhood"] as const).map((m) => (
                         <button key={m} type="button" onClick={() => setDel({ fee_mode: m })}
                           className={cn("h-9 rounded-lg border px-3 text-xs font-medium", cfg.delivery.fee_mode === m ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-600")}>
-                          {m === "fixed" ? "Taxa fixa" : m === "distance" ? "Por distância (CEP)" : "Taxa por bairro"}
+                          {m === "fixed" ? "Taxa fixa" : m === "distance" ? "Por distância (km)" : m === "cep" ? "Faixas de CEP" : "Taxa por bairro"}
                         </button>
                       ))}
                     </div>
@@ -295,11 +303,25 @@ export default function CardapioQr() {
                           ))}
                           <Button size="sm" variant="outline" iconLeft={<Plus size={13} />} onClick={() => setDel({ tiers: [...cfg.delivery.tiers, { km: 0, fee: 0 }] })}>Adicionar faixa</Button>
                         </div>
-                        <div className="flex flex-wrap items-end gap-2 border-t border-slate-200 pt-3">
-                          <div className="w-44"><Input label="Testar um CEP (salve antes)" inputMode="numeric" placeholder="00000-000" value={testCep} onChange={(e) => setTestCep(e.target.value)} /></div>
-                          <Button size="sm" variant="outline" loading={testing} disabled={testCep.replace(/\D/g, "").length !== 8 || !meta.id} onClick={testQuote}>Calcular</Button>
-                          {testMsg && <span className={cn("text-xs font-medium", testMsg.ok ? "text-emerald-700" : "text-rose-600")}>{testMsg.text}</span>}
+                        {cepTester}
+                      </div>
+                    )}
+                    {cfg.delivery.fee_mode === "cep" && (
+                      <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-[11px] text-slate-500">Defina faixas de CEP (de … até …) e a taxa de cada uma. O cliente informa o CEP e o cardápio acha a faixa; CEP fora das faixas não recebe entrega. Funciona em qualquer cidade e não depende de mapa.</p>
+                        <div className="space-y-2">
+                          {cfg.delivery.cep_zones.map((z, i) => (
+                            <div key={i} className="grid max-w-3xl grid-cols-[1.2fr_1fr_1fr_100px_36px] items-end gap-2">
+                              <Input label={i === 0 ? "Nome (opcional)" : undefined} aria-label="Nome da faixa" placeholder="Centro" value={z.name} onChange={(e) => setDel({ cep_zones: cfg.delivery.cep_zones.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
+                              <Input label={i === 0 ? "CEP inicial" : undefined} aria-label="CEP inicial" inputMode="numeric" placeholder="18270-000" value={z.from} onChange={(e) => setDel({ cep_zones: cfg.delivery.cep_zones.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)) })} />
+                              <Input label={i === 0 ? "CEP final" : undefined} aria-label="CEP final" inputMode="numeric" placeholder="18279-999" value={z.to} onChange={(e) => setDel({ cep_zones: cfg.delivery.cep_zones.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)) })} />
+                              <Input label={i === 0 ? "Taxa (R$)" : undefined} aria-label="Taxa da faixa" inputMode="decimal" placeholder="6,00" value={String(z.fee || "").replace(".", ",")} onChange={(e) => setDel({ cep_zones: cfg.delivery.cep_zones.map((x, j) => (j === i ? { ...x, fee: num(e.target.value) } : x)) })} />
+                              <button type="button" aria-label="Remover faixa" className="flex h-9 items-center justify-center rounded-lg text-rose-500 hover:bg-rose-50" onClick={() => setDel({ cep_zones: cfg.delivery.cep_zones.filter((_, j) => j !== i) })}><Trash2 size={15} /></button>
+                            </div>
+                          ))}
+                          <Button size="sm" variant="outline" iconLeft={<Plus size={13} />} onClick={() => setDel({ cep_zones: [...cfg.delivery.cep_zones, { name: "", from: "", to: "", fee: 0 }] })}>Adicionar faixa de CEP</Button>
                         </div>
+                        {cepTester}
                       </div>
                     )}
                     {cfg.delivery.fee_mode === "neighborhood" && (

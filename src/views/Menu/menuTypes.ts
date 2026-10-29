@@ -25,7 +25,8 @@ export interface MenuCategory { id: number; name: string }
 export interface MenuConfig {
   accepts?: { mesa?: boolean; balcao?: boolean; delivery?: boolean; pickup?: boolean };
   delivery?: {
-    fee_mode?: "fixed" | "neighborhood" | "distance";
+    fee_mode?: "fixed" | "neighborhood" | "distance" | "cep";
+    cep_zones?: Array<{ name?: string; from?: string; to?: string; fee?: number }>;
     origin_cep?: string;
     tiers?: Array<{ km?: number; fee?: number }>;
     fixed_fee?: number;
