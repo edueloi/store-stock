@@ -191,7 +191,8 @@ export default function DigitalMenu() {
   const baseFee = byDistance ? (quote.status === "ok" ? quote.fee ?? 0 : null) : delivery.fee_mode === "neighborhood" ? (hoodFee === undefined ? null : Math.max(0, Number(hoodFee) || 0)) : Math.max(0, Number(delivery.fixed_fee) || 0);
   const fee = mode === "delivery" && baseFee !== null ? (freeAbove > 0 && subtotal >= freeAbove ? 0 : baseFee) : 0;
   const total = subtotal + fee;
-  const payAllowed = { pix: true, money: true, card: true, ...(cfg.payments || {}) };
+  const pcfg = cfg.payments || {};
+  const payAllowed = { pix: pcfg.pix ?? true, money: pcfg.money ?? true, debit: pcfg.debit ?? pcfg.card ?? true, credit: pcfg.credit ?? pcfg.card ?? true };
 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);

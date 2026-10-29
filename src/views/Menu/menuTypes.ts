@@ -4,7 +4,7 @@ import {
 
 export type Route = "delivery" | "mesa" | "balcao";
 export type Receive = "delivery" | "pickup";
-export type PayMethod = "pix" | "money" | "card";
+export type PayMethod = "pix" | "money" | "debit" | "credit";
 export type OrderMode = "delivery" | "pickup" | "mesa" | "balcao";
 
 export interface MenuProduct {
@@ -36,7 +36,7 @@ export interface MenuConfig {
     eta?: string;
   };
   pickup_eta?: string;
-  payments?: { pix?: boolean; money?: boolean; card?: boolean };
+  payments?: { pix?: boolean; money?: boolean; card?: boolean; debit?: boolean; credit?: boolean };
 }
 export type Hours = Record<string, { open: string; close: string; closed: boolean }>;
 export interface MenuTenant {
@@ -61,6 +61,26 @@ export interface MenuTenant {
 export interface CartLine { key: string; product_id: number; name: string; price: number; qty: number; note: string }
 export interface PastOrder { id: string; label: string; total: number; at: number }
 export interface MenuSection { id: string; name: string; items: MenuProduct[] }
+
+/** Máscaras de digitação (telefone BR, CEP e valor em reais). */
+export const maskPhone = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 2) return d;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+};
+export const maskCep = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 8);
+  return d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d;
+};
+/** Dígitos viram centavos: "5000" → "50,00". */
+export const maskMoney = (v: string) => {
+  const d = v.replace(/\D/g, "").slice(0, 8);
+  if (!d) return "";
+  const n = Number(d) / 100;
+  return n.toFixed(2).replace(".", ",");
+};
 
 export const money = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
 export const unitPrice = (p: MenuProduct) => Number(p.discount_price ?? p.price);

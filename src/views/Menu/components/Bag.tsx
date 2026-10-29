@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight, Check, Phone, ShoppingBag, Store, User, UtensilsCrossed } from "lucide-react";
 import type { CartLine, MenuConfig, OrderMode, PayMethod, Receive, Route } from "../menuTypes";
-import { money } from "../menuTypes";
+import { maskMoney, maskPhone, money } from "../menuTypes";
 import { Qty, SheetHead } from "./parts";
 
 export interface BagForm { name: string; phone: string; cep: string; street: string; number: string; district: string; complement: string; reference: string; note: string }
@@ -22,7 +22,7 @@ export interface BagContext {
   minOrder: number;
   freeAbove: number;
   hoods: Array<{ name?: string; fee?: number }>;
-  payAllowed: { pix: boolean; money: boolean; card: boolean };
+  payAllowed: { pix: boolean; money: boolean; debit: boolean; credit: boolean };
   receiveNow: Receive;
   setReceive: (r: Receive) => void;
   form: BagForm;
@@ -104,7 +104,7 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
                     </div>
                   )}
                   <label className="mnu-label">Seu nome<input className="mnu-input" value={form.name} onChange={(e) => setForm({ name: e.target.value })} autoComplete="name" /></label>
-                  <label className="mnu-label">WhatsApp<input className="mnu-input" inputMode="tel" value={form.phone} onChange={(e) => setForm({ phone: e.target.value })} placeholder="(00) 90000-0000" autoComplete="tel" /></label>
+                  <label className="mnu-label">WhatsApp<input className="mnu-input" inputMode="tel" maxLength={15} value={form.phone} onChange={(e) => setForm({ phone: maskPhone(e.target.value) })} placeholder="(00) 90000-0000" autoComplete="tel" /></label>
                 </>
               )}
 
@@ -145,9 +145,10 @@ export function Bag({ ctx, onClose, inline }: { ctx: BagContext; onClose?: () =>
                   <div className="mnu-pay">
                     {ctx.payAllowed.pix && <button type="button" className={ctx.pay === "pix" ? "is-on" : ""} onClick={() => ctx.setPay("pix")}>PIX</button>}
                     {ctx.payAllowed.money && <button type="button" className={ctx.pay === "money" ? "is-on" : ""} onClick={() => ctx.setPay("money")}>Dinheiro</button>}
-                    {ctx.payAllowed.card && <button type="button" className={ctx.pay === "card" ? "is-on" : ""} onClick={() => ctx.setPay("card")}>Cartão</button>}
+                    {ctx.payAllowed.debit && <button type="button" className={ctx.pay === "debit" ? "is-on" : ""} onClick={() => ctx.setPay("debit")}>Débito</button>}
+                    {ctx.payAllowed.credit && <button type="button" className={ctx.pay === "credit" ? "is-on" : ""} onClick={() => ctx.setPay("credit")}>Crédito</button>}
                   </div>
-                  {ctx.pay === "money" && <input className="mnu-input" inputMode="decimal" value={ctx.changeFor} onChange={(e) => ctx.setChangeFor(e.target.value)} placeholder="Troco para quanto? (opcional)" style={{ marginTop: 8 }} />}
+                  {ctx.pay === "money" && <input className="mnu-input" inputMode="decimal" value={ctx.changeFor} onChange={(e) => ctx.setChangeFor(maskMoney(e.target.value))} placeholder="Troco para quanto? (opcional)" style={{ marginTop: 8 }} />}
                   {ctx.pay === "pix" && <span style={{ marginTop: 6 }}>A loja envia a chave PIX ao confirmar o pedido.</span>}
                 </div>
               )}

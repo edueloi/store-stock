@@ -3,6 +3,7 @@ import { Bike, Check, ClipboardList, Copy, CreditCard, ExternalLink, Link2, Plus
 import { Button, Input, PageWrapper, SectionTitle, Alert, Tabs } from "../../components/ui";
 import { listHeldSales, type HeldSale } from "../../lib/heldSales";
 import { cn } from "../../lib/utils";
+import { maskCep } from "../Menu/menuTypes";
 
 let qrModule: Promise<any> | null = null;
 const loadQr = () => (qrModule ??= import("qrcode").then((m) => m.default || m));
@@ -21,14 +22,14 @@ interface MenuConfig {
   accepts: { mesa: boolean; balcao: boolean; pickup: boolean; delivery: boolean };
   delivery: { fee_mode: "fixed" | "neighborhood" | "distance" | "cep"; cep_zones: { name: string; from: string; to: string; fee: number }[]; origin_cep: string; tiers: { km: number; fee: number }[]; fixed_fee: number; free_above: number; min_order: number; eta: string; neighborhoods: { name: string; fee: number }[] };
   pickup_eta: string;
-  payments: { pix: boolean; money: boolean; card: boolean };
+  payments: { pix: boolean; money: boolean; debit: boolean; credit: boolean };
 }
 
 const DEFAULT_CFG: MenuConfig = {
   accepts: { mesa: true, balcao: true, pickup: true, delivery: false },
   delivery: { fee_mode: "fixed", cep_zones: [], origin_cep: "", tiers: [{ km: 3, fee: 5 }, { km: 6, fee: 8 }, { km: 10, fee: 12 }], fixed_fee: 0, free_above: 0, min_order: 0, eta: "40-60 min", neighborhoods: [] },
   pickup_eta: "20-30 min",
-  payments: { pix: true, money: true, card: true },
+  payments: { pix: true, money: true, debit: true, credit: true },
 };
 
 type TabId = "links" | "pedidos" | "entrega" | "pagamento" | "comandas";
@@ -87,7 +88,7 @@ export default function CardapioQr() {
           accepts: { ...DEFAULT_CFG.accepts, ...(m.accepts || {}) },
           delivery: { ...DEFAULT_CFG.delivery, ...(m.delivery || {}), neighborhoods: Array.isArray(m.delivery?.neighborhoods) ? m.delivery.neighborhoods.map((n: any) => ({ name: String(n.name || ""), fee: Number(n.fee) || 0 })) : [], tiers: Array.isArray(m.delivery?.tiers) && m.delivery.tiers.length ? m.delivery.tiers.map((t: any) => ({ km: Number(t.km) || 0, fee: Number(t.fee) || 0 })) : DEFAULT_CFG.delivery.tiers, origin_cep: String(m.delivery?.origin_cep || ""), cep_zones: Array.isArray(m.delivery?.cep_zones) ? m.delivery.cep_zones.map((z: any) => ({ name: String(z.name || ""), from: String(z.from || ""), to: String(z.to || ""), fee: Number(z.fee) || 0 })) : [] },
           pickup_eta: typeof m.pickup_eta === "string" ? m.pickup_eta : DEFAULT_CFG.pickup_eta,
-          payments: { ...DEFAULT_CFG.payments, ...(m.payments || {}) },
+          payments: { pix: m.payments?.pix ?? true, money: m.payments?.money ?? true, debit: m.payments?.debit ?? m.payments?.card ?? true, credit: m.payments?.credit ?? m.payments?.card ?? true },
         });
       })
       .catch(() => {})
@@ -182,7 +183,7 @@ export default function CardapioQr() {
 
   const cepTester = (
     <div className="flex flex-wrap items-end gap-2 border-t border-slate-200 pt-3">
-      <div className="w-44"><Input label="Testar um CEP (salve antes)" inputMode="numeric" placeholder="00000-000" value={testCep} onChange={(e) => setTestCep(e.target.value)} /></div>
+      <div className="w-44"><Input label="Testar um CEP (salve antes)" inputMode="numeric" placeholder="00000-000" value={testCep} maxLength={9} onChange={(e) => setTestCep(maskCep(e.target.value))} /></div>
       <Button size="sm" variant="outline" loading={testing} disabled={testCep.replace(/\D/g, "").length !== 8 || !meta.id} onClick={testQuote}>Calcular</Button>
       {testMsg && <span className={cn("text-xs font-medium", testMsg.ok ? "text-emerald-700" : "text-rose-600")}>{testMsg.text}</span>}
     </div>
@@ -290,7 +291,7 @@ export default function CardapioQr() {
                       <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                         <p className="text-[11px] text-slate-500">O cliente informa o CEP e o cardápio calcula a distância em linha reta até a loja. Cada faixa define até quantos km entregamos e quanto custa; acima da última faixa, não entrega.</p>
                         <div className="max-w-xs">
-                          <Input label="CEP da loja (origem)" inputMode="numeric" placeholder={meta.zip ? `${meta.zip} (cadastro da loja)` : "00000-000"} value={cfg.delivery.origin_cep} onChange={(e) => setDel({ origin_cep: e.target.value })} />
+                          <Input label="CEP da loja (origem)" inputMode="numeric" placeholder={meta.zip ? `${meta.zip} (cadastro da loja)` : "00000-000"} value={cfg.delivery.origin_cep} onChange={(e) => setDel({ origin_cep: maskCep(e.target.value) })} maxLength={9} />
                           <p className="mt-1 text-[11px] text-slate-500">Deixe em branco para usar o CEP do cadastro da loja{meta.zip ? ` (${meta.zip})` : " — que ainda está vazio"}.</p>
                         </div>
                         <div className="space-y-2">
@@ -313,8 +314,8 @@ export default function CardapioQr() {
                           {cfg.delivery.cep_zones.map((z, i) => (
                             <div key={i} className="grid max-w-3xl grid-cols-[1.2fr_1fr_1fr_100px_36px] items-end gap-2">
                               <Input label={i === 0 ? "Nome (opcional)" : undefined} aria-label="Nome da faixa" placeholder="Centro" value={z.name} onChange={(e) => setDel({ cep_zones: cfg.delivery.cep_zones.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
-                              <Input label={i === 0 ? "CEP inicial" : undefined} aria-label="CEP inicial" inputMode="numeric" placeholder="18270-000" value={z.from} onChange={(e) => setDel({ cep_zones: cfg.delivery.cep_zones.map((x, j) => (j === i ? { ...x, from: e.target.value } : x)) })} />
-                              <Input label={i === 0 ? "CEP final" : undefined} aria-label="CEP final" inputMode="numeric" placeholder="18279-999" value={z.to} onChange={(e) => setDel({ cep_zones: cfg.delivery.cep_zones.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)) })} />
+                              <Input label={i === 0 ? "CEP inicial" : undefined} aria-label="CEP inicial" inputMode="numeric" placeholder="18270-000" value={z.from} onChange={(e) => setDel({ cep_zones: cfg.delivery.cep_zones.map((x, j) => (j === i ? { ...x, from: maskCep(e.target.value) } : x)) })} />
+                              <Input label={i === 0 ? "CEP final" : undefined} aria-label="CEP final" inputMode="numeric" placeholder="18279-999" value={z.to} onChange={(e) => setDel({ cep_zones: cfg.delivery.cep_zones.map((x, j) => (j === i ? { ...x, to: maskCep(e.target.value) } : x)) })} />
                               <Input label={i === 0 ? "Taxa (R$)" : undefined} aria-label="Taxa da faixa" inputMode="decimal" placeholder="6,00" value={String(z.fee || "").replace(".", ",")} onChange={(e) => setDel({ cep_zones: cfg.delivery.cep_zones.map((x, j) => (j === i ? { ...x, fee: num(e.target.value) } : x)) })} />
                               <button type="button" aria-label="Remover faixa" className="flex h-9 items-center justify-center rounded-lg text-rose-500 hover:bg-rose-50" onClick={() => setDel({ cep_zones: cfg.delivery.cep_zones.filter((_, j) => j !== i) })}><Trash2 size={15} /></button>
                             </div>
@@ -347,10 +348,11 @@ export default function CardapioQr() {
             {tab === "pagamento" && (
               <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="text-sm font-semibold text-slate-800">Formas de pagamento na entrega e na retirada</h3>
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <Toggle checked={cfg.payments.pix} onChange={(v) => setPay("pix", v)} label="PIX" hint="A loja envia a chave ao confirmar" />
                   <Toggle checked={cfg.payments.money} onChange={(v) => setPay("money", v)} label="Dinheiro (com troco)" hint="O cliente informa o troco" />
-                  <Toggle checked={cfg.payments.card} onChange={(v) => setPay("card", v)} label="Cartão na maquininha" hint="Pagamento na entrega/retirada" />
+                  <Toggle checked={cfg.payments.debit} onChange={(v) => setPay("debit", v)} label="Cartão de débito" hint="Maquininha na entrega/retirada" />
+                  <Toggle checked={cfg.payments.credit} onChange={(v) => setPay("credit", v)} label="Cartão de crédito" hint="Maquininha na entrega/retirada" />
                 </div>
                 <p className="text-[11px] text-slate-500">Mesa e balcão são pagos no caixa, ao fechar a comanda no PDV.</p>
                 {saveBar}

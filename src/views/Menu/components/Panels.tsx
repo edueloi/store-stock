@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { ArrowRight, Bike, MapPin, Minus, Phone, Plus, Store, Users, UtensilsCrossed } from "lucide-react";
 import type { MenuConfig, MenuTenant, PastOrder, Route } from "../menuTypes";
-import { DAY_LABEL, DAY_ORDER, money } from "../menuTypes";
+import { DAY_LABEL, DAY_ORDER, maskPhone, money } from "../menuTypes";
 import { Logo, Sheet, SheetHead } from "./parts";
 
 export function InfoPanel({ tenant, cfg, route, accepts, onClose }: {
@@ -82,7 +82,7 @@ export function Gate({ tenant, route, mesa, onEnter, style }: {
         <span className="mnu-eyebrow">{route === "mesa" ? `Mesa ${mesa.padStart(2, "0")}` : "Pedido no balcão"}</span>
         <div><h2>Antes de escolher,<br />como podemos chamar você?</h2><p>Seu nome ajuda a equipe a identificar o pedido.</p></div>
         <label className="mnu-label">Seu nome<input className="mnu-input" placeholder="Como você se chama?" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoComplete="name" /></label>
-        <label className="mnu-label">WhatsApp <span>Opcional</span><input className="mnu-input" placeholder="(00) 00000-0000" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} autoComplete="tel" /></label>
+        <label className="mnu-label">WhatsApp <span>Opcional</span><input className="mnu-input" placeholder="(00) 00000-0000" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: maskPhone(e.target.value) })} maxLength={15} autoComplete="tel" /></label>
         {route === "mesa" && (
           <div className="mnu-gate-people">
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Users size={16} />Pessoas na mesa</span>

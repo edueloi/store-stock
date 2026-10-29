@@ -540,7 +540,7 @@ type MenuSettings = {
     eta?: string;
   };
   pickup_eta?: string;
-  payments?: { pix?: boolean; money?: boolean; card?: boolean };
+  payments?: { pix?: boolean; money?: boolean; card?: boolean; debit?: boolean; credit?: boolean };
 };
 
 function menuSettings(tenant: { policies: unknown }): MenuSettings {
@@ -694,8 +694,11 @@ export async function createMenuOrder(req: Request, res: Response) {
     if (!name || phone.length < 10) return res.status(422).json({ error: "Informe seu nome e um WhatsApp válido." });
 
     const payMethod = String(payment?.method || "");
-    const allowedPay = { pix: true, money: true, card: true, ...(cfg.payments || {}) } as Record<string, boolean>;
-    if (!["pix", "money", "card"].includes(payMethod) || !allowedPay[payMethod]) return res.status(422).json({ error: "Escolha uma forma de pagamento disponível." });
+    // "card" é o formato antigo (cartão sem separar débito/crédito): vale se algum dos dois estiver ligado.
+    const pcfg = cfg.payments || {};
+    const allowedPay: Record<string, boolean> = { pix: pcfg.pix ?? true, money: pcfg.money ?? true, debit: pcfg.debit ?? pcfg.card ?? true, credit: pcfg.credit ?? pcfg.card ?? true };
+    allowedPay.card = allowedPay.debit || allowedPay.credit;
+    if (!["pix", "money", "debit", "credit", "card"].includes(payMethod) || !allowedPay[payMethod]) return res.status(422).json({ error: "Escolha uma forma de pagamento disponível." });
 
     const trackStock = !tenant.sell_without_stock_control;
     const rows: Array<{ product_id: number; quantity: number; unit_price: number; dimensions_label: string | null; name: string }> = [];
@@ -767,7 +770,7 @@ export async function createMenuOrder(req: Request, res: Response) {
         sales_channel: "menu",
         delivery_method: mode,
         shipping_amount: fee,
-        payment_method: payMethod === "pix" ? "pix" : payMethod === "money" ? "cash_on_delivery" : "card_on_delivery",
+        payment_method: payMethod === "pix" ? "pix" : payMethod === "money" ? "cash_on_delivery" : payMethod === "debit" ? "debit" : payMethod === "credit" ? "credit" : "card_on_delivery",
         storefront_details: { source: "menu", mode, district: district || null, change_for: changeFor, note: String(note ?? "").trim().slice(0, 200) || null, eta: (mode === "delivery" ? delivery.eta : cfg.pickup_eta) || null, stock_tracked: trackStock },
         items: { create: rows.map(({ name: _n, ...r }) => r) },
       },
