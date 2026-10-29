@@ -82,8 +82,11 @@ const PM_STYLE: Record<string, { bg: string; text: string; dot: string }> = {
   pix:    { bg: "bg-violet-50",   text: "text-violet-700", dot: "bg-violet-500" },
   debit:  { bg: "bg-blue-50",     text: "text-blue-700",   dot: "bg-blue-500"   },
   credit: { bg: "bg-emerald-50",  text: "text-emerald-700",dot: "bg-emerald-500"},
+  cash_on_delivery: { bg: "bg-slate-100", text: "text-slate-600", dot: "bg-slate-400" },
+  card_on_delivery: { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
+  to_confirm: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-500" },
 };
-const PM_LABEL: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+const PM_LABEL: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", cash_on_delivery: "Dinheiro na entrega", card_on_delivery: "Cartão na entrega", to_confirm: "A combinar" };
 const BRAND_LABEL: Record<string, string> = { visa: "Visa", master: "Master", elo: "Elo", amex: "Amex", hipercard: "Hiper" };
 
 function PaymentBadges({ pm }: { pm: string }) {

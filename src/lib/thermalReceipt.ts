@@ -271,7 +271,7 @@ export interface OrderReceiptOrder {
   total_amount: number | string;
 }
 
-const ORDER_RECEIPT_PM_LABEL: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
+const ORDER_RECEIPT_PM_LABEL: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", cash_on_delivery: "Dinheiro na entrega", card_on_delivery: "Cartão na entrega", to_confirm: "A combinar" };
 
 function parseOrderReceiptPayments(raw?: string | null) {
   if (!raw) return [{ method: "", label: "Não informado", installments: 1, amount: 0 }];

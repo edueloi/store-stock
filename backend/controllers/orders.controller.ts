@@ -347,7 +347,13 @@ export async function updateOrderStatus(req: Request, res: Response) {
         pix: "PIX",
         debit: "Débito",
         credit: "Crédito",
+        cash_on_delivery: "Dinheiro na entrega",
+        card_on_delivery: "Cartão na entrega",
+        to_confirm: "A combinar",
       };
+      // Pedido do cardápio digital: o lançamento diz de onde veio (Entrega / Retirada).
+      const menuMode = order.sales_channel === "menu" ? String((order.storefront_details as any)?.mode || "") : "";
+      const origin = menuMode === "delivery" ? "Cardápio · Entrega" : menuMode === "pickup" ? "Cardápio · Retirada" : order.sales_channel === "menu" ? "Cardápio" : "PDV";
       const methodSummary = pm
         .split("|")
         .map((seg) => {
@@ -362,7 +368,7 @@ export async function updateOrderStatus(req: Request, res: Response) {
         data: {
           tenant_id: tenantId,
           type: "income",
-          description: `Venda PDV #${orderId} — ${methodSummary}${discountNote}`,
+          description: `Venda ${origin} #${orderId} — ${methodSummary}${discountNote}`,
           amount: net,
           gross_amount: gross,
           fee_amount: fee > 0 ? fee : null,

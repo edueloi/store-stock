@@ -149,6 +149,7 @@ function suggestedInterest(remaining: number, due_date: string, rate: number, gr
 // legível o formato composto "method-brand-installments:amount|...".
 const PM_LABELS: Record<string, string> = {
   money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", discount: "Desconto concedido",
+  cash_on_delivery: "Dinheiro na entrega", card_on_delivery: "Cartão na entrega", to_confirm: "A combinar",
 };
 
 function formatPaymentMethod(pm?: string): string {

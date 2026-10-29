@@ -47,6 +47,7 @@ function yearRange(year: number): { from: string; to: string } {
 
 const PM_LABEL: Record<string, string> = {
   money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário",
+  cash_on_delivery: "Dinheiro na entrega", card_on_delivery: "Cartão na entrega", to_confirm: "A combinar",
 };
 
 const PM_COLOR: Record<string, string> = {
