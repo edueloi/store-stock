@@ -3222,7 +3222,7 @@ export default function Settings({
                     das cores e da sensação da sua loja.
                   </p>
                   <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-                    {["Todos", "Geral", "Moda", "Beleza", "Tecnologia", "Comércio", "Esportes & Fitness", "Casa & Construção", "Agro & Pet", "Auto & Ferramentas", "Infantil & Família", "Cultura & Lazer", "Sabores & Presentes", "Saúde & Hospitalar"].map((category) => (
+                    {["Todos", "Geral", "Óticas & Armações", "Moda", "Beleza", "Tecnologia", "Comércio", "Esportes & Fitness", "Casa & Construção", "Agro & Pet", "Auto & Ferramentas", "Infantil & Família", "Cultura & Lazer", "Sabores & Presentes", "Saúde & Hospitalar"].map((category) => (
                       <button key={category} type="button" onClick={() => setModelCategory(category)} className={cn("shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors", modelCategory === category ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700")}>{category}</button>
                     ))}
                   </div>

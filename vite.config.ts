@@ -39,7 +39,7 @@ export default defineConfig(({mode}) => {
             'index.html',
             '**/index.html',
           ],
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB — covers the full-app main chunk now that the PWA scope isn't limited to /pdv
+          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // O chunk principal compartilhado ultrapassa 5 MiB; preservar o shell offline.
         },
         devOptions: { enabled: false },
       }),

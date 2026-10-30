@@ -50,6 +50,7 @@ import { useStoreFx } from "../../components/store/fx";
 const AdegaCart = lazy(() => import("./themes/adega/Cart"));
 const BrisaCart = lazy(() => import("./themes/adega-clara/Cart"));
 const EloCart = lazy(() => import("./themes/elo/Cart"));
+const OpticalCart = lazy(() => import("./themes/optical/Cart"));
 const StoreQuoteRequest = lazy(() => import("./pages/StoreQuoteRequest"));
 const VitraQuoteBuilder = lazy(() => import("./themes/vidracaria/QuoteBuilder"));
 const StrideCheckout = lazy(() => import("./themes/stride/StoreCheckout"));
@@ -1943,7 +1944,7 @@ function StoreLayoutInner() {
         )}
 
         {/* WhatsApp Widget */}
-        {storefront.show_whatsapp_widget !== false && !["adega", "adega_clara", "elo"].includes(templateId || "") && (
+        {storefront.show_whatsapp_widget !== false && !["adega", "adega_clara", "elo", "lumiere", "orbita"].includes(templateId || "") && (
           <WhatsAppWidget
             whatsapp={storeData.tenant.whatsapp || ""}
             storeName={storeData.tenant.name}
@@ -1953,7 +1954,7 @@ function StoreLayoutInner() {
 
         {/* ── CART DRAWER ─────────────────────────────────────────── */}
         <AnimatePresence>
-          {isCartOpen && !["adega", "adega_clara", "elo"].includes(templateId || "") && (
+          {isCartOpen && !["adega", "adega_clara", "elo", "lumiere", "orbita"].includes(templateId || "") && (
             <>
               <motion.div
                 initial={{ opacity: 0 }}
@@ -2407,8 +2408,17 @@ function StoreLayoutInner() {
           checkoutMessage={checkoutMessage}
         /></Suspense>}
 
+        {["lumiere", "orbita"].includes(templateId || "") && <Suspense fallback={null}><OpticalCart
+          isOpen={isCartOpen}
+          checkout={cartCheckoutForm}
+          onCheckout={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" || isOrderRequest ? openCheckout : handleWhatsAppCheckout}
+          busy={reservationState.loading}
+          message={reservationState.message}
+          checkoutMessage={checkoutMessage}
+        /></Suspense>}
+
         {/* Mobile floating cart */}
-        {cart.length > 0 && !isCartOpen && !["adega", "adega_clara", "elo"].includes(templateId || "") && (
+        {cart.length > 0 && !isCartOpen && !["adega", "adega_clara", "elo", "lumiere", "orbita"].includes(templateId || "") && (
           <motion.div
             initial={{ y: 100 }}
             animate={{ y: 0 }}

@@ -1,4 +1,20 @@
 export const segmentThemes = {
+  lumiere: {
+    name: "LUMIÈRE Ótica",
+    group: "Óticas & Armações",
+    tag: "Ótica Editorial & Elegante",
+    desc: "Fotografia no hero inteiro, tipografia editorial, tons naturais e páginas próprias para catálogo, armação e sobre. Sacola integrada à loja.",
+    accent: "#454c35", bg: "#f8f6f1", ink: "#292b24", surface: "#eeece5", layout: "editorial",
+    hero: "Um novo jeito de ver.", sub: "Armações que revelam quem você é.", catalog: "Uma armação. Infinitas versões.", categories: "Qual é a sua luz?", featured: "Encontros à primeira vista.", cart: "Sua sacola.",
+  },
+  orbita: {
+    name: "ÓRBITA Eyewear",
+    group: "Óticas & Armações",
+    tag: "Ótica Urbana & Autoral",
+    desc: "Hero com foto de ponta a ponta, campanha azul e verde ácido, títulos marcantes, catálogo urbano, produto, sobre e carrinho próprios.",
+    accent: "#c1f54b", bg: "#f1f2ea", ink: "#171918", surface: "#e6e8df", layout: "editorial",
+    hero: "SEU OLHAR. SUAS REGRAS.", sub: "Armações para sair do óbvio.", catalog: "TODAS AS ÓRBITAS.", categories: "Qual é a sua órbita?", featured: "No radar.", cart: "SUA BAG.",
+  },
   stride: {
     name: "Stride Sports",
     group: "Moda",
@@ -327,6 +343,8 @@ export type SegmentId = keyof typeof segmentThemes;
 export const isSegment = (id: string): id is SegmentId =>
   Object.prototype.hasOwnProperty.call(segmentThemes, id);
 export const addedSegmentIds: SegmentId[] = [
+  "lumiere",
+  "orbita",
   "stride",
   "elo",
   "agro",
