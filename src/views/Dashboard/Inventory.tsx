@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Plus, Edit2, Trash2, Image as ImageIcon, Package,
   TrendingUp, LayoutGrid, List, Tag, AlertTriangle,
-  Star, FileUp, History, ArrowRight, Loader2, FileCode, HelpCircle,
+  Star, FileUp, History, ArrowRight, Loader2, FileCode, HelpCircle, Download, FileSpreadsheet, FileText, ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -40,6 +40,7 @@ const STATUS_OPTIONS = [
 export default function Inventory() {
   const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
+  const [exporting, setExporting] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [taxRegime, setTaxRegime] = useState<string>("simples_nacional");
   // Loja vende por encomenda/sem controle de estoque (Settings > Controle de
@@ -407,6 +408,24 @@ export default function Inventory() {
   }[p.measure_unit ?? (p.sale_unit === "m2" ? "m2" : "m")] ?? "un");
   const formatStock = (p: Product) => isMeasuredProduct(p) ? stockValue(p).toFixed(3) : String(stockValue(p));
 
+  async function handleExport(format: "xlsx" | "csv") {
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/products/export?format=${format}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      if (!res.ok) throw new Error();
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `produtos_${new Date().toISOString().split("T")[0]}.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Não foi possível exportar a planilha agora.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const filteredProducts = [...products]
     .filter(p => {
       if (p.type !== "sale") return false;
@@ -641,6 +660,17 @@ export default function Inventory() {
               <Button data-tour="inventory-import-xml-btn" variant="secondary" icon={<FileCode size={14} />} onClick={() => setIsXmlModalOpen(true)}>
                 Importar XML
               </Button>
+              <DropdownMenu
+                trigger={
+                  <Button variant="secondary" icon={<Download size={14} />} loading={exporting} title="Exportar catálogo completo para planilha">
+                    Exportar <ChevronDown size={12} />
+                  </Button>
+                }
+                items={[
+                  { label: "Excel completo (.xlsx) — produtos, fiscal e variações", icon: <FileSpreadsheet size={14} className="text-emerald-600" />, onClick: () => handleExport("xlsx") },
+                  { label: "CSV (.csv) — só produtos", icon: <FileText size={14} className="text-blue-600" />, onClick: () => handleExport("csv") },
+                ]}
+              />
               <Button data-tour="inventory-new-product-btn" icon={<Plus size={14} />} onClick={openNew}>
                 Novo Produto
               </Button>

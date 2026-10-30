@@ -435,3 +435,126 @@ export async function listProductMovements(req: Request, res: Response) {
     res.status(500).json({ error: "Failed to fetch movements" });
   }
 }
+
+// ── Exportação completa do catálogo (Excel/CSV) ──
+const num = (v: unknown) => (v == null || v === "" ? "" : Number(v));
+const dateBR = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10).split("-").reverse().join("/") : "");
+const yesNo = (v: boolean) => (v ? "Sim" : "Não");
+const SALE_UNIT_LABEL: Record<string, string> = { unidade: "Unidade", m2: "m²", linear: "Metro linear", peso: "Peso", volume: "Volume" };
+const TYPE_LABEL: Record<string, string> = { sale: "Venda", supply: "Insumo", service: "Serviço" };
+
+export async function exportProducts(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const format = String(req.query.format ?? "xlsx").toLowerCase() === "csv" ? "csv" : "xlsx";
+    const products = await prisma.product.findMany({
+      where: { tenant_id: tenantId },
+      include: { category: { select: { name: true } } },
+      orderBy: { name: "asc" },
+    });
+
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "BoxSys Store";
+    wb.created = new Date();
+
+    const addSheet = (name: string, columns: { header: string; width: number }[], rows: unknown[][]) => {
+      const ws = wb.addWorksheet(name, { views: [{ state: "frozen", ySplit: 1 }] });
+      ws.columns = columns.map((c) => ({ header: c.header, width: c.width }));
+      const head = ws.getRow(1);
+      head.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      });
+      head.height = 22;
+      rows.forEach((r) => ws.addRow(r));
+      ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
+      return ws;
+    };
+
+    const produtos = addSheet(
+      "Produtos",
+      [
+        ["Código", 9], ["Nome", 38], ["SKU", 18], ["Código de barras", 16], ["Categoria", 20], ["Tipo", 10],
+        ["Descrição", 40], ["Preço de venda", 13], ["Preço promocional", 13], ["Custo", 11], ["Margem %", 10],
+        ["Desconto máx. PDV %", 12], ["Estoque", 9], ["Estoque mínimo", 10], ["Controla estoque", 11],
+        ["Unidade de venda", 14], ["Preço por medida", 13], ["Unidade de medida", 11], ["Estoque (medida)", 12],
+        ["Faturável mínimo", 12], ["Validade", 11], ["Ativo", 7], ["Destaque", 9], ["Preço oculto na loja", 12],
+        ["Peso (g)", 9], ["Comprimento (cm)", 11], ["Largura (cm)", 10], ["Altura (cm)", 10], ["Imagem", 40],
+        ["Cadastrado em", 12], ["Atualizado em", 12],
+      ].map(([header, width]) => ({ header: header as string, width: width as number })),
+      products.map((p) => {
+        const price = Number(p.price), cost = Number(p.cost_price);
+        return [
+          p.id, p.name, p.sku ?? "", p.barcode ?? "", p.category?.name ?? "", TYPE_LABEL[p.type] ?? p.type,
+          p.description ?? "", price, num(p.discount_price), cost, cost > 0 && price > 0 ? Math.round(((price - cost) / cost) * 1000) / 10 : "",
+          num(p.max_discount_pct), p.stock_quantity, p.min_stock, yesNo(p.track_stock),
+          SALE_UNIT_LABEL[p.sale_unit] ?? p.sale_unit, num(p.price_per_measure), p.measure_unit ?? "", num(p.measure_stock_quantity),
+          num(p.min_billable_quantity), dateBR(p.expiry_date), yesNo(p.is_active), yesNo(p.is_featured), yesNo(p.hide_price_on_site),
+          p.weight_grams ?? "", num(p.package_length_cm), num(p.package_width_cm), num(p.package_height_cm), p.image_url ?? "",
+          dateBR(p.created_at), dateBR(p.updated_at),
+        ];
+      }),
+    );
+    for (const col of [8, 9, 10, 17]) produtos.getColumn(col).numFmt = '"R$" #,##0.00';
+
+    addSheet(
+      "Fiscal",
+      [["Código", 9], ["Produto", 38], ["NCM", 11], ["CEST", 9], ["CFOP", 7], ["Origem", 8], ["Unid. comercial", 10], ["Unid. tributável", 10],
+        ["CSOSN", 8], ["CST ICMS", 9], ["Alíq. ICMS %", 10], ["CST PIS", 8], ["Alíq. PIS %", 10], ["CST COFINS", 10], ["Alíq. COFINS %", 11]]
+        .map(([header, width]) => ({ header: header as string, width: width as number })),
+      products.map((p) => [
+        p.id, p.name, p.ncm ?? "", p.cest ?? "", p.cfop ?? "", p.origem, p.unidade_comercial, p.unidade_tributavel,
+        p.csosn ?? "", p.cst_icms ?? "", num(p.icms_aliquota), p.pis_cst ?? "", num(p.pis_aliquota), p.cofins_cst ?? "", num(p.cofins_aliquota),
+      ]),
+    );
+
+    const attrNames = new Set<string>();
+    type Sku = { combo?: Record<string, string>; stock?: number };
+    const skuRows: { p: (typeof products)[number]; combo: Record<string, string>; stock: number }[] = [];
+    for (const p of products) {
+      const skus = Array.isArray(p.skus) ? (p.skus as Sku[]) : [];
+      if (skus.length) {
+        for (const s of skus) {
+          const combo = s.combo && typeof s.combo === "object" ? s.combo : {};
+          Object.keys(combo).forEach((k) => attrNames.add(k));
+          skuRows.push({ p, combo, stock: Number(s.stock ?? 0) });
+        }
+      } else if (Array.isArray(p.variations)) {
+        // formato antigo: uma variação por opção
+        for (const v of p.variations as { name?: string; options?: { value: string; stock: number }[] }[]) {
+          for (const o of v.options ?? []) {
+            if (v.name) attrNames.add(v.name);
+            skuRows.push({ p, combo: v.name ? { [v.name]: o.value } : {}, stock: Number(o.stock ?? 0) });
+          }
+        }
+      }
+    }
+    const attrCols = [...attrNames];
+    addSheet(
+      "Variações",
+      [{ header: "Código", width: 9 }, { header: "Produto", width: 38 }, { header: "Combinação", width: 28 },
+        ...attrCols.map((a) => ({ header: a, width: 14 })), { header: "Estoque", width: 9 }],
+      skuRows.map(({ p, combo, stock }) => [p.id, p.name, Object.values(combo).join(" / "), ...attrCols.map((a) => combo[a] ?? ""), stock]),
+    );
+
+    const today = new Date().toISOString().split("T")[0];
+    if (format === "csv") {
+      // CSV só leva a primeira aba (Produtos); BOM para o Excel reconhecer UTF-8.
+      wb.worksheets.slice(1).forEach((w) => wb.removeWorksheet(w.id));
+      const buf = await wb.csv.writeBuffer({ formatterOptions: { delimiter: ";" } });
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="produtos_${today}.csv"`);
+      res.send(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(buf)]));
+    } else {
+      const buf = await wb.xlsx.writeBuffer();
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="produtos_${today}.xlsx"`);
+      res.send(Buffer.from(buf));
+    }
+  } catch (err) {
+    console.error("exportProducts", err);
+    res.status(500).json({ error: "Falha ao exportar produtos" });
+  }
+}

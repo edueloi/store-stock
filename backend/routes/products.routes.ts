@@ -4,6 +4,7 @@ import {
   adjustProductStock,
   createProduct,
   deleteProduct,
+  exportProducts,
   getLowStockCount,
   getProduct,
   getProductByBarcode,
@@ -18,6 +19,7 @@ const router = Router();
 
 router.use(authenticateToken);
 
+router.get("/export", exportProducts);
 router.get("/", listProducts);
 router.post("/", createProduct);
 router.post("/stock-adjustment", adjustProductStock);
