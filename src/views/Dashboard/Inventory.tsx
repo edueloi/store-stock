@@ -16,7 +16,7 @@ import PdfImportModal from "../../components/ui/PdfImportModal";
 import XmlImportModal from "../../components/ui/XmlImportModal";
 import {
   Button, IconButton, Select, Badge, PageWrapper, SectionTitle, GridTable, Pagination,
-  FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch, FilterLineSegmented, useToast,
+  FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch, FilterLineSegmented, useToast, Modal, ModalFooter,
 } from "../../components/ui";
 import type { Column } from "../../components/ui";
 import InventoryPageTour, { INVENTORY_PAGE_TOUR_EVENTS, type InventoryPageTourHandle } from "../../components/onboarding/InventoryPageTour";
@@ -41,6 +41,9 @@ export default function Inventory() {
   const toast = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importSummary, setImportSummary] = useState<{ created: number; updated: number; errors: { row: number; message: string }[] } | null>(null);
+  const sheetInputRef = useRef<HTMLInputElement>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [taxRegime, setTaxRegime] = useState<string>("simples_nacional");
   // Loja vende por encomenda/sem controle de estoque (Settings > Controle de
@@ -426,6 +429,26 @@ export default function Inventory() {
     }
   }
 
+  async function handleSheetChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/products/import", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Falha ao importar a planilha.");
+      setImportSummary(data);
+      fetchInventory();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao importar a planilha.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const filteredProducts = [...products]
     .filter(p => {
       if (p.type !== "sale") return false;
@@ -654,12 +677,18 @@ export default function Inventory() {
               >
                 {viewMode === "table" ? "Grade" : "Tabela"}
               </Button>
-              <Button data-tour="inventory-import-pdf-btn" variant="secondary" icon={<FileUp size={14} />} onClick={() => setIsPdfModalOpen(true)}>
-                Importar PDF
-              </Button>
-              <Button data-tour="inventory-import-xml-btn" variant="secondary" icon={<FileCode size={14} />} onClick={() => setIsXmlModalOpen(true)}>
-                Importar XML
-              </Button>
+              <DropdownMenu
+                trigger={
+                  <Button data-tour="inventory-import-pdf-btn" variant="secondary" icon={<FileUp size={14} />} loading={importing} title="Importar produtos">
+                    Importar <ChevronDown size={12} />
+                  </Button>
+                }
+                items={[
+                  { label: "Planilha (CSV / Excel)", icon: <FileSpreadsheet size={14} className="text-emerald-600" />, onClick: () => sheetInputRef.current?.click() },
+                  { label: "Nota fiscal (XML)", icon: <FileCode size={14} className="text-blue-600" />, onClick: () => setIsXmlModalOpen(true) },
+                  { label: "Lista em PDF", icon: <FileText size={14} className="text-red-600" />, onClick: () => setIsPdfModalOpen(true) },
+                ]}
+              />
               <DropdownMenu
                 trigger={
                   <Button variant="secondary" icon={<Download size={14} />} loading={exporting} title="Exportar catálogo completo para planilha">
@@ -687,6 +716,32 @@ export default function Inventory() {
         />
 
         <InventoryPageTour ref={inventoryPageTourRef} />
+
+        <input ref={sheetInputRef} type="file" accept=".csv,.xls,.xlsx,.xml,text/csv" className="hidden" onChange={handleSheetChosen} />
+        <Modal
+          open={!!importSummary}
+          onClose={() => setImportSummary(null)}
+          title="Resultado da importação"
+          size="md"
+          footer={<ModalFooter><Button onClick={() => setImportSummary(null)}>Fechar</Button></ModalFooter>}
+        >
+          {importSummary && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3"><div className="text-xl font-semibold text-emerald-700">{importSummary.created}</div><div className="text-xs text-emerald-700">Criados</div></div>
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-3"><div className="text-xl font-semibold text-blue-700">{importSummary.updated}</div><div className="text-xs text-blue-700">Atualizados</div></div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3"><div className="text-xl font-semibold text-amber-700">{importSummary.errors.length}</div><div className="text-xs text-amber-700">Ignorados</div></div>
+              </div>
+              {importSummary.errors.length > 0 && (
+                <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200 text-xs">
+                  {importSummary.errors.map((er, i) => (
+                    <div key={i} className="flex gap-3 border-b border-slate-100 px-3 py-2 last:border-0"><span className="w-14 shrink-0 text-slate-500">Linha {er.row}</span><span className="text-slate-600">{er.message}</span></div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </Modal>
 
         <StatsGrid columns={4} stats={[
           { label: "Capital Imobilizado", value: `R$ ${totalCost.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, icon: <Package size={18} />, accent: "blue" },
