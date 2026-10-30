@@ -292,6 +292,24 @@ export interface ProductFormProps {
   onCancel: () => void;
 }
 
+/** Texto que vira campo ao clicar: Enter ou sair do campo confirma, Esc cancela. */
+function InlineEdit({ value, onCommit, onCancel, className }: { value: string; onCommit: (v: string) => void; onCancel: () => void; className?: string }) {
+  return (
+    <input
+      autoFocus
+      defaultValue={value}
+      onFocus={e => e.currentTarget.select()}
+      onKeyDown={e => {
+        if (e.key === "Enter") { e.preventDefault(); onCommit(e.currentTarget.value); }
+        if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+      }}
+      onBlur={e => onCommit(e.currentTarget.value)}
+      style={{ width: `${Math.max(value.length, 4) + 2}ch` }}
+      className={cn("rounded border border-blue-400 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-800 outline-none", className)}
+    />
+  );
+}
+
 export default function ProductForm({
   product: editingProduct, onProductChange: setEditingProduct, images: editingImages, onImagesChange: setEditingImages,
   categories, onCategoryCreated, taxRegime, saving, onSave, onCancel,
@@ -314,6 +332,8 @@ export default function ProductForm({
   const [newAttrName, setNewAttrName] = useState("");
   const [newAttrValue, setNewAttrValue] = useState("");
   const [showPresets, setShowPresets] = useState(false);
+  // qual nome está em edição: um valor (val = índice) ou o nome da própria variação (val = null)
+  const [editCell, setEditCell] = useState<{ attr: number; val: number | null } | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -397,6 +417,38 @@ export default function ProductForm({
     const newCombos = generateCombos(attrs);
     const newSkus = newCombos.map(combo => ({ combo, stock: oldMap[comboKey(combo)]?.stock ?? 0, images: oldMap[comboKey(combo)]?.images }));
     setEditingProduct(prev => ({ ...prev!, attributes: attrs, skus: newSkus }));
+  };
+
+  // Renomeia um valor (ex.: "Azul" → "Azul Royal") mantendo estoque, fotos e cor das combinações.
+  const renameAttrValue = (attrIdx: number, valIdx: number, next: string) => {
+    setEditCell(null);
+    const attrs = [...(editingProduct?.attributes || [])];
+    const attr = attrs[attrIdx];
+    const old = attr.values[valIdx];
+    const name = next.trim();
+    if (!name || name === old) return;
+    if (attr.values.some((v, i) => i !== valIdx && v.toLowerCase() === name.toLowerCase())) { toast.error(`"${name}" já existe em ${attr.name}.`); return; }
+    const values = attr.values.map((v, i) => (i === valIdx ? name : v));
+    const colors = attr.colors && old in attr.colors ? Object.fromEntries(Object.entries(attr.colors).map(([k, v]) => [k === old ? name : k, v])) : attr.colors;
+    attrs[attrIdx] = { ...attr, values, ...(colors ? { colors } : {}) };
+    const skus = (editingProduct?.skus || []).map(sku => ({ ...sku, combo: { ...sku.combo, ...(sku.combo[attr.name] === old ? { [attr.name]: name } : {}) } }));
+    setEditingProduct(prev => ({ ...prev!, attributes: attrs, skus }));
+  };
+
+  // Renomeia a variação (ex.: "Tamanho" → "Numeração") em todas as combinações.
+  const renameAttr = (attrIdx: number, next: string) => {
+    setEditCell(null);
+    const attrs = [...(editingProduct?.attributes || [])];
+    const old = attrs[attrIdx].name;
+    const name = next.trim();
+    if (!name || name === old) return;
+    if (attrs.some((a, i) => i !== attrIdx && a.name.toLowerCase() === name.toLowerCase())) { toast.error(`Já existe uma variação chamada "${name}".`); return; }
+    attrs[attrIdx] = { ...attrs[attrIdx], name };
+    const skus = (editingProduct?.skus || []).map(sku => ({
+      ...sku,
+      combo: Object.fromEntries(Object.entries(sku.combo).map(([k, v]) => [k === old ? name : k, v])),
+    }));
+    setEditingProduct(prev => ({ ...prev!, attributes: attrs, skus }));
   };
 
   const updateAttrColor = (attrIdx: number, val: string, hex: string) => {
@@ -862,7 +914,10 @@ export default function ProductForm({
                       <motion.div key={attrIdx} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
                         className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-medium text-slate-800">{attr.name}
+                          <p className="text-xs font-medium text-slate-800">
+                            {editCell?.attr === attrIdx && editCell.val === null
+                              ? <InlineEdit value={attr.name} onCommit={v => renameAttr(attrIdx, v)} onCancel={() => setEditCell(null)} />
+                              : <button type="button" title="Clique para renomear a variação" onClick={() => setEditCell({ attr: attrIdx, val: null })} className="rounded px-0.5 hover:bg-slate-100 hover:text-blue-600">{attr.name}</button>}
                             <span className="ml-2 text-slate-400 font-medium text-[11px]">{attr.values.length} valor{attr.values.length !== 1 ? "es" : ""}</span>
                           </p>
                         </div>
@@ -884,7 +939,9 @@ export default function ProductForm({
                                       />
                                     </label>
                                   )}
-                                  <span className={isColorAttr ? "text-slate-700" : ""}>{val}</span>
+                                  {editCell?.attr === attrIdx && editCell.val === valIdx
+                                    ? <InlineEdit value={val} onCommit={v => renameAttrValue(attrIdx, valIdx, v)} onCancel={() => setEditCell(null)} />
+                                    : <button type="button" title="Clique para renomear" onClick={() => setEditCell({ attr: attrIdx, val: valIdx })} className={cn("rounded hover:underline", isColorAttr ? "text-slate-700" : "")}>{val}</button>}
                                   <button type="button" aria-label={`Remover ${val}`} onClick={() => removeAttrValue(attrIdx, valIdx)} className="text-slate-300 hover:text-red-500 transition-colors ml-0.5">
                                     <X size={9} strokeWidth={3} />
                                   </button>

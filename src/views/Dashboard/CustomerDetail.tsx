@@ -1160,6 +1160,7 @@ export default function CustomerDetail() {
               </dl>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button
+                  variant="success"
                   size="sm"
                   iconLeft={<MessageCircle size={14} />}
                   loading={sendingStatementWhatsapp}
