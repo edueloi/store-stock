@@ -10,6 +10,8 @@ import {
   Button, IconButton, Input, Select, Textarea, Switch, Tabs, SectionTitle, ContentCard, PanelCard, Badge, FilterLineSegmented, useToast,
 } from "../../components/ui";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
+import VariationPresetsPanel from "./VariationPresetsPanel";
+import type { VariationPreset } from "../../lib/variationPresets";
 import { PIECE_KINDS, resolveGlassOptions, type GlassOptions } from "../../lib/glassPieces";
 import { glassMeasurements } from "../../../shared/glassCatalog";
 import { defaultMeasureUnit, measureUnitAbbr, measureUnitLabel, measureUnitOptions } from "../../utils/measurePricing";
@@ -70,163 +72,6 @@ function handleUppercaseChange(
     if (pos !== null) input.setSelectionRange(pos, pos);
   });
 }
-
-// ── preset variation templates por segmento ────────────────────────────────
-const VARIATION_PRESETS: { label: string; icon: string; variations: { name: string; options: string[] }[] }[] = [
-  {
-    label: "Roupas", icon: "👕",
-    variations: [
-      { name: "Tamanho", options: ["PP", "P", "M", "G", "GG", "XGG"] },
-      { name: "Cor", options: ["Preto", "Branco", "Cinza", "Azul", "Vermelho"] },
-    ],
-  },
-  {
-    label: "Calçados", icon: "👟",
-    variations: [
-      { name: "Número", options: ["34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44"] },
-      { name: "Cor", options: ["Preto", "Branco", "Marrom", "Bege"] },
-    ],
-  },
-  {
-    label: "Eletrônicos", icon: "🔌",
-    variations: [
-      { name: "Voltagem", options: ["110V", "220V", "Bivolt"] },
-      { name: "Cor", options: ["Preto", "Branco", "Prata"] },
-    ],
-  },
-  {
-    label: "Acessórios", icon: "💍",
-    variations: [
-      { name: "Tamanho", options: ["P", "M", "G", "Único"] },
-      { name: "Material", options: ["Ouro", "Prata", "Aço", "Couro"] },
-    ],
-  },
-  {
-    label: "Moda íntima", icon: "🩲",
-    variations: [
-      { name: "Tamanho", options: ["PP", "P", "M", "G", "GG", "XGG"] },
-      { name: "Cor", options: ["Preto", "Branco", "Nude", "Vermelho"] },
-    ],
-  },
-  {
-    label: "Moda infantil", icon: "🧒",
-    variations: [
-      { name: "Idade", options: ["0–3 meses", "3–6 meses", "1 ano", "2 anos", "4 anos", "6 anos", "8 anos"] },
-      { name: "Cor", options: ["Azul", "Rosa", "Amarelo", "Verde"] },
-    ],
-  },
-  {
-    label: "Jeans", icon: "👖",
-    variations: [
-      { name: "Tamanho", options: ["34", "36", "38", "40", "42", "44", "46", "48"] },
-      { name: "Lavagem", options: ["Claro", "Médio", "Escuro"] },
-    ],
-  },
-  {
-    label: "Bolsas", icon: "👜",
-    variations: [
-      { name: "Cor", options: ["Preto", "Caramelo", "Marrom", "Bege", "Vinho"] },
-      { name: "Material", options: ["Couro", "Sintético", "Lona"] },
-    ],
-  },
-  {
-    label: "Joias", icon: "💎",
-    variations: [
-      { name: "Banho", options: ["Dourado", "Prateado", "Rosé"] },
-      { name: "Tamanho", options: ["P", "M", "G", "Único"] },
-    ],
-  },
-  {
-    label: "Óculos", icon: "🕶️",
-    variations: [
-      { name: "Cor da armação", options: ["Preto", "Tartaruga", "Dourado", "Prata"] },
-      { name: "Lente", options: ["Preta", "Marrom", "Degradê"] },
-    ],
-  },
-  {
-    label: "Relógios", icon: "⌚",
-    variations: [
-      { name: "Cor", options: ["Preto", "Prata", "Dourado", "Rosé"] },
-      { name: "Pulseira", options: ["Metal", "Couro", "Silicone"] },
-    ],
-  },
-  {
-    label: "Perfumaria", icon: "🌸",
-    variations: [
-      { name: "Volume", options: ["30ml", "50ml", "75ml", "100ml", "150ml"] },
-    ],
-  },
-  {
-    label: "Alimentos", icon: "🥩",
-    variations: [
-      { name: "Peso", options: ["250g", "500g", "1kg", "2kg", "5kg"] },
-      { name: "Sabor", options: ["Natural", "Com Sal", "Sem Sal"] },
-    ],
-  },
-  {
-    label: "Doceria", icon: "🍬",
-    variations: [
-      { name: "Apresentação", options: ["A granel", "Pote", "Caixa"] },
-      { name: "Peso", options: ["500g", "800g", "1kg", "1,1kg", "1,2kg", "1,5kg"] },
-    ],
-  },
-  {
-    label: "Agro", icon: "🌱",
-    variations: [
-      { name: "Embalagem", options: ["1L", "5L", "10L", "20L", "50L"] },
-      { name: "Formulação", options: ["Líquido", "Pó", "Grânulo"] },
-    ],
-  },
-  {
-    label: "Higiene", icon: "🧴",
-    variations: [
-      { name: "Volume", options: ["200ml", "400ml", "1L"] },
-      { name: "Tipo", options: ["Normal", "Seco", "Oleoso", "Misto"] },
-    ],
-  },
-  {
-    label: "Cosméticos", icon: "💄",
-    variations: [
-      { name: "Cor", options: ["Claro", "Médio", "Escuro", "Vermelho", "Rosa"] },
-      { name: "Volume", options: ["10ml", "30ml", "50ml"] },
-    ],
-  },
-  {
-    label: "Casa & decoração", icon: "🏠",
-    variations: [
-      { name: "Tamanho", options: ["P", "M", "G", "Único"] },
-      { name: "Cor", options: ["Branco", "Preto", "Bege", "Cinza"] },
-    ],
-  },
-  {
-    label: "Pet", icon: "🐾",
-    variations: [
-      { name: "Porte", options: ["Pequeno", "Médio", "Grande"] },
-      { name: "Cor", options: ["Azul", "Rosa", "Preto", "Vermelho"] },
-    ],
-  },
-  {
-    label: "Ferramentas", icon: "🛠️",
-    variations: [
-      { name: "Voltagem", options: ["110V", "220V", "Bivolt"] },
-      { name: "Kit", options: ["Individual", "Kit 2", "Kit 5"] },
-    ],
-  },
-  {
-    label: "Games", icon: "🎮",
-    variations: [
-      { name: "Plataforma", options: ["PS5", "Xbox", "Nintendo", "PC"] },
-      { name: "Edição", options: ["Padrão", "Deluxe", "Colecionador"] },
-    ],
-  },
-  {
-    label: "Papelaria", icon: "✏️",
-    variations: [
-      { name: "Formato", options: ["A4", "A5", "Universitário"] },
-      { name: "Cor", options: ["Azul", "Rosa", "Preto", "Verde"] },
-    ],
-  },
-];
 
 // ── Multi-image gallery uploader ───────────────────────────────────────────
 interface GalleryUploaderProps {
@@ -511,17 +356,21 @@ export default function ProductForm({
   // Add a value to an attribute (creates attr if new), then regenerate combos preserving existing stocks
   const addAttrValue = (attrName: string, value: string) => {
     const trimmedAttr = attrName.trim();
-    const trimmedVal = value.trim();
-    if (!trimmedAttr || !trimmedVal) return;
+    // vários valores de uma vez: "Azul, Marrom, Preto" (vírgula, ponto e vírgula ou quebra de linha)
+    const incoming = value.split(/[,;\n]+/).map(v => v.trim()).filter(Boolean);
+    if (!trimmedAttr || incoming.length === 0) return;
 
     const attrs = [...(editingProduct?.attributes || [])];
     const idx = attrs.findIndex(a => a.name.toLowerCase() === trimmedAttr.toLowerCase());
-    if (idx >= 0) {
-      if (attrs[idx].values.some(v => v.toLowerCase() === trimmedVal.toLowerCase())) return;
-      attrs[idx] = { ...attrs[idx], values: [...attrs[idx].values, trimmedVal] };
-    } else {
-      attrs.push({ name: trimmedAttr, values: [trimmedVal] });
+    const current = idx >= 0 ? attrs[idx].values : [];
+    const fresh: string[] = [];
+    for (const v of incoming) {
+      if ([...current, ...fresh].some(x => x.toLowerCase() === v.toLowerCase())) continue;
+      fresh.push(v);
     }
+    if (fresh.length === 0) return;
+    if (idx >= 0) attrs[idx] = { ...attrs[idx], values: [...current, ...fresh] };
+    else attrs.push({ name: trimmedAttr, values: fresh });
 
     const oldSkus = editingProduct?.skus || [];
     const oldMap = Object.fromEntries(oldSkus.map(s => [comboKey(s.combo), s]));
@@ -568,9 +417,9 @@ export default function ProductForm({
     setEditingProduct(prev => ({ ...prev!, skus }));
   };
 
-  const applyPreset = (preset: typeof VARIATION_PRESETS[0]) => {
+  const applyPreset = (preset: VariationPreset) => {
     // Replace all current attributes with the preset (full replace, not merge)
-    const attrs = preset.variations.map(v => ({ name: v.name, values: v.options }));
+    const attrs = preset.variations.map(v => ({ name: v.name, values: v.options, ...(v.colors ? { colors: v.colors } : {}) }));
     const newCombos = generateCombos(attrs);
     const newSkus = newCombos.map(combo => ({ combo, stock: 0 }));
     setEditingProduct(prev => ({ ...prev!, attributes: attrs, skus: newSkus }));
@@ -1002,33 +851,7 @@ export default function ProductForm({
                   <AnimatePresence>
                     {showPresets && (
                       <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                          <p className="text-[11px] font-medium text-slate-500 mb-2.5">Selecione o segmento para carregar variações pré-definidas:</p>
-                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                            {VARIATION_PRESETS.map(preset => {
-                              const currentAttrs = editingProduct?.attributes || [];
-                              // Preset is "active" when all its attribute names match the current attributes exactly
-                              const isActive = currentAttrs.length === preset.variations.length &&
-                                preset.variations.every(pv => currentAttrs.some(a => a.name.toLowerCase() === pv.name.toLowerCase()));
-                              return (
-                                <button key={preset.label} type="button"
-                                  onClick={() => { if (!isActive) applyPreset(preset); }}
-                                  disabled={isActive}
-                                  className={cn(
-                                    "flex flex-col items-center gap-1 p-2.5 rounded-lg border transition-all group",
-                                    isActive
-                                      ? "border-blue-400 bg-blue-50 cursor-default"
-                                      : "border-slate-200 bg-white hover:border-blue-400 hover:bg-blue-50"
-                                  )}>
-                                  <span className="text-xl">{preset.icon}</span>
-                                  <span className={cn("text-[11px] font-medium", isActive ? "text-blue-700" : "text-slate-600 group-hover:text-blue-700")}>{preset.label}</span>
-                                  {isActive && <span className="text-[10px] font-medium text-blue-500">Em uso</span>}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <p className="text-[11px] text-slate-400 mt-2">Clique em um modelo para substituir as variações atuais. Use "Limpar" para remover tudo.</p>
-                        </div>
+                        <VariationPresetsPanel current={editingProduct?.attributes || []} onApply={applyPreset} />
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -1068,8 +891,9 @@ export default function ProductForm({
                                 </span>
                               ))}
                               {/* inline add value to existing attr */}
-                              <Input size="sm" wrapperClassName="w-24" type="text" placeholder="+ valor"
-                                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); const inp = e.currentTarget; addAttrValue(attr.name, inp.value); inp.value = ""; } }} />
+                              <Input size="sm" wrapperClassName="w-36" type="text" placeholder="+ valor (Enter ou vírgula)"
+                                onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); const inp = e.currentTarget; addAttrValue(attr.name, inp.value); inp.value = ""; } }}
+                                onBlur={e => { const inp = e.currentTarget; if (inp.value.trim()) { addAttrValue(attr.name, inp.value); inp.value = ""; } }} />
                             </div>
                           );
                         })()}
@@ -1083,7 +907,7 @@ export default function ProductForm({
                     <div className="flex gap-2">
                       <Input wrapperClassName="flex-1" type="text" placeholder="Atributo (Tamanho, Cor...)"
                         value={newAttrName} onChange={e => setNewAttrName(e.target.value)} />
-                      <Input wrapperClassName="flex-1" type="text" placeholder="1º valor (P, Azul...)"
+                      <Input wrapperClassName="flex-1" type="text" placeholder="Valores: Azul, Marrom, Preto"
                         value={newAttrValue} onChange={e => setNewAttrValue(e.target.value)}
                         onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addAttrValue(newAttrName, newAttrValue); setNewAttrName(""); } }} />
                       <IconButton type="button" variant="primary" aria-label="Adicionar atributo"
@@ -1092,7 +916,7 @@ export default function ProductForm({
                         <Plus size={15} strokeWidth={3} />
                       </IconButton>
                     </div>
-                    <p className="text-[11px] text-slate-400">Para adicionar mais valores ao mesmo atributo, use os campos inline acima ou clique novamente com o mesmo nome.</p>
+                    <p className="text-[11px] text-slate-400">Separe vários valores com vírgula (Azul, Marrom, Preto) — cada um vira uma opção. Para somar mais valores depois, use o campo "+ valor" acima.</p>
                   </div>
 
                   {/* ── Step 2: Combinações (SKU matrix) ── */}

@@ -864,7 +864,7 @@ function ClassicPDV() {
         operatorName={operatorName}
         onLogout={logout}
         onOpen={async (amount, note) => {
-          if (!isOnline) {
+          const openLocally = async () => {
             const localId = crypto.randomUUID();
             const openedAt = new Date().toISOString();
             const session: CashSessionInfo = { id: 0, localId, opened_at: openedAt, opening_amount: amount, opened_by_name: operatorName };
@@ -872,11 +872,17 @@ function ClassicPDV() {
             setCashSession(session);
             cacheSet("cashSession", session);
             refreshPending();
-            return;
+          };
+          if (!isOnline) return openLocally();
+          try {
+            const session = await apiOpenCashSession(token, amount, note);
+            setCashSession(session);
+            cacheSet("cashSession", session);
+          } catch (e) {
+            // sem rota até o servidor (rede "conectada" mas sem internet): abre offline e sincroniza depois
+            if (e instanceof TypeError) { setIsOnline(false); return openLocally(); }
+            throw e;
           }
-          const session = await apiOpenCashSession(token, amount, note);
-          setCashSession(session);
-          cacheSet("cashSession", session);
         }}
       />
     );
@@ -1574,7 +1580,7 @@ function ClassicPDV() {
             if (tenant.logout_on_cash_close) logout();
           }}
           onConfirm={async (counted, breakdown, note) => {
-            if (!navigator.onLine || cashSession.localId) {
+            const closeLocally = async () => {
               const localId = crypto.randomUUID();
               await queueCashOp({
                 localId, type: "cash_close", createdAt: new Date().toISOString(),
@@ -1587,8 +1593,15 @@ function ClassicPDV() {
                 difference_amount: 0, payment_breakdown: null, opened_at: cashSession.opened_at,
                 closed_at: new Date().toISOString(), pendingSync: true,
               };
+            };
+            if (!navigator.onLine || cashSession.localId) return closeLocally();
+            let closed;
+            try {
+              closed = await apiCloseCashSession(token, cashSession.id, counted, breakdown, note);
+            } catch (e) {
+              if (e instanceof TypeError) { setIsOnline(false); return closeLocally(); }
+              throw e;
             }
-            const closed = await apiCloseCashSession(token, cashSession.id, counted, breakdown, note);
             if (tenant.print_cash_close_receipt && !closed.pendingSync) {
               printThermalText(buildCashCloseReceiptText(tenantName, operatorName, closed, PM_SHORT), "Fechamento de Caixa").catch(() => {});
             }

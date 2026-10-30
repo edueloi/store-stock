@@ -14,6 +14,7 @@ import {
   listProducts,
   updateProduct,
 } from "../controllers/products.controller";
+import { getVariationPresets, saveVariationPresets } from "../controllers/variation-presets.controller";
 import { importProducts } from "../controllers/products-import.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -24,6 +25,8 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get("/export", exportProducts);
+router.get("/variation-presets", getVariationPresets);
+router.put("/variation-presets", saveVariationPresets);
 router.post("/import", (req: Request, res: Response, next: NextFunction) => {
   uploadSheet.single("file")(req, res, (err: unknown) => {
     if (err) return res.status(400).json({ error: err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE" ? "Arquivo maior que 10MB" : "Falha ao processar o arquivo enviado" });
