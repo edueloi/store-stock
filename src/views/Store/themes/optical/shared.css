@@ -84,3 +84,9 @@
 @media(prefers-reduced-motion:reduce){:is(.store-theme-lumiere,.store-theme-orbita).segment-shell #opt-cart{animation:none}}
 
 @keyframes optical-cart-enter{from{transform:translateX(100%)}to{transform:translateX(0)}}
+
+@media (max-width:760px){
+  :is(.store-theme-lumiere,.store-theme-orbita).segment-shell .product-art>a:not(.quick-add){height:calc(100% - 44px)}
+  :is(.store-theme-lumiere,.store-theme-orbita).segment-shell .product-art>.quick-add{height:44px;min-height:44px;top:auto;transform:none;font-size:9px}
+  :is(.store-theme-lumiere,.store-theme-orbita).segment-shell .product-art>a:not(.quick-add) img{padding:12px}
+}
