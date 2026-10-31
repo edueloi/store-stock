@@ -1,4 +1,5 @@
 import './shared.css';
+import './ferraro.css';
 export { useKit, useBuy, useQuickAdd, optionGroups, productImage, priceInfo, money, hoursLines, whatsappLink } from '../adega/kit';
 export const OPTICAL_ART = {
   lumiere: { wide: '/store-assets/lumiere-campaign-wide-v1.webp', portrait: '/store-assets/lumiere-campaign-portrait-v1.webp' },

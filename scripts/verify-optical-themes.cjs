@@ -37,6 +37,21 @@ for(const brand of ['lumiere','orbita']){
  const css=postcss.parse(fs.readFileSync(path.join(root,`src/views/Store/themes/${brand}/styles.css`),'utf8'));css.walkRules(rule=>{let p=rule.parent;while(p){if(p.type==='atrule'&&p.name.includes('keyframes'))return;p=p.parent;}assert.ok(rule.selectors.every(s=>s.startsWith('.store-theme-'+brand)),'CSS isolado');});assert.ok(fs.existsSync(path.join(root,`public/store-assets/${brand}-campaign-wide-v1.webp`)));
  console.log(`PASS ${brand}: campanha, banner customizado, menu, preview preservado, catálogo real, acentos, categoria, favoritos, variação, SKU sem estoque, sacola e checkout.`);
 }
-const layout=fs.readFileSync(path.join(root,'src/views/Store/StoreLayout.tsx'),'utf8');assert.match(layout,/<OpticalCart/);assert.match(layout,/\["lumiere", "orbita"\]\.includes/);const settings=fs.readFileSync(path.join(root,'src/views/Dashboard/Settings.tsx'),'utf8');assert.match(settings,/Óticas & Armações/);
+for(const brand of ['lumiere','orbita']){
+ const tenant={...value(brand).tenant,name:'Distribuidora de Armações Ferraro',hero_tagline:'Tradição\nno traço.',policies:{...fixture.tenant.policies,storefront:{...fixture.tenant.policies.storefront,brand_identity:'ferraro'}}};
+ await mount(brand,`?previewTheme=${brand}`,{tenant});
+ assert.equal(document.querySelector('.header .ferraro-signature img').getAttribute('src'),'/store-assets/ferraro/logo-black.png');
+ assert.equal(document.querySelector('.header .ferraro-signature source').getAttribute('srcset'),'/store-assets/ferraro/wordmark-black.svg');
+ assert.equal(document.querySelector('.footer .ferraro-signature img').getAttribute('src'),'/store-assets/ferraro/logo-white.png');
+ assert.match(document.querySelector('h1').textContent,/Tradição/);assert.ok(!/\?\?|\uFFFD/.test(document.querySelector('h1').textContent));
+ assert.match(document.querySelector('.opt-page picture img').src,/lumiere-campaign-wide/);
+ assert.match(document.querySelector('.announcement').textContent,/DISTRIBUIDORA DE ARMAÇÕES/);
+ await mount(brand,`/catalogo?previewTheme=${brand}`,{tenant});assert.equal(document.querySelectorAll('.product-card').length,2);
+ await mount(brand,`/sobre?previewTheme=${brand}`,{tenant});assert.match(document.querySelector('h1').textContent,/Tradição/);
+ console.log(`PASS Ferraro em ${brand}: logo original, assinatura móvel, contraste do rodapé, acentos, campanha neutra, catálogo e sobre.`);
+}
+const identity=postcss.parse(fs.readFileSync(path.join(root,'src/views/Store/themes/optical/ferraro.css'),'utf8'));identity.walkRules(rule=>assert.ok(rule.selectors.every(s=>s.startsWith('.store-brand-ferraro')),'Identidade deve ficar limitada à loja Ferraro'));
+for(const file of ['logo-black.png','logo-white.png','wordmark-black.svg','DejaVuSerif.woff','DejaVuSans.woff','DejaVuSans-Bold.woff','LICENSE_DEJAVU.txt'])assert.ok(fs.existsSync(path.join(root,'public/store-assets/ferraro',file)));
+const layout=fs.readFileSync(path.join(root,'src/views/Store/StoreLayout.tsx'),'utf8');assert.match(layout,/<OpticalCart/);assert.match(layout,/\["lumiere", "orbita"\]\.includes/);assert.match(layout,/storefront.brand_identity === "ferraro" && "store-brand-ferraro"/);const settings=fs.readFileSync(path.join(root,'src/views/Dashboard/Settings.tsx'),'utf8');assert.match(settings,/Óticas & Armações/);
 await act(async()=>r.unmount());dom.window.close();console.log('PASS registro no seletor, sacola nativa, estilos isolados e assets.');
 })().catch(error=>{console.error(error);dom.window.close();process.exitCode=1;});

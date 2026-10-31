@@ -1032,7 +1032,7 @@ function StoreLayoutInner() {
   return (
     <StoreContext.Provider value={ctx}>
       <div
-        className={cn("min-h-screen", `store-theme-${templateId || "minimal"}`, segment && `segment-shell segment-${templateId} segment-layout-${segment.layout}`, style.bg, style.text, style.font)}
+        className={cn("min-h-screen", ["lumiere", "orbita"].includes(templateId || "") && storefront.brand_identity === "ferraro" && "store-brand-ferraro", `store-theme-${templateId || "minimal"}`, segment && `segment-shell segment-${templateId} segment-layout-${segment.layout}`, style.bg, style.text, style.font)}
         style={{ '--theme-accent': style.accent, ...(segment ? { '--seg-accent': style.accent, '--seg-bg': segment.bg, '--seg-ink': segment.ink, '--seg-surface': segment.surface } : isDoceria ? { "--doceria-accent": style.accent } : {}) } as unknown as React.CSSProperties}
       >
         {/* ── NAVBAR ─────────────────────────────────────────────── */}
