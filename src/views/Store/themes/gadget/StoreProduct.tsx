@@ -150,6 +150,7 @@ export default function StoreProduct() {
               </fieldset>
             ))}
             {s.groups.length > 0 && !s.ready && <p className="gd-hint">Selecione todas as opções para continuar.</p>}
+            {s.groups.length > 0 && s.ready && <div className="gd-selection-summary"><Check size={16}/><span>Sua seleção<strong>{s.groups.map(group => `${group.name}: ${s.selected[group.name]}`).join(" · ")}</strong></span></div>}
             <StockAvailability product={product} tenant={tenant} selected={s.selected} className="gd-stock" />
 
             <div className="gd-buyrow">

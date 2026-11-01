@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ChevronRight, Menu, MessageCircle, Search, ShieldCheck, ShoppingBag, Truck, X, Zap } from "lucide-react";
+import { ArrowUpRight, ChevronRight, Menu, MessageCircle, Search, ShieldCheck, ShoppingBag, Truck, X, Zap } from "lucide-react";
 import { formatPhone, hoursRows, shorten, useKit, useUsedCategories } from "./kit";
 import { SocialLinks } from "./Social";
 import "./styles.css";
+import "./upgrade.css";
 
 export function Header() {
   const { tenant, cartCount, openCart, path, waLink } = useKit();
@@ -15,9 +16,14 @@ export function Header() {
 
   useEffect(() => setMenu(false), [pathname, search]);
   useEffect(() => {
-    document.body.style.overflow = menu ? "hidden" : "";
+    if (!menu) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") setMenu(false); };
+    document.addEventListener("keydown", key);
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previous;
+      document.removeEventListener("keydown", key);
     };
   }, [menu]);
 
@@ -35,6 +41,7 @@ export function Header() {
   ];
   return (
     <div className="gd-header" role="banner">
+      <div className="gd-announcement"><div><span>TECNOLOGIA PARA O SEU DIA.</span><span>{tenant.whatsapp ? <a href={waLink()} target="_blank" rel="noreferrer">Precisa de ajuda? Fale com a gente <ArrowUpRight size={12}/></a> : "CONECTE POSSIBILIDADES"}</span></div></div>
       <div className="gd-bar">
         <button type="button" className="gd-icon gd-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
           {menu ? <X size={20} strokeWidth={1.7} /> : <Menu size={20} strokeWidth={1.7} />}
@@ -117,6 +124,7 @@ export function Footer() {
         </div>
       </div>
       <div className="gd-foot-main">
+        <div className="gd-foot-statement"><div><span>SEMPRE HÁ UMA NOVA POSSIBILIDADE.</span><h2>Conecte sua rotina<br/>ao próximo nível.</h2></div><Link to={path("/catalogo")}>Encontre seu próximo upgrade<ArrowUpRight size={23}/></Link></div>
         <div className="gd-foot-top">
           <div className="gd-foot-brand">
             <div className="gd-foot-identity">{tenant.logo_url && <img src={tenant.logo_url} alt="" />}<strong>{tenant.name}</strong></div>
@@ -146,7 +154,7 @@ export function Footer() {
                 {formatPhone(tenant.whatsapp)}
               </a>
             )}
-            {tenant.show_address && tenant.address && <span>{tenant.address}</span>}
+            {tenant.show_address && (tenant.address || tenant.address_city) && <span>{tenant.address || [tenant.address_city, tenant.address_state].filter(Boolean).join(" · ")}</span>}
             {hours.length > 0 && (
               <ul className="gd-hours">
                 {hours.map((h) => (

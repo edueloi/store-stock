@@ -51,6 +51,7 @@ const AdegaCart = lazy(() => import("./themes/adega/Cart"));
 const BrisaCart = lazy(() => import("./themes/adega-clara/Cart"));
 const EloCart = lazy(() => import("./themes/elo/Cart"));
 const OpticalCart = lazy(() => import("./themes/optical/Cart"));
+const GadgetCart = lazy(() => import("./themes/gadget/Cart"));
 const StoreQuoteRequest = lazy(() => import("./pages/StoreQuoteRequest"));
 const VitraQuoteBuilder = lazy(() => import("./themes/vidracaria/QuoteBuilder"));
 const StrideCheckout = lazy(() => import("./themes/stride/StoreCheckout"));
@@ -1954,7 +1955,7 @@ function StoreLayoutInner() {
 
         {/* ── CART DRAWER ─────────────────────────────────────────── */}
         <AnimatePresence>
-          {isCartOpen && !["adega", "adega_clara", "elo", "lumiere", "orbita"].includes(templateId || "") && (
+          {isCartOpen && !["adega", "adega_clara", "elo", "lumiere", "orbita", "gadget"].includes(templateId || "") && (
             <>
               <motion.div
                 initial={{ opacity: 0 }}
@@ -2409,6 +2410,15 @@ function StoreLayoutInner() {
         /></Suspense>}
 
         {["lumiere", "orbita"].includes(templateId || "") && <Suspense fallback={null}><OpticalCart
+          isOpen={isCartOpen}
+          checkout={cartCheckoutForm}
+          onCheckout={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" || isOrderRequest ? openCheckout : handleWhatsAppCheckout}
+          busy={reservationState.loading}
+          message={reservationState.message}
+          checkoutMessage={checkoutMessage}
+        /></Suspense>}
+
+        {templateId === "gadget" && <Suspense fallback={null}><GadgetCart
           isOpen={isCartOpen}
           checkout={cartCheckoutForm}
           onCheckout={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" || isOrderRequest ? openCheckout : handleWhatsAppCheckout}

@@ -137,6 +137,7 @@ export function useProductState() {
   const [selected, setSelected] = useState<Record<string, string>>({});
   const [activeImage, setActiveImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  useEffect(() => { setSelected({}); setActiveImage(0); setQuantity(1); }, [product?.id]);
   const groups = product ? optionGroups(product) : [];
   const ready = groups.every((g) => selected[g.name]);
   const base = product ? (Array.isArray(product.images) && product.images.length ? product.images : product.image_url ? [product.image_url] : []) : [];
@@ -225,9 +226,10 @@ export function useCatalogList(pageSize = 12) {
     setParams(next, { replace: true });
   };
   const list = useMemo(() => {
-    const term = query.q.trim().toLowerCase();
+    const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+    const term = normalize(query.q.trim());
     const out = kit.active.filter(
-      (p) => (!query.category || p.category_id === query.category) && (!term || `${p.name} ${p.sku || ""} ${p.description || ""}`.toLowerCase().includes(term)),
+      (p) => (!query.category || p.category_id === query.category) && (!term || normalize(`${p.name} ${p.sku || ""} ${p.description || ""}`).includes(term)),
     );
     if (!kit.hidden && sort === "menor") out.sort((a, b) => priceOf(a) - priceOf(b));
     else if (!kit.hidden && sort === "maior") out.sort((a, b) => priceOf(b) - priceOf(a));
