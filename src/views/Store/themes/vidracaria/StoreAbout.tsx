@@ -3,11 +3,12 @@ import { ArrowRight, MapPin, MessageCircle, Store } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
 import { useStore } from "../../StoreLayout";
 import { buildStorePath, resolveStoreSlug } from "../../store-routing";
+import { isMmGlass, mmContactNumber } from "./mm";
 export default function StoreAbout() {
   const { tenant, categories, products } = useStore(), { slug: routeSlug } = useParams();
   const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
   const sf = tenant.policies?.storefront || {}, image = sf.glass_gallery?.find(s => s.image)?.image || tenant.banner_url;
-  const whatsapp = tenant.whatsapp?.replace(/\D/g, "");
+  const whatsapp = isMmGlass(tenant) ? mmContactNumber(tenant.whatsapp) : tenant.whatsapp?.replace(/\D/g, "");
   const location = tenant.show_address ? tenant.address || [tenant.address_city, tenant.address_state].filter(Boolean).join(" · ") : "";
   const catalogCategories = categories.filter(category => products.some(product => product.is_active && product.category_id === category.id)).slice(0, 6);
   const rawText = tenant.about_text?.trim() || "";

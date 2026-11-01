@@ -9,6 +9,7 @@ import { pieceSummary } from "../../../../lib/glassPieces";
 import PieceConfigurator from "./PieceConfigurator";
 import { useGlassProject } from "./project";
 import { VitraProductCard, vitraHidePrices, vitraImage, vitraMoney } from "./ThemeParts";
+import { mmContactNumber } from "./mm";
 
 export default function StoreProduct() {
   const { slug: routeSlug, productId } = useParams();
@@ -26,6 +27,7 @@ export default function StoreProduct() {
   const category = categories.find(c => c.id === product.category_id)?.name;
   const hidden = vitraHidePrices(tenant) || product.price_hidden || product.hide_price_on_site;
   const quoteEnabled = tenant.policies?.storefront?.glass_quote_enabled === true;
+  const mm = tenant.policies?.storefront?.brand_identity === "mm-glass";
   const measuredSale = ["m2", "linear"].includes(product.sale_unit || "") || glassMeasurements(product).enabled;
   const sections = [{ id: "description", title: "Descrição", text: product.description }, { id: "specifications", title: "Especificações", text: product.storefront_details?.specifications }, { id: "delivery", title: "Entrega e instalação", text: product.storefront_details?.delivery_installation }].filter(s => s.text?.trim());
   const currentSection = sections.find(s => s.id === tab) || sections[0];
@@ -45,7 +47,7 @@ export default function StoreProduct() {
           } else if (measuredSale || hidden) {
             if (!tenant.whatsapp) { setError("Entre em contato com a loja para consultar este produto."); return; }
             const message = `Olá! Tenho interesse em ${product.name}. Quantidade: ${piece.quantity}. ${piece.spec ? pieceSummary(piece.spec) : ""} ${Object.entries(piece.selected_options).map(([k,v]) => `${k}: ${v}`).join(" · ")}`;
-            setContactHref(`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(message)}`);
+            setContactHref(`https://wa.me/${mm ? mmContactNumber(tenant.whatsapp) : tenant.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(message)}`);
           } else {
             const options = { ...piece.selected_options, ...(piece.spec ? { "Medidas informadas": pieceSummary(piece.spec) } : {}) };
             for (let n = 0; n < piece.quantity; n++) addToCart(product, options);
@@ -55,6 +57,7 @@ export default function StoreProduct() {
         {error && <p role="alert" className="vitra-form-error">{error}</p>}
         {contactHref && <a className="vitra-btn-secondary" href={contactHref} target="_blank" rel="noreferrer"><MessageCircle size={16}/>Continuar consulta no WhatsApp</a>}
         {added && <div className="vitra-product-added" role="status"><CheckCircle2 size={19}/><div><b>{quoteEnabled ? "Peça adicionada ao seu projeto." : "Produto adicionado ao carrinho."}</b>{quoteEnabled ? <Link to={path("/orcamento")} className="vitra-textlink">Ver projeto e enviar orçamento <ArrowRight size={15}/></Link> : <button type="button" className="vitra-textlink" onClick={openCart}>Ver carrinho <ArrowRight size={15}/></button>}</div></div>}
+        {mm && <div className="mm-product-service"><Ruler size={20}/><p><strong>O detalhe certo para o seu projeto.</strong>Precisa conferir uma medida ou aplicação? Consulte nossa equipe antes de concluir o pedido.</p></div>}
       </div></div>
       {currentSection && <section className="vitra-product-content"><div role="tablist" aria-label="Informações do produto">{sections.map(s => <button role="tab" id={`vitra-tab-${s.id}`} type="button" key={s.id} aria-selected={currentSection.id === s.id} aria-controls="vitra-product-panel" onClick={() => setTab(s.id)}>{s.title}</button>)}</div><div role="tabpanel" id="vitra-product-panel" aria-labelledby={`vitra-tab-${currentSection.id}`} tabIndex={0}><p>{currentSection.text}</p></div></section>}
       {related.length > 0 && <section className="vitra-section"><div className="vitra-sec-head"><div><span className="vitra-eyebrow">Complete seu projeto</span><h2>Outras possibilidades</h2></div><Link to={path("/catalogo")} className="vitra-textlink">Catálogo completo <ArrowRight size={15}/></Link></div><div className="vitra-grid">{related.map(p => <VitraProductCard key={p.id} product={p} category={categories.find(c => c.id === p.category_id)?.name} path={path} hidePrices={vitraHidePrices(tenant)} quoteEnabled={quoteEnabled}/>)}</div></section>}

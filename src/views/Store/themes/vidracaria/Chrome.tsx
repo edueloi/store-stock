@@ -5,13 +5,16 @@ import SearchBar from "../../../../components/layout/SearchBar";
 import { useStore } from "../../StoreLayout";
 import { buildStorePath, resolveStoreSlug } from "../../store-routing";
 import "./styles.css";
+import "./mm.css";
 import { useGlassProject } from "./project";
 import { vitraContent } from "./content";
 import { formatContactPhone } from "../../../../lib/whatsappPhone";
+import { isMmGlass, mmContactNumber } from "./mm";
 
 export function Header() {
   const { slug: routeSlug } = useParams();
   const { tenant, cart, openCart } = useStore();
+  const mm = tenant.policies?.storefront?.brand_identity === "mm-glass";
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
 
@@ -45,7 +48,7 @@ export function Header() {
   ];
   const isActive = (to: string) => (to === path() ? pathname === path() || pathname === `${path()}/` : pathname.startsWith(to));
 
-  const wa = tenant.whatsapp ? `https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}` : "";
+  const wa = tenant.whatsapp ? `https://wa.me/${mm ? mmContactNumber(tenant.whatsapp) : tenant.whatsapp.replace(/\D/g, "")}` : "";
   useEffect(() => {
     if (!menuOpen && !searchOpen) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setMenuOpen(false); setSearchOpen(false); } };
@@ -55,12 +58,13 @@ export function Header() {
 
   return (
     <header className="vitra-header vitra-root">
+      {mm && <div className="mm-announcement"><span>VIDROS · ALUMÍNIOS · FERRAGENS</span><span>Tatuí, SP · Para o seu próximo projeto</span></div>}
       <div className="vitra-bar">
         <Link to={path()} className="vitra-brand vitra-header-brand" aria-label={`${tenant.name} - Início`}>
           {tenant.logo_url && <img src={tenant.logo_url} alt="" className="vitra-logo" />}
           <span className="vitra-header-brand-copy">
-            <strong className="vitra-header-brand-name">{tenant.name || "Vitra Vidraçaria"}</strong>
-            {tenant.hero_tagline && <small className="vitra-header-brand-tagline">{tenant.hero_tagline}</small>}
+            <strong className="vitra-header-brand-name">{mm ? "M&M Distribuidora" : tenant.name || "Vitra Vidraçaria"}</strong>
+            {(mm || tenant.hero_tagline) && <small className="vitra-header-brand-tagline">{mm ? "Vidros e alumínios" : tenant.hero_tagline}</small>}
           </span>
         </Link>
         <nav className="vitra-nav" aria-label="Navegação principal">
@@ -70,6 +74,7 @@ export function Header() {
         </nav>
 
         <div className="vitra-tools">
+          {mm && wa && <a className="mm-header-contact" href={wa} target="_blank" rel="noreferrer"><MessageCircle size={15}/>Fale com a equipe</a>}
           <button type="button" className="vitra-icon-btn" onClick={() => { setSearchOpen((prev) => !prev); setMenuOpen(false); }} aria-controls="vitra-header-search" aria-expanded={searchOpen} aria-label="Pesquisar produtos">
             <Search size={18} />
           </button>
@@ -110,14 +115,18 @@ export function Footer() {
   const { slug: routeSlug } = useParams();
   const { tenant, categories } = useStore();
   const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
-  const whatsapp = tenant.whatsapp?.replace(/\D/g, "");
+  const whatsapp = isMmGlass(tenant) ? mmContactNumber(tenant.whatsapp) : tenant.whatsapp?.replace(/\D/g, "");
   const content = vitraContent(tenant);
+  const mm = tenant.policies?.storefront?.brand_identity === "mm-glass";
+  const address = tenant.address || (mm ? [tenant.address_city, tenant.address_state].filter(Boolean).join(" · ") : "");
 
   return (
     <footer className="vitra-footer vitra-root">
       <div className="vitra-footer-inner">
+        {mm && <div className="mm-footer-heading"><span className="vitra-eyebrow">VAMOS CONSTRUIR JUNTOS</span><h2>Uma boa escolha transforma<br/>o projeto inteiro.</h2><Link to={path("/catalogo")}>Explore o catálogo <ShoppingBag size={18}/></Link></div>}
         <div className="vitra-footer-grid">
           <div className="vitra-fcard vitra-fcard-brand">
+            {mm && tenant.logo_url && <img className="mm-footer-logo" src={tenant.logo_url} alt="M&M" loading="lazy"/>}
             <span className="vitra-brand-name">{tenant.name}</span>
             {content.footer_tagline && <span className="vitra-brand-sub">{content.footer_tagline}</span>}
             {content.footer_description && <p>{content.footer_description}</p>}
@@ -135,9 +144,9 @@ export function Footer() {
               <Link key={cat.id} className="link" to={path(`/catalogo?cat=${cat.id}`)}>{cat.name}</Link>
             ))}
           </div>}
-          {content.footer_show_contact && (whatsapp || (tenant.show_address && tenant.address)) && <div className="vitra-fcard">
+          {content.footer_show_contact && (whatsapp || (tenant.show_address && address)) && <div className="vitra-fcard">
             <h4>Fale conosco</h4>
-            {tenant.show_address && tenant.address && <p className="small">{tenant.address}</p>}
+            {tenant.show_address && address && <p className="small">{address}</p>}
             {tenant.whatsapp && <p className="small">{formatContactPhone(tenant.whatsapp)}</p>}
             {whatsapp && (
               <a className="vitra-wa" href={`https://wa.me/${whatsapp}`} target="_blank" rel="noreferrer">

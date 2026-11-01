@@ -1,0 +1,194 @@
+/* Perfil exclusivo M&M: não modifica outras lojas que usam Vitra. */
+.store-brand-mm.store-theme-vidracaria { --vitra-ink:#12223b; --vitra-muted:#667385; --vitra-accent:#3448b6; --vitra-accent-dark:#293c9d; --vitra-bg:#f3f5f8; --vitra-line:#dfe4ec; --mm-navy:#111f36; background:#fff; color:var(--vitra-ink); }
+.store-brand-mm .vitra-root h1,.store-brand-mm .vitra-root h2,.store-brand-mm .vitra-root h3 { font-family:"Manrope",sans-serif !important; font-weight:500 !important; letter-spacing:-.045em !important; }
+.store-brand-mm .vitra-container { max-width:1400px; padding-left:clamp(22px,5vw,80px); padding-right:clamp(22px,5vw,80px); }
+.store-brand-mm .vitra-header { padding:0; background:#fff !important; border-bottom:1px solid var(--vitra-line); }
+.store-brand-mm .mm-announcement { display:flex; justify-content:space-between; gap:18px; background:var(--mm-navy); color:#dce3f5; padding:10px max(24px,5vw); font:500 10px/1.4 "DM Sans",sans-serif; letter-spacing:.12em; }
+.store-brand-mm .vitra-bar { max-width:1400px; height:86px; min-height:0; padding:0 clamp(22px,5vw,80px); border:0; border-radius:0; box-shadow:none; background:#fff; }
+.store-brand-mm .vitra-header-brand { gap:12px; max-width:none; }
+.store-brand-mm .vitra-header .vitra-logo { width:44px; height:48px; object-fit:contain; border-radius:2px; }
+.store-brand-mm .vitra-header-brand-name { font:700 17px/1.3 "Manrope",sans-serif; letter-spacing:-.025em; max-width:none; }
+.store-brand-mm .vitra-header-brand-tagline { display:block; font-size:9px; letter-spacing:.18em; margin-top:4px; color:var(--vitra-muted); }
+.store-brand-mm .vitra-header .vitra-nav a { color:var(--vitra-ink); font-size:13px; padding:0 12px; }
+.store-brand-mm .vitra-header .vitra-nav a.active { color:var(--vitra-accent); }
+.store-brand-mm .vitra-header .vitra-nav a.active::after { background:var(--vitra-accent); }
+.store-brand-mm .vitra-header .vitra-icon-btn { width:42px; height:42px; border:0; background:transparent; color:var(--vitra-ink); }
+.store-brand-mm .mm-header-contact { display:inline-flex; gap:8px; align-items:center; font-size:11px; text-decoration:none; border-right:1px solid var(--vitra-line); padding-right:18px; margin-right:6px; white-space:nowrap; }
+.store-brand-mm .mm-hero { position:relative; isolation:isolate; min-height:640px; height:calc(100svh - 119px); max-height:960px; color:#fff; background:#14263a; }
+.store-brand-mm .mm-hero picture,.store-brand-mm .mm-hero picture img,.store-brand-mm .mm-hero-shade { position:absolute; inset:0; width:100%; height:100%; }
+.store-brand-mm .mm-hero picture img { object-fit:cover; object-position:center; }
+.store-brand-mm .mm-hero-shade { background:linear-gradient(90deg,#0b192ce8 0%,#0b192ca8 30%,#0b192c18 72%),linear-gradient(0deg,#0b192c88,transparent 28%); }
+.store-brand-mm .mm-hero-inner { position:relative; height:100%; display:flex; align-items:center; padding-top:64px; padding-bottom:115px; }
+.store-brand-mm .mm-hero-copy { width:100%; max-width:660px; animation:mm-enter .8s ease both; }
+.store-brand-mm .mm-label { display:block; font:500 10px/1.8 "DM Sans",sans-serif; letter-spacing:.19em; text-transform:uppercase; color:#d1d9f5; }
+.store-brand-mm .mm-hero h1 { color:#fff; font-size:clamp(46px,5.2vw,78px); line-height:1.08; margin:26px 0; }
+.store-brand-mm .mm-hero h1 span { display:block; }
+.store-brand-mm .mm-hero-copy p { color:#e0e5ee; font-size:15px; line-height:1.85; max-width:420px; margin:0 0 32px; }
+.store-brand-mm .mm-actions { display:flex; align-items:center; gap:28px; flex-wrap:wrap; }
+.store-brand-mm .mm-button { display:inline-flex; align-items:center; justify-content:space-between; gap:32px; min-height:54px; padding:16px 24px; color:#12223b; background:#fff; border:1px solid transparent; border-radius:3px; text-decoration:none; font:600 12px/1.5 "DM Sans",sans-serif; transition:background .2s,transform .2s; }
+.store-brand-mm .mm-button:hover { background:#e5e9fc; transform:translateY(-2px); }
+.store-brand-mm .mm-hero-contact { display:inline-flex; align-items:center; gap:10px; min-height:44px; color:#fff; text-decoration:none; font-size:12px; border-bottom:1px solid #ffffff45; }
+.store-brand-mm .mm-hero-bottom { position:absolute; bottom:28px; left:clamp(22px,5vw,80px); right:clamp(22px,5vw,80px); display:flex; gap:25px; align-items:center; justify-content:space-between; padding-top:20px; border-top:1px solid #ffffff35; font-size:9px; letter-spacing:.12em; }
+.store-brand-mm .mm-hero-bottom a { display:grid; place-items:center; width:38px; height:38px; border:1px solid #ffffff55; border-radius:50%; color:#fff; }
+.store-brand-mm .mm-slider { width:100%; max-width:none; border-radius:0; }
+.store-brand-mm .mm-benefits { background:#f3f5f8; border-bottom:1px solid var(--vitra-line); }
+.store-brand-mm .mm-benefits>.vitra-container { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); padding-top:30px; padding-bottom:30px; gap:36px; }
+.store-brand-mm .mm-benefits>.vitra-container>div { display:flex; align-items:center; gap:17px; }
+.store-brand-mm .mm-benefits svg { flex-shrink:0; color:var(--vitra-accent); stroke-width:1.2; }
+.store-brand-mm .mm-benefits span { font-size:11px; color:var(--vitra-muted); line-height:1.7; }
+.store-brand-mm .mm-benefits strong { display:block; color:var(--vitra-ink); font-size:13px; font-weight:600; }
+.store-brand-mm .vitra-section { padding-top:80px; padding-bottom:80px; }
+.store-brand-mm .vitra-sec-head h2 { font-size:clamp(28px,3.3vw,43px); line-height:1.2; margin-top:12px; }
+.store-brand-mm .vitra-sec-head p { font-size:13px; color:var(--vitra-muted); margin-top:14px; }
+.store-brand-mm .mm-textlink { display:inline-flex; align-items:center; gap:20px; min-height:44px; font-size:12px; text-decoration:none; color:var(--vitra-ink); white-space:nowrap; }
+.store-brand-mm .vitra-eyebrow { color:var(--vitra-accent); font-size:9px; letter-spacing:.18em; }
+.store-brand-mm .vitra-grid { gap:24px; }
+.store-brand-mm .vitra-product-card { border-radius:4px; border-color:var(--vitra-line); box-shadow:none; background:#fff; }
+.store-brand-mm .vitra-product-card:hover { border-color:#aab6dc; box-shadow:0 12px 32px #12223b0b; }
+.store-brand-mm .vitra-product-img { margin:0; aspect-ratio:1.12; background:#f4f6f9; }
+.store-brand-mm .vitra-product-img img { padding:30px; object-fit:contain; }
+.store-brand-mm .vitra-pill { top:12px; left:12px; max-width:calc(100% - 24px); font-size:8px; padding:5px 9px; border-radius:2px; background:#fffffff0; color:#3d4961; }
+.store-brand-mm .vitra-product-body { padding:20px; gap:9px; }
+.store-brand-mm .vitra-product-name { font:600 13px/1.6 "DM Sans",sans-serif; min-height:42px; }
+.store-brand-mm .vitra-product-cat { font-size:8px; letter-spacing:.1em; }
+.store-brand-mm .vitra-product-price b { font:700 19px/1.5 "Manrope",sans-serif; }
+.store-brand-mm .vitra-product-btn { min-height:44px; border:1px solid var(--vitra-line); border-radius:3px; background:#fff; font-size:11px; justify-content:space-between; padding:10px 13px; }
+.store-brand-mm .vitra-product-card:hover .vitra-product-btn { background:var(--mm-navy); color:#fff; border-color:var(--mm-navy); }
+.store-brand-mm .mm-editorial { display:grid; grid-template-columns:1fr 1fr; background:#edf0f5; }
+.store-brand-mm .mm-editorial-photo { position:relative; min-height:650px; overflow:hidden; }
+.store-brand-mm .mm-editorial-photo img { width:100%; height:100%; position:absolute; object-fit:cover; }
+.store-brand-mm .mm-editorial-photo>span { position:absolute; bottom:25px; left:30px; font-size:8px; letter-spacing:.16em; color:#fff; }
+.store-brand-mm .mm-editorial-copy { align-self:center; padding:70px clamp(30px,6vw,100px); }
+.store-brand-mm .mm-editorial h2 { font-size:clamp(35px,4.2vw,59px); line-height:1.13; margin:25px 0; }
+.store-brand-mm .mm-editorial h2 em { font-style:normal; color:#6477a1; }
+.store-brand-mm .mm-editorial p { font-size:13px; color:#637083; line-height:1.95; max-width:400px; margin-bottom:30px; }
+.store-brand-mm .mm-editorial .mm-button { color:#fff; background:var(--mm-navy); }
+.store-brand-mm .mm-materials { display:grid; gap:15px; margin-top:40px; padding-top:26px; border-top:1px solid #ccd3e0; font-size:10px; color:#637083; }
+.store-brand-mm .mm-category-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-top:1px solid var(--vitra-line); border-left:1px solid var(--vitra-line); }
+.store-brand-mm .mm-category-grid a { display:grid; grid-template-columns:28px 1fr 20px; gap:14px; align-items:center; padding:26px; text-decoration:none; border-bottom:1px solid var(--vitra-line); border-right:1px solid var(--vitra-line); color:var(--vitra-ink); transition:background .2s; }
+.store-brand-mm .mm-category-grid a:hover { background:#f0f3fc; }
+.store-brand-mm .mm-category-grid h3 { margin:0; font-size:17px; overflow-wrap:anywhere; }
+.store-brand-mm .mm-category-grid a>span { font-size:9px; color:#8590a4; }
+.store-brand-mm .mm-closing { position:relative; isolation:isolate; background:var(--mm-navy); color:#fff; padding:90px 0; }
+.store-brand-mm .mm-closing>img { position:absolute; inset:0; z-index:-2; width:100%; height:100%; object-fit:cover; object-position:center 58%; }
+.store-brand-mm .mm-closing:after { content:""; position:absolute; inset:0; z-index:-1; background:linear-gradient(90deg,#101e35f5,#101e3590); }
+.store-brand-mm .mm-closing h2 { color:#fff; white-space:pre-line; font-size:clamp(32px,4vw,52px); max-width:670px; line-height:1.2; margin:25px 0 32px; }
+.store-brand-mm .vitra-footer { background:#0f1c31 !important; color:#bdc8df; padding-top:0; border:0; }
+.store-brand-mm .vitra-footer-inner { max-width:1400px; margin:auto; padding:65px clamp(22px,5vw,80px) 22px; }
+.store-brand-mm .mm-footer-heading { display:flex; justify-content:space-between; align-items:center; gap:30px; flex-wrap:wrap; padding-bottom:50px; border-bottom:1px solid #ffffff20; margin-bottom:45px; }
+.store-brand-mm .mm-footer-heading>.vitra-eyebrow { width:100%; color:#9eadd3; }
+.store-brand-mm .mm-footer-heading h2 { color:#fff; font-size:clamp(25px,3vw,38px); line-height:1.25; margin:0; }
+.store-brand-mm .mm-footer-heading>a { display:flex; align-items:center; gap:25px; color:#fff; font-size:12px; text-decoration:none; min-height:48px; border-bottom:1px solid #7083aa; }
+.store-brand-mm .vitra-footer .vitra-footer-grid { gap:38px; padding:0 0 45px; }
+.store-brand-mm .vitra-footer .vitra-fcard { background:transparent; border:0; padding:0; box-shadow:none; }
+.store-brand-mm .mm-footer-logo { width:54px; height:54px; object-fit:contain; margin-bottom:18px; border-radius:3px; }
+.store-brand-mm .vitra-footer .vitra-brand-name { display:block; max-width:310px; font:600 16px/1.6 "Manrope",sans-serif; letter-spacing:-.02em; color:#fff; }
+.store-brand-mm .vitra-footer .vitra-brand-sub { color:#98a9ce; white-space:normal; font-size:9px; letter-spacing:.07em; max-width:300px; line-height:1.9; }
+.store-brand-mm .vitra-footer .vitra-fcard p { font-size:12px; line-height:1.9; color:#a9b6d0; }
+.store-brand-mm .vitra-footer h4 { color:#fff; font-size:11px; letter-spacing:.08em; margin-bottom:20px; }
+.store-brand-mm .vitra-footer .link { color:#b6c2d8; font-size:12px; margin:13px 0; }
+.store-brand-mm .vitra-footer .vitra-wa { border:1px solid #ffffff30; background:transparent; color:#e2e8f6; border-radius:3px; font-size:10px; }
+.store-brand-mm .vitra-footer-bottom { border-color:#ffffff20; font-size:9px; gap:15px; color:#8294b5; }
+.store-brand-mm .vitra-footer-credit a { color:#c2cfe8; }
+.store-brand-mm .vitra-catalog-intro { padding-top:58px; padding-bottom:40px; }
+.store-brand-mm .vitra-catalog-intro h1 { font-size:clamp(34px,4vw,54px); }
+.store-brand-mm .vitra-catalog-filters button { border-radius:3px; font-size:12px; }
+.store-brand-mm .vitra-catalog-filters button.active { background:var(--mm-navy); color:#fff; }
+.store-brand-mm .vitra-project-search,.store-brand-mm .vitra-catalog-sort select { border-radius:3px; }
+.store-brand-mm .vitra-product-page { padding-top:28px; }
+.store-brand-mm .vitra-product-layout { gap:55px; padding-top:25px; align-items:start; }
+.store-brand-mm .vitra-gallery-main { background:#f3f5f8; border:1px solid var(--vitra-line); border-radius:4px; }
+.store-brand-mm .vitra-gallery-main img { object-fit:contain; padding:36px; }
+.store-brand-mm .vitra-product-config h1 { font-size:clamp(28px,3vw,43px); line-height:1.2; }
+.store-brand-mm .vitra-product-reference { padding:18px 0; margin:0 0 20px; border-top:1px solid var(--vitra-line); border-bottom:1px solid var(--vitra-line); }
+.store-brand-mm .vitra-product-config .vitra-config { border-radius:4px; background:#f8f9fc; padding:24px; }
+.store-brand-mm .vitra-root .vitra-add-product,.store-brand-mm .vitra-root .vitra-btn-primary { border-radius:3px; background:var(--mm-navy); box-shadow:none; }
+.store-brand-mm .mm-product-service { display:flex; gap:14px; border-top:1px solid var(--vitra-line); padding:22px 0; margin-top:24px; align-items:start; }
+.store-brand-mm .mm-product-service svg { color:#6578a5; flex-shrink:0; }
+.store-brand-mm .mm-product-service p { margin:0; font-size:11px; line-height:1.8; color:var(--vitra-muted); }
+.store-brand-mm .mm-product-service strong { display:block; color:var(--vitra-ink); font-size:12px; margin-bottom:4px; }
+.store-brand-mm .vitra-about-logo { border-radius:4px; }
+.store-brand-mm .vitra-about-brand-panel { background:#f3f5fa; border-radius:4px; }
+.store-brand-mm .fragrance-cart-drawer { top:0; right:0; bottom:0; width:min(100%,480px) !important; max-width:100% !important; max-height:100dvh; height:100dvh !important; border-radius:0 !important; border:0 !important; box-shadow:-25px 0 90px #0f1c3133; color:var(--vitra-ink) !important; }
+.store-brand-mm .store-cart-backdrop { background:#101b3380 !important; backdrop-filter:blur(5px); }
+.store-brand-mm .fragrance-cart-head { min-height:108px !important; padding:26px !important; background:#111f36 !important; color:#fff !important; border-color:#ffffff20 !important; }
+.store-brand-mm .fragrance-cart-head h3 { font-family:"Manrope",sans-serif !important; font-size:25px !important; letter-spacing:-.7px !important; }
+.store-brand-mm .fragrance-cart-head p { color:#aebedc !important; }
+.store-brand-mm .fragrance-cart-head>button { border-color:#ffffff30 !important; color:#fff !important; }
+.store-brand-mm .fragrance-cart-content { flex:1 1 auto; padding:0 26px !important; }
+.store-brand-mm .fragrance-cart-item .fragrance-cart-image { background:#f2f5fa !important; border:0 !important; border-radius:3px !important; }
+.store-brand-mm .fragrance-cart-total { border-top:1px solid var(--vitra-line) !important; background:#f6f8fc !important; padding:24px 26px max(24px,env(safe-area-inset-bottom)) !important; }
+.store-brand-mm .fragrance-cart-total button { border-radius:3px !important; }
+.store-brand-mm .fragrance-cart-total>button:not(.vitra-cart-continue) { background:#293c9d !important; color:#fff !important; }
+.store-brand-mm .fragrance-cart-stepper { min-height:40px; }
+@keyframes mm-enter { from { opacity:0; transform:translateY(18px); } to { opacity:1; transform:translateY(0); } }
+@media(min-width:1500px) { .store-brand-mm .mm-hero-copy { max-width:740px; } }
+@media(max-width:1100px) { .store-brand-mm .mm-header-contact { display:none; } .store-brand-mm .mm-category-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .store-brand-mm .mm-editorial-copy { padding:45px 32px; } .store-brand-mm .mm-editorial-photo { min-height:570px; } }
+@media(max-width:899px) { .store-brand-mm .vitra-bar { grid-template-columns:1fr auto; height:76px; } .store-brand-mm .vitra-tools { grid-column:2; } .store-brand-mm .mm-hero { min-height:650px; height:calc(100svh - 110px); } .store-brand-mm .mm-hero h1 { font-size:55px; } .store-brand-mm .mm-benefits>.vitra-container { gap:18px; } .store-brand-mm .mm-benefits>.vitra-container>div { align-items:start; gap:10px; } .store-brand-mm .mm-benefits strong { font-size:11px; } .store-brand-mm .mm-benefits span { font-size:10px; } .store-brand-mm .vitra-product-layout { gap:30px; } }
+@media(max-width:700px) {
+  .store-brand-mm .mm-announcement { justify-content:center; padding:8px 15px; font-size:8px; }
+  .store-brand-mm .mm-announcement>span:last-child { display:none; }
+  .store-brand-mm .vitra-bar { height:72px; padding:0 18px; gap:8px; }
+  .store-brand-mm .vitra-header-brand-name { font-size:14px; }
+  .store-brand-mm .vitra-header-brand-tagline { font-size:7px; letter-spacing:.12em; }
+  .store-brand-mm .vitra-header .vitra-logo { width:34px; height:40px; }
+  .store-brand-mm .vitra-header-brand { gap:9px; max-width:none; }
+  .store-brand-mm .vitra-tools { gap:0; }
+  .store-brand-mm .vitra-header .vitra-icon-btn { width:36px; height:42px; }
+  .store-brand-mm .mm-hero { height:calc(100svh - 100px); min-height:650px; max-height:920px; }
+  .store-brand-mm .mm-hero picture img { object-position:center 38%; }
+  .store-brand-mm .mm-hero-shade { background:linear-gradient(0deg,#0b192cf5 0%,#0b192cc9 35%,#0b192c38 72%,#0b192c08); }
+  .store-brand-mm .mm-hero-inner { align-items:flex-end; padding-top:160px; padding-bottom:92px; }
+  .store-brand-mm .mm-hero h1 { font-size:clamp(36px,8.6vw,56px); line-height:1.13; margin:17px 0; }
+  .store-brand-mm .mm-label { font-size:8px; letter-spacing:.13em; }
+  .store-brand-mm .mm-hero-copy p { font-size:12px; line-height:1.85; max-width:340px; margin-bottom:22px; }
+  .store-brand-mm .mm-actions { gap:8px 20px; }
+  .store-brand-mm .mm-button { min-height:48px; padding:13px 18px; gap:22px; font-size:11px; }
+  .store-brand-mm .mm-hero-contact { font-size:10px; }
+  .store-brand-mm .mm-hero-bottom { bottom:20px; padding-top:12px; font-size:7px; letter-spacing:.05em; gap:12px; }
+  .store-brand-mm .mm-hero-bottom>span:first-child { max-width:160px; line-height:1.8; }
+  .store-brand-mm .mm-hero-bottom a { display:none; }
+  .store-brand-mm .mm-benefits>.vitra-container { grid-template-columns:1fr; padding-top:22px; padding-bottom:22px; gap:18px; }
+  .store-brand-mm .mm-benefits>.vitra-container>div { gap:17px; align-items:center; }
+  .store-brand-mm .mm-benefits strong { font-size:12px; }
+  .store-brand-mm .mm-benefits span { font-size:11px; }
+  .store-brand-mm .vitra-section { padding-top:50px; padding-bottom:50px; }
+  .store-brand-mm .vitra-sec-head { flex-wrap:wrap; gap:15px; }
+  .store-brand-mm .vitra-sec-head h2 { font-size:29px; }
+  .store-brand-mm .vitra-sec-head p { font-size:12px; }
+  .store-brand-mm .mm-textlink { font-size:11px; }
+  .store-brand-mm .vitra-grid,.store-brand-mm .vitra-catalog-products { gap:12px; }
+  .store-brand-mm .vitra-product-img { aspect-ratio:1; }
+  .store-brand-mm .vitra-product-img img { padding:17px; }
+  .store-brand-mm .vitra-product-body { padding:13px; gap:7px; }
+  .store-brand-mm .vitra-product-name { font-size:11px; min-height:36px; }
+  .store-brand-mm .vitra-product-price b { font-size:16px; }
+  .store-brand-mm .vitra-product-price small { font-size:9px; }
+  .store-brand-mm .vitra-pill { font-size:7px; top:8px; left:8px; padding:4px 6px; }
+  .store-brand-mm .vitra-product-btn { font-size:10px; padding:8px; gap:5px; }
+  .store-brand-mm .mm-editorial { grid-template-columns:1fr; }
+  .store-brand-mm .mm-editorial-photo { min-height:0; aspect-ratio:1.1; }
+  .store-brand-mm .mm-editorial-copy { padding:40px 24px; }
+  .store-brand-mm .mm-editorial h2 { font-size:39px; }
+  .store-brand-mm .mm-category-grid { grid-template-columns:1fr; }
+  .store-brand-mm .mm-category-grid a { padding:22px 18px; }
+  .store-brand-mm .mm-closing { padding:65px 0; }
+  .store-brand-mm .mm-closing h2 { font-size:34px; }
+  .store-brand-mm .vitra-footer-inner { padding-top:45px; }
+  .store-brand-mm .mm-footer-heading { gap:20px; padding-bottom:30px; margin-bottom:30px; }
+  .store-brand-mm .mm-footer-heading h2 { font-size:27px; }
+  .store-brand-mm .vitra-footer .vitra-footer-grid { grid-template-columns:1fr 1fr; gap:28px; }
+  .store-brand-mm .vitra-fcard-brand { grid-column:1/-1; }
+  .store-brand-mm .vitra-footer .vitra-brand-name { font-size:14px; }
+  .store-brand-mm .vitra-footer .vitra-wa { font-size:9px; padding:10px; }
+  .store-brand-mm .vitra-footer-bottom { flex-direction:column; align-items:start; line-height:1.8; }
+  .store-brand-mm .vitra-product-layout { grid-template-columns:1fr; }
+  .store-brand-mm .vitra-gallery-main img { padding:25px; }
+  .store-brand-mm .vitra-product-config .vitra-config { padding:19px; }
+  .store-brand-mm .fragrance-cart-head { min-height:94px !important; padding:22px !important; }
+  .store-brand-mm .fragrance-cart-content { padding:0 20px !important; }
+  .store-brand-mm .fragrance-cart-item .fragrance-cart-image { width:78px; height:90px; }
+  .store-brand-mm .fragrance-cart-total { padding-left:20px !important; padding-right:20px !important; }
+}
+@media(max-width:370px) { .store-brand-mm .vitra-header-brand-name { font-size:12px; } .store-brand-mm .vitra-header .vitra-logo { width:28px; } .store-brand-mm .mm-hero .mm-actions { gap:7px; } .store-brand-mm .mm-hero .mm-button { width:100%; } }
+@media(prefers-reduced-motion:reduce) { .store-brand-mm .mm-hero-copy { animation:none; } .store-brand-mm * { scroll-behavior:auto; transition:none !important; } }

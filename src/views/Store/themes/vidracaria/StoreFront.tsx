@@ -7,6 +7,7 @@ import { buildStorePath, productRouteSegment, resolveStoreSlug } from "../../sto
 import { VitraProductCard, vitraHidePrices, vitraImage } from "./ThemeParts";
 
 import { vitraContent, VITRA_BACKGROUND } from "./content";
+import MmHome from "./MmHome";
 
 function EditorialTitle({ text }: { text: string }) {
   const lines = text.split("\n");
@@ -15,6 +16,7 @@ function EditorialTitle({ text }: { text: string }) {
 export default function StoreFront() {
   const { slug: routeSlug } = useParams();
   const { tenant, products, categories } = useStore();
+  if (tenant.policies?.storefront?.brand_identity === "mm-glass") return <MmHome/>;
   const path = (suffix = "") => buildStorePath(resolveStoreSlug(routeSlug), suffix);
   const sf = tenant.policies?.storefront || {}, quoteEnabled = sf.glass_quote_enabled === true;
   const content = vitraContent(tenant);
