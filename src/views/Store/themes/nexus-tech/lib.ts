@@ -4,6 +4,7 @@ import type { Product, Tenant } from "../../../../types";
 import { storeTracksStock } from "../../../../utils/storeStock";
 
 import { HIDDEN_PRICE } from "../../../../lib/storePrice";
+import { isMvs } from "./mvs";
 export const money = (value: number) =>
   value === HIDDEN_PRICE ? "Sob consulta" : new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
@@ -17,8 +18,11 @@ export const pricesHidden = (tenant: Tenant) => {
 export const unitPrice = (p: Product) => Number(p.discount_price) > 0 ? Number(p.discount_price) : Number(p.price);
 export const hasOffer = (p: Product) => Number(p.discount_price) > 0 && Number(p.discount_price) < Number(p.price);
 
-export const waLink = (tenant: Tenant, text?: string) =>
-  `https://wa.me/${(tenant.whatsapp || "").replace(/\D/g, "")}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+export const waLink = (tenant: Tenant, text?: string) => {
+  let phone = (tenant.whatsapp || "").replace(/\D/g, "");
+  if (isMvs(tenant) && (phone.length === 10 || phone.length === 11)) phone = `55${phone}`;
+  return `https://wa.me/${phone}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+};
 
 /** Grupos de opções do produto (atributos+skus ou variações antigas). */
 export function groups(p: Product): { name: string; values: string[]; colors?: Record<string, string> }[] {

@@ -33,7 +33,7 @@ export interface StorePolicies {
   glass_prices?: { glass: string; thickness_mm?: number | null; price_m2: number }[];
   storefront?: {
     /** Identidade aplicada somente à loja que selecionou este perfil de marca. */
-    brand_identity?: 'ferraro' | 'mm-glass';
+    brand_identity?: 'ferraro' | 'mm-glass' | 'mvs';
     checkout_mode?: "whatsapp" | "reservation" | "online" | "order_request";
     reservation_minutes?: number;
     shipping_status?: "disabled" | "coming_soon" | "enabled";
@@ -118,6 +118,8 @@ export interface VitraContent {
 export interface HeroSlide {
   id: string;
   image: string;
+  /** Composição opcional para telas pequenas. */
+  mobile_image?: string;
   title?: string;
   subtitle?: string;
   button_label?: string;

@@ -4,17 +4,21 @@ import { ArrowUpRight, ChevronDown, Clock, Facebook, Heart, Instagram, MapPin, M
 import { useStore } from "../../StoreLayout";
 import { hoursRows, useTheme, waLink } from "./lib";
 import "./styles.css";
+import "./mvs.css";
+import { isMvs, normalizeMvsText } from "./mvs";
 
 export function Header() {
   const { tenant, categories, products, cart, openCart, wishlist } = useStore();
   const { path } = useTheme();
-  const { pathname } = useLocation();
+  const { pathname, search: locationSearch } = useLocation();
   const navigate = useNavigate();
   const [menu, setMenu] = useState(false);
   const [search, setSearch] = useState(false);
   const [pop, setPop] = useState(false);
   const [query, setQuery] = useState("");
   const count = cart.reduce((s, i) => s + i.quantity, 0);
+  const mvs = isMvs(tenant);
+  const [categoryQuery, setCategoryQuery] = useState("");
   const cats = categories.filter((c) => products.some((p) => p.is_active && p.type !== "internal" && p.category_id === c.id));
   const current = pathname.replace(/\/$/, "");
 
@@ -22,11 +26,16 @@ export function Header() {
     setMenu(false);
     setSearch(false);
     setPop(false);
-  }, [pathname]);
+  }, [pathname, locationSearch]);
   useEffect(() => {
-    document.body.style.overflow = menu ? "hidden" : "";
+    if (!menu) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") setMenu(false); };
+    window.addEventListener("keydown", key);
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown", key);
     };
   }, [menu]);
   useEffect(() => {
@@ -59,6 +68,7 @@ export function Header() {
 
   return (
     <header className="nx-header">
+      {mvs && <div className="mvs-announcement"><div><span>ILUMINAÇÃO · ELÉTRICA · SEGURANÇA · UTILIDADES</span>{tenant.whatsapp && <a href={waLink(tenant)} target="_blank" rel="noreferrer">Atendimento MVS<ArrowUpRight size={12}/></a>}</div></div>}
       <div className="nx-wrap">
         <div className="nx-bar">
           <button type="button" className="nx-ico nx-burger" aria-label="Abrir menu" aria-expanded={menu} onClick={() => setMenu(true)}>
@@ -83,8 +93,9 @@ export function Header() {
                   <button type="button" className="nx-scrim" aria-label="Fechar" onClick={() => setPop(false)} />
                   <div className="nx-pop">
                     <p>Categorias</p>
+                    {mvs && <input className="mvs-category-search" aria-label="Buscar categoria" placeholder="Encontre uma categoria" value={categoryQuery} onChange={event => setCategoryQuery(event.target.value)}/>}
                     <ul>
-                      {cats.map((c) => (
+                      {cats.filter(category => !mvs || normalizeMvsText(category.name).includes(normalizeMvsText(categoryQuery))).map((c) => (
                         <li key={c.id}>
                           <Link to={path(`/catalogo?cat=${c.id}`)} onClick={() => setPop(false)}>{c.name}</Link>
                         </li>
@@ -104,13 +115,13 @@ export function Header() {
             <button type="button" className="nx-ico" aria-label="Buscar produtos" aria-expanded={search} onClick={() => setSearch((v) => !v)}>
               {search ? <X size={20} /> : <Search size={20} />}
             </button>
-            <Link to={path("/catalogo")} className="nx-ico nx-fav" aria-label={`Favoritos: ${wishlist.length}`}>
+            <Link to={path(mvs ? "/catalogo?favoritos=1" : "/catalogo")} className="nx-ico nx-fav" aria-label={`Favoritos: ${wishlist.length}`}>
               <Heart size={20} />
               {wishlist.length > 0 && <b>{wishlist.length}</b>}
             </Link>
             <button type="button" className="nx-bag" aria-label={`Abrir carrinho, ${count} itens`} onClick={openCart}>
               <ShoppingBag size={19} />
-              <span>Carrinho</span>
+              <span>{mvs ? "Sacola" : "Carrinho"}</span>
               <b>{count}</b>
             </button>
           </div>
@@ -141,6 +152,7 @@ export function Header() {
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produtos" aria-label="Buscar produtos" />
           </form>
           <nav className="nx-sheet-links">
+            {mvs && <Link to={path("/catalogo?favoritos=1")}>Meus favoritos<Heart size={18}/></Link>}
             {links.map((l) => (
               <Link key={l.name} to={l.to}>
                 {l.name} <ArrowUpRight size={18} aria-hidden="true" />
@@ -165,13 +177,15 @@ export function Footer() {
   const { tenant } = useStore();
   const { path } = useTheme();
   const hours = hoursRows(tenant);
+  const mvs = isMvs(tenant);
   return (
     <footer className="nx-footer">
       <div className="nx-wrap">
+        {mvs && <div className="mvs-footer-statement"><div><span>PARA O QUE VOCÊ PRECISAR.</span><h2>MVS. Pra resolver.</h2></div><Link to={path("/catalogo")}>Conheça nossas soluções<ArrowUpRight size={23}/></Link></div>}
         <div className="nx-foot-grid">
           <section className="nx-foot-card nx-foot-about">
             <Link className="nx-foot-brand" to={path()}>{tenant.logo_url && <img src={tenant.logo_url} alt="" />}<span>{tenant.name}</span></Link>
-            <p>{tenant.footer_text || tenant.about_text || "Tecnologia para o seu dia, com escolhas práticas e atendimento próximo."}</p>
+            <p>{tenant.footer_text || tenant.about_text || (mvs ? "Iluminação, elétrica, segurança, ferramentas e utilidades. Soluções para a casa e para o seu dia a dia." : "Tecnologia para o seu dia, com escolhas práticas e atendimento próximo.")}</p>
             <div className="nx-foot-social">
               {tenant.instagram_url && <a href={tenant.instagram_url} target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={18} /></a>}
               {tenant.facebook_url && <a href={tenant.facebook_url} target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={18} /></a>}
@@ -186,7 +200,7 @@ export function Footer() {
           <section className="nx-foot-card">
             <h2>Fale com a gente</h2>
             {tenant.whatsapp && <a href={waLink(tenant)} target="_blank" rel="noreferrer"><MessageCircle size={16} />{tenant.whatsapp}</a>}
-            {tenant.show_address && tenant.address && <p className="nx-foot-addr"><MapPin size={16} />{tenant.address}</p>}
+            {tenant.show_address && (tenant.address || mvs && tenant.address_city) && <p className="nx-foot-addr"><MapPin size={16} />{tenant.address || [tenant.address_city, tenant.address_state].filter(Boolean).join(" · ")}</p>}
             <Link to={path("/sobre")}>Atendimento e informações</Link>
           </section>
           <section className="nx-foot-card nx-foot-hours">

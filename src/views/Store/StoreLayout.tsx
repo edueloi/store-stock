@@ -52,6 +52,7 @@ const BrisaCart = lazy(() => import("./themes/adega-clara/Cart"));
 const EloCart = lazy(() => import("./themes/elo/Cart"));
 const OpticalCart = lazy(() => import("./themes/optical/Cart"));
 const GadgetCart = lazy(() => import("./themes/gadget/Cart"));
+const MvsCart = lazy(() => import("./themes/nexus-tech/MvsCart"));
 const StoreQuoteRequest = lazy(() => import("./pages/StoreQuoteRequest"));
 const VitraQuoteBuilder = lazy(() => import("./themes/vidracaria/QuoteBuilder"));
 const StrideCheckout = lazy(() => import("./themes/stride/StoreCheckout"));
@@ -673,6 +674,7 @@ function StoreLayoutInner() {
   const total = cart.reduce((acc, i) => acc + Number(i.price) * i.quantity, 0);
   const cartCount = cart.reduce((acc, i) => acc + i.quantity, 0);
   const storefront = storeData?.tenant.policies?.storefront || {};
+  const isMvsStore = templateId === "nexus_tech" && storefront.brand_identity === "mvs";
   const checkoutMode = storefront.checkout_mode || "whatsapp";
   const isOrderRequest = checkoutMode === "order_request";
   const hideStorePrices = isOrderRequest || storefront.hide_prices === true;
@@ -1033,7 +1035,7 @@ function StoreLayoutInner() {
   return (
     <StoreContext.Provider value={ctx}>
       <div
-        className={cn("min-h-screen", ["lumiere", "orbita"].includes(templateId || "") && storefront.brand_identity === "ferraro" && "store-brand-ferraro", templateId === "vidracaria" && storefront.brand_identity === "mm-glass" && "store-brand-mm", `store-theme-${templateId || "minimal"}`, segment && `segment-shell segment-${templateId} segment-layout-${segment.layout}`, style.bg, style.text, style.font)}
+        className={cn("min-h-screen", ["lumiere", "orbita"].includes(templateId || "") && storefront.brand_identity === "ferraro" && "store-brand-ferraro", templateId === "vidracaria" && storefront.brand_identity === "mm-glass" && "store-brand-mm", isMvsStore && "store-brand-mvs", `store-theme-${templateId || "minimal"}`, segment && `segment-shell segment-${templateId} segment-layout-${segment.layout}`, style.bg, style.text, style.font)}
         style={{ '--theme-accent': style.accent, ...(segment ? { '--seg-accent': style.accent, '--seg-bg': segment.bg, '--seg-ink': segment.ink, '--seg-surface': segment.surface } : isDoceria ? { "--doceria-accent": style.accent } : {}) } as unknown as React.CSSProperties}
       >
         {/* ── NAVBAR ─────────────────────────────────────────────── */}
@@ -1955,7 +1957,7 @@ function StoreLayoutInner() {
 
         {/* ── CART DRAWER ─────────────────────────────────────────── */}
         <AnimatePresence>
-          {isCartOpen && !["adega", "adega_clara", "elo", "lumiere", "orbita", "gadget"].includes(templateId || "") && (
+          {isCartOpen && !isMvsStore && !["adega", "adega_clara", "elo", "lumiere", "orbita", "gadget"].includes(templateId || "") && (
             <>
               <motion.div
                 initial={{ opacity: 0 }}
@@ -2419,6 +2421,15 @@ function StoreLayoutInner() {
         /></Suspense>}
 
         {templateId === "gadget" && <Suspense fallback={null}><GadgetCart
+          isOpen={isCartOpen}
+          checkout={cartCheckoutForm}
+          onCheckout={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" || isOrderRequest ? openCheckout : handleWhatsAppCheckout}
+          busy={reservationState.loading}
+          message={reservationState.message}
+          checkoutMessage={checkoutMessage}
+        /></Suspense>}
+
+        {isMvsStore && <Suspense fallback={null}><MvsCart
           isOpen={isCartOpen}
           checkout={cartCheckoutForm}
           onCheckout={checkoutMode === "reservation" ? handleReserveCart : checkoutMode === "online" || isOrderRequest ? openCheckout : handleWhatsAppCheckout}

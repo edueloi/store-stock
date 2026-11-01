@@ -6,11 +6,12 @@ import { useStore } from "../../StoreLayout";
 import { Card } from "./parts";
 import { groups, hasOffer, unitPrice, useTheme } from "./lib";
 import "./styles.css";
+import { isMvs, normalizeMvsText } from "./mvs";
 
 const PAGE = 12;
 
 export default function StoreCatalog() {
-  const { tenant, products, categories } = useStore();
+  const { tenant, products, categories, wishlist } = useStore();
   const [params, setParams] = useSearchParams();
   const { path } = useTheme();
   const sf = tenant.policies?.storefront || {};
@@ -19,12 +20,21 @@ export default function StoreCatalog() {
   const cat = catRaw ? Number(catRaw) : null;
   const sort = params.get("ordem") || "destaque";
   const onlyOffers = params.get("ofertas") === "1";
+  const mvs = isMvs(tenant), onlyFavorites = mvs && params.get("favoritos") === "1";
   const [text, setText] = useState(q);
   const [limit, setLimit] = useState(PAGE);
   const [drawer, setDrawer] = useState(false);
+  useEffect(() => {
+    if (!mvs || !drawer) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") setDrawer(false); };
+    document.addEventListener("keydown", key);
+    return () => { document.body.style.overflow = previous; document.removeEventListener("keydown", key); };
+  }, [mvs, drawer]);
 
   useEffect(() => setText(q), [q]);
-  useEffect(() => setLimit(PAGE), [q, cat, sort, onlyOffers]);
+  useEffect(() => setLimit(PAGE), [q, cat, sort, onlyOffers, onlyFavorites]);
 
   const active = useMemo(() => products.filter((p) => p.is_active && p.type !== "internal"), [products]);
   const cats = useMemo(
@@ -33,12 +43,14 @@ export default function StoreCatalog() {
   );
 
   const list = useMemo(() => {
-    const term = q.trim().toLowerCase();
+    const normalize = mvs ? normalizeMvsText : (value: string) => value.toLowerCase();
+    const term = normalize(q.trim());
     const out = active.filter((p) => {
       if (cat && p.category_id !== cat) return false;
       if (onlyOffers && !hasOffer(p)) return false;
+      if (onlyFavorites && !wishlist.includes(p.id)) return false;
       if (!term) return true;
-      const hay = [p.name, p.sku, p.description, ...groups(p).flatMap((g) => g.values)].join(" ").toLowerCase();
+      const hay = normalize([p.name, p.sku, p.description, ...groups(p).flatMap((g) => g.values)].join(" "));
       return hay.includes(term);
     });
     if (sort === "menor") out.sort((a, b) => unitPrice(a) - unitPrice(b));
@@ -46,7 +58,7 @@ export default function StoreCatalog() {
     else if (sort === "nome") out.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
     else out.sort((a, b) => Number(b.is_featured) - Number(a.is_featured));
     return out;
-  }, [active, cat, q, sort, onlyOffers]);
+  }, [active, cat, q, sort, onlyOffers, onlyFavorites, wishlist, mvs]);
 
   const update = (patch: Record<string, string | null>) => {
     const next = new URLSearchParams(params);
@@ -60,7 +72,7 @@ export default function StoreCatalog() {
   const current = cats.find((c) => c.id === cat);
   const title = current ? current.name : sf.catalog_title || "Todos os produtos";
   const desc = sf.catalog_description || "Uma seleção pensada para quem escolhe com critério.";
-  const filtered = Boolean(q || cat || onlyOffers);
+  const filtered = Boolean(q || cat || onlyOffers || onlyFavorites);
 
   return (
     <main className="nx-page">
@@ -91,6 +103,7 @@ export default function StoreCatalog() {
             <Search size={18} aria-hidden="true" />
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Buscar no catálogo" aria-label="Buscar no catálogo" />
           </form>
+          {mvs && <select className="mvs-category-select" aria-label="Filtrar por categoria" value={cat || ""} onChange={event => update({cat:event.target.value || null})}><option value="">Todas as categorias</option>{cats.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select>}
           <button type="button" className="nx-filter-btn" aria-haspopup="dialog" aria-expanded={drawer} onClick={() => setDrawer(true)}>
             <SlidersHorizontal size={17} aria-hidden="true" /> Filtros{filtered ? <b>{Number(Boolean(q)) + Number(Boolean(cat)) + Number(onlyOffers)}</b> : null}
           </button>
@@ -109,6 +122,7 @@ export default function StoreCatalog() {
             {q && <button type="button" onClick={() => update({ q: null })}>“{q}” <X size={13} aria-hidden="true" /></button>}
             {current && <button type="button" onClick={() => update({ cat: null })}>{current.name} <X size={13} aria-hidden="true" /></button>}
             {onlyOffers && <button type="button" onClick={() => update({ ofertas: null })}>Em oferta <X size={13} aria-hidden="true" /></button>}
+            {onlyFavorites && <button type="button" onClick={() => update({ favoritos: null })}>Meus favoritos<X size={13}/></button>}
           </div>
         )}
       </div>
@@ -137,7 +151,7 @@ export default function StoreCatalog() {
               </button>
             </div>
             <footer>
-              <button type="button" className="nx-btn nx-btn-ghost" onClick={() => update({ q: null, cat: null, ofertas: null })}>Limpar</button>
+              <button type="button" className="nx-btn nx-btn-ghost" onClick={() => update({ q: null, cat: null, ofertas: null, favoritos: null })}>Limpar</button>
               <button type="button" className="nx-btn" onClick={() => setDrawer(false)}>Ver {list.length} {list.length === 1 ? "produto" : "produtos"}</button>
             </footer>
           </div>
@@ -148,7 +162,7 @@ export default function StoreCatalog() {
         <div className="nx-cat-meta">
           <span>{list.length} {list.length === 1 ? "produto" : "produtos"}</span>
           {filtered && (
-            <button type="button" onClick={() => update({ q: null, cat: null, ofertas: null })}>
+            <button type="button" onClick={() => update({ q: null, cat: null, ofertas: null, favoritos: null })}>
               <X size={14} aria-hidden="true" /> Limpar filtros
             </button>
           )}
@@ -171,7 +185,7 @@ export default function StoreCatalog() {
             <PackageSearch size={40} aria-hidden="true" />
             <h2>Nenhum produto encontrado</h2>
             <p>Ajuste a busca ou os filtros para ver mais opções.</p>
-            <button type="button" className="nx-btn" onClick={() => update({ q: null, cat: null, ofertas: null })}>Limpar filtros</button>
+            <button type="button" className="nx-btn" onClick={() => update({ q: null, cat: null, ofertas: null, favoritos: null })}>Limpar filtros</button>
           </div>
         )}
       </section>

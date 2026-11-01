@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, Heart, MessageCircle, Minus, Package, Plus, Share2, ShoppingBag } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
@@ -10,6 +10,7 @@ import { availableUnits, storeTracksStock } from "../../../../utils/storeStock";
 import { groups, money, optionDisabled, pricesHidden, unitPrice, useTheme, waLink } from "./lib";
 import { Card, PERKS, Price } from "./parts";
 import "./styles.css";
+import { isMvs } from "./mvs";
 
 export default function StoreProduct() {
   const { productId } = useParams();
@@ -22,6 +23,8 @@ export default function StoreProduct() {
   const [added, setAdded] = useState(false);
   const optsRef = useRef<HTMLDivElement>(null);
   const gs = useMemo(() => (product ? groups(product) : []), [product]);
+  const mvs = isMvs(tenant);
+  useEffect(() => { setActive(0); setQuantity(1); setSelected({}); setAdded(false); }, [product?.id]);
 
   if (!product || !product.is_active) {
     return (
@@ -52,6 +55,7 @@ export default function StoreProduct() {
   const pick = (name: string, value: string) => {
     setSelected((s) => ({ ...s, [name]: s[name] === value ? "" : value }));
     setActive(0);
+    setQuantity(1);
   };
   const add = () => {
     if (!ready) {
@@ -173,6 +177,7 @@ export default function StoreProduct() {
                 </fieldset>
               ))}
               {gs.length > 0 && !ready && <p className="nx-hint">Selecione as opções para adicionar ao carrinho.</p>}
+              {mvs && gs.length > 0 && ready && <div className="mvs-selection-summary"><Check size={17}/><span>Sua seleção<strong>{gs.map(group => `${group.name}: ${selected[group.name]}`).join(" · ")}</strong></span></div>}
             </div>
 
             <StockAvailability product={product} tenant={tenant} selected={selected} className="nx-stock" />
@@ -183,7 +188,7 @@ export default function StoreProduct() {
                 <output>{qty}</output>
                 <button type="button" aria-label="Aumentar quantidade" disabled={qty >= max} onClick={() => setQuantity(Math.min(max, qty + 1))}><Plus size={16} /></button>
               </div>
-              <button type="button" className="nx-btn nx-btn-lg nx-buy-btn" disabled={soldOut} onClick={add}>
+              <button type="button" className="nx-btn nx-btn-lg nx-buy-btn" disabled={soldOut || mvs && !ready} onClick={add}>
                 {added ? <Check size={18} aria-hidden="true" /> : <ShoppingBag size={18} aria-hidden="true" />}
                 {soldOut ? "Esgotado" : added ? "Adicionado" : "Adicionar ao carrinho"}
               </button>
@@ -212,6 +217,7 @@ export default function StoreProduct() {
             <p className="nx-kicker nx-kicker-dark">Detalhes</p>
             <h2>Sobre este produto</h2>
             <p className="nx-desc">{product.description || "Fale com a loja para conhecer todos os detalhes deste produto."}</p>
+            {mvs && product.storefront_details?.specifications && <div className="mvs-specifications"><h3>Especificações</h3><p>{product.storefront_details.specifications}</p></div>}
           </div>
           <div className="nx-perks-col">
             {PERKS.map(({ icon: Icon, title, text }) => (

@@ -5,6 +5,7 @@ import { useStore } from "../../StoreLayout";
 import { PERKS } from "./parts";
 import { hoursRows, useTheme, waLink } from "./lib";
 import "./styles.css";
+import { isMvs } from "./mvs";
 
 export default function StoreAbout() {
   const { tenant, products, categories } = useStore();
@@ -14,7 +15,7 @@ export default function StoreAbout() {
   const catCount = categories.filter((c) => active.some((p) => p.category_id === c.id)).length;
   const hours = hoursRows(tenant);
   const title = sf.about_title || `Conheça a ${tenant.name}`;
-  const text = tenant.about_text || `${tenant.name} reúne produtos selecionados com atendimento próximo, para você comprar com tranquilidade.`;
+  const text = tenant.about_text || (isMvs(tenant) ? "Na MVS Soluções, você encontra iluminação, materiais elétricos, segurança, ferramentas e utilidades para a casa e o dia a dia. Explore nosso catálogo e converse com a equipe para escolher o que precisa." : `${tenant.name} reúne produtos selecionados com atendimento próximo, para você comprar com tranquilidade.`);
 
   return (
     <main className="nx-page">

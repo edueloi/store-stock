@@ -11,8 +11,15 @@ import { PERKS, Price } from "./parts";
 import LaunchCarousel from "./LaunchCarousel";
 import { imageOf, useTheme, waLink } from "./lib";
 import "./styles.css";
+import MvsHome from "./MvsHome";
+import { isMvs } from "./mvs";
 
 export default function StoreFront() {
+  const { tenant } = useStore();
+  return isMvs(tenant) ? <MvsHome/> : <NexusFront/>;
+}
+
+function NexusFront() {
   const { tenant, products, categories } = useStore();
   const { path } = useTheme();
   const sf = tenant.policies?.storefront || {};
