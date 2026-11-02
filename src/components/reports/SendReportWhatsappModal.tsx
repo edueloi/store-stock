@@ -125,7 +125,7 @@ export default function SendReportWhatsappModal({ open, onClose, title = "Enviar
         {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
           <Button variant="outline" size="sm" onClick={onClose} disabled={sending}>Cancelar</Button>
-          <Button size="sm" onClick={send} disabled={!validPhone || sending}
+          <Button variant="success" size="sm" className="!border-emerald-600 !bg-emerald-600 !text-white hover:!bg-emerald-700 disabled:!opacity-50" onClick={send} disabled={!validPhone || sending}
             iconLeft={sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}>
             {sending ? "Enviando..." : "Enviar"}
           </Button>
