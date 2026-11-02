@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import ExcelJS from "exceljs";
 import {
   Search, Wallet, CheckCircle2, Clock, X, Loader2, User, Calendar, ChevronRight, Printer, ChevronLeft,
-  Download, FileSpreadsheet, FileText, PieChart as PieChartIcon, ListOrdered, BarChart3, DollarSign, HelpCircle, Pencil,
+  Download, FileSpreadsheet, FileText, PieChart as PieChartIcon, ListOrdered, BarChart3, DollarSign, HelpCircle, Pencil, MessageCircle,
 } from "lucide-react";
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -12,6 +12,8 @@ import { Button, IconButton, Input, Select, Modal, ModalFooter, Tabs, FilterLine
 import { getStoredUser } from "../../lib/session";
 import Drawer from "../../components/ui/Drawer";
 import { useToast } from "../../components/ui/Toast";
+import { downloadHtmlAsPdf, htmlToPdfBase64 } from "../../lib/pdf";
+import SendReportWhatsappModal from "../../components/reports/SendReportWhatsappModal";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 import { cn } from "../../lib/utils";
 import {
@@ -169,6 +171,7 @@ export default function CashSessionHistory() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [mainTab, setMainTab] = useState<"sessions" | "report">("sessions");
   const [showExportModal, setShowExportModal] = useState(false);
+  const [waReport, setWaReport] = useState<{ periodLabel: string; message: string } | null>(null);
   const [exporting, setExporting] = useState(false);
   const tourRef = useRef<CashHistoryPageTourHandle>(null);
 
@@ -755,8 +758,9 @@ export default function CashSessionHistory() {
     }
   }
 
-  async function exportSessionsToPDF() {
-    setExporting(true);
+  // Monta o HTML do relatório do período escolhido no modal — reaproveitado pelo
+  // download do PDF e pelo envio por WhatsApp.
+  async function buildSessionsReport() {
     // Sombra local: exporta sempre o período escolhido no modal (exportFrom/
     // exportTo), independente do que a aba Relatório está mostrando na tela.
     const { sessionsInPeriod: filtered, orders: allOrders } = await fetchSessionsAndOrdersForPeriod(exportFrom, exportTo);
@@ -769,7 +773,6 @@ export default function CashSessionHistory() {
     const navMonth = exportNavMonth;
     const dateFrom = exportFrom;
     const dateTo = exportTo;
-    setExporting(false);
 
     const periodLabel = periodPreset === "month" ? `${MONTHS[navMonth]} ${navYear}`
       : periodPreset === "year" ? String(navYear)
@@ -810,15 +813,15 @@ export default function CashSessionHistory() {
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; padding: 32px; font-size: 12px; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 3px solid #1e3a5f; padding-bottom: 16px; }
-  .header h1 { font-size: 20px; font-weight: 900; text-transform: ; letter-spacing: 0.1em; }
+  .header h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; }
   .meta { text-align: right; font-size: 10px; color: #64748b; }
-  .summary-title { font-size: 13px; font-weight: 800; text-transform: ; letter-spacing: 0.08em; margin: 20px 0 10px; color: #1e3a5f; }
+  .summary-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; margin: 20px 0 10px; color: #1e3a5f; }
   .fin-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
   .fin-card { padding: 12px 14px; border-radius: 10px; border: 1px solid #e2e8f0; }
-  .fin-card label { font-size: 9px; font-weight: 700; text-transform: ; letter-spacing: 0.1em; display: block; margin-bottom: 4px; color: #94a3b8; }
+  .fin-card label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 4px; color: #94a3b8; }
   .fin-card .val { font-size: 16px; font-weight: 900; font-family: monospace; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 700; text-transform: ; letter-spacing: 0.1em; color: #94a3b8; }
+  th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; }
   td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; font-size: 11px; }
   .total-row td { font-weight: 900; background: #f1f5f9; border-top: 2px solid #1e3a5f; }
   @media print { body { padding: 16px; } table { page-break-inside: auto; } tr { page-break-inside: avoid; } }
@@ -858,13 +861,46 @@ export default function CashSessionHistory() {
 </table>
 </body></html>`;
 
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 400);
-    setShowExportModal(false);
+    const message = [
+      `*Relatório de Caixa — ${periodLabel}*`,
+      "",
+      `Bruto: ${money(financeTotals.gross)}`,
+      `Descontos: - ${money(financeTotals.discount)}`,
+      `Acréscimos/Taxas: + ${money(financeTotals.fee)}`,
+      `*Líquido: ${money(financeTotals.net)}*`,
+      "",
+      `${filtered.length} sessão(ões) de caixa · ${soldItems.length} item(ns) vendido(s)`,
+      "",
+      "Segue o relatório detalhado em PDF.",
+    ].join("\n");
+    const slug = periodLabel.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return { html, periodLabel, message, fileName: `historico-caixa-${slug}.pdf` };
+  }
+
+  async function exportSessionsToPDF() {
+    setExporting(true);
+    try {
+      const { html, fileName } = await buildSessionsReport();
+      await downloadHtmlAsPdf(html, fileName);
+      setShowExportModal(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível gerar o PDF.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function openWhatsappSend() {
+    setExporting(true);
+    try {
+      const { periodLabel, message } = await buildSessionsReport();
+      setWaReport({ periodLabel, message });
+      setShowExportModal(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível preparar o relatório.");
+    } finally {
+      setExporting(false);
+    }
   }
 
   // Fechar pelo sistema o caixa aberto de outra pessoa (admin)
@@ -1271,7 +1307,16 @@ export default function CashSessionHistory() {
 
           <FilterLineSegmented<string> options={PRESET_OPTIONS} value={exportPreset} onChange={(v) => applyExportPreset(v as PeriodPreset)} className="w-fit" />
 
-          <Button variant={exportPreset === "custom" ? "primary" : "outline"} size="sm" className="w-fit" onClick={() => applyExportPreset(exportPreset === "custom" ? "month" : "custom")} iconLeft={<Calendar size={13} />}>Dia específico / Período Livre</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" className="w-fit" onClick={() => {
+              const now = new Date();
+              const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+              const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+              const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+              setExportPreset("custom"); setExportFrom(iso(monday)); setExportTo(iso(sunday));
+            }} iconLeft={<Calendar size={13} />}>Esta semana</Button>
+            <Button variant={exportPreset === "custom" ? "primary" : "outline"} size="sm" className="w-fit" onClick={() => applyExportPreset(exportPreset === "custom" ? "month" : "custom")} iconLeft={<Calendar size={13} />}>Dia específico / Período Livre</Button>
+          </div>
           {exportPreset === "custom" && (
             <div className="flex items-center gap-2">
               <Input type="date" aria-label="Data" value={exportFrom} onChange={(e) => { setExportFrom(e.target.value); setExportTo((prev) => prev || e.target.value); }} wrapperClassName="w-[148px]" />
@@ -1297,9 +1342,29 @@ export default function CashSessionHistory() {
             >
               PDF
             </Button>
+            <Button
+              variant="outline" size="sm"
+              iconLeft={exporting ? <Loader2 size={14} className="animate-spin" /> : <MessageCircle size={14} className="text-emerald-600" />}
+              onClick={openWhatsappSend}
+              disabled={exporting}
+            >
+              Enviar por WhatsApp
+            </Button>
           </div>
         </div>
       </Modal>
+
+      <SendReportWhatsappModal
+        open={waReport !== null}
+        onClose={() => setWaReport(null)}
+        title="Enviar relatório de caixa"
+        scopeLabel={waReport?.periodLabel ?? ""}
+        defaultMessage={waReport?.message ?? ""}
+        buildPdf={async () => {
+          const { html, fileName } = await buildSessionsReport();
+          return { base64: await htmlToPdfBase64(html), fileName };
+        }}
+      />
 
       {/* Detalhe da sessão */}
       <Modal

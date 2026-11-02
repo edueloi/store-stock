@@ -4,10 +4,12 @@ import { Badge, Button, EmptyState, FilterLine, FilterLineSection, FilterLineSeg
 import {
   ChevronLeft, ChevronRight, Loader2, Download, FileSpreadsheet, FileText,
   ChevronDown, TrendingUp, TrendingDown, Wallet, Calendar, LayoutGrid, Printer,
-  Package, Wrench, Layers, HelpCircle, Coins,
+  Package, Wrench, Layers, HelpCircle, Coins, MessageCircle,
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
 import { cn } from "../../lib/utils";
+import { downloadHtmlAsPdf, htmlToPdfBase64 } from "../../lib/pdf";
+import SendReportWhatsappModal from "../../components/reports/SendReportWhatsappModal";
 import { Tenant } from "../../types";
 import RelatorioFinanceiroPageTour, { RELATORIO_FINANCEIRO_PAGE_TOUR_EVENTS, type RelatorioFinanceiroPageTourHandle } from "../../components/onboarding/RelatorioFinanceiroPageTour";
 
@@ -246,7 +248,7 @@ async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | nul
 }
 
 // ── PDF export (mesmo padrão de Finance.tsx — HTML + print) ─────────────────
-function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope: ExportScope, origemFiltro: OrigemFiltro) {
+function buildFinancialPdfHtml(report: YearlyReport, tenant: Partial<Tenant> | null, scope: ExportScope, origemFiltro: OrigemFiltro) {
   const operatorRowsOf = (entradas: EntradasBucket) => Object.entries(entradas.byOperator).map(([op, pm]) => {
     const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
     return `<tr><td>${op}</td><td>R$ ${fmt(pm.money)}</td><td>R$ ${fmt(pm.pix)}</td><td>R$ ${fmt(pm.debit)}</td><td>R$ ${fmt(pm.credit)}</td><td class="tot">R$ ${fmt(total)}</td></tr>`;
@@ -316,17 +318,17 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; padding: 32px; font-size: 11px; }
-  h1 { font-size: 20px; font-weight: 900; text-transform: ; letter-spacing: 0.08em; }
+  h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; }
   .meta { font-size: 10px; color: #64748b; margin-top: 4px; }
   .header { border-bottom: 3px solid #1e40af; padding-bottom: 12px; margin-bottom: 20px; }
-  h2 { font-size: 13px; text-transform: ; letter-spacing: 0.1em; margin: 20px 0 8px; color: #1e293b; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; margin: 20px 0 8px; color: #1e293b; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-  th { background: #1e3a5f; color: #fff; padding: 6px 10px; text-align: right; font-size: 9px; text-transform: ; letter-spacing: 0.08em; }
+  th { background: #1e3a5f; color: #fff; padding: 6px 10px; text-align: right; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
   th:first-child, td:first-child { text-align: left; }
   td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; text-align: right; }
   td.tot { font-weight: 700; }
   tr:last-child td { border-top: 2px solid #1e293b; font-weight: 700; }
-  .resultado { margin-top: 16px; padding: 12px 16px; border-radius: 6px; font-size: 13px; font-weight: 900; text-transform: ; letter-spacing: 0.06em; text-align: right; }
+  .resultado { margin-top: 16px; padding: 12px 16px; border-radius: 6px; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; }
   .resultado.pos { background: #d1fae5; color: #065f46; }
   .resultado.neg { background: #ffe4e6; color: #9f1239; }
   @media print { body { padding: 16px; } }
@@ -344,15 +346,7 @@ function exportToPDF(report: YearlyReport, tenant: Partial<Tenant> | null, scope
   ${body}
 </body></html>`;
 
-  const win = window.open("", "_blank");
-  if (!win) {
-    alert("Não foi possível abrir a janela de impressão. Verifique se o bloqueador de pop-ups está desativado para este site.");
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 400);
+  return html;
 }
 
 // ── sub-componentes reaproveitados entre as visões Dia/Mês ──────────────────
@@ -565,6 +559,8 @@ export default function RelatorioFinanceiro() {
   const [report, setReport] = useState<YearlyReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [showExport, setShowExport] = useState(false);
+  const [showWhatsapp, setShowWhatsapp] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const tourRef = useRef<RelatorioFinanceiroPageTourHandle>(null);
 
   useEffect(() => {
@@ -635,6 +631,40 @@ export default function RelatorioFinanceiro() {
     view === "day" ? `Dia ${fmtDateBR(dayKey)}${origemSuffixLabel}`
     : view === "month" ? `${MONTHS[month]}/${year}${origemSuffixLabel}`
     : `Resumo Anual ${year}${origemSuffixLabel}`;
+
+  const pdfFileName = `relatorio-financeiro-${view === "day" ? dayKey : view === "month" ? `${year}-${String(month + 1).padStart(2, "0")}` : String(year)}.pdf`;
+
+  const downloadPdf = async () => {
+    if (!report || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      await downloadHtmlAsPdf(buildFinancialPdfHtml(report, tenant, buildExportScope(), origemFiltro), pdfFileName);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Não foi possível gerar o PDF.");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
+  // Resumo que vai como legenda do PDF no WhatsApp — mesmo escopo da tela.
+  const whatsappMessage = (() => {
+    const brl = (v: number) => `R$ ${fmt(v)}`;
+    let entradas = 0, fixo = 0, variavel = 0;
+    if (view === "day") { entradas = dEntradas.total; fixo = dCustoFixoTotal; variavel = dCustoVariavelTotal; }
+    else if (view === "month" && m && mEntradas) { entradas = mEntradas.total; fixo = m.custoFixo.total; variavel = m.custoVariavel.total; }
+    else if (yearTotals) { entradas = yearTotals.entradas; fixo = yearTotals.fixo; variavel = yearTotals.variavel; }
+    return [
+      `*${tenant?.name || "Relatório Financeiro"}*`,
+      `Relatório financeiro — ${exportScopeLabel}`,
+      "",
+      `Entradas: ${brl(entradas)}`,
+      `Custo fixo: ${brl(fixo)}`,
+      `Custo variável: ${brl(variavel)}`,
+      `*Resultado: ${brl(entradas - fixo - variavel)}*`,
+      "",
+      "Segue o relatório detalhado em PDF.",
+    ].join("\n");
+  })();
 
   const printDayReport = () => {
     const W = 42;
@@ -747,10 +777,17 @@ export default function RelatorioFinanceiro() {
                     </button>
                     <div className="mx-3 h-px bg-slate-100" />
                     <button
-                      onClick={() => { exportToPDF(report, tenant, buildExportScope(), origemFiltro); setShowExport(false); }}
+                      onClick={() => { downloadPdf(); setShowExport(false); }}
                       className="flex w-full items-center gap-3 px-3 py-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
                     >
-                      <FileText size={14} className="shrink-0 text-rose-600" /> PDF / Imprimir
+                      <FileText size={14} className="shrink-0 text-rose-600" /> Baixar PDF
+                    </button>
+                    <div className="mx-3 h-px bg-slate-100" />
+                    <button
+                      onClick={() => { setShowWhatsapp(true); setShowExport(false); }}
+                      className="flex w-full items-center gap-3 px-3 py-2.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      <MessageCircle size={14} className="shrink-0 text-emerald-600" /> Enviar por WhatsApp
                     </button>
                   </div>
                 )}
@@ -763,6 +800,18 @@ export default function RelatorioFinanceiro() {
         />
 
         <RelatorioFinanceiroPageTour ref={tourRef} />
+
+        <SendReportWhatsappModal
+          open={showWhatsapp}
+          onClose={() => setShowWhatsapp(false)}
+          title="Enviar relatório financeiro"
+          scopeLabel={exportScopeLabel}
+          defaultMessage={whatsappMessage}
+          buildPdf={async () => ({
+            base64: await htmlToPdfBase64(buildFinancialPdfHtml(report!, tenant, buildExportScope(), origemFiltro)),
+            fileName: pdfFileName,
+          })}
+        />
 
         {/* filtro de origem (Tudo/Catálogo/Serviço) — filtro real, não troca de seção */}
         <div data-tour="relatorio-origem-filtro">
