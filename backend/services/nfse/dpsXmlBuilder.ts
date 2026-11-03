@@ -27,6 +27,8 @@ export interface BuildDpsInput {
   tomador?: TomadorInput | null;
   // Ambiente efetivo da emissão (o teste força homologação mesmo com a loja em produção).
   environment?: "homologacao" | "producao";
+  // Força incluir/omitir <finNFSe>; sem isso usa o padrão por ambiente/data (ver finNfseDefault).
+  includeFinNFSe?: boolean;
 }
 
 export interface BuildDpsResult {
@@ -37,6 +39,12 @@ export interface BuildDpsResult {
 // NT SE/CGNFS-e 009 v1.01: a homologação já valida o leiaute novo (campo finNFSe obrigatório em
 // infDPS); a produção só vira a chave em 03/11/2026 — antes disso o XSD antigo rejeitaria o campo.
 const NT009_PRODUCAO_DESDE = Date.parse("2026-11-03T00:00:00-03:00");
+
+// O cronograma da NT 009 não é confiável: em 03/11/2026 a produção ainda validava o leiaute
+// antigo. Este é só o primeiro palpite — emitir.ts reenvia invertido se o servidor reclamar.
+export function finNfseDefault(ambiente: "homologacao" | "producao"): boolean {
+  return ambiente === "homologacao" || Date.now() >= NT009_PRODUCAO_DESDE;
+}
 
 function onlyDigits(v: string | null | undefined): string {
   return (v ?? "").replace(/\D/g, "");
@@ -108,7 +116,7 @@ export function buildDpsXml(input: BuildDpsInput): BuildDpsResult {
   infDPS.ele("dCompet").txt(dCompet);
   infDPS.ele("tpEmit").txt("1"); // 1 = prestador do serviço
   // finNFSe: finalidade da NFS-e (0 = NFS-e regular). Fica entre tpEmit e cLocEmi no leiaute novo.
-  if (ambiente === "homologacao" || Date.now() >= NT009_PRODUCAO_DESDE) infDPS.ele("finNFSe").txt("0");
+  if (input.includeFinNFSe ?? finNfseDefault(ambiente)) infDPS.ele("finNFSe").txt("0");
   infDPS.ele("cLocEmi").txt(onlyDigits(tenant.nfse_codigo_municipio));
 
   const prest = infDPS.ele("prest");

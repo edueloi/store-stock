@@ -4,7 +4,7 @@ import path from "path";
 import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
-import { buildDpsXml, type TomadorInput } from "./dpsXmlBuilder";
+import { buildDpsXml, finNfseDefault, type TomadorInput } from "./dpsXmlBuilder";
 import { explicarErroNfse } from "./errorMessages";
 import { loadPfx, assinarDPS } from "../nfce/signer";
 import { callNfseRest, gzipBase64, ungzipBase64, type NfseEnvironment } from "./restClient";
@@ -94,19 +94,6 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
 
     const tomador = await resolveTomador(serviceOrder);
 
-    const { idDPS, xml } = buildDpsXml({
-      tenant,
-      serviceOrder,
-      serie: invoice.serie,
-      numero: invoice.numero,
-      aliquotaIss,
-      codigoTributacaoNacional,
-      descricaoServico,
-      valorServico,
-      tomador,
-      environment,
-    });
-
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);
 
     // O Sistema Nacional NFS-e exige que a assinatura seja feita com o certificado do
@@ -124,17 +111,43 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
       throw new Error("O certificado digital enviado não corresponde ao CPF cadastrado como emitente.");
     }
 
-    const signedXml = assinarDPS(xml, idDPS, cert);
+    // O governo vem trocando o leiaute da DPS (campo <finNFSe>, NT 009) sem data firme: se o
+    // servidor recusar o XML por causa dele, reenvia uma vez com o formato invertido.
+    let includeFinNFSe = finNfseDefault(environment);
+    let idDPS = "";
+    let signedXml = "";
+    let result!: Awaited<ReturnType<typeof callNfseRest>>;
+    for (let tentativa = 0; tentativa < 2; tentativa++) {
+      const built = buildDpsXml({
+        tenant,
+        serviceOrder,
+        serie: invoice.serie,
+        numero: invoice.numero,
+        aliquotaIss,
+        codigoTributacaoNacional,
+        descricaoServico,
+        valorServico,
+        tomador,
+        environment,
+        includeFinNFSe,
+      });
+      idDPS = built.idDPS;
+      signedXml = assinarDPS(built.xml, idDPS, cert);
 
-    const result = await callNfseRest({
-      environment,
-      method: "POST",
-      path: "/nfse",
-      body: { dpsXmlGZipB64: gzipBase64(signedXml) },
-      pfxPath: tenant.nfce_cert_path,
-      pfxPassword: tenant.nfce_cert_password,
-      timeoutMs: env.nfceTimeoutMs,
-    });
+      result = await callNfseRest({
+        environment,
+        method: "POST",
+        path: "/nfse",
+        body: { dpsXmlGZipB64: gzipBase64(signedXml) },
+        pfxPath: tenant.nfce_cert_path,
+        pfxPassword: tenant.nfce_cert_password,
+        timeoutMs: env.nfceTimeoutMs,
+      });
+
+      if (result.ok || tentativa === 1 || !/finNFSe/.test(JSON.stringify(result.data ?? result.raw ?? ""))) break;
+      console.warn(`[emitirNfse] servidor recusou o leiaute (finNFSe=${includeFinNFSe}) — reenviando com finNFSe=${!includeFinNFSe} tenant=${tenant.id} env=${environment}`);
+      includeFinNFSe = !includeFinNFSe;
+    }
 
     if (!result.ok) {
       // Schema real (NFSePostResponseErro): { erros: [{ Codigo, Descricao, Complemento }] }
