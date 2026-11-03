@@ -13,6 +13,7 @@ import { getStoredUser } from "../../lib/session";
 import Drawer from "../../components/ui/Drawer";
 import { useToast } from "../../components/ui/Toast";
 import { downloadHtmlAsPdf, htmlToPdfBase64 } from "../../lib/pdf";
+import { loadReportIdentity, reportHeaderHtml, reportFooterHtml, kpisHtml, hBarsHtml, columnsHtml, wrapReportDocument, escapeHtml, pct } from "../../lib/reportPdf";
 import SendReportWhatsappModal from "../../components/reports/SendReportWhatsappModal";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 import { cn } from "../../lib/utils";
@@ -779,87 +780,100 @@ export default function CashSessionHistory() {
       : periodPreset === "custom" ? `${dateFrom} a ${dateTo}`
       : "Todo o período";
 
-    const paymentRows = paymentByMethodBrand.map((seg) => `
-      <tr><td>${methodBrandLabel(seg.method, seg.brand)}</td><td style="text-align:right;font-weight:700">${money(seg.amount)}</td></tr>`).join("");
+    const identity = await loadReportIdentity();
+    const validOrders = allOrders.filter((o) => o.status !== "cancelled");
+    const cancelledCount = allOrders.length - validOrders.length;
+    const ticket = validOrders.length ? financeTotals.net / validOrders.length : 0;
 
-    const sessionRows = filtered.map((s) => `
+    const payBars = paymentByMethodBrand.map((seg) => ({
+      label: methodBrandLabel(seg.method, seg.brand), value: seg.amount, color: PM_COLOR[seg.method] ?? "#64748b",
+    }));
+
+    const byDay: Record<string, number> = {};
+    validOrders.forEach((o) => { const d = localDay(o.created_at); byDay[d] = (byDay[d] ?? 0) + Number(o.total_amount); });
+    const dayKeys = Object.keys(byDay).sort();
+    const dayCols = dayKeys.map((d) => ({ label: dayKeys.length > 16 ? d.slice(8) : `${d.slice(8)}/${d.slice(5, 7)}`, value: byDay[d] }));
+    const bestDay = dayKeys.reduce<string | null>((best, d) => (best === null || byDay[d] > byDay[best] ? d : best), null);
+
+    const prod: Record<string, { qty: number; total: number }> = {};
+    soldItems.forEach((it) => { const c = prod[it.productName] ?? { qty: 0, total: 0 }; c.qty += it.quantity; c.total += it.total; prod[it.productName] = c; });
+    const itemsTotal = soldItems.reduce((a, x) => a + x.total, 0);
+    const topProducts = Object.entries(prod).sort((x, y) => y[1].total - x[1].total).slice(0, 10);
+
+    const sessionRows = filtered.map((s) => {
+      const diff = s.status === "closed" ? Number(s.difference_amount ?? 0) : null;
+      return `
       <tr>
-        <td>${s.opened_by_name}</td>
-        <td>${s.closed_by_name ?? "—"}</td>
-        <td style="text-align:center">${new Date(s.opened_at).toLocaleString("pt-BR")}</td>
-        <td style="text-align:center">${s.closed_at ? new Date(s.closed_at).toLocaleString("pt-BR") : "—"}</td>
-        <td style="text-align:center">${s.status === "open" ? "Aberto" : "Fechado"}</td>
-        <td style="text-align:right">${money(s.expected_amount)}</td>
-        <td style="text-align:right;font-weight:700">${money(s.counted_amount)}</td>
-      </tr>`).join("");
+        <td>#${s.id}</td>
+        <td>${escapeHtml(s.opened_by_name)}</td>
+        <td>${escapeHtml(s.closed_by_name ?? "—")}</td>
+        <td class="c">${new Date(s.opened_at).toLocaleString("pt-BR")}</td>
+        <td class="c">${s.closed_at ? new Date(s.closed_at).toLocaleString("pt-BR") : "—"}</td>
+        <td class="r">${money(s.opening_amount)}</td>
+        <td class="r">${money(s.expected_amount)}</td>
+        <td class="r">${s.counted_amount != null ? money(s.counted_amount) : "—"}</td>
+        <td class="r ${diff === null || diff === 0 ? "" : diff > 0 ? "pos" : "neg"}">${diff === null ? "Aberto" : diff === 0 ? "Confere" : `${diff > 0 ? "+" : ""}${money(diff)}`}</td>
+      </tr>`;
+    }).join("");
+    const withDiff = filtered.filter((s) => s.status === "closed" && Number(s.difference_amount) !== 0);
+    const diffTotal = withDiff.reduce((a, s) => a + Number(s.difference_amount ?? 0), 0);
+
+    const topRows = topProducts.map(([name, v], i) => `
+      <tr><td class="c">${i + 1}</td><td>${escapeHtml(name)}</td><td class="c">${v.qty}</td><td class="r">${money(v.total)}</td><td class="r">${pct(v.total, itemsTotal)}</td></tr>`).join("");
 
     const itemRows = soldItems.map((it) => `
       <tr>
         <td>#${String(it.orderId).padStart(6, "0")}</td>
-        <td>${it.productName}</td>
-        <td style="text-align:center">${it.quantity}</td>
-        <td style="text-align:right">${money(it.total)}</td>
-        <td style="text-align:right">${it.discountAmount > 0 ? money(it.discountAmount) : "—"}</td>
-        <td style="text-align:right">${it.feeAmount > 0 ? money(it.feeAmount) : "—"}</td>
-        <td style="text-align:center">${new Date(it.createdAt).toLocaleString("pt-BR")}</td>
-        <td>${it.customerName}</td>
-        <td>${it.sellerName}</td>
-        <td>${it.paymentLabel}</td>
+        <td>${escapeHtml(it.productName)}</td>
+        <td class="c">${it.quantity}</td>
+        <td class="r">${money(it.total)}</td>
+        <td class="r">${it.discountAmount > 0 ? money(it.discountAmount) : "—"}</td>
+        <td class="r">${it.feeAmount > 0 ? money(it.feeAmount) : "—"}</td>
+        <td class="c">${new Date(it.createdAt).toLocaleString("pt-BR")}</td>
+        <td>${escapeHtml(it.customerName)}</td>
+        <td>${escapeHtml(it.sellerName)}</td>
+        <td>${escapeHtml(it.paymentLabel)}</td>
       </tr>`).join("");
 
-    const html = `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"/><title>Histórico de Caixa</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; padding: 32px; font-size: 12px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 3px solid #1e3a5f; padding-bottom: 16px; }
-  .header h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; }
-  .meta { text-align: right; font-size: 10px; color: #64748b; }
-  .summary-title { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; margin: 20px 0 10px; color: #1e3a5f; }
-  .fin-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
-  .fin-card { padding: 12px 14px; border-radius: 10px; border: 1px solid #e2e8f0; }
-  .fin-card label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 4px; color: #94a3b8; }
-  .fin-card .val { font-size: 16px; font-weight: 900; font-family: monospace; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  th { background: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; }
-  td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; font-size: 11px; }
-  .total-row td { font-weight: 900; background: #f1f5f9; border-top: 2px solid #1e3a5f; }
-  @media print { body { padding: 16px; } table { page-break-inside: auto; } tr { page-break-inside: avoid; } }
-</style></head>
-<body>
-<div class="header">
-  <div><h1>Histórico de Caixa</h1></div>
-  <div class="meta"><strong>Período: ${periodLabel}</strong><br/>Gerado em: ${new Date().toLocaleString("pt-BR")}</div>
-</div>
+    const body = `
+${reportHeaderHtml(identity, "Relatório", "Histórico de Caixa", `Período: ${periodLabel}`)}
+${kpisHtml([
+  { label: "Faturamento líquido", value: money(financeTotals.net), sub: `${validOrders.length} venda(s)`, tone: "hl" },
+  { label: "Ticket médio", value: money(ticket), sub: cancelledCount ? `${cancelledCount} cancelada(s)` : undefined },
+  { label: "Bruto", value: money(financeTotals.gross) },
+  { label: "Descontos", value: `- ${money(financeTotals.discount)}` },
+  { label: "Acréscimos / taxas", value: `+ ${money(financeTotals.fee)}` },
+  { label: "Sessões de caixa", value: String(filtered.length), sub: `${filtered.filter((x) => x.status === "open").length} aberta(s)` },
+  { label: "Itens vendidos", value: String(soldItems.reduce((a, x) => a + x.quantity, 0)), sub: `${soldItems.length} linha(s)` },
+  { label: "Diferença de caixa", value: withDiff.length ? `${diffTotal > 0 ? "+" : ""}${money(diffTotal)}` : "Sem diferenças", sub: withDiff.length ? `${withDiff.length} sessão(ões)` : undefined, tone: withDiff.length ? (diffTotal >= 0 ? "pos" : "neg") : undefined },
+])}
 
-<p class="summary-title">Totais Financeiros</p>
-<div class="fin-summary">
-  <div class="fin-card"><label>Bruto</label><div class="val">${money(financeTotals.gross)}</div></div>
-  <div class="fin-card"><label>Descontos</label><div class="val">- ${money(financeTotals.discount)}</div></div>
-  <div class="fin-card"><label>Acréscimos/Taxas</label><div class="val">+ ${money(financeTotals.fee)}</div></div>
-  <div class="fin-card"><label>Líquido</label><div class="val">${money(financeTotals.net)}</div></div>
-</div>
+<h2>Recebimento por forma de pagamento</h2>
+${hBarsHtml(payBars)}
+<p class="note">Dinheiro já descontado o troco devolvido. Total recebido: <strong>${money(grandTotal)}</strong>.</p>
 
-<p class="summary-title">Balanço por Forma de Pagamento</p>
+${dayCols.length > 1 ? `<h2>Evolução diária de vendas</h2>${columnsHtml(dayCols)}<p class="note">${bestDay ? `Melhor dia: ${bestDay.slice(8)}/${bestDay.slice(5, 7)} com ${money(byDay[bestDay])}. ` : ""}Média por dia com venda: ${money(financeTotals.net / dayCols.length)}.</p>` : ""}
+
+<h2>Sessões de caixa (${filtered.length})</h2>
 <table>
-  <thead><tr><th>Forma de Pagamento</th><th style="text-align:right">Total</th></tr></thead>
-  <tbody>${paymentRows}
-  <tr class="total-row"><td>TOTAL GERAL</td><td style="text-align:right">${money(grandTotal)}</td></tr>
-  </tbody>
+  <thead><tr><th>Nº</th><th>Aberto por</th><th>Fechado por</th><th class="c">Abertura</th><th class="c">Fechamento</th><th class="r">Fundo</th><th class="r">Esperado</th><th class="r">Contado</th><th class="r">Diferença</th></tr></thead>
+  <tbody>${sessionRows || `<tr><td colspan="9" class="c muted">Nenhuma sessão no período</td></tr>`}</tbody>
 </table>
 
-<p class="summary-title">Sessões de Caixa (${filtered.length})</p>
+${topRows ? `<h2>Produtos mais vendidos</h2>
 <table>
-  <thead><tr><th>Aberto por</th><th>Fechado por</th><th style="text-align:center">Abertura</th><th style="text-align:center">Fechamento</th><th style="text-align:center">Status</th><th style="text-align:right">Esperado</th><th style="text-align:right">Contado</th></tr></thead>
-  <tbody>${sessionRows}</tbody>
-</table>
+  <thead><tr><th class="c">#</th><th>Produto</th><th class="c">Qtd</th><th class="r">Total</th><th class="r">Part.</th></tr></thead>
+  <tbody>${topRows}</tbody>
+</table>` : ""}
 
-<p class="summary-title">Itens Vendidos (${soldItems.length})</p>
+<h2>Itens vendidos (${soldItems.length})</h2>
 <table>
-  <thead><tr><th>Pedido</th><th>Produto</th><th style="text-align:center">Qtd</th><th style="text-align:right">Total</th><th style="text-align:right">Desconto</th><th style="text-align:right">Taxa</th><th style="text-align:center">Data</th><th>Cliente</th><th>Vendedor</th><th>Pagamento</th></tr></thead>
-  <tbody>${itemRows}</tbody>
+  <thead><tr><th>Pedido</th><th>Produto</th><th class="c">Qtd</th><th class="r">Total</th><th class="r">Desc.</th><th class="r">Taxa</th><th class="c">Data</th><th>Cliente</th><th>Vendedor</th><th>Pagamento</th></tr></thead>
+  <tbody>${itemRows || `<tr><td colspan="10" class="c muted">Nenhum item vendido no período</td></tr>`}</tbody>
 </table>
-</body></html>`;
+<p class="note">Desconto e taxa são do pedido inteiro e se repetem em cada item do mesmo pedido.</p>
+${reportFooterHtml(identity)}`;
+    const html = wrapReportDocument("Histórico de Caixa", body);
 
     const message = [
       `*Relatório de Caixa — ${periodLabel}*`,

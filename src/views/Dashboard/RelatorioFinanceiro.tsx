@@ -9,6 +9,7 @@ import {
 import { Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip as RTooltip, XAxis, YAxis } from "recharts";
 import { cn } from "../../lib/utils";
 import { downloadHtmlAsPdf, htmlToPdfBase64 } from "../../lib/pdf";
+import { loadReportIdentity, reportHeaderHtml, reportFooterHtml, kpisHtml, hBarsHtml, columnsHtml, legendHtml, wrapReportDocument, escapeHtml, pct, type Kpi } from "../../lib/reportPdf";
 import SendReportWhatsappModal from "../../components/reports/SendReportWhatsappModal";
 import { Tenant } from "../../types";
 import RelatorioFinanceiroPageTour, { RELATORIO_FINANCEIRO_PAGE_TOUR_EVENTS, type RelatorioFinanceiroPageTourHandle } from "../../components/onboarding/RelatorioFinanceiroPageTour";
@@ -248,104 +249,127 @@ async function exportToExcel(report: YearlyReport, tenant: Partial<Tenant> | nul
 }
 
 // ── PDF export (mesmo padrão de Finance.tsx — HTML + print) ─────────────────
-function buildFinancialPdfHtml(report: YearlyReport, tenant: Partial<Tenant> | null, scope: ExportScope, origemFiltro: OrigemFiltro) {
-  const operatorRowsOf = (entradas: EntradasBucket) => Object.entries(entradas.byOperator).map(([op, pm]) => {
-    const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
-    return `<tr><td>${op}</td><td>R$ ${fmt(pm.money)}</td><td>R$ ${fmt(pm.pix)}</td><td>R$ ${fmt(pm.debit)}</td><td>R$ ${fmt(pm.credit)}</td><td class="tot">R$ ${fmt(total)}</td></tr>`;
-  }).join("");
+async function buildFinancialPdfHtml(report: YearlyReport, _tenant: Partial<Tenant> | null, scope: ExportScope, origemFiltro: OrigemFiltro) {
+  const identity = await loadReportIdentity();
+  const R = (v: number) => `R$ ${fmt(v)}`;
+  const PM_COLORS: Record<PmKey, string> = { money: "#059669", pix: "#7c3aed", debit: "#2563eb", credit: "#d97706" };
 
-  const costRows = (items: CostItem[]) => items.map(it =>
-    `<tr><td>${it.description}</td><td style="text-align:center">${fmtDateBR(it.date)}</td><td class="tot">R$ ${fmt(it.amount)}</td></tr>`
-  ).join("");
+  const methodBars = (e: EntradasBucket) =>
+    hBarsHtml(PM_KEYS.map((k) => ({ label: PM_LABELS[k], value: e.totalByMethod[k], color: PM_COLORS[k] })).filter((b) => b.value > 0));
 
-  const entradasSection = (title: string, entradas: EntradasBucket) => `
-  <h2>Entradas — ${title}</h2>
-  <table><thead><tr><th>Operador</th><th>Dinheiro</th><th>PIX</th><th>Débito</th><th>Crédito</th><th>Total</th></tr></thead>
-  <tbody>${operatorRowsOf(entradas)}<tr><td class="tot">TOTAL</td><td class="tot">R$ ${fmt(entradas.totalByMethod.money)}</td><td class="tot">R$ ${fmt(entradas.totalByMethod.pix)}</td><td class="tot">R$ ${fmt(entradas.totalByMethod.debit)}</td><td class="tot">R$ ${fmt(entradas.totalByMethod.credit)}</td><td class="tot">R$ ${fmt(entradas.total)}</td></tr></tbody></table>`;
-
-  const custoSection = (title: string, items: CostItem[], total: number) => `
-  <h2>${title}</h2>
-  <table><thead><tr><th>Descrição</th><th style="text-align:center">Data</th><th>Valor</th></tr></thead>
-  <tbody>${costRows(items)}<tr><td class="tot">TOTAL</td><td></td><td class="tot">R$ ${fmt(total)}</td></tr></tbody></table>`;
-
-  const resultadoSection = (resultado: number) => `
-  <div class="resultado ${resultado >= 0 ? "pos":"neg"}">RESULTADO DO PERÍODO: R$ ${fmt(resultado)}</div>`;
-
-  const yearSection = (entradasByMonth: EntradasBucket[]) => {
-    const yearRows = ([
-      ["Dinheiro", (_mo: MonthReport, i: number) => entradasByMonth[i].totalByMethod.money],
-      ["PIX", (_mo: MonthReport, i: number) => entradasByMonth[i].totalByMethod.pix],
-      ["Débito", (_mo: MonthReport, i: number) => entradasByMonth[i].totalByMethod.debit],
-      ["Crédito", (_mo: MonthReport, i: number) => entradasByMonth[i].totalByMethod.credit],
-      ["Total Entradas", (_mo: MonthReport, i: number) => entradasByMonth[i].total],
-      ["Custo Fixo", (mo: MonthReport) => mo.custoFixo.total],
-      ["Custo Variável", (mo: MonthReport) => mo.custoVariavel.total],
-      ["Resultado", (mo: MonthReport, i: number) => entradasByMonth[i].total - mo.custoFixo.total - mo.custoVariavel.total],
-    ] as const).map(([label, getter]) => {
-      const values = report.months.map(getter);
-      const total = values.reduce((a, b) => a + b, 0);
-      const isHighlight = label === "Total Entradas" || label === "Resultado";
-      return `<tr><td class="${isHighlight ? "tot":""}">${label}</td>${values.map(v => `<td>R$ ${fmt(v)}</td>`).join("")}<td class="tot">R$ ${fmt(total)}</td></tr>`;
+  const operatorTable = (e: EntradasBucket) => {
+    const rows = Object.entries(e.byOperator).map(([op, pm]) => {
+      const total = PM_KEYS.reduce((s, k) => s + pm[k], 0);
+      return `<tr><td>${escapeHtml(op)}</td><td class="r">${R(pm.money)}</td><td class="r">${R(pm.pix)}</td><td class="r">${R(pm.debit)}</td><td class="r">${R(pm.credit)}</td><td class="r"><strong>${R(total)}</strong></td></tr>`;
     }).join("");
-    return `
-  <h2>Resumo Anual — ${report.year}</h2>
-  <table><thead><tr><th>&nbsp;</th>${MONTHS_SHORT.map(m2 => `<th>${m2}</th>`).join("")}<th>Total Ano</th></tr></thead>
-  <tbody>${yearRows}</tbody></table>`;
+    return `<table><thead><tr><th>Operador</th><th class="r">Dinheiro</th><th class="r">PIX</th><th class="r">Débito</th><th class="r">Crédito</th><th class="r">Total</th></tr></thead>
+    <tbody>${rows || `<tr><td colspan="6" class="c muted">Sem entradas no período</td></tr>`}
+    <tr class="total"><td>TOTAL</td><td class="r">${R(e.totalByMethod.money)}</td><td class="r">${R(e.totalByMethod.pix)}</td><td class="r">${R(e.totalByMethod.debit)}</td><td class="r">${R(e.totalByMethod.credit)}</td><td class="r">${R(e.total)}</td></tr></tbody></table>`;
   };
 
-  const origemMeta = origemFiltro === "todas" ? "" : `· Origem: ${ORIGEM_LABELS[origemFiltro]}`;
+  const costTable = (items: CostItem[], total: number) => {
+    const sorted = [...items].sort((a, b) => b.amount - a.amount);
+    return `<table><thead><tr><th>Descrição</th><th class="c">Data</th><th class="c">Situação</th><th class="r">Valor</th></tr></thead>
+    <tbody>${sorted.map((it) => `<tr><td>${escapeHtml(it.description)}</td><td class="c">${fmtDateBR(it.date)}</td><td class="c muted">${it.pending ? "A pagar" : "Pago"}</td><td class="r">${R(it.amount)}</td></tr>`).join("") || `<tr><td colspan="4" class="c muted">Nenhum lançamento</td></tr>`}
+    <tr class="total"><td>TOTAL</td><td></td><td></td><td class="r">${R(total)}</td></tr></tbody></table>`;
+  };
 
+  const resultKpis = (entradas: number, fixo: number, variavel: number, cmv: number, extra: Kpi[] = []): string => {
+    const resultado = entradas - fixo - variavel;
+    return kpisHtml([
+      { label: "Entradas", value: R(entradas), tone: "hl" },
+      { label: "Custo fixo", value: R(fixo), sub: pct(fixo, entradas) + " das entradas" },
+      { label: "Custo variável", value: R(variavel), sub: pct(variavel, entradas) + " das entradas" },
+      { label: "Resultado", value: R(resultado), sub: entradas > 0 ? `Margem ${pct(resultado, entradas)}` : undefined, tone: resultado >= 0 ? "pos" : "neg" },
+      ...(cmv > 0 ? [{ label: "CMV (custo das mercadorias)", value: R(cmv), sub: entradas > 0 ? `Lucro bruto ${R(entradas - cmv)}` : undefined }] : []),
+      ...extra,
+    ], 4);
+  };
+
+  const origemMeta = origemFiltro === "todas" ? "" : ` · Origem: ${ORIGEM_LABELS[origemFiltro]}`;
+  let periodLabel = "";
   let body = "";
+
   if (scope.view === "day") {
-    const resultado = scope.data.entradas.total - scope.data.custoVariavel.total - scope.data.custoFixo.total;
-    body = entradasSection(fmtDateBR(scope.data.dayKey), scope.data.entradas)
-      + custoSection("Custo Variável", scope.data.custoVariavel.items, scope.data.custoVariavel.total)
-      + custoSection("Custo Fixo", scope.data.custoFixo.items, scope.data.custoFixo.total)
-      + resultadoSection(resultado);
+    const d = scope.data;
+    periodLabel = `Dia ${fmtDateBR(d.dayKey)}`;
+    body = resultKpis(d.entradas.total, d.custoFixo.total, d.custoVariavel.total, 0)
+      + `<h2>Entradas por forma de pagamento</h2>${methodBars(d.entradas)}`
+      + `<h2>Entradas por operador</h2>${operatorTable(d.entradas)}`
+      + `<h2>Custo variável</h2>${costTable(d.custoVariavel.items, d.custoVariavel.total)}`
+      + `<h2>Custo fixo</h2>${costTable(d.custoFixo.items, d.custoFixo.total)}`;
   } else if (scope.view === "month") {
     const m = report.months[scope.month];
-    const resultado = scope.entradas.total - m.custoVariavel.total - m.custoFixo.total;
-    body = entradasSection(`${MONTHS[scope.month]}/${report.year}`, scope.entradas)
-      + custoSection("Custo Variável", m.custoVariavel.items, m.custoVariavel.total)
-      + custoSection("Custo Fixo", m.custoFixo.items, m.custoFixo.total)
-      + resultadoSection(resultado);
+    periodLabel = `${MONTHS[scope.month]}/${report.year}`;
+    const daysIn = new Date(report.year, scope.month + 1, 0).getDate();
+    const empty: EntradasBucket = { byOperator: {}, totalByMethod: { money: 0, pix: 0, debit: 0, credit: 0 }, total: 0 };
+    const dayVals = Array.from({ length: daysIn }, (_, i) => {
+      const day = i + 1;
+      const b = m.entradasByDay[day]
+        ? pickBucket(m.entradasByDay[day], m.entradasByDayByOrigem?.[day] ?? ({ produtos: empty, servicos: empty, mista: empty } as Record<OrigemKey, EntradasBucket>), origemFiltro)
+        : empty;
+      return { label: String(day), value: b.total };
+    });
+    const daysWithSales = dayVals.filter((x) => x.value > 0);
+    const best = daysWithSales.reduce<{ label: string; value: number } | null>((acc, x) => (!acc || x.value > acc.value ? x : acc), null);
+    const cmv = pickCmv(m.cmvByOrigem, origemFiltro);
+    const receber = m.aReceber;
+    body = resultKpis(scope.entradas.total, m.custoFixo.total, m.custoVariavel.total, cmv, receber && receber.total > 0
+      ? [{ label: "A receber (crediário)", value: R(receber.total), sub: receber.overdueTotal > 0 ? `${R(receber.overdueTotal)} em atraso` : "Nada em atraso" }]
+      : [])
+      + `<h2>Entradas por forma de pagamento</h2>${methodBars(scope.entradas)}`
+      + `<h2>Entradas por dia</h2>${columnsHtml(dayVals, "#2563eb")}<p class="note">${best ? `Melhor dia: ${best.label}/${String(scope.month + 1).padStart(2, "0")} com ${R(best.value)}. ` : ""}${daysWithSales.length ? `Média por dia com venda: ${R(scope.entradas.total / daysWithSales.length)}.` : ""}</p>`
+      + `<h2>Entradas por operador</h2>${operatorTable(scope.entradas)}`
+      + `<h2>Composição dos custos</h2>${hBarsHtml([
+        { label: "Custo fixo", value: m.custoFixo.total, color: "#475569" },
+        { label: "Custo variável", value: m.custoVariavel.total, color: "#d97706" },
+        ...(cmv > 0 ? [{ label: "CMV", value: cmv, color: "#7c3aed" }] : []),
+      ].filter((b) => b.value > 0))}`
+      + `<h2>Custo variável</h2>${costTable(m.custoVariavel.items, m.custoVariavel.total)}`
+      + `<h2>Custo fixo</h2>${costTable(m.custoFixo.items, m.custoFixo.total)}`;
   } else {
-    body = yearSection(scope.entradasByMonth);
+    periodLabel = `Ano ${report.year}`;
+    const ent = scope.entradasByMonth;
+    const totalEnt = ent.reduce((s, e) => s + e.total, 0);
+    const fixo = report.months.reduce((s, mo) => s + mo.custoFixo.total, 0);
+    const variavel = report.months.reduce((s, mo) => s + mo.custoVariavel.total, 0);
+    const cmv = report.months.reduce((s, mo) => s + pickCmv(mo.cmvByOrigem, origemFiltro), 0);
+    const resultByMonth = report.months.map((mo, i) => ent[i].total - mo.custoFixo.total - mo.custoVariavel.total);
+    const bestIdx = ent.reduce((bi, e, i) => (e.total > ent[bi].total ? i : bi), 0);
+    const sumMethod = (k: PmKey) => ent.reduce((s, e) => s + e.totalByMethod[k], 0);
+
+    const rowDefs: [string, (i: number) => number, boolean][] = [
+      ["Dinheiro", (i) => ent[i].totalByMethod.money, false],
+      ["PIX", (i) => ent[i].totalByMethod.pix, false],
+      ["Débito", (i) => ent[i].totalByMethod.debit, false],
+      ["Crédito", (i) => ent[i].totalByMethod.credit, false],
+      ["Total entradas", (i) => ent[i].total, true],
+      ["Custo fixo", (i) => report.months[i].custoFixo.total, false],
+      ["Custo variável", (i) => report.months[i].custoVariavel.total, false],
+      ["Resultado", (i) => resultByMonth[i], true],
+    ];
+    const yearRows = rowDefs.map(([label, get, strong]) => {
+      const vals = report.months.map((_, i) => get(i));
+      const tot = vals.reduce((a, b) => a + b, 0);
+      const cls = (v: number) => (label === "Resultado" ? (v >= 0 ? "pos" : "neg") : "");
+      return `<tr${strong ? ' class="total"' : ""}><td>${label}</td>${vals.map((v) => `<td class="r ${cls(v)}">${fmt(v)}</td>`).join("")}<td class="r ${cls(tot)}">${fmt(tot)}</td></tr>`;
+    }).join("");
+
+    body = resultKpis(totalEnt, fixo, variavel, cmv, [
+      { label: "Melhor mês", value: ent[bestIdx].total > 0 ? MONTHS[bestIdx] : "—", sub: ent[bestIdx].total > 0 ? R(ent[bestIdx].total) : undefined },
+    ])
+      + `<h2>Entradas por mês</h2>${columnsHtml(report.months.map((_, i) => ({ label: MONTHS_SHORT[i], value: ent[i].total })), "#2563eb")}`
+      + `<h2>Resultado por mês</h2>${columnsHtml(report.months.map((_, i) => ({ label: MONTHS_SHORT[i], value: resultByMonth[i], color: "#059669" })))}${legendHtml([{ label: "Resultado positivo", color: "#059669" }, { label: "Resultado negativo", color: "#e11d48" }])}`
+      + `<h2>Entradas por forma de pagamento</h2>${hBarsHtml(PM_KEYS.map((k) => ({ label: PM_LABELS[k], value: sumMethod(k), color: PM_COLORS[k] })).filter((b) => b.value > 0))}`
+      + `<h2>Resumo anual (R$)</h2>
+      <table style="font-size:9px"><thead><tr><th>&nbsp;</th>${MONTHS_SHORT.map((x) => `<th class="r">${x}</th>`).join("")}<th class="r">Ano</th></tr></thead><tbody>${yearRows}</tbody></table>`;
   }
 
-  const html = `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Relatório Financeiro</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; padding: 32px; font-size: 11px; }
-  h1 { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.08em; }
-  .meta { font-size: 10px; color: #64748b; margin-top: 4px; }
-  .header { border-bottom: 3px solid #1e40af; padding-bottom: 12px; margin-bottom: 20px; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; margin: 20px 0 8px; color: #1e293b; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-  th { background: #1e3a5f; color: #fff; padding: 6px 10px; text-align: right; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
-  th:first-child, td:first-child { text-align: left; }
-  td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; text-align: right; }
-  td.tot { font-weight: 700; }
-  tr:last-child td { border-top: 2px solid #1e293b; font-weight: 700; }
-  .resultado { margin-top: 16px; padding: 12px 16px; border-radius: 6px; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; text-align: right; }
-  .resultado.pos { background: #d1fae5; color: #065f46; }
-  .resultado.neg { background: #ffe4e6; color: #9f1239; }
-  @media print { body { padding: 16px; } }
-  @media screen and (max-width: 640px) {
-    body { padding: 16px; font-size: 12px; }
-    h1 { font-size: 16px; }
-    table { display: block; overflow-x: auto; white-space: nowrap; }
-  }
-</style></head>
-<body>
-  <div class="header">
-    <h1>${tenant?.name || "BoxSys Store"}</h1>
-    <p class="meta">${(tenant as any)?.cnpj ? `CNPJ: ${(tenant as any).cnpj} ·` : ""}Relatório Financeiro${origemMeta} · Gerado em ${new Date().toLocaleString("pt-BR")}</p>
-  </div>
-  ${body}
-</body></html>`;
-
+  const html = wrapReportDocument(
+    "Relatório Financeiro",
+    `${reportHeaderHtml(identity, "Relatório", "Relatório Financeiro", `${periodLabel}${origemMeta}`)}${body}${reportFooterHtml(identity)}`,
+    "td { font-size: 10px; }",
+  );
   return html;
 }
 
@@ -638,7 +662,7 @@ export default function RelatorioFinanceiro() {
     if (!report || pdfBusy) return;
     setPdfBusy(true);
     try {
-      await downloadHtmlAsPdf(buildFinancialPdfHtml(report, tenant, buildExportScope(), origemFiltro), pdfFileName);
+      await downloadHtmlAsPdf(await buildFinancialPdfHtml(report, tenant, buildExportScope(), origemFiltro), pdfFileName);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Não foi possível gerar o PDF.");
     } finally {
@@ -808,7 +832,7 @@ export default function RelatorioFinanceiro() {
           scopeLabel={exportScopeLabel}
           defaultMessage={whatsappMessage}
           buildPdf={async () => ({
-            base64: await htmlToPdfBase64(buildFinancialPdfHtml(report!, tenant, buildExportScope(), origemFiltro)),
+            base64: await htmlToPdfBase64(await buildFinancialPdfHtml(report!, tenant, buildExportScope(), origemFiltro)),
             fileName: pdfFileName,
           })}
         />
