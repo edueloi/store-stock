@@ -48,6 +48,8 @@ export default function StoreCatalog() {
     measure();
     const observer = new ResizeObserver(schedule);
     if (header) observer.observe(header);
+    const heading = root.querySelector(".gd-cat-head");
+    if (heading) observer.observe(heading);
     window.addEventListener("resize", schedule);
     window.addEventListener("scroll", schedule, { passive: true });
     return () => {
@@ -164,7 +166,7 @@ export default function StoreCatalog() {
   );
 
   return (
-    <main className="gd-page" ref={motion}>
+    <main className="gd-page gd-catalog-page" ref={motion}>
       <StoreSEO
         title={`${current ? `${current.name} — ` : ""}${title} — ${tenant.name}`}
         description={desc || `Catálogo de ${tenant.name}`}

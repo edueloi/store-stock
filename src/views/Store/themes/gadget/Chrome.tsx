@@ -41,7 +41,6 @@ export function Header() {
   ];
   return (
     <div className="gd-header" role="banner">
-      <div className="gd-announcement"><div><span>TECNOLOGIA PARA O SEU DIA.</span><span>{tenant.whatsapp ? <a href={waLink()} target="_blank" rel="noreferrer">Precisa de ajuda? Fale com a gente <ArrowUpRight size={12}/></a> : "CONECTE POSSIBILIDADES"}</span></div></div>
       <div className="gd-bar">
         <button type="button" className="gd-icon gd-burger" aria-label={menu ? "Fechar menu" : "Abrir menu"} aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
           {menu ? <X size={20} strokeWidth={1.7} /> : <Menu size={20} strokeWidth={1.7} />}

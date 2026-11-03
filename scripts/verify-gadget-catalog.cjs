@@ -53,7 +53,7 @@ const products = Array.from({ length: 180 }, (_, i) => ({
     await side.getByText('Só disponíveis', { exact: true }).waitFor();
     await side.evaluate(el => { el.scrollTop = 0; });
     await page.screenshot({ path: path.join(output, 'desktop.png') });
-    await page.evaluate(() => window.scrollTo(0, 900));
+    await page.evaluate(() => window.scrollTo(0, document.querySelector('.gd-cat-layout').getBoundingClientRect().top + scrollY + 80));
     const top = await side.evaluate(el => ({ actual: el.getBoundingClientRect().top, expected: parseFloat(getComputedStyle(el).top) }));
     assert.ok(Math.abs(top.actual - top.expected) < 2, `Barra lateral permanece fixa: ${JSON.stringify(top)}`);
     await nav().getByLabel('Próxima página', { exact: true }).click();
@@ -108,6 +108,26 @@ const products = Array.from({ length: 180 }, (_, i) => ({
     await page.waitForFunction(() => document.querySelector('[role="status"]')?.textContent.includes('90 produtos'));
     console.log('PASS desktop: paginação, histórico, recarga, busca, ordenação, filtros e rolagem independente.');
 
+    for (const width of [1024, 1280, 1440, 1814, 1920, 2560]) {
+      await page.setViewportSize({ width, height: 900 });
+      await go();
+      assert.equal(await page.locator('.gd-announcement').count(), 0, 'Faixa preta removida');
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      const layout = await page.evaluate(() => {
+        const sidebar = document.querySelector('.gd-side').getBoundingClientRect();
+        const main = document.querySelector('.gd-cat-main').getBoundingClientRect();
+        const cards = [...document.querySelectorAll('.gd-card')].map(el => el.getBoundingClientRect());
+        return { left: sidebar.left, sideWidth: sidebar.width, gap: main.left - sidebar.right, right: innerWidth - main.right,
+          columns: cards.filter(rect => Math.abs(rect.top - cards[0].top) < 1).length, cardWidth: cards[0].width, cardHeight: cards[0].height };
+      });
+      assert.ok(layout.left <= 36 && layout.right <= 36, JSON.stringify(layout));
+      assert.ok(layout.sideWidth >= 260 && layout.gap <= 24, JSON.stringify(layout));
+      assert.ok(layout.columns >= (width >= 1814 ? 5 : width >= 1280 ? 4 : 3), JSON.stringify(layout));
+      assert.ok(layout.cardWidth < 320 && layout.cardHeight < 460, JSON.stringify(layout));
+      await page.screenshot({ path: path.join(output, `layout-${width}.png`) });
+      console.log(`PASS ${width}px: ${layout.columns} colunas, sidebar à esquerda, cards compactos, sem faixa no topo.`);
+    }
+
     for (const width of [320, 375, 768]) {
       await page.setViewportSize({ width, height: 800 });
       await go();
@@ -132,6 +152,18 @@ const products = Array.from({ length: 180 }, (_, i) => ({
       await nav().scrollIntoViewIfNeeded();
       await page.screenshot({ path: path.join(output, `mobile-${width}.png`) });
       console.log(`PASS ${width}px: paginação sem transbordamento, categorias no painel, fechamento por Escape.`);
+    }
+    for (const width of [375, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const suffix of ['', '/sobre', '/produto/produto-001-acao-1']) {
+        await page.goto(`${base}/s/demo${suffix}?previewTheme=gadget`);
+        await page.locator('.gd-page').waitFor();
+        await page.locator('#app-splash').waitFor({ state: 'hidden' });
+        assert.equal(await page.locator('.gd-announcement').count(), 0);
+        assert.ok(await page.locator('.gd-header').evaluate(el => el.getBoundingClientRect().height <= 85));
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      }
+      console.log(`PASS ${width}px: início, Sobre e produto com cabeçalho compacto e sem transbordamento.`);
     }
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
