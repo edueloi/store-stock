@@ -14,6 +14,7 @@ import Drawer from "../../components/ui/Drawer";
 import { DropdownMenu } from "../../components/ui/Dropdown";
 import PdfImportModal from "../../components/ui/PdfImportModal";
 import XmlImportModal from "../../components/ui/XmlImportModal";
+import SheetImportPreviewModal, { type SheetPreviewRow, type SheetRowEdit } from "../../components/ui/SheetImportPreviewModal";
 import {
   Button, IconButton, Select, Badge, PageWrapper, SectionTitle, GridTable, Pagination,
   FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch, FilterLineSegmented, useToast, Modal, ModalFooter,
@@ -44,6 +45,7 @@ export default function Inventory() {
   const [importing, setImporting] = useState(false);
   const [importSummary, setImportSummary] = useState<{ created: number; updated: number; errors: { row: number; message: string }[] } | null>(null);
   const sheetInputRef = useRef<HTMLInputElement>(null);
+  const [sheetPreview, setSheetPreview] = useState<{ file: File; rows: SheetPreviewRow[]; errors: { row: number; message: string }[] } | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [taxRegime, setTaxRegime] = useState<string>("simples_nacional");
   // Loja vende por encomenda/sem controle de estoque (Settings > Controle de
@@ -429,6 +431,7 @@ export default function Inventory() {
     }
   }
 
+  // 1º passo: lê a planilha e mostra a prévia (nada é gravado). 2º passo: confirmSheetImport.
   async function handleSheetChosen(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -437,9 +440,30 @@ export default function Inventory() {
     try {
       const form = new FormData();
       form.append("file", file);
+      const res = await fetch("/api/products/import?preview=1", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Falha ao ler a planilha.");
+      if (!data.rows?.length) throw new Error("A planilha não tem produtos para importar.");
+      setSheetPreview({ file, rows: data.rows, errors: data.errors ?? [] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao ler a planilha.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function confirmSheetImport(skip: number[], edits: Record<string, SheetRowEdit>) {
+    if (!sheetPreview) return;
+    setImporting(true);
+    try {
+      const form = new FormData();
+      form.append("file", sheetPreview.file);
+      form.append("skip", JSON.stringify(skip));
+      form.append("edits", JSON.stringify(edits));
       const res = await fetch("/api/products/import", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }, body: form });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Falha ao importar a planilha.");
+      setSheetPreview(null);
       setImportSummary(data);
       fetchInventory();
     } catch (err) {
@@ -718,6 +742,15 @@ export default function Inventory() {
         <InventoryPageTour ref={inventoryPageTourRef} />
 
         <input ref={sheetInputRef} type="file" accept=".csv,.xls,.xlsx,.xml,text/csv" className="hidden" onChange={handleSheetChosen} />
+        <SheetImportPreviewModal
+          open={!!sheetPreview}
+          fileName={sheetPreview?.file.name ?? ""}
+          rows={sheetPreview?.rows ?? []}
+          errors={sheetPreview?.errors ?? []}
+          loading={importing}
+          onClose={() => setSheetPreview(null)}
+          onConfirm={confirmSheetImport}
+        />
         <Modal
           open={!!importSummary}
           onClose={() => setImportSummary(null)}

@@ -63,6 +63,13 @@ export const brNumber = (v: unknown): number | null => {
 export async function importProducts(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
+    // preview=1: só lê o arquivo e devolve o que SERIA feito, sem gravar nada.
+    // Na confirmação, "skip" (linhas desmarcadas) e "edits" (campos corrigidos na tela) vêm como JSON.
+    const preview = req.query.preview === "1";
+    const parseJson = (v: unknown) => { try { return JSON.parse(String(v ?? "")); } catch { return null; } };
+    const skip = new Set<number>(Array.isArray(parseJson(req.body?.skip)) ? parseJson(req.body.skip) : []);
+    const edits: Record<string, { name?: string; price?: number; cost?: number; stock?: number }> = parseJson(req.body?.edits) ?? {};
+    const previewRows: { row: number; action: "create" | "update" | "merge"; name: string; sku: string; barcode: string; price: number | null; cost: number | null; stock: number | null; category: string }[] = [];
     if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado" });
 
     let rows: string[][];
@@ -150,16 +157,18 @@ export async function importProducts(req: Request, res: Response) {
     for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
       try {
-        const name = get(r, "nome do produto", "nome", "produto");
+        if (skip.has(i + 1)) continue;
+        const ed = edits[String(i + 1)] ?? {};
+        const name = (ed.name ?? get(r, "nome do produto", "nome", "produto")).trim();
         if (!name || /^[.\-\s]+$/.test(name)) {
           errors.push({ row: i + 1, message: "Sem nome — linha ignorada" });
           continue;
         }
         const sku = get(r, "codigo do produto", "codigo", "sku");
         const barcode = get(r, "codigo de barras gtin 8 12 13 14", "codigo de barras", "gtin").replace(/\D/g, "");
-        const price = brNumber(get(r, "valor venda tabela padrao", "valor venda", "preco"));
-        const cost = brNumber(get(r, "valor custo", "custo"));
-        const stock = brNumber(get(r, "estoque atual", "estoque"));
+        const price = ed.price ?? brNumber(get(r, "valor venda tabela padrao", "valor venda", "preco"));
+        const cost = ed.cost ?? brNumber(get(r, "valor custo", "custo"));
+        const stock = ed.stock ?? brNumber(get(r, "estoque atual", "estoque"));
         const minStock = brNumber(get(r, "estoque minimo"));
         const weightKg = brNumber(get(r, "peso"));
         const icms = brNumber(get(r, "icms"));
@@ -194,7 +203,7 @@ export async function importProducts(req: Request, res: Response) {
           ...(pis ? { pis_aliquota: pis } : {}),
           ...(cofins ? { cofins_aliquota: cofins } : {}),
           ...(status ? { is_active: !status.startsWith("inat") } : {}),
-          ...(place ? { category_id: await catId(place) } : {}),
+          ...(place && !preview ? { category_id: await catId(place) } : {}),
         };
 
         const key = sku ? `s:${sku.toLowerCase()}` : barcode ? `b:${barcode}` : `n:${name.toLowerCase()}`;
@@ -202,6 +211,14 @@ export async function importProducts(req: Request, res: Response) {
         const newRow = (extra: Prisma.ProductUncheckedCreateInput | null) =>
           ({ ...(extra ?? {}), ...base, tenant_id: tenantId, price: base.price ?? 0, type: "sale", is_active: base.is_active ?? true }) as Prisma.ProductUncheckedCreateInput;
 
+        if (preview) {
+          previewRows.push({
+            row: i + 1, action: existingId ? "update" : seenNew.has(key) ? "merge" : "create",
+            name: base.name, sku, barcode, price, cost, stock, category: place,
+          });
+          if (!existingId && !seenNew.has(key)) seenNew.set(key, creates.length);
+          continue;
+        }
         if (existingId) updates.push({ id: existingId, data: base });
         else if (seenNew.has(key)) creates[seenNew.get(key)!] = newRow(creates[seenNew.get(key)!]);
         else {
@@ -212,6 +229,8 @@ export async function importProducts(req: Request, res: Response) {
         errors.push({ row: i + 1, message: e instanceof Error ? e.message : "Linha inválida" });
       }
     }
+
+    if (preview) return res.json({ preview: true, rows: previewRows, errors });
 
     for (let i = 0; i < creates.length; i += 500) await prisma.product.createMany({ data: creates.slice(i, i + 500) });
     for (let i = 0; i < updates.length; i += 25) {

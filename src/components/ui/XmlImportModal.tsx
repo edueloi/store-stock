@@ -181,6 +181,14 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
 
   const toggleAll = (val: boolean) => setProducts(p => p.map(x => ({ ...x, selected: val })));
   const toggleOne = (i: number) => setProducts(p => p.map((x, idx) => idx === i ? { ...x, selected: !x.selected } : x));
+  // Corrige nome/quantidade/preço na prévia; o total da linha acompanha.
+  const editOne = (i: number, patch: Partial<Pick<ParsedProduct, "name" | "qty" | "price">>) =>
+    setProducts(p => p.map((x, idx) => {
+      if (idx !== i) return x;
+      const n = { ...x, ...patch };
+      return { ...n, total: parseFloat((n.qty * n.price).toFixed(2)) };
+    }));
+  const toNum = (v: string) => { const n = Number(v.replace(",", ".")); return Number.isFinite(n) && n >= 0 ? n : 0; };
   const removeOne = (i: number) => setProducts(p => p.filter((_, idx) => idx !== i));
 
   const selectedCount = products.filter(p => p.selected).length;
@@ -376,7 +384,7 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
                 <div data-tour="xml-import-preview" className="rounded-lg border border-slate-100 overflow-x-auto">
                   <div className="min-w-[560px]">
                   {/* table header */}
-                  <div className="grid grid-cols-[auto_1fr_52px_52px_80px_80px_32px] gap-2 px-3 py-2 bg-slate-50 text-[11px] font-semibold text-slate-500">
+                  <div className="grid grid-cols-[auto_1fr_52px_64px_88px_80px_32px] gap-2 px-3 py-2 bg-slate-50 text-[11px] font-semibold text-slate-500">
                     <div />
                     <div>Produto</div>
                     <div className="text-center">Und</div>
@@ -388,7 +396,7 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
 
                   <div className="divide-y divide-slate-50">
                     {products.map((p, i) => (
-                      <div key={i} className={`grid grid-cols-[auto_1fr_52px_52px_80px_80px_32px] gap-2 px-3 py-2.5 items-center text-xs transition-colors
+                      <div key={i} className={`grid grid-cols-[auto_1fr_52px_64px_88px_80px_32px] gap-2 px-3 py-2.5 items-center text-xs transition-colors
                         ${p.selected ? "bg-white" : "bg-slate-50 opacity-50"}`}>
 
                         {/* checkbox / status icon */}
@@ -413,7 +421,9 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
                         {/* name + sku + badges */}
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="font-semibold text-slate-800 truncate leading-tight">{p.name}</p>
+                            {step === "preview"
+                              ? <input value={p.name} onChange={e => editOne(i, { name: e.target.value })} className="rounded border border-slate-200 bg-white px-1 py-0.5 text-xs text-slate-700 focus:border-violet-400 focus:outline-none font-semibold w-full min-w-0" />
+                              : <p className="font-semibold text-slate-800 truncate leading-tight">{p.name}</p>}
                             {!p.done && !p.error && p.existingId && (
                               <span className="shrink-0 text-[11px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
                                 ATUALIZAR +{p.qty}un{p.price > (p.existingCost ?? 0) ? " · novo custo" : ""}
@@ -439,10 +449,12 @@ export default function XmlImportModal({ open, onClose, onImported, autoLoadUrl 
                         </div>
 
                         <div className="text-center text-slate-500 font-medium">{p.unit}</div>
-                        <div className="text-center font-semibold text-slate-700">{p.qty}</div>
-                        <div className="text-right text-slate-700">
-                          R$ {p.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                        </div>
+                        {step === "preview"
+                          ? <input inputMode="numeric" value={p.qty} onChange={e => editOne(i, { qty: Math.round(toNum(e.target.value)) })} className="rounded border border-slate-200 bg-white px-1 py-0.5 text-xs text-slate-700 focus:border-violet-400 focus:outline-none w-full text-center" />
+                          : <div className="text-center font-semibold text-slate-700">{p.qty}</div>}
+                        {step === "preview"
+                          ? <input inputMode="decimal" defaultValue={p.price} onChange={e => editOne(i, { price: toNum(e.target.value) })} className="rounded border border-slate-200 bg-white px-1 py-0.5 text-xs text-slate-700 focus:border-violet-400 focus:outline-none w-full text-right" />
+                          : <div className="text-right text-slate-700">R$ {p.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>}
                         <div className="text-right font-semibold text-slate-800">
                           R$ {p.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                         </div>
