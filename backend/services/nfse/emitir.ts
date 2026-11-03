@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 
 import { prisma } from "../../config/prisma";
+import { emitToTenant } from "../realtime.service";
 import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
 import { buildDpsXml, finNfseDefault, type TomadorInput } from "./dpsXmlBuilder";
@@ -72,7 +73,22 @@ async function recuperarNfsePorDps(
   return { ok: true, statusCode: 200, data: { chaveAcesso: chave, nfseXmlGZipB64: xmlB64 }, raw: "" };
 }
 
+// A emissão roda em segundo plano (o controller não espera) — sem avisar a tela quando ela
+// termina, o status ficava em "Processando" até o usuário dar F5.
 export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
+  try {
+    await emitirNfseInterno(input);
+  } finally {
+    try {
+      const so = await prisma.serviceOrder.findUnique({ where: { id: input.serviceOrderId }, select: { tenant_id: true } });
+      if (so) emitToTenant(so.tenant_id, "nfse:changed", { serviceOrderId: input.serviceOrderId });
+    } catch (e) {
+      console.error("[emitirNfse] falha ao avisar a tela:", e);
+    }
+  }
+}
+
+async function emitirNfseInterno(input: EmitirNfseInput): Promise<void> {
   const { serviceOrderId, codigoTributacaoNacional, descricaoServico, valorServico, forceEnvironment } = input;
 
   const serviceOrder = await prisma.serviceOrder.findUnique({ where: { id: serviceOrderId } });
