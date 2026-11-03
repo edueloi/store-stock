@@ -19,6 +19,33 @@ const CAMPOS: Record<string, string> = {
 
 const nome = (tag: string) => (CAMPOS[tag] ? `${CAMPOS[tag]} (${tag})` : tag);
 
+const TENTE_DEPOIS = "Aguarde alguns minutos e clique em Reemitir — o sistema confere antes se a nota já foi autorizada.";
+
+// Falhas de rede/infra (sem resposta de negócio do governo) → mensagem para o lojista.
+// Devolve null quando não reconhece, para o chamador manter o texto original.
+export function explicarFalhaComunicacao(error: unknown, statusCode?: number): string | null {
+  const t = String(error ?? "");
+  const detalhe = t ? `
+
+Detalhe técnico: ${t}` : "";
+  if (/timeout|ETIMEDOUT|ESOCKETTIMEDOUT/i.test(t)) {
+    return `O Sistema Nacional NFS-e (governo) demorou demais para responder e a nota não foi confirmada. ${TENTE_DEPOIS}${detalhe}`;
+  }
+  if (/ECONNRESET|ECONNREFUSED|EPIPE|socket hang up|EAI_AGAIN|ENOTFOUND|ECONNABORTED/i.test(t)) {
+    return `Não foi possível conectar ao Sistema Nacional NFS-e (governo) — o serviço deles está fora do ar ou instável no momento. Não é problema no seu cadastro nem no certificado. ${TENTE_DEPOIS}${detalhe}`;
+  }
+  if (statusCode && statusCode >= 500) {
+    return `O Sistema Nacional NFS-e (governo) está com instabilidade (erro ${statusCode} do lado deles). ${TENTE_DEPOIS}`;
+  }
+  if (/Certificado inválido|Unsupported PKCS12|mac verify failure|Invalid password/i.test(t)) {
+    return `Não foi possível abrir o certificado digital. Confira se a senha do certificado está correta em Configurações > Dados Fiscais, ou envie o certificado novamente.${detalhe}`;
+  }
+  if (/certificate has expired|CERT_HAS_EXPIRED|expirad/i.test(t)) {
+    return `O certificado digital da empresa está vencido. Renove o certificado A1 e envie o novo em Configurações > Dados Fiscais.${detalhe}`;
+  }
+  return null;
+}
+
 export function explicarErroNfse(descricao: unknown, complemento: unknown): string {
   const d = String(descricao ?? "").trim();
   const c = String(complemento ?? "").trim();
@@ -49,6 +76,21 @@ export function explicarErroNfse(descricao: unknown, complemento: unknown): stri
       `Faltou enviar um campo obrigatório do novo formato da nota: ${faltando}. ` +
       `É um ajuste do sistema, não do seu cadastro — avise o suporte.\n\nDetalhe técnico: ${original}`
     );
+  }
+  if (/E0718|assinatura.*(inv[aá]lida|n[aã]o confere)|certificado.*n[aã]o corresponde/i.test(texto)) {
+    return `A assinatura da nota não bateu com o certificado da empresa. Confira se o certificado enviado é o e-CNPJ do mesmo CNPJ cadastrado em Configurações > Dados Fiscais.
+
+Detalhe técnico: ${original}`;
+  }
+  if (/E0008|posterior/i.test(texto)) {
+    return `O governo recusou a data/hora de emissão da nota (relógio fora de sincronia). Clique em Reemitir; se repetir, avise o suporte.
+
+Detalhe técnico: ${original}`;
+  }
+  if (/duplicidade|j[aá] existe|E0014/i.test(texto)) {
+    return `O governo informa que esta nota já foi enviada. Ela pode já estar autorizada — atualize a tela; se não aparecer, avise o suporte com a mensagem abaixo.
+
+Detalhe técnico: ${original}`;
   }
   if (/esquema XML/i.test(texto)) {
     return `A nota foi enviada num formato que o governo não aceitou. É um ajuste do sistema — avise o suporte.\n\nDetalhe técnico: ${original}`;

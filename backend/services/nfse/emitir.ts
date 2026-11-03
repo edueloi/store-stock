@@ -5,7 +5,7 @@ import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
 import { buildDpsXml, finNfseDefault, type TomadorInput } from "./dpsXmlBuilder";
-import { explicarErroNfse } from "./errorMessages";
+import { explicarErroNfse, explicarFalhaComunicacao } from "./errorMessages";
 import { loadPfx, assinarDPS } from "../nfce/signer";
 import { callNfseRest, gzipBase64, ungzipBase64, type NfseEnvironment } from "./restClient";
 import { consultarAliquotaServico } from "./parametrosMunicipais";
@@ -201,9 +201,7 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
           ? `O servidor do Sistema Nacional NFS-e recusou a conexão (HTTP ${result.statusCode}), sem detalhar o motivo. ` +
             "Causas mais comuns: o CNPJ/CPF do certificado ainda não foi credenciado no Sistema Nacional NFS-e " +
             "(gov.br/nfse > Adesão), ou o certificado não está habilitado para o ambiente de homologação."
-          : result.statusCode === 0 && /timeout/i.test(result.error ?? "")
-            ? "O Sistema Nacional NFS-e demorou demais para responder e a nota não foi confirmada. Aguarde alguns minutos e clique em Reemitir — se a nota já tiver sido autorizada, ela será recuperada."
-            : (result.error || result.raw || "Falha na comunicação com o Sistema Nacional NFS-e");
+          : explicarFalhaComunicacao(result.error, result.statusCode) ?? (result.error || result.raw || "Falha na comunicação com o Sistema Nacional NFS-e");
 
       await prisma.nfseInvoice.update({
         where: { id: invoice.id },
@@ -303,7 +301,7 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
     console.error(`[emitirNfse] erro — tenant=${tenant.id} serviceOrder=${serviceOrderId}:`, err);
     await prisma.nfseInvoice.update({
       where: { id: invoice.id },
-      data: { status: "error", rejection_reason: message },
+      data: { status: "error", rejection_reason: explicarFalhaComunicacao(message) ?? message },
     });
   }
 }
