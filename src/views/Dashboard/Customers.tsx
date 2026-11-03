@@ -13,6 +13,7 @@ import { cn } from "../../lib/utils";
 import { Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Badge, Alert, EmptyState, ContentCard, PanelCard, DetailField, SectionTitle, StatGrid, StatCard, Tabs, GridTable, Pagination, FilterLine, FilterLineSection, FilterLineSearch, FilterLineViewToggle } from "../../components/ui";
 import type { Column } from "../../components/ui";
 import { DropdownMenu } from "../../components/ui/Dropdown";
+import CustomerSheetPreviewModal, { type CustomerPreviewRow, type CustomerRowEdit } from "../../components/ui/CustomerSheetPreviewModal";
 import CustomersPageTour, { type CustomersPageTourHandle } from "../../components/onboarding/CustomersPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -145,6 +146,7 @@ export default function Customers() {
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const importFileInputRef = useRef<HTMLInputElement>(null);
+  const [sheetPreview, setSheetPreview] = useState<{ file: File; rows: CustomerPreviewRow[]; errors: { row: number; message: string }[] } | null>(null);
 
   // Generic confirmation dialog (replaces window.confirm)
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -244,6 +246,7 @@ export default function Customers() {
     importFileInputRef.current?.click();
   }
 
+  // 1º passo: lê a planilha e mostra a prévia (nada é gravado). 2º passo: confirmSheetImport.
   async function handleImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // permite reimportar o mesmo arquivo depois
@@ -253,12 +256,39 @@ export default function Customers() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const res = await fetch("/api/customers/import?preview=1", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.rows?.length) {
+        setSheetPreview({ file, rows: data.rows, errors: data.errors ?? [] });
+      } else {
+        setImportSummary({ created: 0, updated: 0, errors: data?.errors?.length ? data.errors : [{ row: 0, message: data?.error ?? "A planilha não tem clientes para importar" }] });
+      }
+    } catch {
+      setImportSummary({ created: 0, updated: 0, errors: [{ row: 0, message: "Falha de conexão ao ler a planilha" }] });
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function confirmSheetImport(skip: number[], edits: Record<string, CustomerRowEdit>) {
+    if (!sheetPreview) return;
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", sheetPreview.file);
+      formData.append("skip", JSON.stringify(skip));
+      formData.append("edits", JSON.stringify(edits));
       const res = await fetch("/api/customers/import", {
         method: "POST",
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         body: formData,
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      setSheetPreview(null);
       if (res.ok) {
         setImportSummary(data);
         await fetchAll();
@@ -266,6 +296,7 @@ export default function Customers() {
         setImportSummary({ created: 0, updated: 0, errors: [{ row: 0, message: data?.error ?? "Falha ao importar planilha" }] });
       }
     } catch {
+      setSheetPreview(null);
       setImportSummary({ created: 0, updated: 0, errors: [{ row: 0, message: "Falha de conexão ao importar planilha" }] });
     } finally {
       setImporting(false);
@@ -639,6 +670,16 @@ export default function Customers() {
       >
         <p className="text-[13px] text-slate-600">{confirmDialog?.message}</p>
       </Modal>
+
+      <CustomerSheetPreviewModal
+        open={!!sheetPreview}
+        fileName={sheetPreview?.file.name ?? ""}
+        rows={sheetPreview?.rows ?? []}
+        errors={sheetPreview?.errors ?? []}
+        loading={importing}
+        onClose={() => setSheetPreview(null)}
+        onConfirm={confirmSheetImport}
+      />
 
       {/* Resumo da importação de planilha */}
       <Modal

@@ -1488,6 +1488,14 @@ export async function importCustomers(req: Request, res: Response) {
     });
     const sellerByName = new Map(sellers.map((s) => [s.name.trim().toLowerCase(), s.id]));
 
+    // preview=1: só mostra o que seria feito, sem gravar. Na confirmação, "skip" (linhas
+    // desmarcadas) e "edits" (campos corrigidos na tela) chegam como JSON.
+    const preview = req.query.preview === "1";
+    const parseJson = (v: unknown) => { try { return JSON.parse(String(v ?? "")); } catch { return null; } };
+    const skip = new Set<number>(Array.isArray(parseJson(req.body?.skip)) ? parseJson(req.body.skip) : []);
+    const edits: Record<string, { name?: string; phone?: string; email?: string; document?: string }> = parseJson(req.body?.edits) ?? {};
+    const previewRows: { row: number; action: "create" | "update"; name: string; document: string; phone: string; email: string; city: string }[] = [];
+
     let created = 0;
     let updated = 0;
     const errors: ImportRowResult[] = [];
@@ -1497,13 +1505,15 @@ export async function importCustomers(req: Request, res: Response) {
       const excelRowNumber = i + 2; // linha 1 é o cabeçalho
 
       try {
-        const name = cellStr(row["Nome"]);
+        if (skip.has(excelRowNumber)) continue;
+        const ed = edits[String(excelRowNumber)] ?? {};
+        const name = (ed.name ?? cellStr(row["Nome"])).trim();
         if (!name) {
           errors.push({ row: excelRowNumber, message: "Nome não informado — linha ignorada" });
           continue;
         }
 
-        const document = normalizeDoc(row["CNPJ/CPF"]);
+        const document = ed.document !== undefined ? normalizeDoc(ed.document) : normalizeDoc(row["CNPJ/CPF"]);
         const externalCode = cellStr(row["Código"]);
 
         // Casa por document (normalizado) OU, se document vier vazio, por external_code.
@@ -1550,10 +1560,10 @@ export async function importCustomers(req: Request, res: Response) {
         // O sistema só tem um campo de telefone (`phone`) — se "Fone" vier vazio
         // mas "Celular" tiver valor (planilhas legadas costumam só preencher o
         // celular), usa o celular como phone.
-        const phoneValue = cellStr(row["Fone"]) || cellStr(row["Celular"]);
+        const phoneValue = ed.phone ?? (cellStr(row["Fone"]) || cellStr(row["Celular"]));
         setIfPresent("phone", phoneValue.replace(/\D/g, "") || undefined);
         setIfPresent("fax", cellStr(row["Fax"]).replace(/\D/g, "") || undefined);
-        setIfPresent("email", cellStr(row["E-mail"]) || undefined);
+        setIfPresent("email", (ed.email ?? cellStr(row["E-mail"])).trim() || undefined);
         setIfPresent("website", cellStr(row["Web Site"]) || undefined);
         if (personType) fields.person_type = personType;
         setIfPresent("document", document || undefined);
@@ -1583,6 +1593,14 @@ export async function importCustomers(req: Request, res: Response) {
         setIfPresent("tax_regime", cellStr(row["Regime tributário"]) || undefined);
         if (externalCode) fields.external_code = externalCode;
 
+        if (preview) {
+          previewRows.push({
+            row: excelRowNumber, action: existing ? "update" : "create", name, document: String(document ?? ""),
+            phone: String(fields.phone ?? ""), email: String(fields.email ?? ""), city: String(fields.address_city ?? ""),
+          });
+          continue;
+        }
+
         if (existing) {
           await prisma.customer.updateMany({
             where: { id: existing.id, tenant_id: tenantId },
@@ -1605,6 +1623,10 @@ export async function importCustomers(req: Request, res: Response) {
       }
     }
 
+    if (preview) {
+      res.json({ preview: true, rows: previewRows, errors });
+      return;
+    }
     res.json({ created, updated, errors });
   } catch (err) {
     console.error(err);
