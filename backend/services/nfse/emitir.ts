@@ -56,6 +56,22 @@ async function resolveTomador(serviceOrder: { customer_id: number | null; custom
   return null;
 }
 
+// Reconcilia uma emissão que deu timeout: GET /dps/{id} devolve a chave de acesso se o
+// governo chegou a autorizar a nota, e GET /nfse/{chave} devolve o XML autorizado.
+async function recuperarNfsePorDps(
+  environment: NfseEnvironment, idDPS: string, pfxPath: string, pfxPassword: string,
+): Promise<Awaited<ReturnType<typeof callNfseRest>> | null> {
+  await new Promise((r) => setTimeout(r, 4000));
+  const common = { environment, method: "GET" as const, pfxPath, pfxPassword, timeoutMs: 30_000 };
+  const dps = await callNfseRest({ ...common, path: `/dps/${idDPS}` });
+  const chave = (dps.data as { chaveAcesso?: string } | null)?.chaveAcesso;
+  if (!dps.ok || !chave) return null;
+  const nfse = await callNfseRest({ ...common, path: `/nfse/${chave}` });
+  const xmlB64 = (nfse.data as { nfseXmlGZipB64?: string } | null)?.nfseXmlGZipB64;
+  if (!nfse.ok || !xmlB64) return null;
+  return { ok: true, statusCode: 200, data: { chaveAcesso: chave, nfseXmlGZipB64: xmlB64 }, raw: "" };
+}
+
 export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
   const { serviceOrderId, codigoTributacaoNacional, descricaoServico, valorServico, forceEnvironment } = input;
 
@@ -141,8 +157,16 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
         body: { dpsXmlGZipB64: gzipBase64(signedXml) },
         pfxPath: tenant.nfce_cert_path,
         pfxPassword: tenant.nfce_cert_password,
-        timeoutMs: env.nfceTimeoutMs,
+        // A Sefin Nacional costuma passar de 15s em horário de pico; o POST precisa de folga.
+        timeoutMs: Math.max(env.nfceTimeoutMs, 60_000),
       });
+
+      // Timeout/queda de conexão não significa que a nota foi recusada: o governo pode ter
+      // autorizado e só não ter respondido a tempo. Antes de dar como falha, consulta a DPS.
+      if (!result.ok && result.statusCode === 0) {
+        const recuperado = await recuperarNfsePorDps(environment, idDPS, tenant.nfce_cert_path, tenant.nfce_cert_password);
+        if (recuperado) { result = recuperado; break; }
+      }
 
       if (result.ok || tentativa === 1 || !/finNFSe/.test(JSON.stringify(result.data ?? result.raw ?? ""))) break;
       console.warn(`[emitirNfse] servidor recusou o leiaute (finNFSe=${includeFinNFSe}) — reenviando com finNFSe=${!includeFinNFSe} tenant=${tenant.id} env=${environment}`);
@@ -177,7 +201,9 @@ export async function emitirNfse(input: EmitirNfseInput): Promise<void> {
           ? `O servidor do Sistema Nacional NFS-e recusou a conexão (HTTP ${result.statusCode}), sem detalhar o motivo. ` +
             "Causas mais comuns: o CNPJ/CPF do certificado ainda não foi credenciado no Sistema Nacional NFS-e " +
             "(gov.br/nfse > Adesão), ou o certificado não está habilitado para o ambiente de homologação."
-          : (result.error || result.raw || "Falha na comunicação com o Sistema Nacional NFS-e");
+          : result.statusCode === 0 && /timeout/i.test(result.error ?? "")
+            ? "O Sistema Nacional NFS-e demorou demais para responder e a nota não foi confirmada. Aguarde alguns minutos e clique em Reemitir — se a nota já tiver sido autorizada, ela será recuperada."
+            : (result.error || result.raw || "Falha na comunicação com o Sistema Nacional NFS-e");
 
       await prisma.nfseInvoice.update({
         where: { id: invoice.id },
