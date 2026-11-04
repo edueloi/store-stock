@@ -250,7 +250,7 @@ export const METRIC_LABEL: Record<GoalMetric, string> = { leads: "Contatos (lead
 export const SYSTEM_LABEL: Record<string, string> = { store: "Store BoxSys", menu: "Menu BoxSys", ambos: "Os dois" };
 
 // ─── Faixas de comissão (espelha as regras do contrato) ────────────────────
-export const MAX_PERCENT = 90;
+export const MAX_PERCENT = 100;
 export const MAX_FIXED = 100_000;
 export const MAX_RULES = 12;
 

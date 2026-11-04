@@ -62,7 +62,8 @@ export async function sendAffiliateWelcomeEmail(to: string, name: string, code: 
     <ol style="margin:0 0 16px;padding-left:20px;font-size:14px;color:#475569;line-height:1.7;">
       <li>Compartilhe o seu link com quem tem loja, oficina ou presta serviço.</li>
       <li>Acompanhe cliques, contatos e clientes no seu painel.</li>
-      <li>Cadastre o <strong>walletId</strong> da sua conta Asaas no perfil: é por ele que a comissão cai direto na sua conta.</li>
+      <li>Ative a sua <strong>conta de recebimento</strong>, para a comissão cair direto na sua conta: responda este e-mail ou chame a equipe no WhatsApp, que a gente te ajuda (é rápido e sem custo).</li>
+      <li>Quer o <strong>material de divulgação</strong> e o <strong>treinamento</strong>? É só responder este e-mail que a gente envia.</li>
     </ol>
     ${button(panel, "Abrir meu painel")}
     <p style="margin:0;font-size:13px;color:#94a3b8;line-height:1.5;">Qualquer dúvida é só responder este e-mail ou chamar a gente no WhatsApp. Estamos juntos!</p>`;

@@ -45,7 +45,15 @@ ok("rejeita lista vazia", () => throwsMsg(() => parseRules([]), "ao menos uma fa
 ok("rejeita começar depois do mês 1", () => throwsMsg(() => parseRules([{ from: 2, to: null, type: "percent", value: 10 }]), "mês 1"));
 ok("rejeita buraco entre faixas", () => throwsMsg(() => parseRules([{ from: 1, to: 2, type: "percent", value: 10 }, { from: 4, to: null, type: "percent", value: 10 }]), "seguidas"));
 ok("rejeita faixa aberta no meio", () => throwsMsg(() => parseRules([{ from: 1, to: null, type: "percent", value: 10 }, { from: 2, to: null, type: "percent", value: 10 }]), "última faixa"));
-ok("rejeita percentual acima de 90", () => throwsMsg(() => parseRules([{ from: 1, to: null, type: "percent", value: 95 }]), "máximo"));
+ok("rejeita percentual acima de 100", () => throwsMsg(() => parseRules([{ from: 1, to: null, type: "percent", value: 101 }]), "máximo"));
+ok("aceita 100% na primeira mensalidade e valor fixo depois (R$ 150 + 11 x R$ 30)", () => {
+  const r = parseRules([{ from: 1, to: 1, type: "percent", value: 100 }, { from: 2, to: 12, type: "fixed", value: 30 }]);
+  assert.equal(windowMonths(r), 12);
+  assert.equal(ruleForSequence(r, 1)?.value, 100);
+  assert.equal(ruleForSequence(r, 12)?.value, 30);
+  assert.equal(ruleForSequence(r, 13), null);
+  assert.equal(commissionAmount(r[0], 148.5), 148.5); // 100% do líquido
+});
 ok("rejeita valor zero ou negativo", () => throwsMsg(() => parseRules([{ from: 1, to: null, type: "fixed", value: 0 }]), "maior que zero"));
 ok("rejeita mês final menor que o inicial", () => throwsMsg(() => parseRules([{ from: 3, to: 2, type: "percent", value: 10 }]), "final"));
 ok("rejeita tipo desconhecido", () => throwsMsg(() => parseRules([{ from: 1, to: null, type: "x", value: 10 }]), "percentual ou valor fixo"));

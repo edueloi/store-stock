@@ -19,7 +19,7 @@ export interface SplitEntry {
 }
 
 const MAX_RULES = 12;
-const MAX_PERCENT = 90;
+const MAX_PERCENT = 100; // 100% = a cobrança inteira (o Asaas calcula sobre o líquido e nunca passa dele)
 const MAX_FIXED = 100_000;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
