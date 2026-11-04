@@ -3,7 +3,8 @@ import crypto from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
-import { sendAffiliateLoginEmail } from "../services/affiliates/affiliate-mail";
+import { env } from "../config/env";
+import { sendAffiliateLoginEmail, sendAffiliateWelcomeEmail } from "../services/affiliates/affiliate-mail";
 import {
   digitsOnly,
   generateAffiliateCode,
@@ -12,16 +13,17 @@ import {
   resolveAffiliateRules,
   safeRules,
 } from "../services/affiliates/affiliates.service";
-import { consumeLoginToken, createLoginToken, signAffiliateToken } from "../services/affiliates/auth";
+import { checkPassword, consumeLoginToken, createLoginToken, hashPassword, passwordProblem, signAffiliateToken } from "../services/affiliates/auth";
 import { emitAffiliateEvent } from "../services/affiliates/events";
 import { windowMonths } from "../services/affiliates/rules";
 import { publicAffiliate } from "../services/affiliates/affiliates.service";
 
 // Limitador simples em memória (mesmo estilo do checkout público): `max` chamadas por janela e por IP.
-function limiter(max: number, windowMs: number) {
+function limiter(max: number, windowMs: number, byEmail = false) {
   const hits = new Map<string, { count: number; until: number }>();
   return (req: Request, res: Response, next: NextFunction) => {
-    const key = `${req.path}:${req.ip}`;
+    // no login, a conta tentada entra na chave: o chute em uma conta não bloqueia as outras do mesmo IP
+    const key = `${req.path}:${req.ip}${byEmail ? `:${normalizeEmail(req.body?.email)}` : ""}`;
     const now = Date.now();
     const entry = hits.get(key);
     if (entry && entry.until > now && entry.count >= max) {
@@ -38,6 +40,7 @@ function limiter(max: number, windowMs: number) {
 
 export const limitApply = limiter(8, 60 * 60_000);
 export const limitAuth = limiter(10, 15 * 60_000);
+export const limitLogin = limiter(8, 15 * 60_000, true);
 export const limitLead = limiter(20, 60 * 60_000);
 export const limitClick = limiter(120, 10 * 60_000);
 
@@ -65,26 +68,33 @@ export async function validateCode(req: Request, res: Response) {
   res.json({ valid: true, firstName: affiliate.name.split(/\s+/)[0] });
 }
 
+/**
+ * Cadastro aberto: qualquer pessoa vira afiliado ativa na hora, com código, link e sessão aberta.
+ * A equipe só entra depois, para suspender abuso. O walletId pode vir depois (sem ele não há split).
+ */
 export async function applyAffiliate(req: Request, res: Response) {
   const name = clean(req.body?.name, 120);
   const email = normalizeEmail(req.body?.email);
   const whatsapp = digitsOnly(req.body?.whatsapp);
   const document = digitsOnly(req.body?.document);
   const walletId = clean(req.body?.asaasWalletId, 60);
+  const password = req.body?.password;
 
   if (name.length < 3) return void res.status(400).json({ error: "Informe seu nome completo." });
   if (!EMAIL_RE.test(email)) return void res.status(400).json({ error: "Informe um e-mail válido." });
   if (whatsapp.length < 10 || whatsapp.length > 13) return void res.status(400).json({ error: "Informe um WhatsApp com DDD." });
   if (document && ![11, 14].includes(document.length)) return void res.status(400).json({ error: "CPF ou CNPJ inválido." });
   if (walletId && !WALLET_RE.test(walletId)) return void res.status(400).json({ error: "O walletId do Asaas tem o formato 00000000-0000-0000-0000-000000000000." });
+  const weak = passwordProblem(password);
+  if (weak) return void res.status(400).json({ error: weak });
 
   if (await prisma.affiliate.findUnique({ where: { email } })) {
-    res.status(409).json({ error: "Este e-mail já está cadastrado. Use “Entrar” para receber o link de acesso." });
+    res.status(409).json({ error: "Este e-mail já está cadastrado. Entre com a sua senha ou peça um link de acesso." });
     return;
   }
 
   const code = await generateAffiliateCode(name);
-  const affiliate = await prisma.affiliate.create({
+  const created = await prisma.affiliate.create({
     data: {
       code,
       name,
@@ -93,19 +103,45 @@ export async function applyAffiliate(req: Request, res: Response) {
       document: document || null,
       asaas_wallet_id: walletId || null,
       pitch: clean(req.body?.pitch, 1000) || null,
+      password_hash: await hashPassword(String(password)),
+      status: "active",
+      approved_at: new Date(),
     },
+    include: { plan: true },
   });
 
   await emitAffiliateEvent("affiliate.applied", {
-    affiliateId: affiliate.id,
-    code: affiliate.code,
-    name: affiliate.name,
-    email: affiliate.email,
-    whatsapp: affiliate.whatsapp,
-    status: affiliate.status,
-    walletStatus: affiliate.wallet_status,
+    affiliateId: created.id,
+    code: created.code,
+    name: created.name,
+    email: created.email,
+    whatsapp: created.whatsapp,
+    status: created.status,
+    walletStatus: created.wallet_status,
+    planName: created.plan?.name ?? null,
+    link: `${env.affiliateSiteUrl}/store-boxsys/?ref=${created.code}`,
   });
-  res.status(201).json({ ok: true, code: affiliate.code });
+
+  // boas-vindas por e-mail (o WhatsApp sai pela Develoi, que recebe o evento acima); falha de e-mail não derruba o cadastro
+  void resolveAffiliateRules(created)
+    .then((rules) => sendAffiliateWelcomeEmail(created.email, created.name, created.code, rules))
+    .catch((error) => console.error("Falha ao enviar boas-vindas de afiliado", (error as Error).message));
+
+  res.status(201).json({ ok: true, code: created.code, token: signAffiliateToken(created.id), affiliate: publicAffiliate(created) });
+}
+
+/** Entrada com e-mail e senha. A resposta é a mesma para e-mail inexistente e senha errada. */
+export async function loginWithPassword(req: Request, res: Response) {
+  const email = normalizeEmail(req.body?.email);
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  const affiliate = EMAIL_RE.test(email) ? await prisma.affiliate.findUnique({ where: { email }, include: { plan: true } }) : null;
+  const ok = await checkPassword(password, affiliate?.password_hash);
+  if (!affiliate || !ok) return void res.status(401).json({ error: "E-mail ou senha incorretos." });
+  if (affiliate.status === "suspended" || affiliate.status === "rejected") {
+    return void res.status(403).json({ error: "Este acesso está desativado. Fale com a equipe BoxSys." });
+  }
+  await prisma.affiliate.update({ where: { id: affiliate.id }, data: { last_login_at: new Date() } });
+  res.json({ token: signAffiliateToken(affiliate.id), affiliate: publicAffiliate(affiliate) });
 }
 
 /** Sempre responde igual, exista ou não o e-mail (não revela quem é afiliado). */
@@ -131,7 +167,7 @@ export async function verifyLogin(req: Request, res: Response) {
     return;
   }
   const full = await prisma.affiliate.findUniqueOrThrow({ where: { id: affiliate.id }, include: { plan: true } });
-  res.json({ token: signAffiliateToken(affiliate.id), affiliate: publicAffiliate(full) });
+  res.json({ token: signAffiliateToken(affiliate.id, "link"), affiliate: publicAffiliate(full) });
 }
 
 export async function trackClick(req: Request, res: Response) {

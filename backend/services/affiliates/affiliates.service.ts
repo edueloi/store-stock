@@ -336,6 +336,7 @@ export function publicAffiliate(a: Affiliate & { plan?: AffiliatePlan | null }) 
     planId: a.plan_id,
     planName: a.plan?.name ?? null,
     pitch: a.pitch,
+    hasPassword: Boolean(a.password_hash),
     approvedAt: a.approved_at,
     createdAt: a.created_at,
     lastLoginAt: a.last_login_at,

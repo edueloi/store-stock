@@ -24,21 +24,24 @@ NÃO usar caminhos novos dinâmicos (o nginx do domínio manda o que não for ar
 |---|---|---|
 | `GET /affiliates/program` | | `{ plan: { name, rules } \| null, windowMonths: number\|null }` (plano padrão ativo, para a página de vendas mostrar os números reais) |
 | `GET /affiliates/validate/:code` | | `{ valid: boolean, firstName?: string }` |
-| `POST /affiliates/apply` | `{ name, email, whatsapp, document?, asaasWalletId?, pitch? }` | `201 { ok: true, code }` · `409` e-mail já cadastrado |
-| `POST /affiliates/auth/request` | `{ email }` | `{ ok: true }` (sempre; manda o link mágico por e-mail) |
+| `POST /affiliates/apply` | `{ name, email, whatsapp, password (8 a 72 caracteres), document?, asaasWalletId?, pitch? }` | `201 { ok: true, code, token, affiliate }`: **cadastro aberto, sem aprovação**: o afiliado já nasce `active`, com sessão aberta (`token`). `409` e-mail já cadastrado · `400` dados inválidos |
+| `POST /affiliates/auth/login` | `{ email, password }` | `{ token: "<jwt 30d>", affiliate }` · `401` "E-mail ou senha incorretos" (igual para e-mail inexistente) · `403` conta suspensa · limite de 8 tentativas por conta e IP a cada 15 min |
+| `POST /affiliates/auth/request` | `{ email }` | `{ ok: true }` (sempre; manda o link mágico por e-mail: é o "esqueci minha senha") |
 | `POST /affiliates/auth/verify` | `{ token }` | `{ token: "<jwt 30d>", affiliate }` · `401` inválido/expirado/usado |
 | `POST /affiliates/click` | `{ code, landing? }` | `{ ok: true }` |
 | `POST /affiliates/lead` | `{ code, name, whatsapp, email?, business?, system?: "store"\|"menu"\|"ambos", message? }` | `201 { ok: true }` |
 
-O link mágico do e-mail aponta para `https://boxsys.com.br/afiliados/entrar/?token=...`.
+O link mágico do e-mail aponta para `https://boxsys.com.br/afiliados/entrar/?token=...`. A sessão aberta por ele vale como "recente" por 30 min: nesse período `PATCH /affiliates/me/password` aceita senha nova sem a atual.
+No cadastro, o store-stock envia e-mail de boas-vindas; a Develoi, ao receber `affiliate.applied`, envia a boas-vindas por WhatsApp (`AFFILIATE_WELCOME_WHATSAPP=off` desliga).
 
 ## Painel do afiliado (`Authorization: Bearer <jwt>`)
-`affiliate`: `{ id, code, name, email, whatsapp, document, asaasWalletId, walletStatus, status, planId, planName, pitch, approvedAt, createdAt, lastLoginAt }` — `status`: `pending | active | suspended | rejected`; `walletStatus`: `pending | verified`.
+`affiliate`: `{ id, code, name, email, whatsapp, document, asaasWalletId, walletStatus, status, planId, planName, pitch, hasPassword, approvedAt, createdAt, lastLoginAt }` — `status`: `pending | active | suspended | rejected`; `walletStatus`: `pending | verified`.
 
 | Rota | Corpo | Resposta |
 |---|---|---|
 | `GET /affiliates/me` | | `{ affiliate, link, rules, windowMonths }` |
 | `PATCH /affiliates/me` | `{ name?, whatsapp?, asaasWalletId?, pitch? }` | `{ affiliate }` |
+| `PATCH /affiliates/me/password` | `{ currentPassword?, newPassword }` | `{ ok: true }` · `403` senha atual errada ou ausente (dispensada logo após entrar por link mágico ou se a conta ainda não tem senha) |
 | `GET /affiliates/me/dashboard` | | `{ clicks:{total,last30}, leads:{total,byStatus}, sales:{total,activeClients,cancelled}, commissions:{pending,available,paid,total}, conversion, series:[{month:"2026-11",sales,commission}] }` |
 | `GET /affiliates/me/leads` | | `{ leads:[{ id, name, whatsapp, email, business, system, message, status, createdAt }] }` (`status`: `new\|contacted\|negotiating\|won\|lost`) |
 | `POST /affiliates/me/leads` | `{ name, whatsapp, email?, business?, system?, message? }` | `{ lead }` |

@@ -5,6 +5,7 @@ import {
   createLead,
   deleteGoal,
   getDashboard,
+  changePassword,
   getMe,
   listCommissions,
   listGoals,
@@ -21,6 +22,8 @@ import {
   limitAuth,
   limitClick,
   limitLead,
+  limitLogin,
+  loginWithPassword,
   requestLogin,
   trackClick,
   validateCode,
@@ -34,6 +37,7 @@ const router = Router();
 router.get("/program", getProgram);
 router.get("/validate/:code", validateCode);
 router.post("/apply", limitApply, applyAffiliate);
+router.post("/auth/login", limitLogin, loginWithPassword);
 router.post("/auth/request", limitAuth, requestLogin);
 router.post("/auth/verify", limitAuth, verifyLogin);
 router.post("/click", limitClick, trackClick);
@@ -42,6 +46,7 @@ router.post("/lead", limitLead, createPublicLead);
 router.use("/me", authenticateAffiliate);
 router.get("/me", getMe);
 router.patch("/me", updateMe);
+router.patch("/me/password", changePassword);
 router.get("/me/dashboard", getDashboard);
 router.get("/me/leads", listLeads);
 router.post("/me/leads", createLead);

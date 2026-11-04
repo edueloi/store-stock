@@ -12,7 +12,7 @@ import {
   referralProgress,
   resolveAffiliateRules,
 } from "../services/affiliates/affiliates.service";
-import type { AffiliateRequest } from "../services/affiliates/auth";
+import { checkPassword, hashPassword, passwordProblem, type AffiliateRequest } from "../services/affiliates/auth";
 import { emitAffiliateEvent } from "../services/affiliates/events";
 import { ruleForSequence, windowMonths } from "../services/affiliates/rules";
 
@@ -265,5 +265,24 @@ export async function createGoal(req: Request, res: Response) {
 export async function deleteGoal(req: Request, res: Response) {
   const result = await prisma.affiliateGoal.deleteMany({ where: { id: Number(req.params.id), affiliate_id: me(req).id, created_by: "affiliate" } });
   if (result.count === 0) return void res.status(404).json({ error: "Meta não encontrada (metas da equipe não podem ser apagadas)." });
+  res.json({ ok: true });
+}
+
+/**
+ * Define ou troca a senha. Quem já tem senha precisa informar a atual, exceto logo depois de entrar
+ * por link mágico (recuperação, 30 min). Quem nunca teve senha (conta criada pela equipe) também pode definir.
+ */
+export async function changePassword(req: Request, res: Response) {
+  const current = me(req);
+  const newPassword = req.body?.newPassword;
+  const weak = passwordProblem(newPassword);
+  if (weak) return void res.status(400).json({ error: weak });
+
+  const fresh = (req as AffiliateRequest).freshLink;
+  if (current.password_hash && !fresh) {
+    const ok = await checkPassword(String(req.body?.currentPassword ?? ""), current.password_hash);
+    if (!ok) return void res.status(403).json({ error: "A senha atual não confere." });
+  }
+  await prisma.affiliate.update({ where: { id: current.id }, data: { password_hash: await hashPassword(String(newPassword)) } });
   res.json({ ok: true });
 }

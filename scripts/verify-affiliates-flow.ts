@@ -50,29 +50,70 @@ async function main() {
   assert.equal(r.data.windowMonths, 3);
   step("programa mostra o plano padrão");
 
-  // cadastro público
-  r = await call("POST", "/affiliates/apply", { name: "Ana Souza", email: "Ana@Exemplo.com", whatsapp: "(15) 99999-1111", asaasWalletId: "48548710-9baa-4ec1-a11f-9010193527c6", pitch: "Instagram" });
+  // cadastro público e aberto: senha obrigatória, ativo na hora, sessão aberta
+  const PASS = "SenhaForte123";
+  r = await call("POST", "/affiliates/apply", { name: "Ana Souza", email: "Ana@Exemplo.com", whatsapp: "(15) 99999-1111", password: PASS, asaasWalletId: "48548710-9baa-4ec1-a11f-9010193527c6", pitch: "Instagram" });
   assert.equal(r.status, 201);
   const code: string = r.data.code;
   assert.match(code, /^[A-Z2-9]{6,7}$/);
-  r = await call("POST", "/affiliates/apply", { name: "Ana Souza", email: "ana@exemplo.com", whatsapp: "15999991111" });
+  assert.equal(r.data.affiliate.status, "active");
+  assert.equal(r.data.affiliate.hasPassword, true);
+  assert.ok(r.data.token);
+  r = await call("GET", "/affiliates/me", undefined, { Authorization: `Bearer ${r.data.token}` });
+  assert.equal(r.status, 200); // o token devolvido no cadastro já abre o painel
+  r = await call("POST", "/affiliates/apply", { name: "Ana Souza", email: "ana@exemplo.com", whatsapp: "15999991111", password: PASS });
   assert.equal(r.status, 409);
-  r = await call("POST", "/affiliates/apply", { name: "X", email: "x", whatsapp: "1" });
+  r = await call("POST", "/affiliates/apply", { name: "Curta Senha", email: "curta@exemplo.com", whatsapp: "15999991111", password: "123" });
   assert.equal(r.status, 400);
-  step("cadastro, e-mail duplicado e validação");
-
-  // pendente: não aparece como válido, clique ignorado
-  r = await call("GET", `/affiliates/validate/${code}`);
-  assert.equal(r.data.valid, false);
-  step("afiliado pendente não vale como código");
+  r = await call("POST", "/affiliates/apply", { name: "Sem Senha", email: "sem@exemplo.com", whatsapp: "15999991111" });
+  assert.equal(r.status, 400);
+  r = await call("POST", "/affiliates/apply", { name: "X", email: "x", whatsapp: "1", password: PASS });
+  assert.equal(r.status, 400);
+  step("cadastro aberto com senha, e-mail duplicado e validações");
 
   const affiliate = await prisma.affiliate.findUniqueOrThrow({ where: { code } });
-  r = await admin("PATCH", `/affiliates/${affiliate.id}`, { status: "active" });
-  assert.equal(r.status, 200);
-  assert.ok(Array.isArray(r.data.warnings));
+  assert.notEqual(affiliate.password_hash, PASS); // nunca guarda a senha pura
   r = await call("GET", `/affiliates/validate/${code.toLowerCase()}`);
   assert.deepEqual(r.data, { valid: true, firstName: "Ana" });
-  step("aprovação ativa o código");
+  step("o código vale na hora, sem aprovação");
+
+  // login por e-mail e senha
+  r = await call("POST", "/affiliates/auth/login", { email: "ANA@exemplo.com", password: PASS });
+  assert.equal(r.status, 200);
+  const passwordSession: string = r.data.token;
+  r = await call("POST", "/affiliates/auth/login", { email: "ana@exemplo.com", password: "errada-errada" });
+  assert.equal(r.status, 401);
+  const wrongMsg = r.data.error;
+  r = await call("POST", "/affiliates/auth/login", { email: "ninguem@exemplo.com", password: PASS });
+  assert.equal(r.status, 401);
+  assert.equal(r.data.error, wrongMsg); // mesma resposta: não revela quem é afiliado
+  step("login com senha: certo, errado e e-mail inexistente respondem igual");
+
+  // troca de senha: sessão por senha exige a atual
+  const withPw = (m: string, p: string, b?: unknown) => call(m, `/affiliates/me${p}`, b, { Authorization: `Bearer ${passwordSession}` });
+  r = await withPw("PATCH", "/password", { newPassword: "OutraSenha456" });
+  assert.equal(r.status, 403);
+  r = await withPw("PATCH", "/password", { currentPassword: "errada", newPassword: "OutraSenha456" });
+  assert.equal(r.status, 403);
+  r = await withPw("PATCH", "/password", { currentPassword: PASS, newPassword: "curta" });
+  assert.equal(r.status, 400);
+  r = await withPw("PATCH", "/password", { currentPassword: PASS, newPassword: "OutraSenha456" });
+  assert.equal(r.status, 200);
+  r = await call("POST", "/affiliates/auth/login", { email: "ana@exemplo.com", password: PASS });
+  assert.equal(r.status, 401); // a antiga deixou de valer
+  r = await call("POST", "/affiliates/auth/login", { email: "ana@exemplo.com", password: "OutraSenha456" });
+  assert.equal(r.status, 200);
+  step("troca de senha exige a atual e invalida a antiga");
+
+  // recuperação: o link mágico abre a sessão e deixa definir senha nova sem a atual
+  const resetToken = await createLoginToken(affiliate.id);
+  r = await call("POST", "/affiliates/auth/verify", { token: resetToken });
+  assert.equal(r.status, 200);
+  r = await call("PATCH", "/affiliates/me/password", { newPassword: "SenhaRecuperada789" }, { Authorization: `Bearer ${r.data.token}` });
+  assert.equal(r.status, 200);
+  r = await call("POST", "/affiliates/auth/login", { email: "ana@exemplo.com", password: "SenhaRecuperada789" });
+  assert.equal(r.status, 200);
+  step("recuperação por link define nova senha sem a atual");
 
   // rastreio de clique (um por dia por visitante) e lead público
   await call("POST", "/affiliates/click", { code, landing: "/store-boxsys/" });
@@ -227,7 +268,7 @@ async function main() {
   step("metas: progresso, global da equipe protegida");
 
   // um afiliado não enxerga o lead de outro
-  r = await call("POST", "/affiliates/apply", { name: "Bruno Lima", email: "bruno@exemplo.com", whatsapp: "15977776666" });
+  r = await call("POST", "/affiliates/apply", { name: "Bruno Lima", email: "bruno@exemplo.com", whatsapp: "15977776666", password: "SenhaDoBruno1" });
   const other = await prisma.affiliate.findUniqueOrThrow({ where: { code: r.data.code } });
   const otherToken = signAs(other.id);
   r = await call("GET", "/affiliates/me/leads", undefined, { Authorization: `Bearer ${otherToken}` });
@@ -240,14 +281,25 @@ async function main() {
   // gestão
   r = await admin("GET", "/overview");
   assert.equal(r.data.affiliates.total, 2);
-  assert.equal(r.data.affiliates.active, 1);
-  assert.equal(r.data.affiliates.pending, 1);
+  assert.equal(r.data.affiliates.active, 2);
+  assert.equal(r.data.affiliates.pending, 0);
   r = await admin("GET", `/affiliates/${affiliate.id}`);
   assert.equal(r.data.referrals.length, 1);
   assert.equal(r.data.commissions.length, 3);
   r = await ext("GET", "/");
   assert.equal(r.data.affiliates.length, 2);
   step("gestão e API externa listam os mesmos números");
+
+  // a equipe só entra para suspender abuso
+  r = await admin("PATCH", `/affiliates/${other.id}`, { status: "suspended" });
+  assert.equal(r.status, 200);
+  r = await call("POST", "/affiliates/auth/login", { email: "bruno@exemplo.com", password: "SenhaDoBruno1" });
+  assert.equal(r.status, 403);
+  r = await call("GET", `/affiliates/validate/${other.code}`);
+  assert.equal(r.data.valid, false);
+  r = await call("GET", "/affiliates/me", undefined, { Authorization: `Bearer ${otherToken}` });
+  assert.equal(r.status, 403);
+  step("suspender bloqueia login, sessão aberta e o código");
 
   // fila de webhook: eventos gravados na ordem certa
   const types = (await prisma.affiliateEvent.findMany({ orderBy: { id: "asc" } })).map((e) => e.type);

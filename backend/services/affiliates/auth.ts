@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 import { env } from "../../config/env";
@@ -13,11 +14,33 @@ const affiliateSecret = () => crypto.createHmac("sha256", env.jwtSecret).update(
 export interface AffiliateTokenPayload {
   affiliateId: number;
   kind: "affiliate";
+  /** a sessão nasceu de um link mágico (recuperação de senha): por 30 min dá para trocar a senha sem a atual */
+  via?: "link";
+  iat?: number;
 }
 
-export function signAffiliateToken(affiliateId: number) {
-  const payload: AffiliateTokenPayload = { affiliateId, kind: "affiliate" };
+export function signAffiliateToken(affiliateId: number, via?: "link") {
+  const payload: AffiliateTokenPayload = { affiliateId, kind: "affiliate", ...(via ? { via } : {}) };
   return jwt.sign(payload, affiliateSecret(), { expiresIn: "30d" });
+}
+
+// ─── Senha ────────────────────────────────────────────────────────────────
+export const PASSWORD_MIN = 8;
+export const PASSWORD_MAX = 72; // limite do bcrypt
+
+export function passwordProblem(password: unknown): string | null {
+  if (typeof password !== "string" || password.length < PASSWORD_MIN) return `A senha precisa ter ao menos ${PASSWORD_MIN} caracteres.`;
+  if (password.length > PASSWORD_MAX) return `A senha pode ter no máximo ${PASSWORD_MAX} caracteres.`;
+  return null;
+}
+
+export const hashPassword = (password: string) => bcrypt.hash(password, 10);
+
+// hash descartável para gastar o mesmo tempo quando o e-mail não existe (não revela quem é afiliado)
+const DUMMY_HASH = bcrypt.hashSync("senha-descartavel-para-igualar-o-tempo", 10);
+export async function checkPassword(password: string, hash: string | null | undefined) {
+  const ok = await bcrypt.compare(password, hash || DUMMY_HASH);
+  return Boolean(hash) && ok;
 }
 
 export const sha256 = (value: string) => crypto.createHash("sha256").update(value).digest("hex");
@@ -50,6 +73,8 @@ export async function consumeLoginToken(token: string) {
 
 export interface AffiliateRequest extends Request {
   affiliate: NonNullable<Awaited<ReturnType<typeof prisma.affiliate.findUnique>>>;
+  /** sessão aberta por link mágico há menos de 30 min */
+  freshLink: boolean;
 }
 
 export async function authenticateAffiliate(req: Request, res: Response, next: NextFunction) {
@@ -67,6 +92,7 @@ export async function authenticateAffiliate(req: Request, res: Response, next: N
       return;
     }
     (req as AffiliateRequest).affiliate = affiliate;
+    (req as AffiliateRequest).freshLink = payload.via === "link" && Date.now() / 1000 - (payload.iat ?? 0) < 1800;
     next();
   } catch {
     res.status(401).json({ error: "Sua sessão expirou. Entre novamente." });

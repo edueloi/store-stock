@@ -2225,6 +2225,7 @@ model Affiliate {
   email           String    @unique
   whatsapp        String
   document        String?
+  password_hash   String?
   asaas_wallet_id String?
   wallet_status   String    @default("pending") // pending | verified
   status          String    @default("pending") // pending | active | suspended | rejected
