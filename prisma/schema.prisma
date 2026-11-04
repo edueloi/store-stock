@@ -2199,3 +2199,182 @@ model StoreCharge {
   @@index([order_id])
   @@map("store_charges")
 }
+
+// ─── Programa de afiliados (Store BoxSys) ────────────────────────────────────
+// Regras de comissão por faixa de mês: [{ from: 1, to: 1, type: "percent"|"fixed", value: 30 }, ...]
+// `to: null` na última faixa = comissão enquanto o cliente pagar.
+model AffiliatePlan {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?  @db.Text
+  rules       Json
+  is_default  Boolean  @default(false)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  affiliates Affiliate[]
+
+  @@map("affiliate_plans")
+}
+
+model Affiliate {
+  id              Int       @id @default(autoincrement())
+  code            String    @unique
+  name            String
+  email           String    @unique
+  whatsapp        String
+  document        String?
+  asaas_wallet_id String?
+  wallet_status   String    @default("pending") // pending | verified
+  status          String    @default("pending") // pending | active | suspended | rejected
+  plan_id         Int?
+  rules_override  Json?
+  pitch           String?   @db.Text
+  admin_notes     String?   @db.Text
+  approved_at     DateTime?
+  last_login_at   DateTime?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  plan        AffiliatePlan?        @relation(fields: [plan_id], references: [id])
+  clicks      AffiliateClick[]
+  leads       AffiliateLead[]
+  referrals   AffiliateReferral[]
+  commissions AffiliateCommission[]
+  goals       AffiliateGoal[]
+  tokens      AffiliateLoginToken[]
+
+  @@index([status])
+  @@map("affiliates")
+}
+
+model AffiliateClick {
+  id           Int      @id @default(autoincrement())
+  affiliate_id Int
+  visitor_hash String?
+  landing      String?
+  created_at   DateTime @default(now())
+
+  affiliate Affiliate @relation(fields: [affiliate_id], references: [id], onDelete: Cascade)
+
+  @@index([affiliate_id, created_at])
+  @@map("affiliate_clicks")
+}
+
+model AffiliateLead {
+  id           Int      @id @default(autoincrement())
+  affiliate_id Int
+  name         String
+  whatsapp     String
+  email        String?
+  business     String?
+  system       String   @default("store") // store | menu | ambos
+  message      String?  @db.Text
+  status       String   @default("new") // new | contacted | negotiating | won | lost
+  admin_notes  String?  @db.Text
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  affiliate Affiliate           @relation(fields: [affiliate_id], references: [id], onDelete: Cascade)
+  referrals AffiliateReferral[]
+
+  @@index([affiliate_id, status])
+  @@map("affiliate_leads")
+}
+
+model AffiliateReferral {
+  id                    Int       @id @default(autoincrement())
+  affiliate_id          Int
+  lead_id               Int?
+  develoi_client_id     String?   @unique
+  tenant_id             Int?
+  asaas_subscription_id String?   @unique
+  customer_name         String
+  plan_value            Decimal   @default(0) @db.Decimal(10, 2)
+  rules                 Json
+  status                String    @default("trial") // trial | active | overdue | cancelled
+  started_at            DateTime  @default(now())
+  cancelled_at          DateTime?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  affiliate   Affiliate             @relation(fields: [affiliate_id], references: [id], onDelete: Cascade)
+  lead        AffiliateLead?        @relation(fields: [lead_id], references: [id])
+  commissions AffiliateCommission[]
+
+  @@index([affiliate_id, status])
+  @@map("affiliate_referrals")
+}
+
+model AffiliateCommission {
+  id               Int       @id @default(autoincrement())
+  referral_id      Int
+  affiliate_id     Int
+  sequence         Int
+  asaas_payment_id String    @unique
+  gross_value      Decimal   @db.Decimal(10, 2)
+  net_value        Decimal?  @db.Decimal(10, 2)
+  commission_value Decimal   @db.Decimal(10, 2)
+  rule_type        String
+  rule_value       Decimal   @db.Decimal(10, 4)
+  status           String    @default("pending") // pending | confirmed | received | paid | refunded | cancelled | blocked
+  due_date         DateTime? @db.Date
+  paid_at          DateTime?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  referral  AffiliateReferral @relation(fields: [referral_id], references: [id], onDelete: Cascade)
+  affiliate Affiliate         @relation(fields: [affiliate_id], references: [id], onDelete: Cascade)
+
+  @@index([affiliate_id, status])
+  @@index([referral_id, sequence])
+  @@map("affiliate_commissions")
+}
+
+model AffiliateGoal {
+  id           Int      @id @default(autoincrement())
+  affiliate_id Int?
+  title        String
+  metric       String // leads | sales | commission
+  target       Decimal  @db.Decimal(12, 2)
+  reward       String?
+  period_start DateTime @db.Date
+  period_end   DateTime @db.Date
+  created_by   String   @default("affiliate") // admin | affiliate
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  affiliate Affiliate? @relation(fields: [affiliate_id], references: [id], onDelete: Cascade)
+
+  @@index([affiliate_id, period_end])
+  @@map("affiliate_goals")
+}
+
+model AffiliateLoginToken {
+  id           Int       @id @default(autoincrement())
+  affiliate_id Int
+  token_hash   String    @unique
+  expires_at   DateTime
+  used_at      DateTime?
+  created_at   DateTime  @default(now())
+
+  affiliate Affiliate @relation(fields: [affiliate_id], references: [id], onDelete: Cascade)
+
+  @@map("affiliate_login_tokens")
+}
+
+// Fila de saída: cada evento é entregue por webhook assinado à Develoi, com novas tentativas.
+model AffiliateEvent {
+  id           Int       @id @default(autoincrement())
+  type         String
+  payload      Json
+  delivered_at DateTime?
+  attempts     Int       @default(0)
+  next_try_at  DateTime  @default(now())
+  last_error   String?
+  created_at   DateTime  @default(now())
+
+  @@index([delivered_at, next_try_at])
+  @@map("affiliate_events")
+}

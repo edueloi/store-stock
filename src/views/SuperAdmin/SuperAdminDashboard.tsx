@@ -5,7 +5,7 @@ import {
   Store, UserPlus2, Copy, Users, Link2, CheckCircle2, AlertCircle,
   X, LayoutDashboard, Settings, ChevronRight, Phone, Mail,
   ExternalLink, Clock, BadgeCheck, Pencil, Eye, EyeOff, PlusCircle,
-  CalendarCheck, Activity, Timer, Search, TrendingUp, Crown, Wallet,
+  CalendarCheck, Activity, Timer, Search, TrendingUp, Crown, Wallet, Handshake,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -23,6 +23,7 @@ import { StatGrid } from "../../components/ui/PageWrapper";
 import { StatCard } from "../../components/ui/StatCard";
 import { FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch, FilterLineViewToggle } from "../../components/ui/FilterLine";
 import BillingPage from "./BillingPage";
+import AffiliatesPage from "./affiliates/AffiliatesPage";
 
 type OverviewResponse = {
   stats: { tenants: number; active_trials: number; active_accounts: number; pending_invites: number };
@@ -44,7 +45,7 @@ function tenantStatusBadge(status?: string) {
   return <UiBadge color={color} pill>{label}</UiBadge>;
 }
 
-type Page = "dashboard" | "invites" | "tenants" | "plans" | "billing" | "settings";
+type Page = "dashboard" | "invites" | "tenants" | "plans" | "billing" | "affiliates" | "settings";
 
 const PAGE_PATHS: Record<Page, string> = {
   dashboard: "/super-admin/dashboard",
@@ -52,6 +53,7 @@ const PAGE_PATHS: Record<Page, string> = {
   tenants: "/super-admin/clientes",
   plans: "/super-admin/planos",
   billing: "/super-admin/financeiro",
+  affiliates: "/super-admin/afiliados",
   settings: "/super-admin/configuracoes",
 };
 
@@ -61,6 +63,7 @@ function pageFromPath(pathname: string): Page {
   if (segment === "clientes") return "tenants";
   if (segment === "planos") return "plans";
   if (segment === "financeiro") return "billing";
+  if (segment === "afiliados") return "affiliates";
   if (segment === "configuracoes") return "settings";
   return "dashboard";
 }
@@ -366,6 +369,7 @@ export default function SuperAdminDashboard() {
     { id: "tenants", label: "Clientes", icon: <Users size={18} />, badge: stats?.tenants },
     { id: "plans", label: "Planos e assinaturas", icon: <Crown size={18} />, badge: plans.filter((plan) => plan.is_active).length },
     { id: "billing", label: "Financeiro", icon: <Wallet size={18} />, badge: billingAlerts || undefined },
+    { id: "affiliates", label: "Afiliados", icon: <Handshake size={18} /> },
     { id: "settings", label: "Configurações", icon: <Settings size={18} /> },
   ];
 
@@ -968,6 +972,11 @@ export default function SuperAdminDashboard() {
             {/* ── BILLING (ASSINATURAS ASAAS) ── */}
             {page === "billing" && (
               <BillingPage tenants={sortedTenants} notify={showToast} />
+            )}
+
+            {/* ── AFILIADOS ── */}
+            {page === "affiliates" && (
+              <AffiliatesPage notify={showToast} />
             )}
 
             {/* ── SETTINGS ── */}

@@ -44,6 +44,9 @@ import billingWebhookRoutes from "./billing-webhook.routes";
 import externalApiRoutes from "./external-api.routes";
 import storeDashboardRoutes from "./store-dashboard.routes";
 import fiscalCodesRoutes from "./fiscal-codes.routes";
+import affiliatesRoutes from "./affiliates.routes";
+import affiliatesAdminRoutes from "./affiliates-admin.routes";
+import affiliatesExternalRoutes from "./affiliates-external.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -51,6 +54,11 @@ export function registerRoutes(app: Express) {
 
   // Serve desktop app installers (uploaded manually to public/downloads on the server)
   app.use("/downloads", express.static(path.join(process.cwd(), "public", "downloads")));
+
+  // Programa de afiliados: rotas mais específicas antes das genéricas (/api/super-admin e /api/external).
+  app.use("/api/affiliates", affiliatesRoutes);
+  app.use("/api/super-admin/affiliates-admin", affiliatesAdminRoutes);
+  app.use("/api/external/affiliates", affiliatesExternalRoutes);
 
   app.use("/api/public", publicRoutes);
   app.use("/api/auth", authRoutes);

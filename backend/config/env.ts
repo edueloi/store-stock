@@ -38,4 +38,8 @@ export const env = {
   // API externa server-to-server (criar/consultar/editar/bloquear/deletar tenants por
   // outra aplicação, via header x-api-key) — ver middlewares/external-api.middleware.ts
   externalApiKey: process.env.EXTERNAL_API_KEY || "",
+  // Programa de afiliados: site público (links mágicos e links de indicação) e webhook de saída para a Develoi.
+  affiliateSiteUrl: (process.env.AFFILIATE_SITE_URL || "https://boxsys.com.br").replace(/\/$/, ""),
+  develoiAffiliateWebhookUrl: process.env.DEVELOI_AFFILIATE_WEBHOOK_URL || "",
+  affiliateWebhookSecret: process.env.AFFILIATE_WEBHOOK_SECRET || "",
 };

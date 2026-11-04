@@ -23,6 +23,7 @@ import {
 } from "./controllers/store-seo.controller";
 import { releaseExpiredStoreReservations } from "./controllers/public.controller";
 import { startStoreOrderEmailsLoop } from "./services/store-order-email.service";
+import { startAffiliateWebhookLoop } from "./services/affiliates/events";
 import { initRealtime } from "./services/realtime.service";
 
 async function attachFrontend(app: express.Express) {
@@ -90,6 +91,7 @@ export async function startServer() {
   startPlatformBillingSuspensionLoop();
   startEmailReportsCron();
   startStoreOrderEmailsLoop();
+  startAffiliateWebhookLoop();
   setInterval(() => { releaseExpiredStoreReservations().catch(() => undefined); }, 60_000).unref();
 
   const app = createApp();
