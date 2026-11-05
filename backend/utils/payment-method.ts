@@ -1,3 +1,5 @@
+import { parsePaymentSegments } from "../../shared/paymentSegments";
+
 export interface PaymentMethodSegment {
   method: string;
   brand: string;
@@ -6,17 +8,8 @@ export interface PaymentMethodSegment {
 }
 
 // Parses "credit-visa-2x:120.00|money:30.00" into structured segments
-export function parsePaymentMethod(pm: string): PaymentMethodSegment[] {
-  return pm.split("|").map((seg) => {
-    const [methodPart, amountStr] = seg.split(":");
-    const tokens = methodPart.split("-");
-    return {
-      method:       tokens[0] ?? "money",
-      brand:        tokens[1] ?? "other",
-      installments: tokens[2] ? parseInt(tokens[2].replace("x", ""), 10) : 1,
-      amount:       parseFloat(amountStr ?? "0") || 0,
-    };
-  });
+export function parsePaymentMethod(pm: string, totalAmount = 0, changeAmount = 0): PaymentMethodSegment[] {
+  return parsePaymentSegments(pm, totalAmount, changeAmount);
 }
 
 const METHOD_LABELS: Record<string, string> = {

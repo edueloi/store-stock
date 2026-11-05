@@ -25,7 +25,7 @@ export async function recalculateCashSessionSummary(tenantId: number, sessionId:
 
   const orders = await prisma.order.findMany({
     where: { tenant_id: tenantId, cash_session_id: sessionId, status: "completed" },
-    select: { payment_method: true, fee_amount: true, change_amount: true },
+    select: { payment_method: true, fee_amount: true, change_amount: true, total_amount: true },
   });
   const debtPayments = await prisma.customerDebtPayment.findMany({
     where: { tenant_id: tenantId, cash_session_id: sessionId },
@@ -37,7 +37,7 @@ export async function recalculateCashSessionSummary(tenantId: number, sessionId:
   let moneySales = 0;
   let moneyDebtPayments = 0;
   for (const order of orders) {
-    const segs = parsePaymentMethod(order.payment_method ?? "money").filter((seg) => seg.amount > 0);
+    const segs = parsePaymentMethod(order.payment_method ?? "money", Number(order.total_amount), Number(order.change_amount) || 0).filter((seg) => seg.amount > 0);
     const orderGross = segs.reduce((sum, seg) => sum + seg.amount, 0);
     const orderFee = Number(order.fee_amount) || 0;
     const changeAmount = Number(order.change_amount) || 0;
@@ -190,7 +190,7 @@ export async function closeCashSession(req: Request, res: Response) {
 
     const orders = await prisma.order.findMany({
       where: { tenant_id: tenantId, cash_session_id: id, status: "completed" },
-      select: { payment_method: true, fee_amount: true, change_amount: true },
+      select: { payment_method: true, fee_amount: true, change_amount: true, total_amount: true },
     });
 
     // Pagamentos de dívida (crediário) recebidos dentro desta sessão de caixa — cada
@@ -208,7 +208,7 @@ export async function closeCashSession(req: Request, res: Response) {
     let moneySales = 0;
     let moneyDebtPayments = 0;
     for (const order of orders) {
-      const segs = parsePaymentMethod(order.payment_method ?? "money").filter((seg) => seg.amount > 0);
+      const segs = parsePaymentMethod(order.payment_method ?? "money", Number(order.total_amount), Number(order.change_amount) || 0).filter((seg) => seg.amount > 0);
       const orderGross = segs.reduce((sum, seg) => sum + seg.amount, 0);
       const orderFee = Number(order.fee_amount) || 0;
       // O segmento "money" guarda o valor RECEBIDO do cliente (ex.: cliente paga R$20

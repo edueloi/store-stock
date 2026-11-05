@@ -4,7 +4,8 @@ import * as XLSX from "xlsx";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
-import { computeSegmentFee } from "../utils/payment-method";
+import { registerDebtPaymentMulti, type DebtPaymentSegmentInput } from "../services/debt-payments.service";
+import { synchronizeDebtBalance } from "../services/debt-balance.service";
 import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
@@ -27,13 +28,6 @@ function parseDebtPaymentDate(value?: unknown) {
   }
   if (date.getTime() > Date.now() + 24 * 60 * 60 * 1000) throw new Error("INVALID_PAYMENT_DATE");
   return date;
-}
-
-function isPaymentToday(paymentDate: Date) {
-  const today = localDateString();
-  return paymentDate.getUTCFullYear() === today.getUTCFullYear()
-    && paymentDate.getUTCMonth() === today.getUTCMonth()
-    && paymentDate.getUTCDate() === today.getUTCDate();
 }
 
 // ─── Customers ────────────────────────────────────────────────────────────────
@@ -385,308 +379,12 @@ export async function createDebt(req: Request, res: Response) {
 // no ledger, atualiza o saldo/status da dívida e lança a receita no financeiro
 // só pelo valor efetivamente pago agora — nunca pelo valor total da dívida.
 async function registerDebtPayment(
-  tenantId: number,
-  debtId: number,
-  amount: number,
-  paymentMethod?: string | null,
-  installmentId?: number | null,
-  paymentDate = new Date(),
+  tenantId: number, userId: number, debtId: number, amount: number,
+  paymentMethod = "money", installmentId?: number | null, paymentDate = new Date(),
 ) {
-  const debt = await prisma.customerDebt.findFirst({ where: { id: debtId, tenant_id: tenantId } });
-  if (!debt) throw new Error("NOT_FOUND");
-  if (debt.status === "paid") throw new Error("ALREADY_PAID");
-
-  const remaining = Number(debt.amount) - Number(debt.amount_paid);
-  if (amount <= 0 || amount > remaining + 0.005) throw new Error("INVALID_AMOUNT");
-
-  let installment = null;
-  if (installmentId) {
-    installment = await prisma.customerDebtInstallment.findFirst({
-      where: { id: installmentId, debt_id: debtId, tenant_id: tenantId },
-    });
-    if (!installment) throw new Error("INSTALLMENT_NOT_FOUND");
-    if (installment.status === "paid") throw new Error("INSTALLMENT_ALREADY_PAID");
-    const installmentRemaining = Number(installment.amount) - Number(installment.amount_paid);
-    if (amount > installmentRemaining + 0.005) throw new Error("INVALID_AMOUNT");
-  }
-
-  const customer = await prisma.customer.findUnique({ where: { id: debt.customer_id } });
-
-  return prisma.$transaction(async (tx) => {
-    const payment = await tx.customerDebtPayment.create({
-      data: {
-        tenant_id: tenantId,
-        debt_id: debtId,
-        installment_id: installmentId || null,
-        amount,
-        payment_method: paymentMethod || null,
-        paid_at: paymentDate,
-      },
-    });
-
-    if (installment) {
-      const installmentAmountPaid = Number(installment.amount_paid) + amount;
-      const installmentFullyPaid = installmentAmountPaid >= Number(installment.amount) - 0.005;
-      await tx.customerDebtInstallment.update({
-        where: { id: installment.id },
-        data: {
-          amount_paid: installmentAmountPaid,
-          status: installmentFullyPaid ? "paid" : "open",
-          paid_at: installmentFullyPaid ? paymentDate : installment.paid_at,
-        },
-      });
-    }
-
-    const newAmountPaid = Number(debt.amount_paid) + amount;
-    const isFullyPaid = newAmountPaid >= Number(debt.amount) - 0.005;
-
-    // Mesmo cuidado de registerDebtPaymentMulti: se a dívida quitou inteira mas
-    // o pagamento não veio vinculado a uma parcela específica, fecha também as
-    // parcelas que tivessem ficado abertas — evita dívida "paid" com parcela
-    // órfã em "open".
-    if (isFullyPaid && !installment) {
-      const pendingInstallments = await tx.customerDebtInstallment.findMany({
-        where: { debt_id: debtId, status: { not: "paid" } },
-      });
-      for (const inst of pendingInstallments) {
-        await tx.customerDebtInstallment.update({
-          where: { id: inst.id },
-          data: { amount_paid: inst.amount, status: "paid", paid_at: paymentDate },
-        });
-      }
-    }
-
-    const updated = await tx.customerDebt.update({
-      where: { id: debtId },
-      data: {
-        amount_paid: newAmountPaid,
-        status: isFullyPaid ? "paid" : "open",
-        paid_at: isFullyPaid ? paymentDate : debt.paid_at,
-      },
-      include: { installments: { orderBy: { number: "asc" } } },
-    });
-
-    await tx.finance.create({
-      data: {
-        tenant_id: tenantId,
-        type: "income",
-        description: `Pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}`,
-        amount,
-        payment_method: paymentMethod || null,
-        date: paymentDate,
-      },
-    });
-
-    return { debt: updated, payment };
-  });
-}
-
-interface DebtPaymentSegmentInput {
-  method: string;
-  brand?: string;
-  installments?: number;
-  amount: number;
-}
-
-// Generalização de registerDebtPayment para N formas de pagamento simultâneas (ex.:
-// metade dinheiro, metade crédito 2x) — um CustomerDebtPayment por segmento, cada um já
-// com bandeira/parcelas/taxa de maquininha calculada, igual ao que a venda normal do
-// PDV já faz (mas lá agregado numa string composta; aqui cada forma é sua própria
-// linha, o que é mais simples de auditar e não precisa ratear taxa depois).
-async function registerDebtPaymentMulti(
-  tenantId: number,
-  userId: number,
-  debtId: number,
-  segments: DebtPaymentSegmentInput[],
-  installmentId?: number | null,
-  paymentDate = new Date(),
-  discount = 0,
-) {
-  const totalAmount = Math.round(segments.reduce((s, p) => s + (Number(p.amount) || 0), 0) * 100) / 100;
-  const cleanDiscount = Math.max(0, Math.round((Number(discount) || 0) * 100) / 100);
-  const settledAmount = Math.round((totalAmount + cleanDiscount) * 100) / 100;
-
-  if (settledAmount <= 0) throw new Error("INVALID_AMOUNT");
-
-  const debt = await prisma.customerDebt.findFirst({ where: { id: debtId, tenant_id: tenantId } });
-  if (!debt) throw new Error("NOT_FOUND");
-  if (debt.status === "paid") throw new Error("ALREADY_PAID");
-
-  const remaining = Number(debt.amount) - Number(debt.amount_paid);
-  // Sem troco em fiado — quitar até o saldo devedor, nunca além (mesma tolerância de
-  // arredondamento já usada em registerDebtPayment).
-  if (settledAmount > remaining + 0.005) throw new Error("INVALID_AMOUNT");
-
-  let installment = null;
-  if (installmentId) {
-    installment = await prisma.customerDebtInstallment.findFirst({
-      where: { id: installmentId, debt_id: debtId, tenant_id: tenantId },
-    });
-    if (!installment) throw new Error("INSTALLMENT_NOT_FOUND");
-    if (installment.status === "paid") throw new Error("INSTALLMENT_ALREADY_PAID");
-    const installmentRemaining = Number(installment.amount) - Number(installment.amount_paid);
-    if (settledAmount > installmentRemaining + 0.005) throw new Error("INVALID_AMOUNT");
-  }
-
-  const customer = await prisma.customer.findUnique({ where: { id: debt.customer_id } });
-  const tenantData = await prisma.tenant.findUnique({
-    where: { id: tenantId },
-    select: { card_fees: true, require_cash_session: true },
-  });
-  const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
-
-  // Sessão de caixa aberta do operador — mesmo padrão de sales.controller.ts. Quando a
-  // loja exige caixa aberto, bloqueia igual à venda normal; caso contrário, o pagamento
-  // segue permitido mesmo sem sessão (só fica de fora do fechamento daquele dia).
-  // Um pagamento lançado com data passada fica registrado no crediário e no
-  // financeiro daquela data, mas nunca altera de surpresa um caixa que já foi
-  // fechado. Só o recebimento do dia entra na sessão de caixa aberta do operador.
-  const openSession = isPaymentToday(paymentDate)
-    ? await prisma.cashSession.findFirst({
-        where: { tenant_id: tenantId, opened_by_id: userId, status: "open" },
-        select: { id: true },
-      })
-    : null;
-  if (tenantData?.require_cash_session && isPaymentToday(paymentDate) && !openSession && totalAmount > 0) {
-    throw new Error("CASH_SESSION_REQUIRED");
-  }
-  const cashSessionId = openSession?.id ?? null;
-
-  return prisma.$transaction(async (tx) => {
-    const createdPayments = [];
-    for (const seg of segments) {
-      const amount = Math.round((Number(seg.amount) || 0) * 100) / 100;
-      if (amount <= 0) continue;
-      const brand = seg.brand || "other";
-      const installmentsCount = seg.installments && seg.installments > 1 ? seg.installments : 1;
-      const fee = computeSegmentFee({ method: seg.method, brand, installments: installmentsCount, amount }, cardFees);
-      const net = Math.round((amount - fee) * 100) / 100;
-
-      const payment = await tx.customerDebtPayment.create({
-        data: {
-          tenant_id: tenantId,
-          debt_id: debtId,
-          installment_id: installmentId || null,
-          amount,
-          payment_method: seg.method,
-          card_brand: (seg.method === "debit" || seg.method === "credit") ? brand : null,
-          installments: seg.method === "credit" ? installmentsCount : null,
-          gross_amount: amount,
-          fee_amount: fee > 0 ? fee : null,
-          net_amount: net,
-          cash_session_id: cashSessionId,
-          paid_at: paymentDate,
-        },
-      });
-      createdPayments.push(payment);
-    }
-
-    if (cleanDiscount > 0) {
-      const discountPayment = await tx.customerDebtPayment.create({
-        data: {
-          tenant_id: tenantId,
-          debt_id: debtId,
-          installment_id: installmentId || null,
-          amount: cleanDiscount,
-          payment_method: "discount",
-          card_brand: null,
-          installments: null,
-          gross_amount: cleanDiscount,
-          fee_amount: null,
-          net_amount: cleanDiscount,
-          cash_session_id: null,
-          paid_at: paymentDate,
-        },
-      });
-      createdPayments.push(discountPayment);
-    }
-
-    if (installment) {
-      const installmentAmountPaid = Number(installment.amount_paid) + settledAmount;
-      const installmentFullyPaid = installmentAmountPaid >= Number(installment.amount) - 0.005;
-      await tx.customerDebtInstallment.update({
-        where: { id: installment.id },
-        data: {
-          amount_paid: installmentAmountPaid,
-          status: installmentFullyPaid ? "paid" : "open",
-          paid_at: installmentFullyPaid ? paymentDate : installment.paid_at,
-        },
-      });
-    }
-
-    const newAmountPaid = Number(debt.amount_paid) + settledAmount;
-    const isFullyPaid = newAmountPaid >= Number(debt.amount) - 0.005;
-
-    // Se a dívida inteira foi quitada mas o pagamento não veio vinculado a uma
-    // parcela específica (ex.: "pagar tudo" em vez de pagar parcela a parcela),
-    // fecha também as CustomerDebtInstallment que ainda estivessem abertas —
-    // sem isso a dívida "mãe" fica "paid" enquanto a(s) parcela(s) ficam órfãs
-    // em "open" pra sempre, aparecendo como pendente em qualquer tela que leia
-    // só a parcela (ex.: aba Crediário de Contas a Receber).
-    if (isFullyPaid && !installment) {
-      const pendingInstallments = await tx.customerDebtInstallment.findMany({
-        where: { debt_id: debtId, status: { not: "paid" } },
-      });
-      for (const inst of pendingInstallments) {
-        await tx.customerDebtInstallment.update({
-          where: { id: inst.id },
-          data: { amount_paid: inst.amount, status: "paid", paid_at: paymentDate },
-        });
-      }
-    }
-
-    const updated = await tx.customerDebt.update({
-      where: { id: debtId },
-      data: {
-        amount_paid: newAmountPaid,
-        status: isFullyPaid ? "paid" : "open",
-        paid_at: isFullyPaid ? paymentDate : debt.paid_at,
-      },
-      include: { installments: { orderBy: { number: "asc" } } },
-    });
-
-    // Registra no financeiro: o desconto NÃO entra como despesa/prejuízo ("valor perdido"),
-    // entra devidamente no campo discount_amount com o gross_amount correspondente.
-    const moneyPayments = createdPayments.filter((p) => p.payment_method !== "discount");
-    if (moneyPayments.length > 0) {
-      for (let i = 0; i < moneyPayments.length; i++) {
-        const p = moneyPayments[i];
-        const segDiscount = i === 0 && cleanDiscount > 0 ? cleanDiscount : null;
-        const segGross = Number(p.gross_amount ?? p.amount) + (segDiscount ?? 0);
-        await tx.finance.create({
-          data: {
-            tenant_id: tenantId,
-            type: "income",
-            description: `Pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}${segDiscount ? ` (Desconto: R$ ${segDiscount.toFixed(2)})` : ""}`,
-            amount: Number(p.net_amount ?? p.amount),
-            gross_amount: segGross,
-            fee_amount: p.fee_amount ? Number(p.fee_amount) : null,
-            discount_amount: segDiscount,
-            payment_method: p.payment_method,
-            source: "debt_payment",
-            date: paymentDate,
-          },
-        });
-      }
-    } else if (cleanDiscount > 0) {
-      await tx.finance.create({
-        data: {
-          tenant_id: tenantId,
-          type: "income",
-          description: `Desconto fiado concedido — ${customer?.name ?? "Cliente"}: ${debt.description} (Desconto: R$ ${cleanDiscount.toFixed(2)})`,
-          amount: 0,
-          gross_amount: cleanDiscount,
-          fee_amount: null,
-          discount_amount: cleanDiscount,
-          payment_method: "discount",
-          source: "debt_payment",
-          date: paymentDate,
-        },
-      });
-    }
-
-    return { debt: updated, payments: createdPayments };
-  });
+  const result = await registerDebtPaymentMulti(tenantId, userId, debtId,
+    [{ method: paymentMethod || "money", amount }], installmentId, paymentDate);
+  return { debt: result.debt, payment: result.payments[0] };
 }
 
 export async function payDebtMulti(req: Request, res: Response) {
@@ -711,6 +409,7 @@ export async function payDebtMulti(req: Request, res: Response) {
 
     const { debt: updated, payments: createdPayments } = await registerDebtPaymentMulti(
       tenantId, userId, debtId, payments || [], installment_id, parseDebtPaymentDate(paid_at), cleanDiscount,
+      prisma, req.body.expected_remaining,
     );
 
     emitToTenant(tenantId, "finance:changed", { debtId });
@@ -725,6 +424,7 @@ export async function payDebtMulti(req: Request, res: Response) {
       NOT_FOUND: [404, "Dívida não encontrada"],
       ALREADY_PAID: [422, "Dívida já está quitada"],
       INVALID_AMOUNT: [422, "Valor maior que o saldo devedor ou inválido"],
+      BALANCE_CHANGED: [409, "O saldo mudou. Atualize o crediário antes de confirmar outro recebimento."],
       INSTALLMENT_NOT_FOUND: [404, "Parcela não encontrada"],
       INSTALLMENT_ALREADY_PAID: [422, "Parcela já está paga"],
       CASH_SESSION_REQUIRED: [409, "Abra o caixa antes de registrar este pagamento"],
@@ -763,45 +463,20 @@ export async function reverseDebtPayment(req: Request, res: Response) {
     }
 
     const customer = await prisma.customer.findUnique({ where: { id: debt.customer_id } });
-    const amount = Number(payment.amount);
-
     await prisma.$transaction(async (tx) => {
-      if (payment.installment_id) {
-        const installment = await tx.customerDebtInstallment.findUnique({ where: { id: payment.installment_id } });
-        if (installment) {
-          const newInstallmentPaid = Math.max(0, Number(installment.amount_paid) - amount);
-          await tx.customerDebtInstallment.update({
-            where: { id: installment.id },
-            data: {
-              amount_paid: newInstallmentPaid,
-              status: "open",
-              paid_at: null,
-            },
-          });
-        }
-      }
-
-      const newDebtPaid = Math.max(0, Number(debt.amount_paid) - amount);
-      await tx.customerDebt.update({
-        where: { id: debtId },
-        data: {
-          amount_paid: newDebtPaid,
-          status: "open",
-          paid_at: null,
-        },
-      });
-
+      await tx.$queryRaw`SELECT id FROM customer_debts WHERE id = ${debtId} AND tenant_id = ${tenantId} FOR UPDATE`;
+      const existing = await tx.customerDebtPayment.findFirst({ where: { id: paymentId, debt_id: debtId, tenant_id: tenantId } });
+      if (!existing) throw new Error("PAYMENT_ALREADY_REVERSED");
       await tx.customerDebtPayment.delete({ where: { id: paymentId } });
+      await synchronizeDebtBalance(tx, tenantId, debtId);
 
-      // Se não era desconto concedido, cria lançamento de estorno no financeiro.
-      // Descontos concedidos não geram despesa no estorno, apenas reabrem o saldo da dívida.
       if (payment.payment_method !== "discount") {
         await tx.finance.create({
           data: {
             tenant_id: tenantId,
             type: "expense",
             description: `Estorno de pagamento fiado — ${customer?.name ?? "Cliente"}: ${debt.description}`,
-            amount,
+            amount: Number(payment.net_amount ?? payment.amount),
             payment_method: payment.payment_method,
             source: "debt_payment_reversal",
             date: localDateString(),
@@ -820,6 +495,9 @@ export async function reverseDebtPayment(req: Request, res: Response) {
 
     res.json({ success: true, debt: updated });
   } catch (err) {
+    if (err instanceof Error && err.message === "PAYMENT_ALREADY_REVERSED") {
+      return res.status(409).json({ error: "Este pagamento já foi estornado. Atualize o crediário." });
+    }
     console.error(err);
     res.status(500).json({ error: "Falha ao estornar pagamento" });
   }
@@ -833,14 +511,16 @@ export async function payDebt(req: Request, res: Response) {
     const debt = await prisma.customerDebt.findFirst({ where: { id: debtId, tenant_id: tenantId } });
     if (!debt) return res.status(404).json({ error: "Dívida não encontrada" });
 
-    const remaining = Number(debt.amount) - Number(debt.amount_paid);
     const { payment_method, paid_at } = req.body as { payment_method?: string; paid_at?: string };
     const { debt: updated, payment } = await registerDebtPayment(
-      tenantId, debtId, remaining, payment_method, undefined, parseDebtPaymentDate(paid_at),
+      tenantId, getUserId(req), debtId, Number(req.body.amount), payment_method, undefined, parseDebtPaymentDate(paid_at),
     );
 
     res.json({ success: true, debt: updated, payment });
   } catch (err) {
+    if (err instanceof Error && ["INVALID_AMOUNT", "CASH_SESSION_REQUIRED", "BALANCE_CHANGED"].includes(err.message)) {
+      return res.status(err.message === "INVALID_AMOUNT" ? 422 : 409).json({ error: "Informe um recebimento válido e confira o saldo e a abertura do caixa." });
+    }
     if (err instanceof Error && err.message === "NOT_FOUND") {
       return res.status(404).json({ error: "Dívida não encontrada" });
     }
@@ -871,10 +551,13 @@ export async function payDebtPartial(req: Request, res: Response) {
     }
 
     const { debt: updated, payment } = await registerDebtPayment(
-      tenantId, debtId, Number(amount), payment_method, installment_id, parseDebtPaymentDate(paid_at),
+      tenantId, getUserId(req), debtId, Number(amount), payment_method, installment_id, parseDebtPaymentDate(paid_at),
     );
     res.json({ success: true, debt: updated, payment });
   } catch (err) {
+    if (err instanceof Error && ["CASH_SESSION_REQUIRED", "BALANCE_CHANGED"].includes(err.message)) {
+      return res.status(409).json({ error: "Confira o saldo atualizado e a abertura do caixa antes de receber." });
+    }
     if (err instanceof Error && err.message === "NOT_FOUND") {
       return res.status(404).json({ error: "Dívida não encontrada" });
     }
@@ -1003,7 +686,7 @@ export async function updateDebtInstallments(req: Request, res: Response) {
     if (!debt) return res.status(404).json({ error: "Dívida não encontrada" });
     if (debt.status === "paid") return res.status(422).json({ error: "Dívida já está quitada" });
 
-    const hasPayment = debt.installments.some((i) => Number(i.amount_paid) > 0);
+    const hasPayment = Number(debt.amount_paid) > 0 || debt.installments.some((i) => Number(i.amount_paid) > 0);
     if (hasPayment) {
       return res.status(422).json({ error: "Não é possível reconfigurar parcelas com pagamento já registrado" });
     }

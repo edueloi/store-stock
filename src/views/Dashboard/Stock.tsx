@@ -60,6 +60,21 @@ const TYPE_LABELS: Record<string, string> = {
   held_sale_return: "Devolução (Venda em Espera)",
 };
 
+type VariationRow = { combo: Record<string, string>; stock: number; label: string };
+
+// Lista as variações (combinações) de um produto: usa skus; se o produto for
+// antigo (só `variations`), cada opção vira uma linha.
+const getVariationRows = (p: Product | null): VariationRow[] => {
+  if (!p) return [];
+  if (Array.isArray(p.skus) && p.skus.length > 0) {
+    return p.skus.map(s => ({ combo: s.combo, stock: Number(s.stock || 0), label: Object.values(s.combo).join(" / ") }));
+  }
+  if (Array.isArray(p.variations) && p.variations.length > 0) {
+    return p.variations.flatMap(v => v.options.map(o => ({ combo: { [v.name]: o.value }, stock: Number(o.stock || 0), label: `${v.name}: ${o.value}` })));
+  }
+  return [];
+};
+
 const STOCK_VIEWS = [
   { id: 'inventory', label: 'Posição', icon: Package },
   { id: 'history', label: 'Auditoria', icon: History },
@@ -73,6 +88,7 @@ export default function Stock() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAdjustmentModalOpen, setIsAdjustmentModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedVariationKey, setSelectedVariationKey] = useState<string | null>(null);
   const [adjustmentValue, setAdjustmentValue] = useState(0);
   const [adjustmentType, setAdjustmentType] = useState("adjustment");
   const [adjustmentReason, setAdjustmentReason] = useState("");
@@ -129,14 +145,19 @@ export default function Stock() {
 
   const openAdjust = (p: Product) => {
     setSelectedProduct(p);
+    setSelectedVariationKey(null);
     setAdjustmentValue(0);
     setAdjustmentReason("");
     setAdjustmentType("adjustment");
     setIsAdjustmentModalOpen(true);
   };
 
+  const variationRows = getVariationRows(selectedProduct);
+  const selectedVariation = variationRows.find(v => JSON.stringify(v.combo) === selectedVariationKey) ?? null;
+  const needsVariation = variationRows.length > 0 && !selectedVariation;
+
   const handleAdjustment = async () => {
-    if (!selectedProduct || adjustmentValue === 0) return;
+    if (!selectedProduct || adjustmentValue === 0 || needsVariation) return;
     try {
       const res = await fetch("/api/products/stock-adjustment", {
         method: "POST",
@@ -147,6 +168,7 @@ export default function Stock() {
         body: JSON.stringify({
           productId: selectedProduct.id,
           quantity: adjustmentValue,
+          combo: selectedVariation?.combo,
           type: adjustmentType,
           reason: adjustmentReason
         })
@@ -229,6 +251,11 @@ export default function Stock() {
         <div className="flex flex-col">
           <span className="text-xs font-medium text-slate-800">{p.name}</span>
           <span className="mt-0.5 text-[11px] text-slate-500">SKU: {p.sku || String(p.id).padStart(6, '0')}</span>
+          {getVariationRows(p).length > 0 && (
+            <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-slate-500">
+              <Layers size={11} /> {getVariationRows(p).length} variações
+            </span>
+          )}
         </div>
       ),
     },
@@ -418,16 +445,52 @@ export default function Stock() {
         footer={
           <ModalFooter>
             <Button variant="outline" onClick={() => setIsAdjustmentModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleAdjustment} disabled={adjustmentValue === 0}>Aplicar</Button>
+            <Button onClick={handleAdjustment} disabled={adjustmentValue === 0 || needsVariation}>Aplicar</Button>
           </ModalFooter>
         }
       >
         <div className="space-y-4">
+          {/* Variações do produto */}
+          {variationRows.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="ds-label">Variação</p>
+              <div className="max-h-48 space-y-1.5 overflow-y-auto">
+                {variationRows.map(v => {
+                  const key = JSON.stringify(v.combo);
+                  const active = key === selectedVariationKey;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setSelectedVariationKey(key)}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left text-xs transition-colors",
+                        active ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      )}
+                    >
+                      <span className="font-medium">{v.label}</span>
+                      <span className="tabular-nums text-slate-500">{v.stock} UN</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {needsVariation && <p className="text-[11px] text-amber-600">Selecione a variação que será ajustada.</p>}
+            </div>
+          )}
+
           {/* Current stock indicator */}
           <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-center">
-            <p className="mb-1 text-[11px] font-medium text-slate-500">Saldo Atual</p>
-            <p className="text-2xl font-semibold tabular-nums text-slate-900">{selectedProduct?.stock_quantity} <span className="text-sm font-medium text-slate-400">UN</span></p>
+            <p className="mb-1 text-[11px] font-medium text-slate-500">
+              Saldo Atual{selectedVariation ? ` — ${selectedVariation.label}` : variationRows.length > 0 ? " (total)" : ""}
+            </p>
+            <p className="text-2xl font-semibold tabular-nums text-slate-900">{selectedVariation ? selectedVariation.stock : selectedProduct?.stock_quantity} <span className="text-sm font-medium text-slate-400">UN</span></p>
           </div>
+
+          {selectedProduct && variationRows.length === 0 && (
+            <p className="text-[11px] text-slate-500">
+              Este produto não tem variações. Para cadastrar (cor, tamanho etc.), <a className="font-medium text-blue-600 underline" href={`/admin/catalog/${selectedProduct.id}/editar`}>edite o produto no catálogo</a>.
+            </p>
+          )}
 
           {/* Type selector */}
           <div data-tour="stock-adjustment-type" className="space-y-1.5">

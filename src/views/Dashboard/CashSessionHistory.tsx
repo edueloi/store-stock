@@ -17,6 +17,7 @@ import { loadReportIdentity, reportHeaderHtml, reportFooterHtml, kpisHtml, hBars
 import SendReportWhatsappModal from "../../components/reports/SendReportWhatsappModal";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 import { cn } from "../../lib/utils";
+import { parsePaymentSegments } from "../../../shared/paymentSegments";
 import {
   buildCashCloseReceiptText, printThermalText, thermalThin, thermalCenter, thermalRow,
 } from "../../lib/thermalReceipt";
@@ -65,13 +66,9 @@ const PM_ICON_BG: Record<string, string> = {
 // "credit-visa-2x:120.00|money:30.00") — já traz a bandeira do cartão, ao
 // contrário do payment_breakdown da sessão (que só soma por método).
 interface PaymentSegment { method: string; brand: string; amount: number }
-function parseOrderPayments(pm: string): PaymentSegment[] {
+function parseOrderPayments(pm: string, totalAmount = 0, changeAmount = 0): PaymentSegment[] {
   if (!pm) return [];
-  return pm.split("|").map((seg) => {
-    const [methodPart, amountStr] = seg.split(":");
-    const tokens = methodPart.split("-");
-    return { method: tokens[0] ?? "money", brand: tokens[1] ?? "other", amount: parseFloat(amountStr ?? "0") || 0 };
-  });
+  return parsePaymentSegments(pm, totalAmount, changeAmount);
 }
 function methodBrandLabel(method: string, brand: string): string {
   const base = PM_LABEL[method] ?? method;
@@ -339,7 +336,7 @@ export default function CashSessionHistory() {
       // (mesmo bug já corrigido no fechamento de caixa em cash-sessions.controller.ts,
       // reincidindo aqui porque é um cálculo duplicado no frontend).
       let changeToApply = Number(o.change_amount) || 0;
-      parseOrderPayments(o.payment_method).forEach((seg) => {
+      parseOrderPayments(o.payment_method, Number(o.total_amount), Number(o.change_amount) || 0).forEach((seg) => {
         let amount = seg.amount;
         if (seg.method === "money" && changeToApply > 0) {
           const applied = Math.min(changeToApply, amount);

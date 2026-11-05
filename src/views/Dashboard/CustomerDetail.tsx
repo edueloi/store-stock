@@ -398,7 +398,7 @@ export default function CustomerDetail() {
     // baixa parcial sem jamais quitar o saldo inteiro automaticamente.
     setSelectedDebtIds(new Set([debtId]));
     setPayAmounts({ [debtId]: remaining.toFixed(2) });
-    setPaySegments([newPaymentSegment(remaining.toFixed(2))]);
+    setPaySegments([newPaymentSegment()]);
     setDebtDiscount("");
     setDebtPaymentDate(todayInputDate());
     setPayDebtsError(null);
@@ -412,31 +412,14 @@ export default function CustomerDetail() {
     setPayDebtsError(null);
   }
 
-  function handleDebtDiscountChange(val: string, debtId: number, remaining: number) {
+  function handleDebtDiscountChange(val: string, _debtId: number, _remaining: number) {
+    // Desconto é uma concessão explícita, não um recebimento adicional.
+    // Alterá-lo nunca preenche automaticamente o dinheiro recebido.
     setDebtDiscount(val);
-    const discountNum = Math.max(0, Math.min(remaining, Number(val) || 0));
-    const newToPay = Math.max(0, remaining - discountNum);
-    setPayAmounts({ [debtId]: newToPay.toFixed(2) });
-    setPaySegments((prev) => {
-      if (!prev || prev.length <= 1) {
-        return [newPaymentSegment(newToPay > 0 ? newToPay.toFixed(2) : "0.00")];
-      }
-      return prev;
-    });
   }
 
-  function handleInstallmentDiscountChange(instId: number, val: string, remaining: number) {
+  function handleInstallmentDiscountChange(instId: number, val: string, _remaining: number) {
     setInstallmentDiscounts((prev) => ({ ...prev, [instId]: val }));
-    const discountNum = Math.max(0, Math.min(remaining, Number(val) || 0));
-    const newDue = Math.max(0, remaining - discountNum);
-    setInstallmentPayAmounts((prev) => ({ ...prev, [instId]: newDue.toFixed(2) }));
-    setInstallmentPaySegments((prev) => {
-      const current = prev[instId];
-      if (!current || current.length <= 1) {
-        return { ...prev, [instId]: [newPaymentSegment(newDue > 0 ? newDue.toFixed(2) : "0.00")] };
-      }
-      return prev;
-    });
   }
 
   async function handlePaySelectedDebts() {
@@ -499,7 +482,7 @@ export default function CustomerDetail() {
 
         const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-multi`, {
           method: "POST", headers: authH(),
-          body: JSON.stringify({ payments: debtPayments, paid_at: debtPaymentDate, discount: discountForDebt }),
+          body: JSON.stringify({ payments: debtPayments, paid_at: debtPaymentDate, discount: discountForDebt, expected_remaining: remaining }),
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -543,7 +526,7 @@ export default function CustomerDetail() {
       return next;
     });
     if (checked) {
-      setInstallmentPayAmounts((prev) => ({ ...prev, [installmentId]: prev[installmentId] ?? remaining.toFixed(2) }));
+      setInstallmentPayAmounts((prev) => ({ ...prev, [installmentId]: prev[installmentId] ?? "" }));
       setDebtPaymentDate(todayInputDate());
     } else {
       setInstallmentDiscounts((prev) => {
@@ -569,16 +552,17 @@ export default function CustomerDetail() {
         setPayInstallmentError((prev) => ({ ...prev, [installmentId]: "Informe ao menos uma forma de pagamento ou um desconto" }));
         return;
       }
+      const selectedDebt = detail.debts.find(debt => debt.id === debtId);
+      const selectedInstallment = selectedDebt?.installments?.find(inst => inst.id === installmentId);
+      const expectedRemaining = Number(selectedInstallment?.amount ?? 0) - Number(selectedInstallment?.amount_paid ?? 0);
       const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/pay-multi`, {
         method: "POST", headers: authH(),
-        body: JSON.stringify({ payments, installment_id: installmentId, paid_at: debtPaymentDate, discount }),
+        body: JSON.stringify({ payments, installment_id: installmentId, paid_at: debtPaymentDate, discount, expected_remaining: expectedRemaining }),
       });
       if (res.ok) {
+        const result = await res.json();
         const methodLabel = payments.length > 1 ? "Múltiplas formas" : (payments[0] ? (PM_LABELS[payments[0].method] ?? payments[0].method) : "Desconto concedido");
         const debt = detail.debts.find((item) => item.id === debtId);
-        const totalOpenBeforePayment = debt?.installments?.reduce(
-          (sum, item) => sum + Math.max(0, Number(item.amount) - Number(item.amount_paid || 0)), 0
-        ) ?? (amount + discount);
         const receipt = buildDebtPaymentReceiptText(tenantInfo, {
           customerName: detail.name,
           debtDescription: debt?.description || "Crediário",
@@ -587,7 +571,7 @@ export default function CustomerDetail() {
           amount,
           discount,
           paymentMethod: methodLabel,
-          remainingBalance: Math.max(0, totalOpenBeforePayment - (amount + discount)),
+          remainingBalance: Math.max(0, Number(result.debt.amount) - Number(result.debt.amount_paid)),
           paidAt: new Date(`${debtPaymentDate}T12:00:00`),
         });
         await printThermalText(receipt, `Pagamento de parcela — ${detail.name}`);
@@ -1386,7 +1370,7 @@ export default function CustomerDetail() {
                                     <div>
                                       <Input
                                         size="sm"
-                                        label="Desconto (R$)"
+                                        label="Desconto concedido (não é pagamento)"
                                         type="number"
                                         step="0.01"
                                         min="0"
@@ -1403,7 +1387,7 @@ export default function CustomerDetail() {
                                     </div>
                                   </div>
                                   <PaymentSegmentsEditor
-                                    segments={installmentPaySegments[inst.id] ?? [newPaymentSegment((installmentPayAmounts[inst.id] ?? instRemaining.toFixed(2)))]}
+                                    segments={installmentPaySegments[inst.id] ?? [newPaymentSegment(installmentPayAmounts[inst.id] ?? "")]}
                                     onChange={(segs) => setInstallmentPaySegments((prev) => ({ ...prev, [inst.id]: segs }))}
                                     cardFees={cardFees}
                                     maxInstallments={maxInstallments}
@@ -1595,7 +1579,7 @@ export default function CustomerDetail() {
                       return (
                         <>
                           <Input
-                            label="Desconto (R$)"
+                            label="Desconto concedido (não é pagamento)"
                             type="number"
                             step="0.01"
                             min="0"

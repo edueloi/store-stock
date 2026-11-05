@@ -362,7 +362,13 @@ export async function deleteProduct(req: Request, res: Response) {
 }
 
 export async function adjustProductStock(req: Request, res: Response) {
-  const { productId, quantity, type, reason } = req.body;
+  const { productId, quantity, type } = req.body;
+  let reason: string | undefined = req.body.reason;
+  // Variação (combinação de atributos) cujo saldo deve ser ajustado. Ex.: {"Cor":"Azul","Tamanho":"M"}
+  const combo: Record<string, string> | null =
+    req.body.combo && typeof req.body.combo === "object" && Object.keys(req.body.combo).length > 0
+      ? req.body.combo
+      : null;
 
   try {
     const tenantId = getTenantId(req);
@@ -385,12 +391,47 @@ export async function adjustProductStock(req: Request, res: Response) {
       return;
     }
 
+    let skusUpdate: { skus?: any; variations?: any } | null = null;
+    const legacy = Array.isArray(product.variations) ? (product.variations as { name: string; options: { value: string; stock: number }[] }[]) : [];
+    const hasSkus = Array.isArray(product.skus) && (product.skus as unknown[]).length > 0;
+    if (combo && !hasSkus && legacy.length) {
+      skusUpdate = {
+        variations: legacy.map((v) => ({
+          ...v,
+          options: v.options.map((o) =>
+            combo[v.name] === o.value ? { ...o, stock: Math.max(0, Number(o.stock || 0) + adjustment) } : o,
+          ),
+        })),
+      };
+      const label = Object.values(combo).join(" / ");
+      reason = reason ? `[${label}] ${reason}` : `[${label}]`;
+    } else if (combo) {
+      const skus = Array.isArray(product.skus) ? (product.skus as { combo: Record<string, string>; stock: number }[]) : [];
+      const sameCombo = (c: Record<string, string>) => {
+        const keys = Object.keys(combo);
+        return keys.length === Object.keys(c || {}).length && keys.every((k) => c?.[k] === combo[k]);
+      };
+      const idx = skus.findIndex((s) => sameCombo(s.combo));
+      if (idx < 0) {
+        res.status(400).json({ error: "Variação não encontrada neste produto" });
+        return;
+      }
+      skusUpdate = {
+        skus: skus.map((s, i) => (i === idx ? { ...s, stock: Math.max(0, Number(s.stock || 0) + adjustment) } : s)),
+      };
+      const label = Object.values(combo).join(" / ");
+      reason = reason ? `[${label}] ${reason}` : `[${label}]`;
+    }
+
     await prisma.$transaction([
       prisma.product.update({
         where: { id: productId },
-        data: measured
-          ? { measure_stock_quantity: { increment: adjustment } }
-          : { stock_quantity: { increment: adjustment } },
+        data: {
+          ...(measured
+            ? { measure_stock_quantity: { increment: adjustment } }
+            : { stock_quantity: { increment: adjustment } }),
+          ...(skusUpdate ?? {}),
+        },
       }),
       prisma.stockMovement.create({
         data: {

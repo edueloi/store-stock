@@ -4,6 +4,7 @@ import { prisma } from "../config/prisma";
 import { localDateString } from "../utils/date";
 import type { AuthenticatedRequest } from "../types/auth";
 import { recalculateCashSessionSummary } from "./cash-sessions.controller";
+import { financeOrderId } from "../utils/finance-order";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -103,13 +104,15 @@ export async function updateFinanceEntry(req: Request, res: Response) {
     const { id } = req.params;
     const existing = await prisma.finance.findFirst({ where: { id: Number(id), tenant_id: tenantId } });
     if (!existing) return res.status(404).json({ error: "Not found" });
+    if (existing.source === "debt_payment" || existing.source === "debt_payment_reversal") {
+      return res.status(409).json({ error: "Corrija este recebimento pelo crediário do cliente: estorne o pagamento e registre o valor correto." });
+    }
 
     const { tenant_id, id: _id, created_at, updated_at, date, ...rest } = req.body;
 
     // É uma venda PDV? (descrição referencia #N) — se for, recalculamos a taxa
     // da maquininha conforme a forma de pagamento final, sobre o valor com desconto.
-    const description: string = rest.description ?? existing.description ?? "";
-    const orderMatch = description.match(/PDV\s*#(\d+)/i);
+    const linkedOrderId = financeOrderId(existing);
 
     // Valores finais (do edit ou do que já existia)
     let finalPm         = (rest.payment_method ?? existing.payment_method ?? "money") as string;
@@ -127,7 +130,7 @@ export async function updateFinanceEntry(req: Request, res: Response) {
 
     let recalculated: { fee: number; net: number } | null = null;
     let syncedGross: number | null = null;
-    if (orderMatch) {
+    if (linkedOrderId) {
       const tenantData = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { card_fees: true } });
       const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
       if (editedValueOnly) {
@@ -159,8 +162,8 @@ export async function updateFinanceEntry(req: Request, res: Response) {
     });
 
     // Sync back to the linked order
-    if (orderMatch) {
-      const orderId = Number(orderMatch[1]);
+    if (linkedOrderId) {
+      const orderId = linkedOrderId;
       const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId } });
       if (order) {
         const newDiscount = rest.discount_amount != null ? Number(rest.discount_amount) : undefined;
@@ -172,7 +175,8 @@ export async function updateFinanceEntry(req: Request, res: Response) {
           where: { id: orderId },
           data: {
             ...(recalculated ? {
-              total_amount: recalculated.net,
+              // A taxa é custo da loja, não um desconto na compra do cliente.
+              total_amount: Math.round((finalGross - finalDiscount) * 100) / 100,
               fee_amount:   recalculated.fee > 0 ? recalculated.fee : null,
             } : {}),
             ...(newGross    != null ? { gross_amount:    newGross    } : {}),
@@ -204,6 +208,9 @@ export async function deleteFinanceEntry(req: Request, res: Response) {
     const { id } = req.params;
     const existing = await prisma.finance.findFirst({ where: { id: Number(id), tenant_id: tenantId } });
     if (!existing) return res.status(404).json({ error: "Not found" });
+    if (existing.source === "debt_payment" || existing.source === "debt_payment_reversal") {
+      return res.status(409).json({ error: "Estorne o recebimento pelo crediário do cliente para manter o saldo e o caixa corretos." });
+    }
 
     // Descobre a sessão de caixa do pedido vinculado (se houver) ANTES de apagar o
     // lançamento — depois de excluído não tem mais como achar essa referência.
@@ -234,8 +241,11 @@ export async function deleteManyFinanceEntries(req: Request, res: Response) {
 
     const existingEntries = await prisma.finance.findMany({
       where: { id: { in: ids }, tenant_id: tenantId },
-      select: { order_id: true },
+      select: { order_id: true, source: true },
     });
+    if (existingEntries.some(entry => entry.source === "debt_payment" || entry.source === "debt_payment_reversal")) {
+      return res.status(409).json({ error: "A seleção contém recebimentos de crediário. Estorne esses pagamentos na ficha do cliente." });
+    }
     const orderIds = existingEntries.map((e) => e.order_id).filter((id): id is number => id != null);
     const cashSessionIds = orderIds.length > 0
       ? new Set(

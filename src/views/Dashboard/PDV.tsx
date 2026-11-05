@@ -948,7 +948,7 @@ export default function PDV() {
 
   const handlePayCrediarioDebt = async (debt: CustomerDebtLite) => {
     const remaining = Number(debt.amount) - Number(debt.amount_paid);
-    const segments = crediarioPaySegments[debt.id] ?? [newPaymentSegment(remaining.toFixed(2))];
+    const segments = crediarioPaySegments[debt.id] ?? [newPaymentSegment()];
     const payments = segments
       .filter((s) => (Number(s.amount) || 0) > 0)
       .map((s) => ({ method: s.method, brand: s.cardBrand, installments: s.installments, amount: Number(s.amount) }));
@@ -962,7 +962,7 @@ export default function PDV() {
       const res = await fetch(`/api/customers/${crediarioCustomer!.id}/debts/${debt.id}/pay-multi`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ payments }),
+        body: JSON.stringify({ payments, expected_remaining: remaining }),
       });
       if (res.ok && crediarioCustomer) {
         await loadCrediarioCustomer(crediarioCustomer);
@@ -981,7 +981,7 @@ export default function PDV() {
   // formas numa única chamada atômica (dinheiro + cartão, por exemplo).
   const handlePayInstallment = async (debt: CustomerDebtLite, installment: DebtInstallmentLite) => {
     const remaining = Number(installment.amount) - Number(installment.amount_paid);
-    const segments = crediarioInstallmentPaySegments[installment.id] ?? [newPaymentSegment(remaining.toFixed(2))];
+    const segments = crediarioInstallmentPaySegments[installment.id] ?? [newPaymentSegment()];
     const payments = segments
       .filter((s) => (Number(s.amount) || 0) > 0)
       .map((s) => ({ method: s.method, brand: s.cardBrand, installments: s.installments, amount: Number(s.amount) }));
@@ -995,7 +995,7 @@ export default function PDV() {
       const res = await fetch(`/api/customers/${crediarioCustomer!.id}/debts/${debt.id}/pay-multi`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ payments, installment_id: installment.id }),
+        body: JSON.stringify({ payments, installment_id: installment.id, expected_remaining: remaining }),
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -4259,7 +4259,7 @@ export default function PDV() {
                                           <>
                                             <div className="mt-1.5">
                                               <PaymentSegmentsEditor
-                                                segments={crediarioInstallmentPaySegments[inst.id] ?? [newPaymentSegment(instRemaining.toFixed(2))]}
+                                                segments={crediarioInstallmentPaySegments[inst.id] ?? [newPaymentSegment()]}
                                                 onChange={(segs) => setCrediarioInstallmentPaySegments((prev) => ({ ...prev, [inst.id]: segs }))}
                                                 cardFees={cardFees}
                                                 maxInstallments={maxInstallments}
@@ -4294,7 +4294,7 @@ export default function PDV() {
                                 <>
                                   <div className="mt-2">
                                     <PaymentSegmentsEditor
-                                      segments={crediarioPaySegments[d.id] ?? [newPaymentSegment(remaining.toFixed(2))]}
+                                      segments={crediarioPaySegments[d.id] ?? [newPaymentSegment()]}
                                       onChange={(segs) => setCrediarioPaySegments((prev) => ({ ...prev, [d.id]: segs }))}
                                       cardFees={cardFees}
                                       maxInstallments={maxInstallments}
