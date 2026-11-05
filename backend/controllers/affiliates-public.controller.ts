@@ -8,6 +8,7 @@ import { sendAffiliateLoginEmail, sendAffiliateWelcomeEmail } from "../services/
 import {
   digitsOnly,
   generateAffiliateCode,
+  normalizeCampaign,
   normalizeCode,
   normalizeEmail,
   resolveAffiliateRules,
@@ -119,7 +120,7 @@ export async function applyAffiliate(req: Request, res: Response) {
     status: created.status,
     walletStatus: created.wallet_status,
     planName: created.plan?.name ?? null,
-    link: `${env.affiliateSiteUrl}/store-boxsys/?ref=${created.code}`,
+    link: `${env.affiliateSiteUrl}/store/?ref=${created.code}`,
   });
 
   // boas-vindas por e-mail (o WhatsApp sai pela Develoi, que recebe o evento acima); falha de e-mail não derruba o cadastro
@@ -176,10 +177,10 @@ export async function trackClick(req: Request, res: Response) {
     if (affiliate && affiliate.status === "active") {
       // um visitante por dia por afiliado: o hash mistura IP, navegador e a data
       const day = new Date().toISOString().slice(0, 10);
-      const visitor = crypto.createHash("sha256").update(`${req.ip}|${req.headers["user-agent"] ?? ""}|${day}|${affiliate.id}`).digest("hex").slice(0, 32);
+      const visitor = crypto.createHash("sha256").update(`${req.ip}|${req.headers["user-agent"] ?? ""}|${day}|${affiliate.id}|${normalizeCampaign(req.body?.campaign) ?? ""}`).digest("hex").slice(0, 32);
       const exists = await prisma.affiliateClick.findFirst({ where: { affiliate_id: affiliate.id, visitor_hash: visitor }, select: { id: true } });
       if (!exists) {
-        await prisma.affiliateClick.create({ data: { affiliate_id: affiliate.id, visitor_hash: visitor, landing: clean(req.body?.landing, 190) || null } });
+        await prisma.affiliateClick.create({ data: { affiliate_id: affiliate.id, visitor_hash: visitor, landing: clean(req.body?.landing, 190) || null, campaign: normalizeCampaign(req.body?.campaign) } });
       }
     }
   } catch (error) {
@@ -208,6 +209,8 @@ export async function createPublicLead(req: Request, res: Response) {
       business: clean(req.body?.business, 150) || null,
       system,
       message: clean(req.body?.message, 1000) || null,
+      origin: "link",
+      campaign: normalizeCampaign(req.body?.campaign),
     },
   });
   await emitAffiliateEvent("lead.created", {
@@ -219,6 +222,8 @@ export async function createPublicLead(req: Request, res: Response) {
     business: lead.business,
     system: lead.system,
     status: lead.status,
+    origin: "link",
+    campaign: lead.campaign,
   });
   res.status(201).json({ ok: true });
 }

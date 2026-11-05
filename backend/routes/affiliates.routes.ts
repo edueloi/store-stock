@@ -2,6 +2,9 @@ import { Router } from "express";
 
 import {
   createGoal,
+  createLink,
+  deleteLink,
+  listLinks,
   createLead,
   deleteGoal,
   getDashboard,
@@ -56,5 +59,8 @@ router.get("/me/commissions", listCommissions);
 router.get("/me/goals", listGoals);
 router.post("/me/goals", createGoal);
 router.delete("/me/goals/:id", deleteGoal);
+router.get("/me/links", listLinks);
+router.post("/me/links", createLink);
+router.delete("/me/links/:id", deleteLink);
 
 export default router;

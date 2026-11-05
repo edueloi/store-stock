@@ -31,6 +31,19 @@ export async function generateAffiliateCode(name: string) {
 
 export const normalizeCode = (value: unknown) => String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
 
+// Campanha de um link: slug minúsculo [a-z0-9-], sem acento, até 40 caracteres (null se vazio).
+export function normalizeCampaign(value: unknown): string | null {
+  const slug = String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/, "");
+  return slug || null;
+}
+
 // ─── Regras efetivas ─────────────────────────────────────────────────────
 type AffiliateWithPlan = Affiliate & { plan: AffiliatePlan | null };
 
@@ -294,7 +307,8 @@ export async function affiliateStats(affiliateId: number) {
 
   const sum = (statuses: string[]) => money(commissions.filter((c) => statuses.includes(c.status)).reduce((s, c) => s + Number(c.commission_value), 0));
 
-  const series: { month: string; sales: number; commission: number }[] = [];
+  const trialLeads = await prisma.affiliateLead.findMany({ where: { affiliate_id: affiliateId, origin: "store-signup" }, select: { created_at: true } });
+  const series: { month: string; sales: number; trials: number; commission: number }[] = [];
   const now = new Date();
   for (let i = MONTHS_BACK - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -303,6 +317,7 @@ export async function affiliateStats(affiliateId: number) {
     series.push({
       month: key,
       sales: referrals.filter((r) => inMonth(r.started_at)).length,
+      trials: trialLeads.filter((l) => inMonth(l.created_at)).length,
       commission: money(commissions.filter((c) => ["received", "paid"].includes(c.status) && inMonth(c.paid_at ?? c.created_at)).reduce((s, c) => s + Number(c.commission_value), 0)),
     });
   }
@@ -310,7 +325,7 @@ export async function affiliateStats(affiliateId: number) {
   return {
     clicks: { total: clicksTotal, last30: clicks30 },
     leads: { total: leadsTotal, byStatus: leads },
-    sales: { total: referrals.length, activeClients, cancelled: referrals.filter((r) => r.status === "cancelled").length },
+    sales: { total: referrals.length, trials: leads.trial ?? 0, activeClients, cancelled: referrals.filter((r) => r.status === "cancelled").length },
     commissions: {
       pending: sum(["pending", "confirmed"]),
       available: sum(["received"]),

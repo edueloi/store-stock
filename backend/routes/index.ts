@@ -47,6 +47,7 @@ import fiscalCodesRoutes from "./fiscal-codes.routes";
 import affiliatesRoutes from "./affiliates.routes";
 import affiliatesAdminRoutes from "./affiliates-admin.routes";
 import affiliatesExternalRoutes from "./affiliates-external.routes";
+import storeSignupRoutes from "./store-signup.routes";
 
 export function registerRoutes(app: Express) {
   // Serve uploaded images
@@ -59,6 +60,7 @@ export function registerRoutes(app: Express) {
   app.use("/api/affiliates", affiliatesRoutes);
   app.use("/api/super-admin/affiliates-admin", affiliatesAdminRoutes);
   app.use("/api/external/affiliates", affiliatesExternalRoutes);
+  app.use("/api/store-signup", storeSignupRoutes);
 
   app.use("/api/public", publicRoutes);
   app.use("/api/auth", authRoutes);

@@ -151,7 +151,7 @@ async function main() {
   step("tokens de afiliado e de sistema não se misturam");
 
   r = await mine("GET", "");
-  assert.equal(r.data.link, `${env.affiliateSiteUrl}/store-boxsys/?ref=${code}`);
+  assert.equal(r.data.link, `${env.affiliateSiteUrl}/store/?ref=${code}`);
   assert.equal(r.data.windowMonths, 3);
   r = await mine("PATCH", "", { asaasWalletId: "invalido" });
   assert.equal(r.status, 400);
@@ -307,6 +307,56 @@ async function main() {
   r = await admin("GET", "/events?pending=1");
   assert.ok(r.data.events.length > 0);
   step("fila de eventos para a Develoi registrada");
+
+  // ── links nomeados, campanhas e conta criada pela página do Store ──
+  await prisma.affiliate.updateMany({ where: { code }, data: { status: "active" } }); // o passo anterior suspendeu este afiliado
+  r = await mine("GET", "/links");
+  assert.equal(r.data.links.length, 1);
+  assert.equal(r.data.links[0].publicId, code);
+  assert.equal(r.data.links[0].url, `${env.affiliateSiteUrl}/store/?ref=${code}`);
+  r = await mine("POST", "/links", { name: "Instagram Bio" });
+  assert.equal(r.status, 201);
+  assert.equal(r.data.link.campaign, "instagram-bio");
+  assert.equal(r.data.link.publicId, `${code}-01`);
+  const linkId = r.data.link.id;
+  r = await mine("POST", "/links", { name: "Instagram Bio" });
+  assert.equal(r.data.link.campaign, "instagram-bio-2");
+  await call("POST", "/affiliates/click", { code, campaign: "Instagram Bio!" });
+  r = await mine("GET", "/links");
+  assert.equal(r.data.links.find((l: any) => l.campaign === "instagram-bio").clicks, 1);
+  step("links nomeados: ID legível, campanha única e cliques por link");
+
+  const signup = (b: Record<string, unknown>) => call("POST", "/store-signup", b);
+  const form = { storeName: "Serralheria Teste Link", ownerName: "João da Silva", email: "joao.link@example.com", whatsapp: "15999990000", document: "12345678901", password: "SenhaForte123", ref: code, campaign: "instagram-bio" };
+  r = await signup({ ...form, password: "123" });
+  assert.equal(r.status, 400);
+  r = await signup({ ...form, document: "123" });
+  assert.equal(r.status, 400);
+  r = await signup(form);
+  assert.equal(r.status, 201);
+  assert.equal(r.data.trialDays, 14);
+  const tenant = await prisma.tenant.findFirstOrThrow({ where: { name: "Serralheria Teste Link" } });
+  assert.equal(tenant.status, "active");
+  assert.equal(Number(tenant.subscription_amount), 150);
+  assert.equal(await prisma.user.count({ where: { tenant_id: tenant.id, email: "joao.link@example.com" } }), 1);
+  r = await signup(form);
+  assert.equal(r.status, 409);
+  const lead = await prisma.affiliateLead.findFirstOrThrow({ where: { tenant_id: tenant.id } });
+  assert.equal(lead.status, "trial");
+  assert.equal(lead.origin, "store-signup");
+  assert.equal(lead.campaign, "instagram-bio");
+  assert.ok(await prisma.affiliateEvent.findFirst({ where: { type: "store.signup.created" } }), "evento store.signup.created na fila");
+  r = await mine("GET", "/links");
+  assert.equal(r.data.links.find((l: any) => l.campaign === "instagram-bio").trials, 1);
+  r = await mine("GET", "/dashboard");
+  assert.equal(r.data.sales.trials, 1);
+  // código inválido: a conta nasce igual, só que sem contato de afiliado
+  r = await signup({ ...form, storeName: "Loja Sem Afiliado", email: "sem.ref@example.com", ref: "NAOEXISTE" });
+  assert.equal(r.status, 201);
+  assert.equal(await prisma.affiliateLead.count({ where: { tenant_id: { not: null } } }), 1);
+  r = await mine("DELETE", `/links/${linkId}`);
+  assert.equal(r.data.ok, true);
+  step("criação de conta pela página: loja em teste, contato 'trial', evento e métricas");
 
   console.log("\nFluxo completo de afiliados OK.");
 }

@@ -40,6 +40,8 @@ export const env = {
   externalApiKey: process.env.EXTERNAL_API_KEY || "",
   // Programa de afiliados: site público (links mágicos e links de indicação) e webhook de saída para a Develoi.
   affiliateSiteUrl: (process.env.AFFILIATE_SITE_URL || "https://boxsys.com.br").replace(/\/$/, ""),
+  // app dos afiliados (login, painel): onde caem os links mágicos e os botões dos e-mails
+  affiliateAppUrl: (process.env.AFFILIATE_APP_URL || "https://afiliado.boxsys.com.br").replace(/\/$/, ""),
   develoiAffiliateWebhookUrl: process.env.DEVELOI_AFFILIATE_WEBHOOK_URL || "",
   affiliateWebhookSecret: process.env.AFFILIATE_WEBHOOK_SECRET || "",
 };

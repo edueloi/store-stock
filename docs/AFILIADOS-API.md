@@ -97,3 +97,42 @@ Eventos: `affiliate.applied`, `affiliate.updated`, `lead.created`, `lead.updated
 - `commission.updated` → `{ commissionId, referralId, affiliateId, affiliateCode, customerName, sequence, status, grossValue, netValue, commissionValue, asaasPaymentId }`
 
 A Develoi responde `2xx` para confirmar; qualquer outro status gera nova tentativa. A entrega é at-least-once: o receptor deve ser idempotente (`X-Boxsys-Delivery`).
+
+
+---
+
+# Adendo (nov/2026): app dos afiliados, links com ID e criação de conta pela página do Store
+
+## Endereços
+- **App dos afiliados**: `https://afiliado.boxsys.com.br` (SPA própria, estática, instalável como app/PWA). Rotas: `/entrar`, `/cadastro`, `/` (visão geral), `/links`, `/contatos`, `/clientes`, `/comissoes`, `/metas`, `/materiais`, `/perfil`. Os e-mails do store-stock apontam para ele (`AFFILIATE_APP_URL`): link mágico em `/entrar?token=...`, painel em `/`.
+- **Página de vendas só do Store (onde o visitante cria a conta)**: `https://boxsys.com.br/store/`. O link do afiliado passa a ser `https://boxsys.com.br/store/?ref=CODIGO` (com `&c=ID-DO-LINK` quando vier de um link nomeado). O site `boxsys.com.br/afiliados` fica só como página de vendas do programa; `boxsys.com.br/afiliados/entrar|cadastro|painel` redirecionam para o app.
+- A API continua em `https://store.boxsys.com.br/api` (CORS aberto). O app e o site chamam a API direto do navegador.
+
+## Links com ID e campanhas
+- `?c=<campanha>`: slug `[a-z0-9-]`, até 40 caracteres, sem acento. O site guarda `ref` + `c` por 60 dias (localStorage) e manda os dois nos cliques, nos leads e na criação de conta.
+- `POST /affiliates/click` aceita `{ code, landing?, campaign? }` e `POST /affiliates/lead` aceita `campaign?`.
+- **Links nomeados do afiliado** (cada um com um ID legível e métricas próprias):
+
+| Rota | Corpo | Resposta |
+|---|---|---|
+| `GET /affiliates/me/links` | | `{ baseUrl, links: [{ id: number\|null, publicId: string, name: string, campaign: string\|null, url: string, clicks: number, leads: number, trials: number, sales: number, createdAt }] }` — o 1º item é sempre o link geral (`id: null`, `campaign: null`, `publicId` = código do afiliado) |
+| `POST /affiliates/me/links` | `{ name }` (2 a 40 caracteres) | `201 { link }` — o `campaign` nasce do nome (slug, único por afiliado) e o `publicId` é `CODIGO-01`, `CODIGO-02`… · máximo 30 links |
+| `DELETE /affiliates/me/links/:id` | | `{ ok: true }` (os números antigos continuam nas somas gerais) |
+
+- `GET /affiliates/me/dashboard`: `sales` ganha `trials` (contas criadas em teste grátis pelo link) e há `series` por mês com `trials`. Os leads (`GET /affiliates/me/leads`) ganham `campaign`, `origin` (`"manual" | "link" | "store-signup"`), `trialEndsAt` (quando a origem é `store-signup`) e status novo `trial` (conta criada, em teste grátis).
+- Funil que o app deve mostrar: cliques → contatos/contas em teste → vendas (clientes que assinaram).
+
+## Criação de conta pela página do Store (público, sem login)
+`POST /api/store-signup`
+
+```json
+{ "storeName": "Serralheria do João", "ownerName": "João Silva", "email": "joao@x.com", "whatsapp": "15999990000",
+  "document": "12345678901", "password": "SenhaForte123", "businessType": "serralheria", "ref": "ANASPWS", "campaign": "instagram-bio" }
+```
+- Obrigatórios: `storeName`, `ownerName`, `email`, `whatsapp` (10 a 13 dígitos), `document` (CPF/CNPJ: 11 ou 14 dígitos; o Asaas exige para emitir a fatura depois do teste), `password` (8 a 72). `businessType`, `ref`, `campaign` são opcionais.
+- `201`: `{ ok: true, email, storeName, trialDays: 14, trialEndsAt: "ISO", loginUrl: "https://store.boxsys.com.br" }`. A loja já nasce ativa em teste de **14 dias** e o dono entra em `loginUrl` com o e-mail e a senha que escolheu. Também recebe e-mail de boas-vindas.
+- `409 { error }` e-mail já tem conta · `400 { error }` dados inválidos · `429` muitas tentativas (limite por IP).
+- `ref` válido (afiliado ativo): cria um lead com `origin: "store-signup"` e status `trial`, vinculado à loja; o evento `store.signup.created` vai para a Develoi, que cria o cliente em teste, com o afiliado, e cobra no fim do teste.
+
+## Evento novo para a Develoi
+`store.signup.created` → `{ tenantId, subdomain, storeName, ownerName, email, whatsapp, document, businessType, trialDays, trialEndsAt, subscriptionAmount: 150, affiliateCode: string|null, campaign: string|null, leadId: number|null }`

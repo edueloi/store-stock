@@ -8,6 +8,15 @@ const RESERVED_SUBDOMAINS = new Set([
   "admin",
   "app",
   "localhost",
+  "afiliado",
+  "afiliados",
+  "menu",
+  "cozinha",
+  "iptv",
+  "mail",
+  "ftp",
+  "suporte",
+  "painel",
   env.primarySubdomain.toLowerCase(),
 ]);
 

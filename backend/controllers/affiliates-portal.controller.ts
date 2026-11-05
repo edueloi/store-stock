@@ -7,6 +7,7 @@ import {
   affiliateStats,
   digitsOnly,
   money,
+  normalizeCampaign,
   normalizeEmail,
   publicAffiliate,
   referralProgress,
@@ -21,7 +22,7 @@ const clean = (value: unknown, max: number) => String(value ?? "").trim().slice(
 const WALLET_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const METRICS = ["leads", "sales", "commission"] as const;
 
-const leadDto = (l: { id: number; name: string; whatsapp: string; email: string | null; business: string | null; system: string; message: string | null; status: string; created_at: Date }) => ({
+const leadDto = (l: { id: number; name: string; whatsapp: string; email: string | null; business: string | null; system: string; message: string | null; status: string; created_at: Date; campaign: string | null; origin: string; trial_ends_at: Date | null }) => ({
   id: l.id,
   name: l.name,
   whatsapp: l.whatsapp,
@@ -30,15 +31,77 @@ const leadDto = (l: { id: number; name: string; whatsapp: string; email: string 
   system: l.system,
   message: l.message,
   status: l.status,
+  campaign: l.campaign,
+  origin: l.origin,
+  trialEndsAt: l.trial_ends_at,
   createdAt: l.created_at,
 });
+
+// ─── Links nomeados (cada um com campanha e números próprios) ────────────
+const MAX_LINKS = 30;
+const baseLink = (code: string, campaign?: string | null) => `${env.affiliateSiteUrl}/store/?ref=${code}${campaign ? `&c=${campaign}` : ""}`;
+
+async function linkRows(affiliate: { id: number; code: string }) {
+  const links = await prisma.affiliateLink.findMany({ where: { affiliate_id: affiliate.id }, orderBy: { id: "asc" } });
+  const [clicks, leads] = await Promise.all([
+    prisma.affiliateClick.groupBy({ by: ["campaign"], where: { affiliate_id: affiliate.id }, _count: { _all: true } }),
+    prisma.affiliateLead.groupBy({ by: ["campaign", "status"], where: { affiliate_id: affiliate.id }, _count: { _all: true } }),
+  ]);
+  const clickBy = new Map(clicks.map((c) => [c.campaign ?? "", c._count._all]));
+  const leadsFor = (campaign: string | null) => leads.filter((l) => (l.campaign ?? "") === (campaign ?? ""));
+  const sum = (rows: { _count: { _all: number } }[]) => rows.reduce((t, r) => t + r._count._all, 0);
+  const row = (id: number | null, publicId: string, name: string, campaign: string | null, createdAt: Date | null) => {
+    const mine = leadsFor(campaign);
+    return {
+      id,
+      publicId,
+      name,
+      campaign,
+      url: baseLink(affiliate.code, campaign),
+      clicks: clickBy.get(campaign ?? "") ?? 0,
+      leads: sum(mine),
+      trials: sum(mine.filter((l) => l.status === "trial")),
+      sales: sum(mine.filter((l) => l.status === "won")),
+      createdAt,
+    };
+  };
+  return [row(null, affiliate.code, "Link geral", null, null), ...links.map((l, i) => row(l.id, `${affiliate.code}-${String(i + 1).padStart(2, "0")}`, l.name, l.campaign, l.created_at))];
+}
+
+export async function listLinks(req: Request, res: Response) {
+  res.json({ baseUrl: baseLink(me(req).code), links: await linkRows(me(req)) });
+}
+
+export async function createLink(req: Request, res: Response) {
+  const affiliate = me(req);
+  const name = clean(req.body?.name, 40);
+  if (name.length < 2) return void res.status(400).json({ error: "Dê um nome ao link (de 2 a 40 letras)." });
+  const base = normalizeCampaign(name);
+  if (!base) return void res.status(400).json({ error: "Use letras ou números no nome do link." });
+  if ((await prisma.affiliateLink.count({ where: { affiliate_id: affiliate.id } })) >= MAX_LINKS) {
+    return void res.status(409).json({ error: `Você chegou ao limite de ${MAX_LINKS} links. Apague algum que não usa mais.` });
+  }
+  let campaign = base;
+  for (let n = 2; await prisma.affiliateLink.findUnique({ where: { affiliate_id_campaign: { affiliate_id: affiliate.id, campaign } } }); n++) {
+    campaign = `${base.slice(0, 36)}-${n}`;
+  }
+  const created = await prisma.affiliateLink.create({ data: { affiliate_id: affiliate.id, name, campaign } });
+  const link = (await linkRows(affiliate)).find((l) => l.id === created.id);
+  res.status(201).json({ link });
+}
+
+export async function deleteLink(req: Request, res: Response) {
+  const result = await prisma.affiliateLink.deleteMany({ where: { id: Number(req.params.id), affiliate_id: me(req).id } });
+  if (result.count === 0) return void res.status(404).json({ error: "Link não encontrado." });
+  res.json({ ok: true });
+}
 
 export async function getMe(req: Request, res: Response) {
   const affiliate = await prisma.affiliate.findUniqueOrThrow({ where: { id: me(req).id }, include: { plan: true } });
   const rules = await resolveAffiliateRules(affiliate);
   res.json({
     affiliate: publicAffiliate(affiliate),
-    link: `${env.affiliateSiteUrl}/store-boxsys/?ref=${affiliate.code}`,
+    link: baseLink(affiliate.code),
     rules,
     windowMonths: windowMonths(rules),
   });
@@ -113,6 +176,7 @@ export async function createLead(req: Request, res: Response) {
       business: clean(req.body?.business, 150) || null,
       system,
       message: clean(req.body?.message, 1000) || null,
+      origin: "manual",
     },
   });
   await emitAffiliateEvent("lead.created", {

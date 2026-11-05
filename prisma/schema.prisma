@@ -2245,6 +2245,7 @@ model Affiliate {
   commissions AffiliateCommission[]
   goals       AffiliateGoal[]
   tokens      AffiliateLoginToken[]
+  links       AffiliateLink[]
 
   @@index([status])
   @@map("affiliates")
@@ -2255,11 +2256,13 @@ model AffiliateClick {
   affiliate_id Int
   visitor_hash String?
   landing      String?
+  campaign     String?  @db.VarChar(40)
   created_at   DateTime @default(now())
 
   affiliate Affiliate @relation(fields: [affiliate_id], references: [id], onDelete: Cascade)
 
   @@index([affiliate_id, created_at])
+  @@index([affiliate_id, campaign])
   @@map("affiliate_clicks")
 }
 
@@ -2272,8 +2275,12 @@ model AffiliateLead {
   business     String?
   system       String   @default("store") // store | menu | ambos
   message      String?  @db.Text
-  status       String   @default("new") // new | contacted | negotiating | won | lost
+  status       String   @default("new") // new | contacted | negotiating | trial | won | lost
   admin_notes  String?  @db.Text
+  campaign     String?  @db.VarChar(40)
+  origin       String   @default("manual") // manual | link | store-signup
+  tenant_id    Int?
+  trial_ends_at DateTime?
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
@@ -2281,6 +2288,7 @@ model AffiliateLead {
   referrals AffiliateReferral[]
 
   @@index([affiliate_id, status])
+  @@index([tenant_id])
   @@map("affiliate_leads")
 }
 
@@ -2378,4 +2386,18 @@ model AffiliateEvent {
 
   @@index([delivered_at, next_try_at])
   @@map("affiliate_events")
+}
+
+// Links nomeados do afiliado (cada um com campanha própria, para ele ver o que funciona).
+model AffiliateLink {
+  id           Int      @id @default(autoincrement())
+  affiliate_id Int
+  name         String
+  campaign     String   @db.VarChar(40)
+  created_at   DateTime @default(now())
+
+  affiliate Affiliate @relation(fields: [affiliate_id], references: [id], onDelete: Cascade)
+
+  @@unique([affiliate_id, campaign])
+  @@map("affiliate_links")
 }
