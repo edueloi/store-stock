@@ -105,7 +105,7 @@ A Develoi responde `2xx` para confirmar; qualquer outro status gera nova tentati
 
 ## Endereços
 - **App dos afiliados**: `https://afiliado.boxsys.com.br` (SPA própria, estática, instalável como app/PWA). Rotas: `/entrar`, `/cadastro`, `/` (visão geral), `/links`, `/contatos`, `/clientes`, `/comissoes`, `/metas`, `/materiais`, `/perfil`. Os e-mails do store-stock apontam para ele (`AFFILIATE_APP_URL`): link mágico em `/entrar?token=...`, painel em `/`.
-- **Página de vendas só do Store (onde o visitante cria a conta)**: `https://boxsys.com.br/store/`. O link do afiliado passa a ser `https://boxsys.com.br/store/?ref=CODIGO` (com `&c=ID-DO-LINK` quando vier de um link nomeado). O site `boxsys.com.br/afiliados` fica só como página de vendas do programa; `boxsys.com.br/afiliados/entrar|cadastro|painel` redirecionam para o app.
+- **Página de vendas só do Store (onde o visitante cria a conta)**: `https://boxsys.com.br/store/`. O link do afiliado é a página de campanha exclusiva `https://boxsys.com.br/comecar/?ref=CODIGO` (sem menu do site; `/store/?ref=CODIGO` continua funcionando) (com `&c=ID-DO-LINK` quando vier de um link nomeado). O site `boxsys.com.br/afiliados` fica só como página de vendas do programa; `boxsys.com.br/afiliados/entrar|cadastro|painel` redirecionam para o app.
 - A API continua em `https://store.boxsys.com.br/api` (CORS aberto). O app e o site chamam a API direto do navegador.
 
 ## Links com ID e campanhas

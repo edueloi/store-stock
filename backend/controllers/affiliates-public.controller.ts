@@ -120,7 +120,7 @@ export async function applyAffiliate(req: Request, res: Response) {
     status: created.status,
     walletStatus: created.wallet_status,
     planName: created.plan?.name ?? null,
-    link: `${env.affiliateSiteUrl}/store/?ref=${created.code}`,
+    link: `${env.affiliateSiteUrl}/comecar/?ref=${created.code}`,
   });
 
   // boas-vindas por e-mail (o WhatsApp sai pela Develoi, que recebe o evento acima); falha de e-mail não derruba o cadastro

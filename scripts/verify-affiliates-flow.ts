@@ -151,7 +151,7 @@ async function main() {
   step("tokens de afiliado e de sistema não se misturam");
 
   r = await mine("GET", "");
-  assert.equal(r.data.link, `${env.affiliateSiteUrl}/store/?ref=${code}`);
+  assert.equal(r.data.link, `${env.affiliateSiteUrl}/comecar/?ref=${code}`);
   assert.equal(r.data.windowMonths, 3);
   r = await mine("PATCH", "", { asaasWalletId: "invalido" });
   assert.equal(r.status, 400);
@@ -313,7 +313,7 @@ async function main() {
   r = await mine("GET", "/links");
   assert.equal(r.data.links.length, 1);
   assert.equal(r.data.links[0].publicId, code);
-  assert.equal(r.data.links[0].url, `${env.affiliateSiteUrl}/store/?ref=${code}`);
+  assert.equal(r.data.links[0].url, `${env.affiliateSiteUrl}/comecar/?ref=${code}`);
   r = await mine("POST", "/links", { name: "Instagram Bio" });
   assert.equal(r.status, 201);
   assert.equal(r.data.link.campaign, "instagram-bio");
@@ -325,6 +325,12 @@ async function main() {
   r = await mine("GET", "/links");
   assert.equal(r.data.links.find((l: any) => l.campaign === "instagram-bio").clicks, 1);
   step("links nomeados: ID legível, campanha única e cliques por link");
+
+  // contas de rodadas anteriores (o banco de teste é reaproveitado)
+  const old = await prisma.tenant.findMany({ where: { name: { in: ["Serralheria Teste Link", "Loja Sem Afiliado"] } }, select: { id: true } });
+  await prisma.user.deleteMany({ where: { tenant_id: { in: old.map((t) => t.id) } } });
+  await prisma.affiliateLead.deleteMany({ where: { tenant_id: { in: old.map((t) => t.id) } } });
+  await prisma.tenant.deleteMany({ where: { id: { in: old.map((t) => t.id) } } });
 
   const signup = (b: Record<string, unknown>) => call("POST", "/store-signup", b);
   const form = { storeName: "Serralheria Teste Link", ownerName: "João da Silva", email: "joao.link@example.com", whatsapp: "15999990000", document: "12345678901", password: "SenhaForte123", ref: code, campaign: "instagram-bio" };

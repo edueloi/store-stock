@@ -39,7 +39,7 @@ const leadDto = (l: { id: number; name: string; whatsapp: string; email: string 
 
 // ─── Links nomeados (cada um com campanha e números próprios) ────────────
 const MAX_LINKS = 30;
-const baseLink = (code: string, campaign?: string | null) => `${env.affiliateSiteUrl}/store/?ref=${code}${campaign ? `&c=${campaign}` : ""}`;
+const baseLink = (code: string, campaign?: string | null) => `${env.affiliateSiteUrl}/comecar/?ref=${code}${campaign ? `&c=${campaign}` : ""}`;
 
 async function linkRows(affiliate: { id: number; code: string }) {
   const links = await prisma.affiliateLink.findMany({ where: { affiliate_id: affiliate.id }, orderBy: { id: "asc" } });

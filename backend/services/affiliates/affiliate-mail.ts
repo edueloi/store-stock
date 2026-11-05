@@ -21,7 +21,7 @@ export async function sendAffiliateLoginEmail(to: string, name: string, token: s
 }
 
 export async function sendAffiliateApprovedEmail(to: string, name: string, code: string, rules: CommissionRule[], token: string) {
-  const link = `${env.affiliateSiteUrl}/store/?ref=${code}`;
+  const link = `${env.affiliateSiteUrl}/comecar/?ref=${code}`;
   const rulesHtml = rules.length
     ? `<ul style="margin:0 0 16px;padding-left:20px;font-size:14px;color:#475569;line-height:1.7;">${rules.map((r) => `<li>${escapeHtml(describeRule(r))}</li>`).join("")}</ul>`
     : "";
@@ -39,7 +39,7 @@ export async function sendAffiliateApprovedEmail(to: string, name: string, code:
 /** Boas-vindas logo depois do cadastro aberto (sem aprovação): agradece, entrega código e link e explica o começo. */
 export async function sendAffiliateWelcomeEmail(to: string, name: string, code: string, rules: CommissionRule[]) {
   const first = escapeHtml(name.split(/\s+/)[0]);
-  const link = `${env.affiliateSiteUrl}/store/?ref=${code}`;
+  const link = `${env.affiliateSiteUrl}/comecar/?ref=${code}`;
   const panel = `${env.affiliateAppUrl}/`;
   const rulesHtml = rules.length
     ? `<p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#0f172a;">Como você é remunerado</p>
