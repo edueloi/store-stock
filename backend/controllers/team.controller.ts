@@ -171,9 +171,25 @@ export async function deleteTeamMember(req: Request, res: Response) {
       return;
     }
 
-    await prisma.user.delete({ where: { id: memberId } });
+    // Caixa ainda aberto por este usuário: precisa ser fechado antes.
+    const openNow = await prisma.cashSession.count({ where: { opened_by_id: memberId, status: "open" } });
+    if (openNow > 0) {
+      res.status(409).json({ error: "Este usuário está com o caixa aberto. Feche o caixa antes de removê-lo." });
+      return;
+    }
+
+    // opened_by_id é obrigatório: o histórico de caixas já fechados passa para o admin
+    // que está removendo (o nome de quem abriu continua salvo em opened_by_name).
+    // Preferências e tokens de senha não têm onDelete cascade no schema — limpa antes.
+    await prisma.$transaction([
+      prisma.cashSession.updateMany({ where: { opened_by_id: memberId }, data: { opened_by_id: authReq.user!.userId } }),
+      prisma.userPreference.deleteMany({ where: { user_id: memberId } }),
+      prisma.passwordResetToken.deleteMany({ where: { user_id: memberId } }),
+      prisma.user.delete({ where: { id: memberId } }),
+    ]);
     res.json({ success: true });
-  } catch {
+  } catch (err) {
+    console.error("[team] erro ao remover membro:", err);
     res.status(500).json({ error: "Erro ao remover membro." });
   }
 }
