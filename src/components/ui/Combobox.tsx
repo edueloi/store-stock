@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, KeyboardEvent } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { ChevronDown, Check, Search, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -74,7 +74,11 @@ export default function Combobox({
   const getPos = (): DropdownPos => {
     if (!triggerRef.current) return { top: 0, left: 0, width: 0, openUp: false };
     const rect = triggerRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
+    // No celular o teclado reduz a área visível (visualViewport) sem mudar window.innerHeight — sem isso a
+    // lista abria por baixo do teclado.
+    const vv = window.visualViewport;
+    const visibleBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    const spaceBelow = visibleBottom - rect.bottom;
     const openUp = spaceBelow < 260 && rect.top > spaceBelow;
     return {
       top: openUp ? rect.top - 4 : rect.bottom + 4,
@@ -87,10 +91,17 @@ export default function Combobox({
   const openDropdown = () => {
     if (disabled) return;
     setPos(getPos());
-    setOpen(true);
-    setQuery("");
-    setFocusedIndex(0);
-    setTimeout(() => searchRef.current?.focus(), 50);
+    // flushSync: monta a lista (portal) já neste toque, para focar a busca DENTRO do gesto do usuário.
+    // Com setTimeout o iOS/Safari (e alguns Androids) não abrem o teclado — a lista aparecia, mas não
+    // dava para digitar o nome do cliente.
+    flushSync(() => {
+      setOpen(true);
+      setQuery("");
+      setFocusedIndex(0);
+    });
+    searchRef.current?.focus();
+    // reforço caso o navegador tenha ignorado o foco síncrono
+    setTimeout(() => { if (document.activeElement !== searchRef.current) searchRef.current?.focus(); }, 80);
   };
 
   const close = useCallback(() => {
@@ -148,9 +159,13 @@ export default function Combobox({
     const handler = () => setPos(getPos());
     window.addEventListener("scroll", handler, true);
     window.addEventListener("resize", handler);
+    window.visualViewport?.addEventListener("resize", handler);
+    window.visualViewport?.addEventListener("scroll", handler);
     return () => {
       window.removeEventListener("scroll", handler, true);
       window.removeEventListener("resize", handler);
+      window.visualViewport?.removeEventListener("resize", handler);
+      window.visualViewport?.removeEventListener("scroll", handler);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -188,7 +203,10 @@ export default function Combobox({
             onChange={(e) => { setQuery(e.target.value); setFocusedIndex(0); }}
             onKeyDown={handleKeyDown}
             placeholder={searchPlaceholder}
-            className="flex-1 text-xs outline-none placeholder:text-slate-400 bg-transparent"
+            autoComplete="off"
+            autoCorrect="off"
+            enterKeyHint="search"
+            className="flex-1 text-base sm:text-xs outline-none placeholder:text-slate-400 bg-transparent"
           />
           {query && (
             <button onMouseDown={(e) => { e.preventDefault(); setQuery(""); }} className="text-slate-300 hover:text-slate-500">
