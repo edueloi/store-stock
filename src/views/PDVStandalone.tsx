@@ -962,10 +962,17 @@ export default function PDVStandalone() {
     });
   }, []);
 
+  // O mesmo Enter do leitor chega por dois caminhos (campo oculto de scan e listener global);
+  // sem esta trava o produto entrava duas vezes. Mesma leitura repetida em <400ms = duplicata.
+  const lastScanRef = useRef<{ code: string; at: number }>({ code: "", at: 0 });
+
   const handleScan = useCallback(async (code: string) => {
     const trimmed = code.trim();
     if (!trimmed) return;
     setScanCode("");
+    const nowTs = Date.now();
+    if (lastScanRef.current.code === trimmed && nowTs - lastScanRef.current.at < 400) return;
+    lastScanRef.current = { code: trimmed, at: nowTs };
 
     const local = products.find((p) => p.barcode === trimmed);
     if (local) {
