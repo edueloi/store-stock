@@ -56,6 +56,23 @@ export async function emitirNfce(orderId: number): Promise<void> {
   const invoice = await prisma.nfceInvoice.findUnique({ where: { order_id: orderId } });
   if (!invoice) return;
 
+  // NFC-e é nota de PRODUTO. Pedido só de serviços não tem nenhum item (<det>) e o XML seria
+  // recusado pela SEFAZ com "Falha no Schema XML do lote de NFe" — sem explicar nada ao operador.
+  // Não envia nada: grava um motivo claro (serviço vai na NFS-e).
+  if (order.items.length === 0) {
+    await prisma.nfceInvoice.update({
+      where: { id: invoice.id },
+      data: {
+        status: "rejected",
+        rejection_code: "sem-itens",
+        rejection_reason:
+          "Este pedido não tem produtos (é só de serviços). A NFC-e é para produtos — emita a NFS-e (aba NFS-e (Serviços)).",
+        last_attempt_at: new Date(),
+      },
+    });
+    return;
+  }
+
   await prisma.nfceInvoice.update({
     where: { id: invoice.id },
     data: { status: "processing", attempts: { increment: 1 }, last_attempt_at: new Date() },
