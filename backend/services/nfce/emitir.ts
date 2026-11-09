@@ -6,6 +6,7 @@ import type { Product } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
+import { normalizePaymentMethodString } from "../../utils/payment-method";
 import { buildNfceXml, type PaymentSegment } from "./xmlBuilder";
 import { loadPfx, assinarNfce } from "./signer";
 import { callSefazSoap, extractProtTag } from "./soapClient";
@@ -13,9 +14,12 @@ import { buildQrCodeUrl, buildUrlChave } from "./qrcode";
 import { generateDanfePdf, generateDanfeA4Pdf, formatCpfCnpjDanfe, type DanfeInput } from "./danfe";
 
 // Traduz o "tPag" derivado do token de pagamento do PDV (ver sales.controller.ts)
-export function paymentsFromOrder(paymentMethod: string | null): PaymentSegment[] {
+export function paymentsFromOrder(paymentMethod: string | null, totalAmount?: number, changeAmount = 0): PaymentSegment[] {
   if (!paymentMethod) return [{ method: "money", amount: 0 }];
-  return paymentMethod.split("|").map((seg) => {
+  // Com o total do pedido, ajusta formas desatualizadas (valor digitado antes de mudar o total),
+  // senão a SEFAZ rejeita "Total dos pagamentos menor que o total da nota".
+  const pm = totalAmount != null ? normalizePaymentMethodString(paymentMethod, totalAmount, changeAmount) : paymentMethod;
+  return pm.split("|").map((seg) => {
     const [methodPart, amountStr] = seg.split(":");
     const method = methodPart.split("-")[0] ?? "money";
     return { method, amount: parseFloat(amountStr ?? "0") || 0 };
@@ -68,7 +72,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
     // CSC cadastrado por outros motivos administrativos da SEFAZ, mas a ausência dele
     // não bloqueia mais a nota.
 
-    const payments = paymentsFromOrder(order.payment_method);
+    const payments = paymentsFromOrder(order.payment_method, Number(order.total_amount), Number(order.change_amount) || 0);
     const numero = invoice.number;
     const serie = invoice.series;
 

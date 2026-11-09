@@ -15,8 +15,12 @@ export function parsePaymentMethod(pm: string, totalAmount = 0, changeAmount = 0
 // O valor de cada forma de pagamento pode chegar DESATUALIZADO: o PDV preenche o valor com o
 // total uma vez e, se o operador dá desconto depois, o valor da forma continua o antigo (ex.:
 // PIX de R$ 89,77 numa venda de R$ 88,00). Se a soma das formas passa do que a venda realmente
-// custou (+ troco), reduz todas proporcionalmente até bater. Nunca aumenta: soma menor é
-// pagamento parcial/saldo devedor aceito.
+// custou (+ troco), reduz todas proporcionalmente até bater.
+// O inverso também acontece: o valor foi digitado e depois entraram mais itens (ex.: PIX de
+// R$ 899,97 numa venda de R$ 1.058,48). Sem crediário/boleto (que ficam como dívida do cliente),
+// o sistema já lançou o TOTAL como receita — então a diferença é completada na última forma, para
+// o caixa, os relatórios e a nota fiscal (que rejeita "total dos pagamentos menor que o total da
+// nota") baterem com o que a venda realmente é.
 export function reconcileSegmentsToTotal(
   segs: PaymentMethodSegment[],
   totalAmount: number,
@@ -24,7 +28,14 @@ export function reconcileSegmentsToTotal(
 ): PaymentMethodSegment[] {
   const paid = segs.reduce((sum, s) => sum + s.amount, 0);
   const expected = Math.round((Number(totalAmount) + (Number(changeAmount) || 0)) * 100) / 100;
-  if (!(expected > 0) || paid <= expected + 0.009) return segs;
+  if (!(expected > 0) || segs.length === 0) return segs;
+  if (paid < expected - 0.009) {
+    const hasDeferred = segs.some((s) => s.method === "crediario" || s.method === "boleto");
+    if (hasDeferred || Math.abs(Number(changeAmount) || 0) > 0.005) return segs;
+    const shortfall = Math.round((expected - paid) * 100) / 100;
+    return segs.map((s, i) => (i === segs.length - 1 ? { ...s, amount: Math.round((s.amount + shortfall) * 100) / 100 } : s));
+  }
+  if (paid <= expected + 0.009) return segs;
   const factor = expected / paid;
   let accumulated = 0;
   return segs.map((s, i) => {

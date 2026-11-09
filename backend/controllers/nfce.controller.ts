@@ -26,7 +26,7 @@ async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { acc
   if (!order || !tenant) return null;
 
   const environment = tenant.nfce_environment === "producao" ? "producao" : "homologacao";
-  const payments = paymentsFromOrder(order.payment_method);
+  const payments = paymentsFromOrder(order.payment_method, Number(order.total_amount), Number(order.change_amount) || 0);
   const paymentSummary = payments.map((p) => `${PAYMENT_LABELS[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + ");
 
   // Mesma prioridade usada em emitir.ts: documento avulso da venda primeiro, com
