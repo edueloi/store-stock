@@ -357,7 +357,7 @@ export async function systemCloseCashSession(req: Request, res: Response) {
   }
 }
 
-const METHOD_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
+const METHOD_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto à vista" };
 const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
 
 // Correção de um fechamento já feito (operador contou errado, digitou o valor errado…). Só o administrador

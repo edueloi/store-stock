@@ -32,6 +32,8 @@ export function computeSalePaymentTotals(input: SalePaymentTotalsInput) {
   const { baseAmount, pmString, cardFees, passFeeToCustomer, passFeeByMethod } = input;
   const segments = parsePaymentMethod(pmString);
   const crediarioAmount = segments.find((s) => s.method === "crediario" && s.amount > 0)?.amount ?? 0;
+  // Boleto à vista: a venda fecha, mas o dinheiro só entra quando o boleto for pago.
+  const boletoAmount = segments.find((s) => s.method === "boleto" && s.amount > 0)?.amount ?? 0;
 
   const discountVal = Math.min(Math.max(Number(input.discount) || 0, 0), baseAmount);
   const surchargeVal = Math.max(Number(input.surcharge) || 0, 0);
@@ -54,7 +56,7 @@ export function computeSalePaymentTotals(input: SalePaymentTotalsInput) {
   const payableTotal = round2(baseAmount - discountVal + surchargeVal + roundedPassedFee);
 
   return {
-    segments, crediarioAmount, discountVal, surchargeVal,
+    segments, crediarioAmount, boletoAmount, discountVal, surchargeVal,
     roundedFee, roundedPassedFee, absorbedFee, payableTotal,
     netAmount: round2(payableTotal - absorbedFee),
   };
@@ -83,6 +85,43 @@ export async function assertCrediarioAllowed(tenantId: number, customerId: numbe
       );
     }
   }
+}
+
+// Boleto à vista só pode ser usado se a loja ligou a forma de pagamento (Configurações >
+// Pagamentos). Evita que um PDV desatualizado/chamada direta use a forma em loja que não tem.
+export async function assertBoletoAllowed(tenantId: number, boletoAmount: number) {
+  if (boletoAmount <= 0) return;
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { payment_methods: true } });
+  const pm = (tenant?.payment_methods ?? {}) as Record<string, unknown>;
+  if (pm.boleto_avista !== true) {
+    throw new SalePaymentError(422, "Boleto à vista não está habilitado nesta loja");
+  }
+}
+
+// Lança o boleto à vista em Contas a Receber (vence hoje). A venda não gera receita no
+// Finance agora: o valor só entra quando o boleto for baixado como recebido.
+export async function createBoletoReceivable(params: {
+  tenantId: number;
+  orderId: number;
+  customerName?: string | null;
+  description: string;
+  boletoAmount: number;
+}) {
+  const today = new Date();
+  const dueDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  await prisma.accountReceivable.create({
+    data: {
+      tenant_id: params.tenantId,
+      description: `${params.description} — Boleto à vista (pedido #${params.orderId})`,
+      amount: params.boletoAmount,
+      due_date: dueDate,
+      status: "pending",
+      category: "Venda",
+      customer_name: params.customerName || null,
+      payment_method: "boleto",
+      notes: `Gerado automaticamente pela venda #${params.orderId}.`,
+    },
+  });
 }
 
 // Registra a parte fiada como dívida do cliente (vinculada ao Order), dividida em parcelas.

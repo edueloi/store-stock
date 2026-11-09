@@ -50,16 +50,16 @@ function yearRange(year: number): { from: string; to: string } {
 }
 
 const PM_LABEL: Record<string, string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário",
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto à vista",
   cash_on_delivery: "Dinheiro na entrega", card_on_delivery: "Cartão na entrega", to_confirm: "A combinar",
 };
 
 const PM_COLOR: Record<string, string> = {
-  money: "#059669", pix: "#7C3AED", debit: "#2563EB", credit: "#D97706", crediario: "#DC2626",
+  money: "#059669", pix: "#7C3AED", debit: "#2563EB", credit: "#D97706", crediario: "#DC2626", boleto: "#8B5CF6",
 };
 const PM_ICON_BG: Record<string, string> = {
   money: "bg-emerald-50 text-emerald-600", pix: "bg-violet-50 text-violet-600",
-  debit: "bg-blue-50 text-blue-600", credit: "bg-amber-50 text-amber-600", crediario: "bg-rose-50 text-rose-600",
+  debit: "bg-blue-50 text-blue-600", credit: "bg-amber-50 text-amber-600", crediario: "bg-rose-50 text-rose-600", boleto: "bg-violet-50 text-violet-600",
 };
 
 // payment_method de um Order é "method-brand-installments:amount|..." (ex.:

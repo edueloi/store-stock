@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Banknote, CreditCard, QrCode, PlusCircle, Clock, X, User, Wallet } from "lucide-react";
+import { Banknote, CreditCard, QrCode, PlusCircle, Clock, X, User, Wallet, FileText } from "lucide-react";
 import { cn } from "../lib/utils";
 import { Button, IconButton } from "./ui/Button";
 import { Input, Select } from "./ui/Input";
@@ -11,7 +11,7 @@ import { CARD_BRANDS, CardBrand } from "../lib/payment-constants";
 // em venda". Várias formas simultâneas (cartão crédito/débito, PIX, dinheiro,
 // crediário), bandeira, parcelas com taxa, troco, desconto/acréscimo e vendedor.
 
-export type SalePayMethod = "money" | "debit" | "credit" | "pix" | "crediario";
+export type SalePayMethod = "money" | "debit" | "credit" | "pix" | "crediario" | "boleto";
 
 export interface SalePaymentEntry {
   id: string;
@@ -38,10 +38,12 @@ export interface SalePaymentSettings {
   passFeeByMethod: Record<string, boolean>;
   maxInstallments: number;
   enabledBrands: Record<string, boolean>;
+  /** Forma "Boleto à vista" ligada em Configurações > Pagamentos (payment_methods.boleto_avista). */
+  boletoEnabled: boolean;
 }
 
 const PM_LABEL: Record<SalePayMethod, string> = {
-  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário",
+  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário", boleto: "Boleto",
 };
 
 const FORM_TABS = [
@@ -79,6 +81,7 @@ export function parseSalePaymentSettings(tenant: unknown): SalePaymentSettings {
     passFeeByMethod: (t.pass_fee_by_method as Record<string, boolean>) ?? {},
     maxInstallments: Number(t.max_installments) || 12,
     enabledBrands: (t.enabled_brands as Record<string, boolean>) ?? { visa: true, master: true, elo: true, amex: true, hiper: true, other: true },
+    boletoEnabled: (t.payment_methods as Record<string, unknown> | null | undefined)?.boleto_avista === true,
   };
 }
 
@@ -264,7 +267,7 @@ export default function SalePaymentForm({
                   {payments.length > 1 && (
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[11px] font-medium text-slate-600">{idx + 1}</span>
                   )}
-                  <div className="grid flex-1 grid-cols-4 gap-1.5">
+                  <div className={cn("grid flex-1 gap-1.5", settings.boletoEnabled ? "grid-cols-5" : "grid-cols-4")}>
                     <button type="button" onClick={() => handleMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
                       className={methodBtn(isCard, "border-emerald-500 bg-emerald-600")}>
                       <CreditCard size={13} />Cartão
@@ -283,6 +286,12 @@ export default function SalePaymentForm({
                       className={cn(methodBtn(p.method === "crediario", "border-amber-500 bg-amber-600"), "disabled:cursor-not-allowed disabled:opacity-40")}>
                       <Clock size={13} />{PM_LABEL.crediario}
                     </button>
+                    {settings.boletoEnabled && (
+                      <button type="button" onClick={() => handleMethodChange(p.id, "boleto")}
+                        className={methodBtn(p.method === "boleto", "border-violet-500 bg-violet-600")}>
+                        <FileText size={13} />{PM_LABEL.boleto}
+                      </button>
+                    )}
                   </div>
                   {payments.length > 1 && (
                     <IconButton size="xs" variant="ghost" aria-label="Remover forma de pagamento" onClick={() => removePayment(p.id)}>
@@ -339,6 +348,13 @@ export default function SalePaymentForm({
                       );
                     })}
                   </div>
+                )}
+
+                {p.method === "boleto" && (
+                  <p className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-medium text-violet-700">
+                    Boleto à vista: a venda é concluída e o valor vai para Contas a Receber (vence hoje). Ele só entra no
+                    financeiro quando você der baixa no boleto.
+                  </p>
                 )}
 
                 {p.method === "crediario" && (

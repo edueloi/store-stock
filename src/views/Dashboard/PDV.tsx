@@ -51,7 +51,7 @@ function maskDoc(v: string) {
 }
 
 
-type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario";
+type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario" | "boleto";
 type CardBrand    = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
 
 const CARD_BRANDS = [
@@ -141,7 +141,7 @@ interface TenantInfo {
 }
 
 const PM_LABEL: Record<PaymentMethod, string> = {
-  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário",
+  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário", boleto: "Boleto à vista",
 };
 
 // Sugestão de juros pro-rata sobre o valor restante da parcela — sempre calculada na
@@ -326,6 +326,8 @@ export default function PDV() {
   const [passFeeByMethod, setPassFeeByMethod]     = useState<Record<string, boolean>>({});
   const [maxInstallments, setMaxInstallments]     = useState(12);
   const [enabledBrands, setEnabledBrands]         = useState<Record<string, boolean>>({ visa: true, master: true, elo: true, amex: true, hiper: true, other: true });
+  // "Boleto à vista" só aparece se a loja ligou em Configurações > Pagamentos.
+  const [boletoEnabled, setBoletoEnabled]           = useState(false);
   // discount
   const [discountMode, setDiscountMode] = useState<"R$" | "%">("R$");
   const [discount, setDiscount]         = useState("");
@@ -431,6 +433,7 @@ export default function PDV() {
         if (d?.pass_fee_by_method) setPassFeeByMethod(d.pass_fee_by_method as Record<string, boolean>);
         if (d?.max_installments) setMaxInstallments(Number(d.max_installments));
         if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
+        setBoletoEnabled(d?.payment_methods?.boleto_avista === true);
         setCrediarioInterestRate(Number(d?.crediario_interest_rate) || 0);
         setCrediarioGraceDays(Number(d?.crediario_grace_days) || 0);
         if (d?.print_cash_close_receipt !== undefined) setPrintCashCloseReceipt(Boolean(d.print_cash_close_receipt));
@@ -3401,9 +3404,11 @@ export default function PDV() {
                               <div className="relative">
                                 <button onClick={(e) => { e.stopPropagation(); setMorePaymentMenuFor(morePaymentMenuFor === p.id ? null : p.id); }}
                                   className={cn("h-10 w-full rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5",
-                                    p.method === "crediario" ? "bg-amber-600 border-amber-500 text-white shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
+                                    p.method === "crediario" ? "bg-amber-600 border-amber-500 text-white shadow-sm"
+                                      : p.method === "boleto" ? "bg-violet-600 border-violet-500 text-white shadow-sm"
+                                      : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
                                   <PlusCircle size={13} />
-                                  Mais
+                                  {p.method === "boleto" ? "Boleto" : "Mais"}
                                 </button>
                                 {morePaymentMenuFor === p.id && (
                                   <div className="absolute z-20 top-full mt-1 right-0 w-40 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
@@ -3416,6 +3421,13 @@ export default function PDV() {
                                       className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-amber-50 transition-colors">
                                       <Clock size={13} className="text-amber-600" /> Crediário
                                     </button>
+                                    {boletoEnabled && (
+                                      <button
+                                        onClick={() => { handleMethodChange(p.id, "boleto"); setMorePaymentMenuFor(null); }}
+                                        className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-violet-50 transition-colors">
+                                        <FileText size={13} className="text-violet-600" /> Boleto à vista
+                                      </button>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -3492,6 +3504,13 @@ export default function PDV() {
                               </div>
                             );
                           })()}
+
+                          {/* boleto à vista */}
+                          {p.method === "boleto" && (
+                            <p className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-semibold text-violet-700">
+                              Boleto à vista: a venda é concluída e o valor vai para Contas a Receber (vence hoje). Só entra no financeiro quando você der baixa no boleto.
+                            </p>
+                          )}
 
                           {/* parcelamento do crediário */}
                           {p.method === "crediario" && (

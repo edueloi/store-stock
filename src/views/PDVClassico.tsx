@@ -22,16 +22,16 @@ import { ToastProvider } from "../components/ui/Toast";
 // o mesmo banco local (SQLite do Electron) e a mesma fila de sincronização do PDV padrão,
 // então também vende e abre/fecha caixa 100% offline.
 
-type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario";
+type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario" | "boleto";
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
 
 const PM_LABEL: Record<PaymentMethod, string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Cartão de Débito", credit: "Cartão de Crédito", crediario: "Crediário",
+  money: "Dinheiro", pix: "PIX", debit: "Cartão de Débito", credit: "Cartão de Crédito", crediario: "Crediário", boleto: "Boleto à vista",
 };
 const PM_SHORT: Record<PaymentMethod, string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário",
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto",
 };
-const PAY_ORDER: PaymentMethod[] = ["money", "pix", "debit", "credit", "crediario"];
+const PAY_ORDER_BASE: PaymentMethod[] = ["money", "pix", "debit", "credit", "crediario"];
 const BRANDS: { key: CardBrand; label: string }[] = [
   { key: "visa", label: "Visa" }, { key: "master", label: "Mastercard" }, { key: "elo", label: "Elo" },
   { key: "amex", label: "Amex" }, { key: "hiper", label: "Hipercard" }, { key: "other", label: "Outra" },
@@ -248,6 +248,9 @@ function ClassicPDV() {
   const passFeeToCustomer = !!tenant.pass_fee_to_customer;
   const passFeeByMethod = (tenant.pass_fee_by_method ?? {}) as Record<string, boolean>;
   const maxInstallments = Number(tenant.max_installments) || 12;
+  // "Boleto à vista" só aparece se a loja ligou em Configurações > Pagamentos.
+  const boletoEnabled = (tenant.payment_methods as Record<string, unknown> | null | undefined)?.boleto_avista === true;
+  const PAY_ORDER: PaymentMethod[] = boletoEnabled ? [...PAY_ORDER_BASE, "boleto"] : PAY_ORDER_BASE;
 
   // ── dados (com cópia local para uso offline) ───────────────────────────────
   const refreshPending = useCallback(() => {
@@ -821,6 +824,7 @@ function ClassicPDV() {
     F10: () => { if (screen === "payment") { setLookup(""); setModal("seller"); } },
     Alt1: () => pickPayMethod(PAY_ORDER[0]), Alt2: () => pickPayMethod(PAY_ORDER[1]), Alt3: () => pickPayMethod(PAY_ORDER[2]),
     Alt4: () => pickPayMethod(PAY_ORDER[3]), Alt5: () => pickPayMethod(PAY_ORDER[4]),
+    Alt6: () => { if (PAY_ORDER[5]) pickPayMethod(PAY_ORDER[5]); },
   };
 
   useEffect(() => {
@@ -841,7 +845,16 @@ function ClassicPDV() {
         return;
       }
       if (e.ctrlKey && e.key.toLowerCase() === "p") { e.preventDefault(); setScreen("sale"); window.setTimeout(() => codeRef.current?.focus(), 0); return; }
-      if (e.altKey && /^[1-5]$/.test(e.key) && s === "payment" && !m) { e.preventDefault(); handlers.current[`Alt${e.key}`]?.(); return; }
+      if (e.altKey && /^[1-6]$/.test(e.key) && s === "payment" && !m) { e.preventDefault(); handlers.current[`Alt${e.key}`]?.(); return; }
+      // Leitor de código de barras: se o foco escapou do campo de código (clicou num botão,
+      // na lista ou no checkbox "Leitor"), o bip se perdia. Devolve o foco ao campo antes de a
+      // tecla ser digitada — a leitura segue o caminho de sempre (campo + Enter), sem duplicar.
+      if (s === "sale" && !m && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const el = document.activeElement as HTMLInputElement | null;
+        const tag = (el?.tagName ?? "").toLowerCase();
+        const nonText = tag === "button" || tag === "body" || tag === "li" || tag === "div" || (tag === "input" && (el!.type === "checkbox" || el!.type === "radio"));
+        if (nonText && el !== codeRef.current) codeRef.current?.focus();
+      }
       if (/^F(2|3|4|5|6|7|8|9|10)$/.test(e.key)) {
         e.preventDefault();
         if (m && m !== "confirmCancel") return;
@@ -1088,7 +1101,7 @@ function ClassicPDV() {
           <section className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
             <div className="rounded-sm border border-[#c5cfdf] bg-white p-3">
               <label className={labelCls}>Forma de pagamento <span className="text-slate-400">(Alt + número)</span></label>
-              <div className="mb-3 grid grid-cols-5 gap-1.5">
+              <div className={cn("mb-3 grid gap-1.5", boletoEnabled ? "grid-cols-6" : "grid-cols-5")}>
                 {PAY_ORDER.map((m, idx) => (
                   <button
                     key={m} type="button" onClick={() => pickPayMethod(m)}

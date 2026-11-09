@@ -5,6 +5,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 import { awardPointsForOrder } from "./loyalty.controller";
 import { localDateString } from "../utils/date";
 import { parsePaymentMethod, buildMethodSummary, computeSegmentFeeRaw } from "../utils/payment-method";
+import { assertBoletoAllowed, createBoletoReceivable, SalePaymentError } from "../utils/sale-payment";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { emitToTenant } from "../services/realtime.service";
 import { expireWhatsappReservations } from "../services/whatsapp-held-sale.service";
@@ -174,6 +175,16 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
           );
         }
       }
+    }
+
+    // Boleto à vista: a venda fecha agora, mas o valor só vira receita quando o boleto for pago
+    // (fica em Contas a Receber). Só vale se a loja habilitou a forma de pagamento.
+    const boletoAmount = pmSegments.find((s) => s.method === "boleto" && s.amount > 0)?.amount ?? 0;
+    try {
+      await assertBoletoAllowed(tenantId, boletoAmount);
+    } catch (e) {
+      if (e instanceof SalePaymentError) throw new SaleError(e.status, e.message);
+      throw e;
     }
 
     const discountVal  = discount && discount > 0 ? Number(discount) : 0;
@@ -440,8 +451,9 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
     // A parte fiada (crediário) não é receita de caixa agora — só quando o
     // cliente pagar a dívida (mesmo princípio já usado em payDebt). O Finance
     // desta venda reflete só o que efetivamente entrou no caixa/recebível imediato.
-    const nonCrediarioNet   = Math.round((netAmount - crediarioAmount) * 100) / 100;
-    const nonCrediarioGross = Math.round((grossAmount - crediarioAmount) * 100) / 100;
+    // O boleto à vista segue a mesma regra: só vira receita ao ser recebido em Contas a Receber.
+    const nonCrediarioNet   = Math.round((netAmount - crediarioAmount - boletoAmount) * 100) / 100;
+    const nonCrediarioGross = Math.round((grossAmount - crediarioAmount - boletoAmount) * 100) / 100;
     if (nonCrediarioNet > 0.009) {
       await prisma.finance.create({
         data: {
@@ -514,6 +526,16 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
             },
           });
         }
+      });
+    }
+
+    if (boletoAmount > 0) {
+      await createBoletoReceivable({
+        tenantId,
+        orderId: order.id,
+        customerName: resolvedCustomerName === "Balcão" ? null : resolvedCustomerName,
+        description: `Venda PDV #${order.id}`,
+        boletoAmount,
       });
     }
 

@@ -8,6 +8,8 @@ export interface PaymentMethods {
   debit_card: boolean;
   cash: boolean;
   boleto: boolean;
+  /** "Boleto à vista" como forma de pagamento do PDV/OS/orçamento (vai para Contas a Receber). Desligado por padrão. */
+  boleto_avista?: boolean;
 }
 
 // card_fees[brand][installmentIndex] = rate%

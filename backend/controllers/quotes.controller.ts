@@ -10,7 +10,7 @@ import { sanitizePieceSpec } from "../utils/glassPieces";
 import { emitToTenant } from "../services/realtime.service";
 import { recomputeTotals as recomputeServiceOrderTotals } from "./service-orders.controller";
 import { buildMethodSummary } from "../utils/payment-method";
-import { computeSalePaymentTotals, assertCrediarioAllowed, createCrediarioDebt, SalePaymentError } from "../utils/sale-payment";
+import { computeSalePaymentTotals, assertCrediarioAllowed, assertBoletoAllowed, createCrediarioDebt, createBoletoReceivable, SalePaymentError } from "../utils/sale-payment";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -729,8 +729,9 @@ export async function convertToOrder(req: Request, res: Response) {
       passFeeToCustomer: tenantData?.pass_fee_to_customer,
       passFeeByMethod: (tenantData?.pass_fee_by_method ?? null) as Record<string, boolean> | null,
     });
-    const { crediarioAmount, discountVal: extraDiscount, surchargeVal, roundedFee, roundedPassedFee } = calc;
+    const { crediarioAmount, boletoAmount, discountVal: extraDiscount, surchargeVal, roundedFee, roundedPassedFee } = calc;
     await assertCrediarioAllowed(tenantId, quote.customer_id, crediarioAmount);
+    await assertBoletoAllowed(tenantId, boletoAmount);
 
     // Total do pedido = total do orçamento ajustado pelo que mudou neste pagamento.
     const totalAmount = Math.round((quoteTotal - extraDiscount + surchargeVal + roundedPassedFee) * 100) / 100;
@@ -804,7 +805,7 @@ export async function convertToOrder(req: Request, res: Response) {
     const depositNote = depositAmount > 0 ? ` (saldo após entrada de ${depositAmount.toFixed(2)})` : "";
     const extraNote = `${extraDiscount > 0 ? ` (desc. R$ ${extraDiscount.toFixed(2)})` : ""}${surchargeVal > 0 ? ` (acrés. R$ ${surchargeVal.toFixed(2)})` : ""}${roundedPassedFee > 0 ? ` (taxa repassada R$ ${roundedPassedFee.toFixed(2)})` : ""}`;
     // A parte fiada (crediário) só vira receita quando o cliente pagar a dívida.
-    const nonCrediarioNet = Math.round((netAmount - crediarioAmount) * 100) / 100;
+    const nonCrediarioNet = Math.round((netAmount - crediarioAmount - boletoAmount) * 100) / 100;
     if (nonCrediarioNet > 0.009) {
       await prisma.finance.create({
         data: {
@@ -812,12 +813,22 @@ export async function convertToOrder(req: Request, res: Response) {
           type:            "income",
           description:     `Venda (Orç. #${quote.number}) — ${methodSummary}${depositNote}${extraNote}`,
           amount:          nonCrediarioNet,
-          gross_amount:    Math.round((grossAmount - crediarioAmount) * 100) / 100,
+          gross_amount:    Math.round((grossAmount - crediarioAmount - boletoAmount) * 100) / 100,
           fee_amount:      roundedFee > 0 ? roundedFee : null,
           discount_amount: discountVal > 0 ? discountVal : null,
           payment_method:  pmString,
           date:            localDateString(),
         },
+      });
+    }
+
+    if (boletoAmount > 0) {
+      await createBoletoReceivable({
+        tenantId,
+        orderId: order.id,
+        customerName: quote.customer_name,
+        description: `Venda (Orç. #${quote.number})`,
+        boletoAmount,
       });
     }
 

@@ -43,7 +43,7 @@ import { Alert } from "../components/ui/Alert";
 import FiscalCodeLookup from "../components/fiscal/FiscalCodeLookup";
 import { CategoryGlyph } from "../components/categories/CategoryGlyph";
 
-type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario";
+type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario" | "boleto";
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
 
 const CARD_BRANDS: { key: CardBrand; label: string; color: string }[] = [
@@ -56,7 +56,7 @@ const CARD_BRANDS: { key: CardBrand; label: string; color: string }[] = [
 ];
 
 const PM_LABEL: Record<PaymentMethod, string> = {
-  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário",
+  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário", boleto: "Boleto à vista",
 };
 
 // Sugestão de juros pro-rata sobre o valor restante da parcela — sempre calculada na
@@ -75,6 +75,7 @@ const PM_ICON: Record<PaymentMethod, React.ReactNode> = {
   credit:    <CreditCard size={16} />,
   pix:       <QrCode    size={16} />,
   crediario: <Clock     size={16} />,
+  boleto:    <FileText  size={16} />,
 };
 
 interface CartItem extends Product {
@@ -345,6 +346,8 @@ export default function PDVStandalone() {
   const [passFeeByMethod, setPassFeeByMethod]     = useState<Record<string, boolean>>({});
   const [maxInstallments, setMaxInstallments]     = useState(12);
   const [enabledBrands, setEnabledBrands]         = useState<Record<string, boolean>>({ visa: true, master: true, elo: true, amex: true, hiper: true, other: true });
+  // "Boleto à vista" só aparece se a loja ligou em Configurações > Pagamentos.
+  const [boletoEnabled, setBoletoEnabled]           = useState(false);
   const [loading, setLoading]       = useState(false);
   const [finishing, setFinishing]   = useState(false);
   const [saleError, setSaleError]   = useState<string | null>(null);
@@ -860,6 +863,7 @@ export default function PDVStandalone() {
       if (t.pass_fee_by_method) setPassFeeByMethod(t.pass_fee_by_method as Record<string, boolean>);
       if (t.max_installments) setMaxInstallments(Number(t.max_installments));
       if (t.enabled_brands) setEnabledBrands(t.enabled_brands as Record<string, boolean>);
+      setBoletoEnabled((t.payment_methods as Record<string, unknown> | null | undefined)?.boleto_avista === true);
       setCrediarioInterestRate(Number(t.crediario_interest_rate) || 0);
       setCrediarioGraceDays(Number(t.crediario_grace_days) || 0);
       if (t.logo_url) setTenantLogo(t.logo_url);
@@ -3906,6 +3910,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                             onUpdate={updatePayment}
                             onRemove={removePayment}
                             crediarioEnabled={!!selectedCustomerId}
+                            boletoEnabled={boletoEnabled}
                             onCrediarioBlocked={() => setSaleError("Selecione um cliente para vender no crediário")}
                             morePaymentMenuFor={morePaymentMenuFor}
                             onToggleMoreMenu={(id) => setMorePaymentMenuFor(morePaymentMenuFor === id ? null : id)}
@@ -5180,7 +5185,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 // ─── PAYMENT ROW (memoizado para não perder foco no input) ───────────────────
 const PaymentRow = React.memo(function PaymentRow({
   payment: p, idx, total, paidAmount, showRemove, cardFees, maxInstallments, passFeeByMethod, enabledBrands, isOnline, onMethodChange, onUpdate, onRemove,
-  crediarioEnabled, onCrediarioBlocked, morePaymentMenuFor, onToggleMoreMenu,
+  crediarioEnabled, boletoEnabled, onCrediarioBlocked, morePaymentMenuFor, onToggleMoreMenu,
 }: {
   payment: PaymentEntry; idx: number; total: number; paidAmount: number;
   showRemove: boolean; cardFees: Record<string, number[]>;
@@ -5192,6 +5197,7 @@ const PaymentRow = React.memo(function PaymentRow({
   onUpdate: (id: string, patch: Partial<PaymentEntry>) => void;
   onRemove: (id: string) => void;
   crediarioEnabled: boolean;
+  boletoEnabled: boolean;
   onCrediarioBlocked: () => void;
   morePaymentMenuFor: string | null;
   onToggleMoreMenu: (id: string) => void;
@@ -5250,10 +5256,12 @@ const PaymentRow = React.memo(function PaymentRow({
               className="relative h-10 w-full rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5"
               style={p.method === "crediario"
                 ? { background: "#d97706", border: "1px solid #d97706", color: "white", boxShadow: "0 3px 10px rgba(217,119,6,0.22)" }
+                : p.method === "boleto"
+                ? { background: "#7c3aed", border: "1px solid #7c3aed", color: "white", boxShadow: "0 3px 10px rgba(124,58,237,0.22)" }
                 : { background: "#ffffff", border: "1px solid #dbe3ee", color: "#64748b" }}>
-              {p.method === "crediario" && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
+              {(p.method === "crediario" || p.method === "boleto") && <CheckCircle2 size={13} className="absolute top-1.5 right-1.5 text-white/90" />}
               <PlusCircle size={13} />
-              <span>Mais</span>
+              <span>{p.method === "boleto" ? "Boleto" : "Mais"}</span>
             </button>
             {morePaymentMenuFor === p.id && (
               <div className="absolute z-20 top-full mt-1 right-0 w-40 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
@@ -5265,6 +5273,13 @@ const PaymentRow = React.memo(function PaymentRow({
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-amber-50 transition-colors">
                   <Clock size={13} className="text-amber-600" /> Crediário
                 </button>
+                {boletoEnabled && (
+                  <button
+                    onClick={() => onMethodChange(p.id, "boleto")}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-violet-50 transition-colors">
+                    <FileText size={13} className="text-violet-600" /> Boleto à vista
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -5275,6 +5290,12 @@ const PaymentRow = React.memo(function PaymentRow({
           </button>
         )}
       </div>
+
+      {p.method === "boleto" && (
+        <p className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-semibold text-violet-700">
+          Boleto à vista: a venda é concluída e o valor vai para Contas a Receber (vence hoje). Só entra no financeiro quando você der baixa no boleto.
+        </p>
+      )}
 
       {/* toggle crédito/débito dentro de "Cartão" */}
       {(p.method === "debit" || p.method === "credit") && (

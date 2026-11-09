@@ -3830,7 +3830,7 @@ export default function Settings({
                   <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">
                     Métodos de Pagamento Aceitos
                   </p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                     {(
                       [
                         { key: "pix", label: "PIX", emoji: "⚡" },
@@ -3838,6 +3838,7 @@ export default function Settings({
                         { key: "debit_card", label: "Débito", emoji: "🏧" },
                         { key: "cash", label: "Dinheiro", emoji: "💵" },
                         { key: "boleto", label: "Boleto", emoji: "📄" },
+                        { key: "boleto_avista", label: "Boleto à vista", emoji: "🧾" },
                       ] as {
                         key: keyof PaymentMethods;
                         label: string;
@@ -3868,6 +3869,10 @@ export default function Settings({
                       </button>
                     ))}
                   </div>
+                  <p className="text-[11px] text-slate-500">
+                    <b>Boleto à vista</b> liga essa forma de pagamento no PDV, na OS e no orçamento. A venda é concluída na hora e o valor
+                    vai para Contas a Receber, entrando no financeiro só quando o boleto for pago.
+                  </p>
                 </div>
 
                 {/* policies */}

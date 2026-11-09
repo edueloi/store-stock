@@ -78,6 +78,7 @@ const TPAG_MAP: Record<string, string> = {
   debit: "04",
   credit: "03",
   crediario: "05", // "Crédito Loja" — pagamento fiado, sem integração com maquininha
+  boleto: "15", // Boleto Bancário
 };
 
 const TPAG_LABEL: Record<string, string> = {

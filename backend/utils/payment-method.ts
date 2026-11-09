@@ -13,7 +13,7 @@ export function parsePaymentMethod(pm: string, totalAmount = 0, changeAmount = 0
 }
 
 const METHOD_LABELS: Record<string, string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário",
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto à vista",
 };
 
 export function buildMethodSummary(pm: string): string {
