@@ -692,6 +692,9 @@ export async function convertToOrder(req: Request, res: Response) {
     });
     if (!quote) return res.status(404).json({ error: "Orçamento não encontrado" });
     if (quote.status === "converted") return res.status(400).json({ error: "Orçamento já foi convertido em venda" });
+    if (["cancelled", "expired", "rascunho"].includes(quote.status)) {
+      return res.status(400).json({ error: "Este orçamento não pode virar venda (rascunho, cancelado ou expirado)." });
+    }
 
     const body = req.body as {
       payment_method?: string;

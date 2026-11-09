@@ -1498,16 +1498,18 @@ export default function QuoteDetail() {
                 <p className="text-center text-[11px] text-amber-700">Cadastre o e-mail do cliente para enviar este orçamento.</p>
               )}
               {quote.status === "orcamento_enviado" && (
-                <>
-                  <Button fullWidth variant="outline" size="sm" iconLeft={<Wallet size={14} />}
-                    onClick={() => { setDepositAmount(centsToMasked(remaining)); setShowDepositModal(true); }}>
-                    Registrar Entrada
-                  </Button>
-                  <Button fullWidth variant="success" size="sm" iconLeft={<ArrowRight size={14} />}
-                    onClick={() => { setConvertForm(newSalePaymentFormState(amountDue > 0 ? amountDue.toFixed(2) : "")); setShowConvertModal(true); }}>
-                    Converter em Venda
-                  </Button>
-                </>
+                <Button fullWidth variant="outline" size="sm" iconLeft={<Wallet size={14} />}
+                  onClick={() => { setDepositAmount(centsToMasked(remaining)); setShowDepositModal(true); }}>
+                  Registrar Entrada
+                </Button>
+              )}
+              {/* Depois que o cliente aprova (aprovado / etapas de arte) continua podendo virar venda,
+                  inclusive em crediário — o formulário de pagamento é o mesmo do PDV. */}
+              {["orcamento_enviado", "aprovado", "aguardando_arte", "arte_finalizada"].includes(quote.status) && (
+                <Button fullWidth variant="success" size="sm" iconLeft={<ArrowRight size={14} />}
+                  onClick={() => { setConvertForm(newSalePaymentFormState(amountDue > 0 ? amountDue.toFixed(2) : "")); setShowConvertModal(true); }}>
+                  Converter em Venda
+                </Button>
               )}
               {quote.status === "aguardando_aprovacao" && (
                 <Button fullWidth variant="outline" size="sm" loading={generatingLink} onClick={handleCopyApprovalLink} iconLeft={<Link2 size={14} />}>
