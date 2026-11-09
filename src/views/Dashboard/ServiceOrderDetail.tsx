@@ -721,7 +721,7 @@ export default function ServiceOrderDetail() {
   const invoiceSettings = parseSalePaymentSettings(tenant);
   const invoiceBase = selected ? Number(selected.total_amount) : 0;
   const invoiceCalc = computeSalePayment(invoiceBase, invoiceForm, invoiceSettings);
-  const invoiceHasCrediarioWithoutCustomer = invoiceForm.payments.some((p) => p.method === "crediario") && !selected?.customer_id;
+  const invoiceHasCrediarioWithoutCustomer = invoiceForm.payments.some((p) => p.method === "crediario" || p.method === "boleto") && !selected?.customer_id;
 
   const openInvoiceModal = () => {
     setInvoiceForm(newSalePaymentFormState(invoiceBase > 0 ? invoiceBase.toFixed(2) : ""));

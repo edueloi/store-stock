@@ -26,7 +26,7 @@ type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario" | "bolet
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
 
 const PM_LABEL: Record<PaymentMethod, string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Cartão de Débito", credit: "Cartão de Crédito", crediario: "Crediário", boleto: "Boleto à vista",
+  money: "Dinheiro", pix: "PIX", debit: "Cartão de Débito", credit: "Cartão de Crédito", crediario: "Crediário", boleto: "Boleto",
 };
 const PM_SHORT: Record<PaymentMethod, string> = {
   money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto",
@@ -93,6 +93,13 @@ const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").to
 function defaultFirstDue() {
   const d = new Date();
   d.setDate(d.getDate() + 30);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// Boleto: 1 parcela = à vista (vence hoje); parcelado começa em 30 dias.
+function boletoFirstDue(installments: number) {
+  if (installments > 1) return defaultFirstDue();
+  const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
@@ -640,8 +647,10 @@ function ClassicPDV() {
   };
 
   const addPayment = () => {
-    const customerNeeded = payMethod === "crediario" && !customerId;
-    if (customerNeeded) { flash("Selecione o cliente (F2) para vender no crediário."); return; }
+    if ((payMethod === "crediario" || payMethod === "boleto") && !customerId) {
+      flash(`Selecione o cliente (F2) para vender no ${payMethod === "boleto" ? "boleto" : "crediário"}.`);
+      return;
+    }
     let amount = num(payAmount);
     if (!(amount > 0)) amount = remaining;
     if (!(amount > 0)) { flash("Informe o valor."); return; }
@@ -650,7 +659,8 @@ function ClassicPDV() {
     setPayments((prev) => [...prev, {
       id: Math.random().toString(36).slice(2), method: payMethod, cardBrand: payBrand,
       installments: payMethod === "credit" ? payInstallments : 1, amount: amount.toFixed(2),
-      crediarioInstallments: payMethod === "crediario" ? payInstallments : 1, crediarioFirstDueDate: defaultFirstDue(),
+      crediarioInstallments: payMethod === "crediario" || payMethod === "boleto" ? payInstallments : 1,
+      crediarioFirstDueDate: payMethod === "boleto" ? boletoFirstDue(payInstallments) : defaultFirstDue(),
     }]);
     const left = Math.max(0, Math.round((remaining - amount) * 100) / 100);
     if (split && left > 0.004 && split.idx + 1 < split.shares.length) {
@@ -679,6 +689,7 @@ function ClassicPDV() {
   const finishSale = async () => {
     if (!canFinish || finishing) return;
     if (payments.some((p) => p.method === "crediario") && !customerId) { flash("Selecione o cliente (F2) para vender no crediário."); return; }
+    if (payments.some((p) => p.method === "boleto") && !customerId) { flash("Selecione o cliente (F2) para vender no boleto."); return; }
     setFinishing(true);
 
     const pmString = payments.map((p) => {
@@ -690,6 +701,7 @@ function ClassicPDV() {
     const seller = sellers.find((s) => s.id === sellerId);
     const clientSaleId = crypto.randomUUID();
     const crediario = payments.find((p) => p.method === "crediario");
+    const boleto = payments.find((p) => p.method === "boleto");
     const d = new Date();
     const saleBody = {
       items: cart.map((i) => ({
@@ -709,6 +721,8 @@ function ClassicPDV() {
       passFeeByMethod,
       crediarioInstallments: crediario?.crediarioInstallments ?? undefined,
       crediarioFirstDueDate: crediario?.crediarioFirstDueDate ?? undefined,
+      boletoInstallments: boleto?.crediarioInstallments ?? undefined,
+      boletoFirstDueDate: boleto?.crediarioFirstDueDate ?? undefined,
       cashSessionId: cashSession?.localId ? null : cashSession?.id ?? null,
       cashSessionLocalId: cashSession?.localId ?? undefined,
       heldSaleId: activeHeldId ?? undefined,
@@ -1118,7 +1132,7 @@ function ClassicPDV() {
                   <label className={labelCls}>Parcelas</label>
                   <input
                     className={cn(inputCls, "font-mono")} type="number" min={1} max={maxInstallments} value={payInstallments}
-                    disabled={payMethod !== "credit" && payMethod !== "crediario"}
+                    disabled={payMethod !== "credit" && payMethod !== "crediario" && payMethod !== "boleto"}
                     onChange={(e) => setPayInstallments(Math.max(1, Math.min(maxInstallments, Number(e.target.value) || 1)))}
                   />
                 </div>
@@ -1181,7 +1195,7 @@ function ClassicPDV() {
                       {PM_SHORT[p.method]}
                       {(p.method === "debit" || p.method === "credit") && ` · ${BRANDS.find((b) => b.key === p.cardBrand)?.label}`}
                       {p.method === "credit" && p.installments > 1 && ` · ${p.installments}x`}
-                      {p.method === "crediario" && p.crediarioInstallments > 1 && ` · ${p.crediarioInstallments}x`}
+                      {(p.method === "crediario" || p.method === "boleto") && p.crediarioInstallments > 1 && ` · ${p.crediarioInstallments}x`}
                     </span>
                     <span className="flex items-center gap-3">
                       <b className="font-mono">R$ {money(num(p.amount))}</b>

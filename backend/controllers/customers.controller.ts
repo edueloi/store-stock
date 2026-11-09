@@ -16,6 +16,24 @@ function getUserId(req: Request) {
   return (req as AuthenticatedRequest).user.userId;
 }
 
+// Saldo das parcelas em aberto que já têm boleto emitido (billing_method = "boleto"), por cliente.
+// "Em aberto" na tela = total_debt − boleto_debt; o limite de crédito continua usando o total.
+async function boletoDebtByCustomer(tenantId: number, customerId?: number) {
+  const rows = await prisma.customerDebtInstallment.findMany({
+    where: {
+      tenant_id: tenantId, status: "open", billing_method: "boleto",
+      debt: { status: "open", ...(customerId ? { customer_id: customerId } : {}) },
+    },
+    select: { amount: true, amount_paid: true, debt: { select: { customer_id: true } } },
+  });
+  const byCustomer = new Map<number, number>();
+  for (const r of rows) {
+    const remaining = Number(r.amount) - Number(r.amount_paid);
+    byCustomer.set(r.debt.customer_id, Math.round(((byCustomer.get(r.debt.customer_id) ?? 0) + remaining) * 100) / 100);
+  }
+  return byCustomer;
+}
+
 /** Converte YYYY-MM-DD em meio-dia UTC para manter a data civil correta no Brasil. */
 function parseDebtPaymentDate(value?: unknown) {
   if (!value) return new Date();
@@ -45,9 +63,11 @@ export async function listCustomers(req: Request, res: Response) {
       orderBy: { name: "asc" },
     });
 
+    const boletoByCustomer = await boletoDebtByCustomer(tenantId);
     const enriched = customers.map((c) => ({
       ...c,
       total_debt: c.debts.reduce((s, d) => s + (Number(d.amount) - Number(d.amount_paid)), 0),
+      boleto_debt: boletoByCustomer.get(c.id) ?? 0,
       open_debts: c.debts.length,
     }));
 
@@ -129,6 +149,7 @@ export async function getCustomer(req: Request, res: Response) {
       total_debt: customer.debts
         .filter((d) => d.status === "open")
         .reduce((s, d) => s + (Number(d.amount) - Number(d.amount_paid)), 0),
+      boleto_debt: (await boletoDebtByCustomer(tenantId, id)).get(id) ?? 0,
       orders: orders.map(mapOrderItems),
     });
   } catch (err) {
@@ -663,6 +684,36 @@ export async function listDebtInstallments(req: Request, res: Response) {
   }
 }
 
+// Marca (ou desmarca) uma parcela como "boleto emitido": ela deixa de contar como "Em aberto" e
+// passa a aparecer como "Boleto emitido" até a baixa. Opcionalmente ajusta o vencimento ao do boleto.
+export async function setInstallmentBoleto(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const customerId = Number(req.params.id);
+    const debtId = Number(req.params.debtId);
+    const instId = Number(req.params.instId);
+    const { issued, due_date } = req.body as { issued?: boolean; due_date?: string };
+
+    const installment = await prisma.customerDebtInstallment.findFirst({
+      where: { id: instId, debt_id: debtId, tenant_id: tenantId, debt: { customer_id: customerId } },
+    });
+    if (!installment) return res.status(404).json({ error: "Parcela não encontrada" });
+    if (installment.status === "paid") return res.status(422).json({ error: "Parcela já está quitada" });
+
+    const data: { billing_method: string | null; due_date?: Date } = { billing_method: issued === false ? null : "boleto" };
+    if (issued !== false && due_date) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(due_date))) return res.status(422).json({ error: "Data de vencimento inválida" });
+      data.due_date = new Date(`${due_date}T00:00:00`);
+    }
+
+    const updated = await prisma.customerDebtInstallment.update({ where: { id: instId }, data });
+    res.json(updated);
+  } catch (err) {
+    console.error("setInstallmentBoleto:", err);
+    res.status(500).json({ error: "Falha ao registrar o boleto" });
+  }
+}
+
 // Reconfigura o parcelamento de uma dívida (nº de parcelas + vencimento da 1ª) —
 // só permitido enquanto nenhuma parcela tiver recebido pagamento algum.
 export async function updateDebtInstallments(req: Request, res: Response) {
@@ -786,6 +837,7 @@ export async function listDebtors(req: Request, res: Response) {
     }
 
     const customerIds = Array.from(byCustomer.keys());
+    const boletoByCustomer = await boletoDebtByCustomer(tenantId);
     const customers = await prisma.customer.findMany({
       where: { id: { in: customerIds } },
       select: { id: true, name: true, phone: true, risk_flag: true },
@@ -799,6 +851,7 @@ export async function listDebtors(req: Request, res: Response) {
         customer_phone: c?.phone ?? null,
         risk_flag: c?.risk_flag ?? false,
         total_debt: agg.total,
+        boleto_debt: boletoByCustomer.get(customerId) ?? 0,
         open_debts: agg.count,
       };
     }).sort((a, b) => b.total_debt - a.total_debt);

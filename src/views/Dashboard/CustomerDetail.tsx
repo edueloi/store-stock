@@ -83,6 +83,8 @@ interface Installment {
   amount_paid: number;
   status: "open" | "paid";
   paid_at?: string;
+  /** "boleto" = boleto já emitido para esta parcela (não conta como "Em aberto" sem cobrança). */
+  billing_method?: string | null;
 }
 
 interface Debt {
@@ -112,6 +114,8 @@ interface CustomerDetailData extends Customer {
   customer_notes: Note[];
   orders: Order[];
   total_debt: number;
+  /** Parte do total em aberto que já tem boleto emitido. */
+  boleto_debt?: number;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -148,7 +152,7 @@ function suggestedInterest(remaining: number, due_date: string, rate: number, gr
 // do backend (backend/controllers/sales.controller.ts), para exibir de forma
 // legível o formato composto "method-brand-installments:amount|...".
 const PM_LABELS: Record<string, string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", discount: "Desconto concedido",
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto", discount: "Desconto concedido",
   cash_on_delivery: "Dinheiro na entrega", card_on_delivery: "Cartão na entrega", to_confirm: "A combinar",
 };
 
@@ -280,6 +284,11 @@ export default function CustomerDetail() {
   const [crediarioInterestRate, setCrediarioInterestRate] = useState(0);
   const [crediarioGraceDays, setCrediarioGraceDays] = useState(0);
   const [applyingInterestId, setApplyingInterestId] = useState<number | null>(null);
+  // Boleto: loja com a forma habilitada; parcela cujo "boleto emitido" está sendo preenchido; data digitada.
+  const [boletoEnabled, setBoletoEnabled] = useState(false);
+  const [boletoEditId, setBoletoEditId] = useState<number | null>(null);
+  const [boletoDate, setBoletoDate] = useState("");
+  const [savingBoletoId, setSavingBoletoId] = useState<number | null>(null);
 
   // Taxa de maquininha/bandeiras/parcelas — mesma config usada no checkout do PDV,
   // reaproveitada aqui pra calcular a taxa quando o pagamento de fiado é no cartão.
@@ -354,6 +363,7 @@ export default function CustomerDetail() {
         if (d?.card_fees) setCardFees(d.card_fees);
         if (d?.max_installments) setMaxInstallments(Number(d.max_installments));
         if (d?.enabled_brands) setEnabledBrands(d.enabled_brands as Record<string, boolean>);
+        setBoletoEnabled(d?.payment_methods?.boleto_avista === true);
         if (d?.name) setTenantName(d.name);
         if (d) setTenantInfo({
           name: d.name, document: d.document, phone: d.whatsapp,
@@ -604,6 +614,28 @@ export default function CustomerDetail() {
       await fetchDetail(detail.id);
     } finally {
       setApplyingInterestId(null);
+    }
+  }
+
+  // Registra "boleto emitido" numa parcela (com o vencimento do boleto) ou desfaz. A parcela sai do
+  // "Em aberto" e passa a contar como "Boleto emitido" até a baixa.
+  async function handleSetInstallmentBoleto(debtId: number, installmentId: number, issued: boolean, dueDate?: string) {
+    if (!detail) return;
+    setSavingBoletoId(installmentId);
+    try {
+      const res = await fetch(`/api/customers/${detail.id}/debts/${debtId}/installments/${installmentId}/boleto`, {
+        method: "POST", headers: authH(),
+        body: JSON.stringify({ issued, due_date: issued ? dueDate : undefined }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        window.alert(err?.error || "Não foi possível registrar o boleto.");
+        return;
+      }
+      setBoletoEditId(null);
+      await fetchDetail(detail.id);
+    } finally {
+      setSavingBoletoId(null);
     }
   }
 
@@ -1045,10 +1077,13 @@ export default function CustomerDetail() {
           </div>
         </div>
 
-        {(detail.total_debt > 0 || detail.risk_reason) && (
+        {(detail.total_debt > 0 || Number(detail.boleto_debt ?? 0) > 0 || detail.risk_reason) && (
           <div className="mt-3 space-y-2">
-            {detail.total_debt > 0 && (
-              <Alert variant="error">Deve {fmt(detail.total_debt)} em aberto (Crediário/Fiado)</Alert>
+            {Number(detail.total_debt) - Number(detail.boleto_debt ?? 0) > 0.005 && (
+              <Alert variant="error">Deve {fmt(Number(detail.total_debt) - Number(detail.boleto_debt ?? 0))} em aberto (Crediário/Fiado)</Alert>
+            )}
+            {Number(detail.boleto_debt ?? 0) > 0 && (
+              <Alert variant="info">Boleto emitido: {fmt(Number(detail.boleto_debt))} a receber (aguardando pagamento do boleto)</Alert>
             )}
             {detail.risk_reason && (
               <Alert variant="warning" title="Motivo do risco">{detail.risk_reason}</Alert>
@@ -1070,7 +1105,13 @@ export default function CustomerDetail() {
             <StatGrid cols={4}>
               <StatCard title="Total de Compras" value={detail.orders.length} icon={ShoppingBag} color="info" />
               <StatCard title="Gasto Total" value={fmt(detail.orders.reduce((s, o) => s + Number(o.total_amount), 0))} icon={DollarSign} color="success" />
-              <StatCard title="Em Aberto" value={fmt(Number(detail.total_debt))} icon={AlertCircle} color="danger" />
+              <StatCard
+                title="Em Aberto"
+                value={fmt(Math.max(0, Number(detail.total_debt) - Number(detail.boleto_debt ?? 0)))}
+                description={Number(detail.boleto_debt ?? 0) > 0 ? `+ ${fmt(Number(detail.boleto_debt))} em boleto emitido` : undefined}
+                icon={AlertCircle}
+                color="danger"
+              />
               <StatCard title="Limite de Crédito" value={detail.credit_limit ? fmt(Number(detail.credit_limit)) : "Não definido"} icon={CreditCard} color="purple" />
             </StatGrid>
 
@@ -1349,10 +1390,42 @@ export default function CustomerDetail() {
                                   <p className={cn("text-[11px] font-medium", instOverdue ? "text-red-500" : "text-slate-500")}>
                                     Vence {fmtDate(inst.due_date)}{instOverdue && " (vencida)"}
                                   </p>
+                                  {inst.status === "open" && inst.billing_method === "boleto" && (
+                                    <p className="text-[11px] font-semibold text-fuchsia-700">Boleto emitido · vence {fmtDate(inst.due_date)}</p>
+                                  )}
                                 </div>
+                                {inst.status === "open" && boletoEnabled && boletoEditId !== inst.id && (
+                                  inst.billing_method === "boleto" ? (
+                                    <Button variant="outline" size="xs" loading={savingBoletoId === inst.id}
+                                      onClick={() => handleSetInstallmentBoleto(d.id, inst.id, false)}>
+                                      Desfazer boleto
+                                    </Button>
+                                  ) : (
+                                    <Button variant="outline" size="xs"
+                                      onClick={() => { setBoletoEditId(inst.id); setBoletoDate(String(inst.due_date).slice(0, 10)); }}>
+                                      Boleto emitido
+                                    </Button>
+                                  )
+                                )}
                                 <span className="shrink-0 text-xs font-semibold tabular-nums text-slate-700">{fmt(instRemaining)}</span>
                                 {inst.status !== "open" && <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />}
                               </div>
+                              {inst.status === "open" && boletoEditId === inst.id && (
+                                <div className="flex flex-wrap items-end gap-2 rounded-lg border border-fuchsia-200 bg-fuchsia-50 p-2.5">
+                                  <div className="min-w-[160px] flex-1">
+                                    <Input size="sm" label="Vencimento do boleto" type="date" value={boletoDate}
+                                      onChange={(e) => setBoletoDate(e.target.value)} />
+                                  </div>
+                                  <Button variant="primary" size="sm" loading={savingBoletoId === inst.id} disabled={!boletoDate}
+                                    onClick={() => handleSetInstallmentBoleto(d.id, inst.id, true, boletoDate)}>
+                                    Registrar boleto
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => setBoletoEditId(null)}>Cancelar</Button>
+                                  <p className="basis-full text-[10px] leading-snug text-fuchsia-800">
+                                    A parcela sai do "Em aberto" e fica como "Boleto emitido" até você dar baixa no recebimento.
+                                  </p>
+                                </div>
+                              )}
                               {inst.status === "open" && selectedInstallmentIds.has(inst.id) && (
                                 <div className="space-y-2 pt-1">
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-lg border border-slate-200 bg-white p-2.5">
@@ -1394,6 +1467,7 @@ export default function CustomerDetail() {
                                     enabledBrands={enabledBrands}
                                     totalToPay={Math.max(0, instRemaining - (Number(installmentDiscounts[inst.id]) || 0))}
                                     allowPartial
+                                    showBoleto={boletoEnabled}
                                   />
                                   {payInstallmentError[inst.id] && (
                                     <Alert variant="error">{payInstallmentError[inst.id]}</Alert>
@@ -1613,6 +1687,7 @@ export default function CustomerDetail() {
                       enabledBrands={enabledBrands}
                       totalToPay={toPay}
                       allowPartial
+                      showBoleto={boletoEnabled}
                     />
                   );
                 })()}

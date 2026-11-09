@@ -49,7 +49,7 @@ export function normalizePaymentMethodString(pm: string, totalAmount: number, ch
 }
 
 const METHOD_LABELS: Record<string, string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto à vista",
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto",
 };
 
 export function buildMethodSummary(pm: string): string {

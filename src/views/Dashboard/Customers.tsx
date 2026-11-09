@@ -41,6 +41,7 @@ interface Customer {
   risk_reason?: string;
   created_at: string;
   total_debt?: number;
+  boleto_debt?: number;
   open_debts?: number;
   legal_name?: string;
   trade_name?: string;
@@ -88,6 +89,7 @@ interface Debtor {
   customer_phone?: string;
   risk_flag: boolean;
   total_debt: number;
+  boleto_debt?: number;
   open_debts: number;
 }
 
@@ -316,7 +318,9 @@ export default function Customers() {
     (d.customer_phone && d.customer_phone.includes(search))
   );
 
-  const totalDebt = debtors.reduce((s, d) => s + d.total_debt, 0);
+  // "Em aberto" não inclui o que já tem boleto emitido (aparece separado como "Boleto emitido").
+  const totalDebt = debtors.reduce((s, d) => s + Math.max(0, d.total_debt - (d.boleto_debt ?? 0)), 0);
+  const totalBoleto = debtors.reduce((s, d) => s + (d.boleto_debt ?? 0), 0);
 
   useEffect(() => { setCurrentPage(1); }, [search, mainTab, viewMode, pageSize]);
 
@@ -336,7 +340,7 @@ export default function Customers() {
       header: "Saldo em aberto",
       className: "text-right",
       headerClassName: "text-right",
-      render: (c) => <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-red-600">{(c.total_debt ?? 0) > 0 ? fmt(c.total_debt!) : "–"}</span>,
+      render: (c) => <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-red-600">{(c.total_debt ?? 0) - (c.boleto_debt ?? 0) > 0.005 ? fmt(c.total_debt! - (c.boleto_debt ?? 0)) : "–"}{(c.boleto_debt ?? 0) > 0 && <span className="block text-[10px] font-semibold text-fuchsia-700">+ {fmt(c.boleto_debt!)} boleto</span>}</span>,
     },
     {
       header: "Risco",
@@ -366,7 +370,7 @@ export default function Customers() {
       header: "Saldo em aberto",
       className: "text-right",
       headerClassName: "text-right",
-      render: (d) => <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-red-600">{fmt(d.total_debt)}</span>,
+      render: (d) => <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-red-600">{fmt(Math.max(0, d.total_debt - (d.boleto_debt ?? 0)))}{(d.boleto_debt ?? 0) > 0 && <span className="block text-[10px] font-semibold text-fuchsia-700">+ {fmt(d.boleto_debt!)} boleto</span>}</span>,
     },
     {
       header: "Risco",
@@ -448,7 +452,7 @@ export default function Customers() {
       <StatGrid cols={4}>
         <StatCard title="Total Clientes" value={customers.length} icon={Users} color="default" />
         <StatCard title="Com Pendências" value={debtors.length} icon={AlertCircle} color="warning" />
-        <StatCard title="Saldo em Aberto" value={fmt(totalDebt)} icon={DollarSign} color="danger" />
+        <StatCard title="Saldo em Aberto" value={fmt(totalDebt)} description={totalBoleto > 0 ? `+ ${fmt(totalBoleto)} em boleto emitido` : undefined} icon={DollarSign} color="danger" />
         <StatCard title="Clientes em Risco" value={customers.filter(c => c.risk_flag).length} icon={AlertTriangle} color="purple" />
       </StatGrid>
 
@@ -562,7 +566,7 @@ export default function Customers() {
                     <div className="mt-auto flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         {hasDebt ? (
-                          <p className="text-[11px] font-semibold text-rose-600">Em aberto: {fmt(Number(c.total_debt))}</p>
+                          <p className="text-[11px] font-semibold text-rose-600">Em aberto: {fmt(Math.max(0, Number(c.total_debt) - Number(c.boleto_debt ?? 0)))}{Number(c.boleto_debt ?? 0) > 0 && <span className="text-fuchsia-700"> · Boleto: {fmt(Number(c.boleto_debt))}</span>}</p>
                         ) : hasCreditLimit ? (
                           <p className="flex items-center gap-1 text-[11px] font-medium text-slate-500"><WalletCards size={12} /> Limite: {fmt(Number(c.credit_limit))}</p>
                         ) : (

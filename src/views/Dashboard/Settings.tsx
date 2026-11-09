@@ -3838,7 +3838,7 @@ export default function Settings({
                         { key: "debit_card", label: "Débito", emoji: "🏧" },
                         { key: "cash", label: "Dinheiro", emoji: "💵" },
                         { key: "boleto", label: "Boleto", emoji: "📄" },
-                        { key: "boleto_avista", label: "Boleto à vista", emoji: "🧾" },
+                        { key: "boleto_avista", label: "Boleto (à vista/parcelado)", emoji: "🧾" },
                       ] as {
                         key: keyof PaymentMethods;
                         label: string;
@@ -3870,8 +3870,9 @@ export default function Settings({
                     ))}
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    <b>Boleto à vista</b> liga essa forma de pagamento no PDV, na OS e no orçamento. A venda é concluída na hora e o valor
-                    vai para Contas a Receber, entrando no financeiro só quando o boleto for pago.
+                    <b>Boleto (à vista ou parcelado)</b> liga essa forma de pagamento no PDV, na OS e no orçamento. Exige cliente: a venda fica
+                    registrada como Boleto e o valor entra na conta do cliente (como crediário), uma parcela por boleto. A receita só entra no
+                    financeiro quando cada parcela for paga.
                   </p>
                 </div>
 

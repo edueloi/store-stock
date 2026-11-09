@@ -2,6 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import multer from "multer";
 import {
   listCustomers,
+  setInstallmentBoleto,
   getCustomer,
   createCustomer,
   updateCustomer,
@@ -95,6 +96,7 @@ router.post("/:id/debts/:debtId/send-whatsapp", sendCrediarioPaymentWhatsapp);
 router.delete("/:id/debts/:debtId", deleteDebt);
 router.get("/:id/debts/:debtId/installments", listDebtInstallments);
 router.put("/:id/debts/:debtId/installments", updateDebtInstallments);
+router.post("/:id/debts/:debtId/installments/:instId/boleto", setInstallmentBoleto);
 
 // Notes
 router.post("/:id/notes",           createNote);

@@ -6,14 +6,14 @@ import { CARD_BRANDS, CardBrand } from "../lib/payment-constants";
 
 export interface PaymentSegment {
   id: string;
-  method: "money" | "pix" | "debit" | "credit";
+  method: "money" | "pix" | "debit" | "credit" | "boleto";
   cardBrand: CardBrand;
   installments: number;
   amount: string; // valor digitado, string pra permitir campo vazio durante a edição
 }
 
 const METHOD_LABELS: Record<PaymentSegment["method"], string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito",
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", boleto: "Boleto",
 };
 
 const METHOD_COLORS: Record<PaymentSegment["method"], { bg: string; border: string; text: string }> = {
@@ -21,6 +21,7 @@ const METHOD_COLORS: Record<PaymentSegment["method"], { bg: string; border: stri
   pix: { bg: "bg-cyan-600", border: "border-cyan-500", text: "text-cyan-600" },
   debit: { bg: "bg-blue-600", border: "border-blue-500", text: "text-blue-600" },
   credit: { bg: "bg-violet-600", border: "border-violet-500", text: "text-violet-600" },
+  boleto: { bg: "bg-fuchsia-600", border: "border-fuchsia-500", text: "text-fuchsia-600" },
 };
 
 export function newPaymentSegment(amount = ""): PaymentSegment {
@@ -40,6 +41,8 @@ interface PaymentSegmentsEditorProps {
   // No crediário, a diferença positiva é um saldo que continuará em aberto,
   // não um impedimento para registrar o pagamento parcial.
   allowPartial?: boolean;
+  // Mostra "Boleto" como forma de recebimento (loja com boleto habilitado em Configurações > Pagamentos).
+  showBoleto?: boolean;
 }
 
 // Editor de múltiplas formas de pagamento simultâneas (dinheiro + cartão parcelado,
@@ -48,7 +51,7 @@ interface PaymentSegmentsEditorProps {
 // interno, PDVStandalone). Sem opção de "crediário" aqui — pagar fiado com fiado não
 // faz sentido no contexto onde este editor é usado.
 export default function PaymentSegmentsEditor({
-  segments, onChange, cardFees, maxInstallments, enabledBrands, totalToPay, allowPartial = false,
+  segments, onChange, cardFees, maxInstallments, enabledBrands, totalToPay, allowPartial = false, showBoleto = false,
 }: PaymentSegmentsEditorProps) {
   const updateSegment = (id: string, patch: Partial<PaymentSegment>) => {
     onChange(segments.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -68,7 +71,7 @@ export default function PaymentSegmentsEditor({
         <div key={seg.id} className="bg-white border border-slate-200 rounded-lg p-3 space-y-2.5">
           <div className="flex items-center gap-2">
             <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 flex-1">
-              {(["money", "pix", "debit", "credit"] as const).map((m) => {
+              {((showBoleto ? ["money", "pix", "debit", "credit", "boleto"] : ["money", "pix", "debit", "credit"]) as PaymentSegment["method"][]).map((m) => {
                 const colors = METHOD_COLORS[m];
                 return (
                   <button key={m} onClick={() => setMethod(seg.id, m)}

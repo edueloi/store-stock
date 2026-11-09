@@ -32,7 +32,7 @@ export function computeSalePaymentTotals(input: SalePaymentTotalsInput) {
   const { baseAmount, pmString, cardFees, passFeeToCustomer, passFeeByMethod } = input;
   const segments = parsePaymentMethod(pmString);
   const crediarioAmount = segments.find((s) => s.method === "crediario" && s.amount > 0)?.amount ?? 0;
-  // Boleto à vista: a venda fecha, mas o dinheiro só entra quando o boleto for pago.
+  // Boleto (à vista/parcelado): a venda fecha como "Boleto" e vira dívida do cliente; o dinheiro só entra quando as parcelas forem pagas.
   const boletoAmount = segments.find((s) => s.method === "boleto" && s.amount > 0)?.amount ?? 0;
 
   const discountVal = Math.min(Math.max(Number(input.discount) || 0, 0), baseAmount);
@@ -87,42 +87,20 @@ export async function assertCrediarioAllowed(tenantId: number, customerId: numbe
   }
 }
 
-// Boleto à vista só pode ser usado se a loja ligou a forma de pagamento (Configurações >
-// Pagamentos). Evita que um PDV desatualizado/chamada direta use a forma em loja que não tem.
-export async function assertBoletoAllowed(tenantId: number, boletoAmount: number) {
+// Boleto (à vista ou parcelado) só pode ser usado se a loja ligou a forma de pagamento
+// (Configurações > Pagamentos) e exige cliente: ele funciona como um crediário em que a
+// cobrança é feita por boleto — a venda fica registrada como "Boleto" e a dívida do cliente
+// (parcelas e vencimentos) segue o mesmo controle do crediário.
+export async function assertBoletoAllowed(tenantId: number, boletoAmount: number, customerId?: number | null) {
   if (boletoAmount <= 0) return;
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { payment_methods: true } });
   const pm = (tenant?.payment_methods ?? {}) as Record<string, unknown>;
   if (pm.boleto_avista !== true) {
-    throw new SalePaymentError(422, "Boleto à vista não está habilitado nesta loja");
+    throw new SalePaymentError(422, "Boleto não está habilitado nesta loja");
   }
-}
-
-// Lança o boleto à vista em Contas a Receber (vence hoje). A venda não gera receita no
-// Finance agora: o valor só entra quando o boleto for baixado como recebido.
-export async function createBoletoReceivable(params: {
-  tenantId: number;
-  orderId: number;
-  customerName?: string | null;
-  description: string;
-  boletoAmount: number;
-}) {
-  const today = new Date();
-  const dueDate = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
-  await prisma.accountReceivable.create({
-    data: {
-      tenant_id: params.tenantId,
-      description: `${params.description} — Boleto à vista (pedido #${params.orderId})`,
-      amount: params.boletoAmount,
-      due_date: dueDate,
-      status: "pending",
-      category: "Venda",
-      customer_name: params.customerName || null,
-      payment_method: "boleto",
-      order_id: params.orderId,
-      notes: `Gerado automaticamente pela venda #${params.orderId}.`,
-    },
-  });
+  if (!customerId) throw new SalePaymentError(422, "Boleto requer um cliente selecionado");
+  const customer = await prisma.customer.findFirst({ where: { id: customerId, tenant_id: tenantId }, select: { id: true } });
+  if (!customer) throw new SalePaymentError(404, "Cliente não encontrado");
 }
 
 // Registra a parte fiada como dívida do cliente (vinculada ao Order), dividida em parcelas.
@@ -134,6 +112,8 @@ export async function createCrediarioDebt(params: {
   crediarioAmount: number;
   installments?: number;
   firstDueDate?: string;
+  // "boleto": as parcelas já nascem como "boleto emitido" (cobrança por boleto)
+  billingMethod?: string | null;
 }) {
   const { tenantId, customerId, orderId, description, crediarioAmount } = params;
   const installmentsCount = Math.max(1, Math.floor(params.installments ?? 1));
@@ -167,7 +147,7 @@ export async function createCrediarioDebt(params: {
       const dueDate = new Date(firstDueDate);
       dueDate.setMonth(dueDate.getMonth() + i);
       await tx.customerDebtInstallment.create({
-        data: { tenant_id: tenantId, debt_id: debt.id, number: i + 1, due_date: dueDate, amount, status: "open" },
+        data: { tenant_id: tenantId, debt_id: debt.id, number: i + 1, due_date: dueDate, amount, status: "open", billing_method: params.billingMethod ?? null },
       });
     }
   });

@@ -1319,6 +1319,9 @@ model CustomerDebtInstallment {
   // recibos/relatórios distinguirem principal de juros depois.
   interest_amount     Decimal   @default(0) @db.Decimal(10, 2)
   interest_applied_at DateTime?
+  // Forma de cobrança combinada para esta parcela. "boleto" = o boleto já foi emitido e a parcela
+  // não conta como "Em aberto" sem cobrança — aparece como "Boleto emitido" até a baixa. Null = normal.
+  billing_method      String?
   created_at          DateTime  @default(now())
   updated_at          DateTime  @updatedAt
 

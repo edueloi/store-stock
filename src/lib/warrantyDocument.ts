@@ -52,7 +52,7 @@ const formatQuantity = (value: number) => Number(value || 0).toLocaleString("pt-
 
 function formatPayment(payment?: string | null) {
   if (!payment) return "Não informado";
-  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto à vista" };
+  const labels: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto" };
   return payment.split("|").map((segment) => {
     const [methodPart] = segment.trim().split(":");
     const [method, brand, installments] = methodPart.split("-");

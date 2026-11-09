@@ -137,6 +137,7 @@ export function computeSalePayment(baseAmount: number, state: SalePaymentFormSta
 export function buildSalePayload(baseAmount: number, state: SalePaymentFormState, settings: SalePaymentSettings) {
   const calc = computeSalePayment(baseAmount, state, settings);
   const crediario = state.payments.find((p) => p.method === "crediario");
+  const boleto = state.payments.find((p) => p.method === "boleto");
   return {
     payment_method: buildSalePmString(state.payments) || "money",
     seller_id: state.sellerId || undefined,
@@ -145,6 +146,8 @@ export function buildSalePayload(baseAmount: number, state: SalePaymentFormState
     change_amount: calc.change > 0 ? calc.change : undefined,
     crediario_installments: crediario?.crediarioInstallments,
     crediario_first_due_date: crediario?.crediarioFirstDueDate,
+    boleto_installments: boleto?.crediarioInstallments,
+    boleto_first_due_date: boleto?.crediarioFirstDueDate,
   };
 }
 
@@ -287,8 +290,16 @@ export default function SalePaymentForm({
                       <Clock size={13} />{PM_LABEL.crediario}
                     </button>
                     {settings.boletoEnabled && (
-                      <button type="button" onClick={() => handleMethodChange(p.id, "boleto")}
-                        className={methodBtn(p.method === "boleto", "border-violet-500 bg-violet-600")}>
+                      <button type="button" disabled={!hasCustomer && p.method !== "boleto"}
+                        title={!hasCustomer ? "Selecione um cliente para vender no boleto" : undefined}
+                        onClick={() => {
+                          handleMethodChange(p.id, "boleto");
+                          // à vista é o padrão: vence hoje (o operador ajusta se for parcelado)
+                          const d = new Date();
+                          const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                          updatePayment(p.id, { crediarioFirstDueDate: today, crediarioInstallments: 1 });
+                        }}
+                        className={cn(methodBtn(p.method === "boleto", "border-violet-500 bg-violet-600"), "disabled:cursor-not-allowed disabled:opacity-40")}>
                         <FileText size={13} />{PM_LABEL.boleto}
                       </button>
                     )}
@@ -351,10 +362,23 @@ export default function SalePaymentForm({
                 )}
 
                 {p.method === "boleto" && (
-                  <p className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-medium text-violet-700">
-                    Boleto à vista: a venda é concluída e o valor vai para Contas a Receber (vence hoje). Ele só entra no
-                    financeiro quando você der baixa no boleto.
-                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input label="Nº de parcelas (1 = à vista)" type="number" min="1" max="24" step="1" className="font-mono"
+                      value={p.crediarioInstallments}
+                      onChange={(e) => updatePayment(p.id, { crediarioInstallments: Math.max(1, Number(e.target.value) || 1) })} />
+                    <Input label="Vencimento 1º boleto" type="date" className="font-mono"
+                      value={p.crediarioFirstDueDate}
+                      onChange={(e) => updatePayment(p.id, { crediarioFirstDueDate: e.target.value })} />
+                    {p.crediarioInstallments > 1 && pAmt > 0 && (
+                      <p className="col-span-2 text-[11px] font-medium text-violet-700">
+                        {p.crediarioInstallments}x de {fmtBRL(pAmt / p.crediarioInstallments)}
+                      </p>
+                    )}
+                    <p className="col-span-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-medium text-violet-700">
+                      A venda fica registrada como <b>Boleto</b> e o valor entra na conta do cliente (como crediário), com uma parcela
+                      por boleto. A receita só entra quando você der baixa em cada parcela.
+                    </p>
+                  </div>
                 )}
 
                 {p.method === "crediario" && (

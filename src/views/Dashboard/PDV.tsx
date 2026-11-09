@@ -141,7 +141,7 @@ interface TenantInfo {
 }
 
 const PM_LABEL: Record<PaymentMethod, string> = {
-  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário", boleto: "Boleto à vista",
+  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário", boleto: "Boleto",
 };
 
 // Sugestão de juros pro-rata sobre o valor restante da parcela — sempre calculada na
@@ -1696,6 +1696,10 @@ export default function PDV() {
       setSaleError("Selecione um cliente para vender no crediário");
       return;
     }
+    if (payments.some((p) => p.method === "boleto") && !selectedCustomerId) {
+      setSaleError("Selecione um cliente para vender no boleto");
+      return;
+    }
     finishingRef.current = true;
     setFinishing(true);
     setSaleError(null);
@@ -1708,6 +1712,7 @@ export default function PDV() {
       }).join("|");
 
       const crediarioPayment = payments.find((p) => p.method === "crediario");
+      const boletoPayment = payments.find((p) => p.method === "boleto");
 
       const res = await fetch("/api/sales", {
         method: "POST",
@@ -1738,6 +1743,8 @@ export default function PDV() {
           passFeeByMethod,
           crediarioInstallments: crediarioPayment?.crediarioInstallments ?? undefined,
           crediarioFirstDueDate: crediarioPayment?.crediarioFirstDueDate ?? undefined,
+          boletoInstallments: boletoPayment?.crediarioInstallments ?? undefined,
+          boletoFirstDueDate: boletoPayment?.crediarioFirstDueDate ?? undefined,
           cashSessionId: cashSession?.id ?? null,
           heldSaleId: activeHeldSaleId ?? undefined,
           clientSaleId: saleClientIdRef.current,
@@ -3423,9 +3430,17 @@ export default function PDV() {
                                     </button>
                                     {boletoEnabled && (
                                       <button
-                                        onClick={() => { handleMethodChange(p.id, "boleto"); setMorePaymentMenuFor(null); }}
+                                        onClick={() => {
+                                          if (!selectedCustomerId) { setSaleError("Selecione um cliente para vender no boleto"); setMorePaymentMenuFor(null); return; }
+                                          handleMethodChange(p.id, "boleto");
+                                          // à vista é o padrão: vence hoje (o operador ajusta se for parcelado)
+                                          const d = new Date();
+                                          const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                                          updatePayment(p.id, { crediarioFirstDueDate: today, crediarioInstallments: 1 });
+                                          setMorePaymentMenuFor(null);
+                                        }}
                                         className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-violet-50 transition-colors">
-                                        <FileText size={13} className="text-violet-600" /> Boleto à vista
+                                        <FileText size={13} className="text-violet-600" /> Boleto (à vista ou parcelado)
                                       </button>
                                     )}
                                   </div>
@@ -3505,11 +3520,32 @@ export default function PDV() {
                             );
                           })()}
 
-                          {/* boleto à vista */}
+                          {/* boleto (à vista ou parcelado) — funciona como crediário, cobrança por boleto */}
                           {p.method === "boleto" && (
-                            <p className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-semibold text-violet-700">
-                              Boleto à vista: a venda é concluída e o valor vai para Contas a Receber (vence hoje). Só entra no financeiro quando você der baixa no boleto.
-                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Nº de parcelas (1 = à vista)</label>
+                                <input type="number" min="1" max="24" step="1"
+                                  className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-semibold text-slate-800 focus:outline-none focus:border-violet-500"
+                                  value={p.crediarioInstallments}
+                                  onChange={(e) => updatePayment(p.id, { crediarioInstallments: Math.max(1, Number(e.target.value) || 1) })} />
+                              </div>
+                              <div>
+                                <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Vencimento 1º boleto</label>
+                                <input type="date"
+                                  className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-semibold text-slate-800 focus:outline-none focus:border-violet-500"
+                                  value={p.crediarioFirstDueDate}
+                                  onChange={(e) => updatePayment(p.id, { crediarioFirstDueDate: e.target.value })} />
+                              </div>
+                              {p.crediarioInstallments > 1 && Number(p.amount) > 0 && (
+                                <p className="col-span-2 text-[11px] font-semibold text-violet-600">
+                                  {p.crediarioInstallments}x de R$ {(Number(p.amount) / p.crediarioInstallments).toFixed(2)}
+                                </p>
+                              )}
+                              <p className="col-span-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-semibold text-violet-700">
+                                A venda fica registrada como Boleto e o valor entra na conta do cliente (como crediário), uma parcela por boleto. A receita só entra quando você der baixa em cada parcela.
+                              </p>
+                            </div>
                           )}
 
                           {/* parcelamento do crediário */}

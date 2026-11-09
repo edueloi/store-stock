@@ -5,7 +5,7 @@ import type { AuthenticatedRequest } from "../types/auth";
 import { awardPointsForOrder } from "./loyalty.controller";
 import { localDateString } from "../utils/date";
 import { parsePaymentMethod, buildMethodSummary, computeSegmentFeeRaw, normalizePaymentMethodString } from "../utils/payment-method";
-import { assertBoletoAllowed, createBoletoReceivable, SalePaymentError } from "../utils/sale-payment";
+import { assertBoletoAllowed, createCrediarioDebt, SalePaymentError } from "../utils/sale-payment";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { emitToTenant } from "../services/realtime.service";
 import { expireWhatsappReservations } from "../services/whatsapp-held-sale.service";
@@ -78,6 +78,9 @@ interface FinalizeSaleParams {
   // nº de parcelas do crediário (default 1) e vencimento da 1ª parcela (default hoje +30d)
   crediarioInstallments?: number;
   crediarioFirstDueDate?: string;
+  // Boleto: mesmo esquema do crediário (nº de parcelas e vencimento da 1ª; 1 parcela = à vista)
+  boletoInstallments?: number;
+  boletoFirstDueDate?: string;
   // sessão de caixa aberta no momento da venda (obrigatória quando o tenant exige controle de caixa)
   cashSessionId?: number | null;
   // true quando esta chamada é a sincronização de uma venda feita offline — nesse caso
@@ -96,7 +99,7 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
     tenantId, items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod,
     discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
     soldAtDate, decrementStock, descriptionPrefix,
-    crediarioInstallments, crediarioFirstDueDate,
+    crediarioInstallments, crediarioFirstDueDate, boletoInstallments, boletoFirstDueDate,
     cashSessionId, isOfflineSync, heldSaleId, changeAmount,
   } = params;
 
@@ -180,11 +183,12 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
       }
     }
 
-    // Boleto à vista: a venda fecha agora, mas o valor só vira receita quando o boleto for pago
-    // (fica em Contas a Receber). Só vale se a loja habilitou a forma de pagamento.
+    // Boleto (à vista ou parcelado): funciona como crediário em que a cobrança é por boleto — a venda
+    // fica registrada como "Boleto" e o valor vira dívida do cliente (parcelas/vencimentos), só virando
+    // receita quando as parcelas forem pagas. Exige cliente e a forma habilitada na loja.
     const boletoAmount = pmSegments.find((s) => s.method === "boleto" && s.amount > 0)?.amount ?? 0;
     try {
-      await assertBoletoAllowed(tenantId, boletoAmount);
+      await assertBoletoAllowed(tenantId, boletoAmount, customerId);
     } catch (e) {
       if (e instanceof SalePaymentError) throw new SaleError(e.status, e.message);
       throw e;
@@ -454,7 +458,7 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
     // A parte fiada (crediário) não é receita de caixa agora — só quando o
     // cliente pagar a dívida (mesmo princípio já usado em payDebt). O Finance
     // desta venda reflete só o que efetivamente entrou no caixa/recebível imediato.
-    // O boleto à vista segue a mesma regra: só vira receita ao ser recebido em Contas a Receber.
+    // O boleto segue a mesma regra do crediário: só vira receita quando as parcelas forem pagas.
     const nonCrediarioNet   = Math.round((netAmount - crediarioAmount - boletoAmount) * 100) / 100;
     const nonCrediarioGross = Math.round((grossAmount - crediarioAmount - boletoAmount) * 100) / 100;
     if (nonCrediarioNet > 0.009) {
@@ -532,13 +536,18 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
       });
     }
 
-    if (boletoAmount > 0) {
-      await createBoletoReceivable({
+    if (boletoAmount > 0 && customerId) {
+      const parcelas = Math.max(1, Math.floor(boletoInstallments ?? 1));
+      await createCrediarioDebt({
         tenantId,
+        customerId,
         orderId: order.id,
-        customerName: resolvedCustomerName === "Balcão" ? null : resolvedCustomerName,
-        description: `Venda PDV #${order.id}`,
-        boletoAmount,
+        description: `Venda PDV #${order.id} — Boleto${parcelas > 1 ? ` ${parcelas}x` : " à vista"}`,
+        crediarioAmount: boletoAmount,
+        installments: parcelas,
+        // à vista = vence hoje, a menos que o operador escolha outra data
+        firstDueDate: boletoFirstDueDate || localDateString().toISOString().slice(0, 10),
+        billingMethod: "boleto",
       });
     }
 
@@ -555,7 +564,8 @@ export async function createSale(req: Request, res: Response) {
   const {
     items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod, discount, surcharge,
     sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId, soldAtDate,
-    crediarioInstallments, crediarioFirstDueDate, cashSessionId, isOfflineSync, heldSaleId, changeAmount,
+    crediarioInstallments, crediarioFirstDueDate, boletoInstallments, boletoFirstDueDate,
+    cashSessionId, isOfflineSync, heldSaleId, changeAmount,
   } = req.body as {
     items: SaleItemInput[];
     services?: ServiceItemInput[];
@@ -573,6 +583,8 @@ export async function createSale(req: Request, res: Response) {
     soldAtDate?: string;
     crediarioInstallments?: number;
     crediarioFirstDueDate?: string;
+    boletoInstallments?: number;
+    boletoFirstDueDate?: string;
     cashSessionId?: number | null;
     isOfflineSync?: boolean;
     heldSaleId?: number | null;
@@ -587,7 +599,7 @@ export async function createSale(req: Request, res: Response) {
       tenantId, items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod,
       discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
       soldAtDate, decrementStock: true,
-      crediarioInstallments, crediarioFirstDueDate,
+      crediarioInstallments, crediarioFirstDueDate, boletoInstallments, boletoFirstDueDate,
       cashSessionId, isOfflineSync, heldSaleId, changeAmount,
     });
 

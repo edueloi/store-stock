@@ -56,7 +56,7 @@ const CARD_BRANDS: { key: CardBrand; label: string; color: string }[] = [
 ];
 
 const PM_LABEL: Record<PaymentMethod, string> = {
-  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário", boleto: "Boleto à vista",
+  money: "Dinheiro", debit: "Débito", credit: "Crédito", pix: "PIX", crediario: "Crediário", boleto: "Boleto",
 };
 
 // Sugestão de juros pro-rata sobre o valor restante da parcela — sempre calculada na
@@ -2270,6 +2270,10 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
       setSaleError("Selecione um cliente para vender no crediário");
       return;
     }
+    if (payments.some((p) => p.method === "boleto") && !selectedCustomerId) {
+      setSaleError("Selecione um cliente para vender no boleto");
+      return;
+    }
     setFinishing(true);
 
     const pmString = payments.map((p) => {
@@ -2281,6 +2285,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
     const selectedSeller = sellers.find((s) => s.id === selectedSellerId);
     const clientSaleId = crypto.randomUUID();
     const crediarioPayment = payments.find((p) => p.method === "crediario");
+    const boletoPayment = payments.find((p) => p.method === "boleto");
     const saleBody = {
       items: cart.map((i) => ({
         id: i.isAvulso ? undefined : i.id,
@@ -2313,6 +2318,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
       passFeeByMethod,
       crediarioInstallments: crediarioPayment?.crediarioInstallments ?? undefined,
       crediarioFirstDueDate: crediarioPayment?.crediarioFirstDueDate ?? undefined,
+      boletoInstallments: boletoPayment?.crediarioInstallments ?? undefined,
+      boletoFirstDueDate: boletoPayment?.crediarioFirstDueDate ?? undefined,
       // when the open session itself was created offline, `id` is a placeholder —
       // cashSessionLocalId lets the sync worker swap in the real id once it exists
       cashSessionId: cashSession?.localId ? null : cashSession?.id ?? null,
@@ -3912,6 +3919,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                             crediarioEnabled={!!selectedCustomerId}
                             boletoEnabled={boletoEnabled}
                             onCrediarioBlocked={() => setSaleError("Selecione um cliente para vender no crediário")}
+                            onBoletoBlocked={() => setSaleError("Selecione um cliente para vender no boleto")}
                             morePaymentMenuFor={morePaymentMenuFor}
                             onToggleMoreMenu={(id) => setMorePaymentMenuFor(morePaymentMenuFor === id ? null : id)}
                           />
@@ -5185,7 +5193,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 // ─── PAYMENT ROW (memoizado para não perder foco no input) ───────────────────
 const PaymentRow = React.memo(function PaymentRow({
   payment: p, idx, total, paidAmount, showRemove, cardFees, maxInstallments, passFeeByMethod, enabledBrands, isOnline, onMethodChange, onUpdate, onRemove,
-  crediarioEnabled, boletoEnabled, onCrediarioBlocked, morePaymentMenuFor, onToggleMoreMenu,
+  crediarioEnabled, boletoEnabled, onCrediarioBlocked, onBoletoBlocked, morePaymentMenuFor, onToggleMoreMenu,
 }: {
   payment: PaymentEntry; idx: number; total: number; paidAmount: number;
   showRemove: boolean; cardFees: Record<string, number[]>;
@@ -5199,6 +5207,7 @@ const PaymentRow = React.memo(function PaymentRow({
   crediarioEnabled: boolean;
   boletoEnabled: boolean;
   onCrediarioBlocked: () => void;
+  onBoletoBlocked: () => void;
   morePaymentMenuFor: string | null;
   onToggleMoreMenu: (id: string) => void;
 }) {
@@ -5275,9 +5284,16 @@ const PaymentRow = React.memo(function PaymentRow({
                 </button>
                 {boletoEnabled && (
                   <button
-                    onClick={() => onMethodChange(p.id, "boleto")}
+                    onClick={() => {
+                      if (!crediarioEnabled) { onBoletoBlocked(); return; }
+                      onMethodChange(p.id, "boleto");
+                      // à vista é o padrão: vence hoje (o operador ajusta se for parcelado)
+                      const d = new Date();
+                      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                      onUpdate(p.id, { crediarioFirstDueDate: today, crediarioInstallments: 1 });
+                    }}
                     className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-violet-50 transition-colors">
-                    <FileText size={13} className="text-violet-600" /> Boleto à vista
+                    <FileText size={13} className="text-violet-600" /> Boleto (à vista ou parcelado)
                   </button>
                 )}
               </div>
@@ -5291,10 +5307,32 @@ const PaymentRow = React.memo(function PaymentRow({
         )}
       </div>
 
+      {/* Boleto (à vista ou parcelado) — funciona como crediário, cobrança por boleto */}
       {p.method === "boleto" && (
-        <p className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-semibold text-violet-700">
-          Boleto à vista: a venda é concluída e o valor vai para Contas a Receber (vence hoje). Só entra no financeiro quando você der baixa no boleto.
-        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Nº de parcelas (1 = à vista)</label>
+            <input type="number" min="1" max="24" step="1"
+              className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-semibold text-slate-800 focus:outline-none focus:border-violet-500"
+              value={p.crediarioInstallments}
+              onChange={(e) => onUpdate(p.id, { crediarioInstallments: Math.max(1, Number(e.target.value) || 1) })} />
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Vencimento 1º boleto</label>
+            <input type="date"
+              className="w-full h-9 px-2 bg-white border border-slate-200 rounded-lg text-[12px] font-mono font-semibold text-slate-800 focus:outline-none focus:border-violet-500"
+              value={p.crediarioFirstDueDate}
+              onChange={(e) => onUpdate(p.id, { crediarioFirstDueDate: e.target.value })} />
+          </div>
+          {p.crediarioInstallments > 1 && pAmt > 0 && (
+            <p className="col-span-2 text-[11px] font-semibold text-violet-600">
+              {p.crediarioInstallments}x de R$ {(pAmt / p.crediarioInstallments).toFixed(2)}
+            </p>
+          )}
+          <p className="col-span-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-[11px] font-semibold text-violet-700">
+            A venda fica registrada como Boleto e o valor entra na conta do cliente (como crediário), uma parcela por boleto. A receita só entra quando você der baixa em cada parcela.
+          </p>
+        </div>
       )}
 
       {/* toggle crédito/débito dentro de "Cartão" */}

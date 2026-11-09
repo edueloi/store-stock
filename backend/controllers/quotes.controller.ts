@@ -10,7 +10,7 @@ import { sanitizePieceSpec } from "../utils/glassPieces";
 import { emitToTenant } from "../services/realtime.service";
 import { recomputeTotals as recomputeServiceOrderTotals } from "./service-orders.controller";
 import { buildMethodSummary } from "../utils/payment-method";
-import { computeSalePaymentTotals, assertCrediarioAllowed, assertBoletoAllowed, createCrediarioDebt, createBoletoReceivable, SalePaymentError } from "../utils/sale-payment";
+import { computeSalePaymentTotals, assertCrediarioAllowed, assertBoletoAllowed, createCrediarioDebt, SalePaymentError } from "../utils/sale-payment";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -701,6 +701,7 @@ export async function convertToOrder(req: Request, res: Response) {
       seller_id?: number;
       discount?: number; surcharge?: number; change_amount?: number;
       crediario_installments?: number; crediario_first_due_date?: string;
+      boleto_installments?: number; boleto_first_due_date?: string;
     };
     const { seller_id } = body;
 
@@ -731,7 +732,7 @@ export async function convertToOrder(req: Request, res: Response) {
     });
     const { crediarioAmount, boletoAmount, discountVal: extraDiscount, surchargeVal, roundedFee, roundedPassedFee } = calc;
     await assertCrediarioAllowed(tenantId, quote.customer_id, crediarioAmount);
-    await assertBoletoAllowed(tenantId, boletoAmount);
+    await assertBoletoAllowed(tenantId, boletoAmount, quote.customer_id);
 
     // Total do pedido = total do orçamento ajustado pelo que mudou neste pagamento.
     const totalAmount = Math.round((quoteTotal - extraDiscount + surchargeVal + roundedPassedFee) * 100) / 100;
@@ -822,13 +823,17 @@ export async function convertToOrder(req: Request, res: Response) {
       });
     }
 
-    if (boletoAmount > 0) {
-      await createBoletoReceivable({
+    if (boletoAmount > 0 && quote.customer_id) {
+      const parcelas = Math.max(1, Math.floor(body.boleto_installments ?? 1));
+      await createCrediarioDebt({
         tenantId,
+        customerId: quote.customer_id,
         orderId: order.id,
-        customerName: quote.customer_name,
-        description: `Venda (Orç. #${quote.number})`,
-        boletoAmount,
+        description: `Venda (Orç. #${quote.number}) — Boleto${parcelas > 1 ? ` ${parcelas}x` : " à vista"}`,
+        crediarioAmount: boletoAmount,
+        installments: parcelas,
+        firstDueDate: body.boleto_first_due_date || localDateString().toISOString().slice(0, 10),
+        billingMethod: "boleto",
       });
     }
 

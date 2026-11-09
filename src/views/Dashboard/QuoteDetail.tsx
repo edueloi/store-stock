@@ -935,7 +935,7 @@ export default function QuoteDetail() {
   const amountDue  = Math.max(0, quoteTotal - depositAlready);
   const convertSettings = parseSalePaymentSettings(tenant);
   const convertCalc = computeSalePayment(amountDue, convertForm, convertSettings);
-  const convertHasCrediarioWithoutCustomer = convertForm.payments.some((p) => p.method === "crediario") && !quote.customer_id;
+  const convertHasCrediarioWithoutCustomer = convertForm.payments.some((p) => p.method === "crediario" || p.method === "boleto") && !quote.customer_id;
 
   return (
     <div className="space-y-4">

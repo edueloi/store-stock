@@ -27,7 +27,7 @@ interface CloseCashSessionModalProps {
 }
 
 const METHOD_LABELS: Record<string, string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto à vista",
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto",
 };
 
 function fmt(v: number | string) {

@@ -4,7 +4,7 @@ import { parsePaymentMethod } from "../utils/payment-method";
 import { sendReportEmail, baseTemplate } from "./mailer.service";
 
 const PM_LABEL: Record<string, string> = {
-  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto à vista",
+  money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto",
 };
 
 function money(v: number): string {

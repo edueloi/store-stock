@@ -12,7 +12,7 @@ import { getWorkflowStagesForTenant } from "../utils/workflow-stages";
 import { cancelarNfce } from "../services/nfce/cancelar";
 import { emitToTenant } from "../services/realtime.service";
 import { buildMethodSummary } from "../utils/payment-method";
-import { computeSalePaymentTotals, assertCrediarioAllowed, assertBoletoAllowed, createCrediarioDebt, createBoletoReceivable, SalePaymentError } from "../utils/sale-payment";
+import { computeSalePaymentTotals, assertCrediarioAllowed, assertBoletoAllowed, createCrediarioDebt, SalePaymentError } from "../utils/sale-payment";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -1137,6 +1137,7 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
       payment_method?: string; seller_id?: number;
       discount?: number; surcharge?: number; change_amount?: number;
       crediario_installments?: number; crediario_first_due_date?: string;
+      boleto_installments?: number; boleto_first_due_date?: string;
     };
     const { seller_id } = body;
     const pmString = body.payment_method || "money";
@@ -1159,7 +1160,7 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
     });
     const { crediarioAmount, boletoAmount, discountVal, surchargeVal, roundedFee, roundedPassedFee } = calc;
     await assertCrediarioAllowed(tenantId, order.customer_id, crediarioAmount);
-    await assertBoletoAllowed(tenantId, boletoAmount);
+    await assertBoletoAllowed(tenantId, boletoAmount, order.customer_id);
 
     const roundedFeeFinal = roundedFee;
     const totalAmount = calc.payableTotal;
@@ -1281,13 +1282,17 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
       });
     }
 
-    if (boletoAmount > 0) {
-      await createBoletoReceivable({
+    if (boletoAmount > 0 && order.customer_id) {
+      const parcelas = Math.max(1, Math.floor(body.boleto_installments ?? 1));
+      await createCrediarioDebt({
         tenantId,
+        customerId: order.customer_id,
         orderId: newOrder.id,
-        customerName: order.customer_name,
-        description: `Faturamento OS #${order.number}`,
-        boletoAmount,
+        description: `Faturamento OS #${order.number} — Boleto${parcelas > 1 ? ` ${parcelas}x` : " à vista"}`,
+        crediarioAmount: boletoAmount,
+        installments: parcelas,
+        firstDueDate: body.boleto_first_due_date || localDateString().toISOString().slice(0, 10),
+        billingMethod: "boleto",
       });
     }
 

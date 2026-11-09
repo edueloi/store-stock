@@ -32,7 +32,7 @@ export async function registerDebtPaymentMulti(
   expectedRemaining?: number,
 ) {
   if (!Array.isArray(segments) || segments.some(seg =>
-    !["money", "pix", "debit", "credit"].includes(seg.method)
+    !["money", "pix", "debit", "credit", "boleto"].includes(seg.method)
     || !Number.isFinite(Number(seg.amount)) || Number(seg.amount) <= 0
   ) || !Number.isFinite(Number(discount)) || Number(discount) < 0) throw new Error("INVALID_AMOUNT");
   const totalAmount = segments.reduce((sum, seg) => sum + Math.round(Number(seg.amount) * 100), 0) / 100;
