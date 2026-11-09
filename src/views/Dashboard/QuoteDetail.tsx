@@ -45,6 +45,7 @@ import {
   Button, IconButton, Badge, Input, Textarea, Select, Modal, ModalFooter, Tabs,
   ContentCard, PanelCard, DetailField, EmptyState,
 } from "../../components/ui";
+import { describeDownPayment } from "../../lib/quoteTerms";
 import SalePaymentForm, { SalePaymentFormState, newSalePaymentFormState, parseSalePaymentSettings, computeSalePayment, buildSalePayload } from "../../components/SalePaymentForm";
 import Combobox from "../../components/ui/Combobox";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
@@ -115,6 +116,10 @@ interface Quote {
   total_amount: number;
   validity_days: number;
   notes?: string;
+  delivery_deadline?: string | null;
+  payment_terms?: string | null;
+  down_payment_type?: "none" | "percent" | "fixed" | null;
+  down_payment_value?: number | null;
   status: "rascunho" | "orcamento_enviado" | "aguardando_aprovacao" | "aprovado" | "aguardando_arte" | "arte_finalizada" | "converted" | "cancelled" | "expired";
   converted_order_id?: number | null;
   deposit_amount?: number | null;
@@ -347,6 +352,11 @@ export default function QuoteDetail() {
   const [discountValue, setDiscountValue] = useState(0);
   const [validityDays, setValidityDays] = useState(7);
   const [notes, setNotes] = useState("");
+  // Condições comerciais combinadas (prazo de entrega, forma de pagamento, entrada).
+  const [deliveryDeadline, setDeliveryDeadline] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState("");
+  const [downType, setDownType] = useState<"" | "none" | "percent" | "fixed">("");
+  const [downValue, setDownValue] = useState("");
   const [starting, setStarting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
@@ -407,6 +417,10 @@ export default function QuoteDetail() {
     setDiscountValue(Number(q.discount_value));
     setValidityDays(q.validity_days);
     setNotes(q.notes ?? "");
+    setDeliveryDeadline(q.delivery_deadline ?? "");
+    setPaymentTerms(q.payment_terms ?? "");
+    setDownType((q.down_payment_type as "none" | "percent" | "fixed" | null) ?? "");
+    setDownValue(q.down_payment_value != null ? String(q.down_payment_value) : "");
   }, []);
 
   // Ao carregar (ou recarregar customers), troca o cliente reidratado (só nome/telefone/email,
@@ -1134,6 +1148,56 @@ export default function QuoteDetail() {
                         onChange={(e) => setValidityDays(Number(e.target.value))}
                         onBlur={() => autosaveField({ validity_days: validityDays }, "validity_days")}
                       />
+                    </div>
+                    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                      <p className="text-[11px] font-semibold text-slate-600">Condições comerciais</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Input
+                          label="Prazo de entrega" value={deliveryDeadline} disabled={!isEditable} maxLength={191}
+                          onChange={(e) => setDeliveryDeadline(e.target.value)}
+                          onBlur={() => autosaveField({ delivery_deadline: deliveryDeadline }, "delivery_deadline")}
+                          placeholder="Ex.: 15 dias úteis após a aprovação"
+                        />
+                        <Input
+                          label="Forma de pagamento" value={paymentTerms} disabled={!isEditable} maxLength={255} list="quote-payment-terms"
+                          onChange={(e) => setPaymentTerms(e.target.value)}
+                          onBlur={() => autosaveField({ payment_terms: paymentTerms }, "payment_terms")}
+                          placeholder="Ex.: PIX, boleto em 3x, cartão"
+                        />
+                        <datalist id="quote-payment-terms">
+                          {["PIX", "Dinheiro", "Cartão de crédito", "Cartão de débito", "Boleto à vista", "Boleto parcelado", "Crediário", "PIX ou cartão"].map((o) => <option key={o} value={o} />)}
+                        </datalist>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Select
+                          label="Entrada" value={downType} disabled={!isEditable}
+                          onChange={(e) => {
+                            const t = e.target.value as "" | "none" | "percent" | "fixed";
+                            setDownType(t);
+                            const v = t === "percent" || t === "fixed" ? Number(downValue.replace(",", ".")) || 0 : 0;
+                            if (t !== "percent" && t !== "fixed") setDownValue("");
+                            autosaveField({ down_payment_type: t || null, down_payment_value: v > 0 ? v : null }, "down_payment");
+                          }}
+                        >
+                          <option value="">Não informada</option>
+                          <option value="none">Sem entrada</option>
+                          <option value="percent">Com entrada — percentual (%)</option>
+                          <option value="fixed">Com entrada — valor (R$)</option>
+                        </Select>
+                        {(downType === "percent" || downType === "fixed") && (
+                          <Input
+                            label={downType === "percent" ? "Entrada (%)" : "Entrada (R$)"} type="number" min={0} step="0.01"
+                            value={downValue} disabled={!isEditable} onChange={(e) => setDownValue(e.target.value)}
+                            onBlur={() => autosaveField({ down_payment_type: downType, down_payment_value: Number(downValue.replace(",", ".")) || null }, "down_payment")}
+                            placeholder={downType === "percent" ? "Ex.: 30" : "Ex.: 500,00"}
+                          />
+                        )}
+                      </div>
+                      {describeDownPayment(downType || null, Number(downValue.replace(",", ".")) || null, Number(quote.total_amount)) && (
+                        <p className="text-[11px] font-medium text-slate-500">
+                          {describeDownPayment(downType || null, Number(downValue.replace(",", ".")) || null, Number(quote.total_amount))}
+                        </p>
+                      )}
                     </div>
                     <Textarea
                       label="Observações / Condições de pagamento"

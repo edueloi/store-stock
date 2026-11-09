@@ -1416,6 +1416,11 @@ model Quote {
   total_amount       Decimal @default(0) @db.Decimal(10, 2)
   validity_days      Int     @default(7)
   notes              String? @db.Text
+  // Condições comerciais combinadas (saem no PDF e na página de aprovação do cliente).
+  delivery_deadline  String?                       // prazo de entrega, texto livre (ex.: "15 dias úteis")
+  payment_terms      String?                       // formas de pagamento aceitas/combinadas (texto livre)
+  down_payment_type  String?                       // null = não informado | none | percent | fixed
+  down_payment_value Decimal? @db.Decimal(10, 2)   // % ou R$, conforme down_payment_type
   status             String  @default("rascunho") // rascunho | orcamento_enviado | aguardando_aprovacao | aprovado | converted | cancelled | expired
   converted_order_id Int?
 

@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, FileWarning, Loader2, ThumbsUp } from "lucide-reac
 import GlassDrawing from "../../components/GlassDrawing";
 import type { PieceSpec } from "../../lib/glassPieces";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
+import { commercialTermsLines } from "../../lib/quoteTerms";
 import { Button, Alert, ContentCard, EmptyState } from "../../components/ui";
 
 interface QuoteItem {
@@ -37,6 +38,10 @@ interface PublicQuote {
   total_amount: number;
   validity_days: number;
   notes: string | null;
+  delivery_deadline?: string | null;
+  payment_terms?: string | null;
+  down_payment_type?: string | null;
+  down_payment_value?: number | string | null;
   status: string;
   approved_by_client: boolean;
   approved_at: string | null;
@@ -174,6 +179,17 @@ export default function QuoteApproval() {
               <span className="font-mono">{fmt(quote.total_amount)}</span>
             </div>
           </div>
+
+          {commercialTermsLines(quote).length > 0 && (
+            <div className="space-y-1.5 border-t border-slate-100 pt-3">
+              <p className="text-[11px] font-semibold text-slate-400 mb-1">Condições</p>
+              {commercialTermsLines(quote).map((line) => (
+                <p key={line.label} className="text-sm text-slate-700">
+                  <span className="text-slate-500">{line.label}:</span> <b>{line.value}</b>
+                </p>
+              ))}
+            </div>
+          )}
 
           {quote.notes && (
             <div className="border-t border-slate-100 pt-3">

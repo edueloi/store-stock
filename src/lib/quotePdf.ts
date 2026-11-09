@@ -4,6 +4,7 @@ import GlassDrawing from "../components/GlassDrawing";
 import { downloadHtmlAsPdf } from "./pdf";
 import { getHideValuesPref } from "./documentPrefs";
 import { glassSpecFromOptions } from "./glassQuote";
+import { commercialTermsLines } from "./quoteTerms";
 import { pieceCut, pieceLabel, type PieceSpec } from "./glassPieces";
 import {
   buildDocumentHeaderHtml,
@@ -57,6 +58,10 @@ export interface QuotePdfData {
   total_amount: number;
   validity_days: number;
   notes?: string | null;
+  delivery_deadline?: string | null;
+  payment_terms?: string | null;
+  down_payment_type?: string | null;
+  down_payment_value?: number | null;
   status?: string;
   created_at: string;
   deposit_amount?: number | null;
@@ -197,6 +202,9 @@ export async function generateQuotePDF(
 
   const depositAmt = Number(quote.deposit_amount ?? 0);
   const remaining = Math.max(0, Number(quote.total_amount) - depositAmt);
+  // Condições comerciais combinadas (prazo, forma de pagamento, entrada). Sem valores no PDF: só o prazo.
+  const termsLines = commercialTermsLines(quote).filter((l) => !hideValues || l.label === "Prazo de entrega");
+  const hasPaymentTerms = termsLines.some((l) => l.label === "Forma de pagamento");
   const paymentMethodLabel = quote.deposit_payment_method ? (PM_LABEL[quote.deposit_payment_method] ?? quote.deposit_payment_method) : "";
 
   const customer = opts?.customer;
@@ -233,7 +241,8 @@ ${header}
     <div class="doc-info-grid" style="grid-template-columns:1fr;">
       ${opts?.sellerName ? `<div class="doc-info-row">Atendente: <b>${opts.sellerName}</b></div>` : ""}
       <div class="doc-info-row">Validade: <b>${quote.validity_days} dia(s)</b> (até ${validUntil})</div>
-      ${paymentMethodLabel && !hideValues ? `<div class="doc-info-row">Forma de pagamento: <b>${paymentMethodLabel}</b></div>` : ""}
+      ${termsLines.map((l) => `<div class="doc-info-row">${l.label}: <b>${escHtml(l.value)}</b></div>`).join("")}
+      ${paymentMethodLabel && !hideValues ? `<div class="doc-info-row">${hasPaymentTerms ? "Entrada paga via" : "Forma de pagamento"}: <b>${paymentMethodLabel}</b></div>` : ""}
     </div>
   </div>
 </div>

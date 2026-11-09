@@ -130,6 +130,39 @@ export async function getQuoteById(req: Request, res: Response) {
   }
 }
 
+// Condições comerciais do orçamento (prazo de entrega, forma de pagamento, entrada).
+// `partial` = só devolve as chaves que vieram no body (autosave de um campo isolado).
+function normalizeCommercialTerms(
+  input: { delivery_deadline?: string | null; payment_terms?: string | null; down_payment_type?: string | null; down_payment_value?: number | null },
+  partial = false,
+) {
+  const out: Record<string, unknown> = {};
+  const text = (v: unknown, max: number) => {
+    const t = typeof v === "string" ? v.trim().slice(0, max) : "";
+    return t || null;
+  };
+  if (!partial || input.delivery_deadline !== undefined) out.delivery_deadline = text(input.delivery_deadline, 191);
+  if (!partial || input.payment_terms !== undefined) out.payment_terms = text(input.payment_terms, 255);
+  if (!partial || input.down_payment_type !== undefined || input.down_payment_value !== undefined) {
+    const type = ["none", "percent", "fixed"].includes(String(input.down_payment_type)) ? String(input.down_payment_type) : null;
+    const rawValue = Number(input.down_payment_value);
+    let value: number | null = null;
+    if (type === "percent" && Number.isFinite(rawValue) && rawValue > 0) value = Math.min(100, Math.round(rawValue * 100) / 100);
+    if (type === "fixed" && Number.isFinite(rawValue) && rawValue > 0) value = Math.round(rawValue * 100) / 100;
+    if (!partial || input.down_payment_type !== undefined) out.down_payment_type = type;
+    out.down_payment_value = type === "percent" || type === "fixed" ? value : null;
+  }
+  return out;
+}
+
+function describeDownPayment(type: string | null | undefined, value: unknown): string {
+  if (type === "none") return "Sem entrada";
+  const v = Number(value);
+  if (type === "percent" && v > 0) return `Entrada de ${v}%`;
+  if (type === "fixed" && v > 0) return `Entrada de R$ ${v.toFixed(2).replace(".", ",")}`;
+  return "Não informada";
+}
+
 export async function createQuote(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
@@ -150,6 +183,10 @@ export async function createQuote(req: Request, res: Response) {
       discount_value,
       validity_days,
       notes,
+      delivery_deadline,
+      payment_terms,
+      down_payment_type,
+      down_payment_value,
       items,
       services,
     } = req.body as {
@@ -161,6 +198,10 @@ export async function createQuote(req: Request, res: Response) {
       discount_value?: number;
       validity_days?: number;
       notes?: string;
+      delivery_deadline?: string | null;
+      payment_terms?: string | null;
+      down_payment_type?: string | null;
+      down_payment_value?: number | null;
       items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; total: number; dimensions_label?: string | null; selected_options?: Record<string, string> | null; piece_spec?: unknown }>;
       services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null; piece_spec?: unknown }>;
     };
@@ -213,6 +254,7 @@ export async function createQuote(req: Request, res: Response) {
         total_amount: totalAmountComputed,
         validity_days: validity_days || 7,
         notes: notes || null,
+        ...normalizeCommercialTerms({ delivery_deadline, payment_terms, down_payment_type, down_payment_value }),
         status: "rascunho",
         items: { create: itemRows },
         ...(serviceRows.length > 0 ? { services: { create: serviceRows } } : {}),
@@ -406,6 +448,10 @@ export async function updateQuote(req: Request, res: Response) {
       discount_value,
       validity_days,
       notes,
+      delivery_deadline,
+      payment_terms,
+      down_payment_type,
+      down_payment_value,
       items,
       services,
     } = req.body as {
@@ -417,6 +463,10 @@ export async function updateQuote(req: Request, res: Response) {
       discount_value?: number;
       validity_days?: number;
       notes?: string;
+      delivery_deadline?: string | null;
+      payment_terms?: string | null;
+      down_payment_type?: string | null;
+      down_payment_value?: number | null;
       items?: Array<{ product_id?: number; name: string; quantity: number; unit_price: number; dimensions_label?: string | null; selected_options?: Record<string, string> | null; piece_spec?: unknown }>;
       services?: Array<{ id: number; name: string; price: number; quantity?: number; dimensions_label?: string | null; piece_spec?: unknown }>;
     };
@@ -434,6 +484,11 @@ export async function updateQuote(req: Request, res: Response) {
     if (discount_value !== undefined) addChange("discount_value", "Desconto", existing.discount_value, discount_value, auditMoney);
     if (validity_days !== undefined) addChange("validity_days", "Validade", `${existing.validity_days} dias`, `${validity_days} dias`);
     if (notes !== undefined) addChange("notes", "Observações", existing.notes, notes);
+    if (delivery_deadline !== undefined) addChange("delivery_deadline", "Prazo de entrega", existing.delivery_deadline, delivery_deadline);
+    if (payment_terms !== undefined) addChange("payment_terms", "Forma de pagamento", existing.payment_terms, payment_terms);
+    if (down_payment_type !== undefined || down_payment_value !== undefined) {
+      addChange("down_payment", "Entrada", describeDownPayment(existing.down_payment_type, existing.down_payment_value), describeDownPayment(down_payment_type !== undefined ? down_payment_type : existing.down_payment_type, down_payment_value !== undefined ? down_payment_value : existing.down_payment_value));
+    }
     if (items !== undefined || services !== undefined) {
       const before = auditItemsSummary(existing.items, existing.services);
       const after = auditItemsSummary(
@@ -464,6 +519,9 @@ export async function updateQuote(req: Request, res: Response) {
         ...(discount_value !== undefined && { discount_value }),
         ...(validity_days !== undefined && { validity_days }),
         ...(notes !== undefined && { notes: notes || null }),
+        ...(delivery_deadline !== undefined || payment_terms !== undefined || down_payment_type !== undefined || down_payment_value !== undefined
+          ? normalizeCommercialTerms({ delivery_deadline, payment_terms, down_payment_type, down_payment_value }, true)
+          : {}),
         ...(items !== undefined && {
           items: {
             create: items.map((i) => ({
