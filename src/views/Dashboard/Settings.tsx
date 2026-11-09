@@ -1226,6 +1226,19 @@ export default function Settings({
   } | null>(null);
   const [certFile, setCertFile] = useState<File | null>(null);
   const certInputRef = useRef<HTMLInputElement>(null);
+  // Validade do certificado já configurado (o upload só devolvia isso na hora de enviar).
+  const [certValidity, setCertValidity] = useState<{ validUntil: string; daysLeft: number; expired: boolean; subjectName: string | null } | null>(null);
+  useEffect(() => {
+    if (!tenant?.nfce_cert_configured) { setCertValidity(null); return; }
+    fetch("/api/tenant/nfce-certificate", { headers: API_HEADERS() })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.configured && d.readable && d.validUntil) {
+          setCertValidity({ validUntil: d.validUntil, daysLeft: d.daysLeft, expired: !!d.expired, subjectName: d.subjectName ?? null });
+        } else setCertValidity(null);
+      })
+      .catch(() => setCertValidity(null));
+  }, [tenant?.nfce_cert_configured]);
   const [testingNfse, setTestingNfse] = useState(false);
   const [numberingEdit, setNumberingEdit] = useState(false);
   const [ibgeLoading, setIbgeLoading] = useState(false);
@@ -2848,18 +2861,34 @@ export default function Settings({
                       Certificado Digital A1
                     </p>
                     {tenant?.nfce_cert_configured ? (
+                      <>
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-emerald-700">
                           <ShieldCheck size={15} />
                           <span className="text-[11px] font-semibold">
                             Certificado configurado
-                            {certInfo ? ` — ${certInfo.subjectName}` : ""}
+                            {certInfo ? ` — ${certInfo.subjectName}` : certValidity?.subjectName ? ` — ${certValidity.subjectName}` : ""}
                           </span>
                         </div>
                         <Button onClick={handleCertRemove} disabled={certUploading} variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50">
                           {certUploading ? "Removendo…" : "Remover"}
                         </Button>
                       </div>
+                      {certValidity && (
+                        <p className={cn(
+                          "rounded-lg border px-3 py-2 text-[11px] font-semibold",
+                          certValidity.expired ? "border-red-200 bg-red-50 text-red-700"
+                            : certValidity.daysLeft <= 30 ? "border-amber-200 bg-amber-50 text-amber-800"
+                            : "border-emerald-200 bg-emerald-50 text-emerald-700",
+                        )}>
+                          {certValidity.expired
+                            ? `Certificado VENCIDO em ${new Date(certValidity.validUntil).toLocaleDateString("pt-BR")}. Nenhuma nota fiscal será emitida até enviar um certificado novo.`
+                            : certValidity.daysLeft <= 30
+                              ? `Certificado vence em ${certValidity.daysLeft} dia(s), em ${new Date(certValidity.validUntil).toLocaleDateString("pt-BR")}. Providencie a renovação.`
+                              : `Válido até ${new Date(certValidity.validUntil).toLocaleDateString("pt-BR")} (${certValidity.daysLeft} dias).`}
+                        </p>
+                      )}
+                      </>
                     ) : (
                       <div className="space-y-2.5">
                         <p className="text-[11px] text-slate-500">

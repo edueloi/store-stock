@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { getTenant, updateTenant, uploadNfceCert, uploadNfceCertificate, deleteNfceCertificate, getMyBilling, sendReportNowHandler, listAutomatedMessageLogs, testEmailConnection, getStorePaymentGateways, saveStorePaymentGateway } from "../controllers/tenant.controller";
+import { getTenant, updateTenant, uploadNfceCert, uploadNfceCertificate, getNfceCertificateInfo, deleteNfceCertificate, getMyBilling, sendReportNowHandler, listAutomatedMessageLogs, testEmailConnection, getStorePaymentGateways, saveStorePaymentGateway } from "../controllers/tenant.controller";
 import { onboardAsaas, saveChargeRules, createChargeLink, listCharges, getAsaasAccountOverview, withdrawAsaasBalance } from "../controllers/store-charges.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
@@ -19,6 +19,7 @@ router.post("/payment-gateways/asaas/withdraw", withdrawAsaasBalance);
 router.post("/charges", createChargeLink);
 router.get("/charges", listCharges);
 router.get("/billing", getMyBilling);
+router.get("/nfce-certificate", getNfceCertificateInfo);
 router.post("/nfce-certificate", uploadNfceCert.single("certificate"), uploadNfceCertificate);
 router.delete("/nfce-certificate", deleteNfceCertificate);
 router.post("/send-report-now", sendReportNowHandler);

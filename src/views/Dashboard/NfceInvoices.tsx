@@ -304,9 +304,10 @@ function NfceTabContent() {
     downloadAuthenticated(`/api/nfce/${inv.order_id}/xml`, token, `nfce-${inv.access_key ?? inv.order_id}.xml`)
       .catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o XML."));
 
-  const filtered = useMemo(() => {
+  // Notas dentro do período e da busca (sem o filtro de status): é a base dos cartões do topo, para
+  // eles baterem com a lista — antes somavam o histórico inteiro e divergiam do período mostrado.
+  const inPeriod = useMemo(() => {
     return invoices.filter((inv) => {
-      if (statusFilter !== "all" && inv.status !== statusFilter) return false;
       // Data local (evita o dia mudar por causa do offset UTC)
       const d = new Date(inv.created_at);
       const invDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -319,15 +320,20 @@ function NfceTabContent() {
       }
       return true;
     });
-  }, [invoices, statusFilter, searchTerm, dateFrom, dateTo]);
+  }, [invoices, searchTerm, dateFrom, dateTo]);
+
+  const filtered = useMemo(
+    () => (statusFilter === "all" ? inPeriod : inPeriod.filter((inv) => inv.status === statusFilter)),
+    [inPeriod, statusFilter],
+  );
 
   const counts = useMemo(() => ({
-    total: invoices.length,
-    authorized: invoices.filter((i) => i.status === "authorized").length,
-    pending: invoices.filter((i) => i.status === "pending" || i.status === "processing").length,
-    error: invoices.filter((i) => i.status === "error" || i.status === "rejected").length,
-    amount: invoices.filter((i) => i.status === "authorized").reduce((sum, i) => sum + Number(i.order?.total_amount || 0), 0),
-  }), [invoices]);
+    total: inPeriod.length,
+    authorized: inPeriod.filter((i) => i.status === "authorized").length,
+    pending: inPeriod.filter((i) => i.status === "pending" || i.status === "processing").length,
+    error: inPeriod.filter((i) => i.status === "error" || i.status === "rejected").length,
+    amount: inPeriod.filter((i) => i.status === "authorized").reduce((sum, i) => sum + Number(i.order?.total_amount || 0), 0),
+  }), [inPeriod]);
 
   const toggleSelected = (orderId: number) => {
     setSelected((prev) => {
@@ -1182,9 +1188,9 @@ function NfseTabContent() {
     downloadAuthenticated(`/api/nfse/${inv.service_order_id}/pdf`, token, `nfse-${inv.chave_acesso ?? inv.service_order_id}.pdf`)
       .catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o PDF."));
 
-  const filtered = useMemo(() => {
+  // Base dos cartões do topo: período + busca, sem o filtro de status (mesma regra da aba NFC-e).
+  const inPeriod = useMemo(() => {
     return invoices.filter((inv) => {
-      if (statusFilter !== "all" && inv.status !== statusFilter) return false;
       const d = new Date(inv.created_at);
       const invDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       if (dateFrom && invDate < dateFrom) return false;
@@ -1196,15 +1202,20 @@ function NfseTabContent() {
       }
       return true;
     });
-  }, [invoices, statusFilter, searchTerm, dateFrom, dateTo]);
+  }, [invoices, searchTerm, dateFrom, dateTo]);
+
+  const filtered = useMemo(
+    () => (statusFilter === "all" ? inPeriod : inPeriod.filter((inv) => inv.status === statusFilter)),
+    [inPeriod, statusFilter],
+  );
 
   const counts = useMemo(() => ({
-    total: invoices.length,
-    authorized: invoices.filter((i) => i.status === "authorized").length,
-    pending: invoices.filter((i) => i.status === "pending" || i.status === "processing").length,
-    error: invoices.filter((i) => i.status === "error" || i.status === "rejected").length,
-    amount: invoices.filter((i) => i.status === "authorized").reduce((sum, i) => sum + Number(i.service_order?.service_value || 0), 0),
-  }), [invoices]);
+    total: inPeriod.length,
+    authorized: inPeriod.filter((i) => i.status === "authorized").length,
+    pending: inPeriod.filter((i) => i.status === "pending" || i.status === "processing").length,
+    error: inPeriod.filter((i) => i.status === "error" || i.status === "rejected").length,
+    amount: inPeriod.filter((i) => i.status === "authorized").reduce((sum, i) => sum + Number(i.service_order?.service_value || 0), 0),
+  }), [inPeriod]);
 
   const toggleSelected = (serviceOrderId: number) => {
     setSelected((prev) => {

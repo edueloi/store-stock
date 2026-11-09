@@ -362,6 +362,43 @@ export const uploadNfceCert = multer({
   },
 });
 
+// Validade do certificado A1 já configurado — só o que a tela precisa (nome e data), nunca a senha.
+// Certificado vencido faz toda NFC-e/NFS-e falhar, e até aqui não havia como ver isso na tela.
+export async function getNfceCertificateInfo(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { nfce_cert_path: true, nfce_cert_password: true },
+    });
+    if (!tenant?.nfce_cert_path) { res.json({ configured: false }); return; }
+
+    const password = decryptSecret(tenant.nfce_cert_password);
+    if (!password || !fs.existsSync(tenant.nfce_cert_path)) {
+      res.json({ configured: true, readable: false });
+      return;
+    }
+    try {
+      const parsed = parsePfx(fs.readFileSync(tenant.nfce_cert_path, "binary"), password);
+      const cert = forge.pki.certificateFromPem(parsed.certificatePem);
+      const validUntil = cert.validity.notAfter;
+      const daysLeft = Math.floor((validUntil.getTime() - Date.now()) / 86400000);
+      res.json({
+        configured: true,
+        readable: true,
+        subjectName: cert.subject.getField("CN")?.value ?? null,
+        validUntil: validUntil.toISOString(),
+        daysLeft,
+        expired: daysLeft < 0,
+      });
+    } catch {
+      res.json({ configured: true, readable: false });
+    }
+  } catch {
+    res.status(500).json({ error: "Falha ao ler a validade do certificado" });
+  }
+}
+
 export async function uploadNfceCertificate(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
