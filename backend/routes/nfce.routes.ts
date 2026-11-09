@@ -8,6 +8,7 @@ import {
   deleteNfce,
   cancelNfce,
   downloadDanfe,
+  downloadCupom,
   downloadNfceXml,
   downloadNfceXmlBatch,
   downloadDanfeBatch,
@@ -31,6 +32,7 @@ router.post("/:orderId/retry", retryNfce);
 router.post("/:orderId/cancel", cancelNfce);
 router.delete("/:orderId", deleteNfce);
 router.get("/:orderId/danfe", downloadDanfe);
+router.get("/:orderId/cupom", downloadCupom);
 router.get("/:orderId/xml", downloadNfceXml);
 router.post("/:orderId/send-whatsapp", sendNfceWhatsapp);
 router.post("/:orderId/emit-production", emitNfceAsProduction);

@@ -399,8 +399,21 @@ function NfceTabContent() {
     }
   };
 
+  // Relógio de 30 s só para o "restam N min" do Cancelar atualizar sozinho e o botão sumir ao fim do prazo.
+  const [, setClockTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setClockTick((n) => n + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+
   const minutesSinceAuthorized = (inv: NfceInvoice) =>
     inv.authorized_at ? (Date.now() - new Date(inv.authorized_at).getTime()) / 60000 : Infinity;
+  const cancelMinutesLeft = (inv: NfceInvoice) =>
+    Math.max(1, Math.ceil(PRAZO_CANCELAMENTO_MINUTOS - minutesSinceAuthorized(inv)));
+
+  const handleDownloadCupom = (inv: NfceInvoice) =>
+    downloadAuthenticated(`/api/nfce/${inv.order_id}/cupom`, token, `cupom-${inv.access_key ?? inv.order_id}.pdf`)
+      .catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o cupom fiscal."));
 
   return (
     <div className="space-y-6">
@@ -582,6 +595,9 @@ function NfceTabContent() {
                             <Button variant="primary" size="sm" onClick={() => handleDownloadDanfe(inv)}>
                               <FileText size={12} /> DANFE
                             </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleDownloadCupom(inv)} title="Cupom fiscal no formato de impressora térmica (80 mm)">
+                              <FileText size={12} /> Cupom
+                            </Button>
                             <Button variant="outline" size="sm" onClick={() => handleDownloadXml(inv)}>
                               <FileCheck size={12} /> XML
                             </Button>
@@ -592,7 +608,7 @@ function NfceTabContent() {
                             )}
                             {minutesSinceAuthorized(inv) <= PRAZO_CANCELAMENTO_MINUTOS && (
                               <Button variant="outline" size="sm" onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }} className="text-rose-600 border-rose-200 hover:bg-rose-50">
-                                <Ban size={12} /> Cancelar
+                                <Ban size={12} /> Cancelar · {cancelMinutesLeft(inv)} min
                               </Button>
                             )}
                           </>
@@ -692,6 +708,9 @@ function NfceTabContent() {
                         <Button variant="primary" size="sm" onClick={() => handleDownloadDanfe(inv)}>
                           <FileText size={12} /> DANFE
                         </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDownloadCupom(inv)} title="Cupom fiscal no formato de impressora térmica (80 mm)">
+                          <FileText size={12} /> Cupom
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => handleDownloadXml(inv)}>
                           <FileCheck size={12} /> XML
                         </Button>
@@ -702,7 +721,7 @@ function NfceTabContent() {
                         )}
                         {minutesSinceAuthorized(inv) <= PRAZO_CANCELAMENTO_MINUTOS && (
                           <Button variant="outline" size="sm" onClick={() => { setCancelTarget(inv); setCancelReason(""); setCancelError(null); }} className="text-rose-600 border-rose-200 hover:bg-rose-50">
-                            <Ban size={12} /> Cancelar
+                            <Ban size={12} /> Cancelar · {cancelMinutesLeft(inv)} min
                           </Button>
                         )}
                       </>

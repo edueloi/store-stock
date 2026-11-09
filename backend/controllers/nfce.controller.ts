@@ -7,7 +7,7 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { emitirNfce, paymentsFromOrder } from "../services/nfce/emitir";
 import { cancelarNfce } from "../services/nfce/cancelar";
-import { generateDanfeA4Pdf, formatCpfCnpjDanfe } from "../services/nfce/danfe";
+import { generateDanfeA4Pdf, generateDanfePdf, formatCpfCnpjDanfe } from "../services/nfce/danfe";
 import { emitToTenant } from "../services/realtime.service";
 import { sendWhatsappDocument } from "../services/whatsapp.service";
 
@@ -16,7 +16,7 @@ const PAYMENT_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", 
 /** Reconstrói o PDF do DANFE A4 a partir dos dados já salvos (sem precisar do arquivo em disco) —
  * usado quando a nota foi autorizada em outro ambiente (ex.: produção) e este servidor não tem
  * o arquivo localmente. */
-async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { access_key: string | null; number: number; series: number; authorized_at: Date | null; protocol: string | null; qrcode_url: string | null }) {
+async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { access_key: string | null; number: number; series: number; authorized_at: Date | null; protocol: string | null; qrcode_url: string | null }, format: "a4" | "cupom" = "a4") {
   if (!invoice.access_key || !invoice.qrcode_url) return null;
   const order = await prisma.order.findFirst({
     where: { id: orderId, tenant_id: tenantId },
@@ -56,7 +56,7 @@ async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: { acc
     }
   }
 
-  return generateDanfeA4Pdf({
+  return (format === "cupom" ? generateDanfePdf : generateDanfeA4Pdf)({
     storeName: tenant.razao_social || tenant.name,
     storeDocument: `CNPJ: ${tenant.document ?? ""}`,
     storeStateRegistration: tenant.inscricao_estadual,
@@ -412,6 +412,40 @@ export async function downloadDanfeBatch(req: Request, res: Response) {
     await archive.finalize();
   } catch {
     res.status(500).json({ error: "Failed to build DANFE batch" });
+  }
+}
+
+// Cupom fiscal: a mesma NFC-e no formato estreito de impressora térmica (80 mm), gerado junto
+// com o DANFE A4 na autorização. Se o arquivo não existir neste servidor, reconstrói do banco.
+export async function downloadCupom(req: Request, res: Response) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const tenantId = getTenantId(req);
+    const invoice = await prisma.nfceInvoice.findFirst({ where: { order_id: orderId, tenant_id: tenantId } });
+    if (!invoice) {
+      res.status(404).json({ error: "Nota fiscal não encontrada para este pedido" });
+      return;
+    }
+    if (invoice.status !== "authorized") {
+      res.status(409).json({ error: `Cupom indisponível — a NFC-e deste pedido ainda não foi autorizada (status atual: ${invoice.status}).` });
+      return;
+    }
+    if (invoice.danfe_path && fs.existsSync(invoice.danfe_path)) {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="cupom-${invoice.access_key ?? orderId}.pdf"`);
+      fs.createReadStream(invoice.danfe_path).pipe(res);
+      return;
+    }
+    const rebuilt = await rebuildDanfePdf(orderId, tenantId, invoice, "cupom");
+    if (!rebuilt) {
+      res.status(404).json({ error: "O cupom não está disponível neste servidor e não há dados suficientes para reconstruí-lo." });
+      return;
+    }
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="cupom-${invoice.access_key ?? orderId}.pdf"`);
+    res.send(rebuilt);
+  } catch {
+    res.status(500).json({ error: "Falha ao gerar o cupom fiscal" });
   }
 }
 
