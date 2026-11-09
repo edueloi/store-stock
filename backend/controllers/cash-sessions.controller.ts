@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
-import { parsePaymentMethod } from "../utils/payment-method";
+import { parsePaymentMethod, reconcileSegmentsToTotal } from "../utils/payment-method";
 import { emitToTenant } from "../services/realtime.service";
 
 function getTenantId(req: Request) {
@@ -37,7 +37,11 @@ export async function recalculateCashSessionSummary(tenantId: number, sessionId:
   let moneySales = 0;
   let moneyDebtPayments = 0;
   for (const order of orders) {
-    const segs = parsePaymentMethod(order.payment_method ?? "money", Number(order.total_amount), Number(order.change_amount) || 0).filter((seg) => seg.amount > 0);
+    // reconcileSegmentsToTotal: corrige formas com valor desatualizado (desconto dado depois de preencher).
+    const segs = reconcileSegmentsToTotal(
+      parsePaymentMethod(order.payment_method ?? "money", Number(order.total_amount), Number(order.change_amount) || 0).filter((seg) => seg.amount > 0),
+      Number(order.total_amount), Number(order.change_amount) || 0,
+    );
     const orderGross = segs.reduce((sum, seg) => sum + seg.amount, 0);
     const orderFee = Number(order.fee_amount) || 0;
     const changeAmount = Number(order.change_amount) || 0;
@@ -208,7 +212,11 @@ export async function closeCashSession(req: Request, res: Response) {
     let moneySales = 0;
     let moneyDebtPayments = 0;
     for (const order of orders) {
-      const segs = parsePaymentMethod(order.payment_method ?? "money", Number(order.total_amount), Number(order.change_amount) || 0).filter((seg) => seg.amount > 0);
+      // reconcileSegmentsToTotal: corrige formas com valor desatualizado (desconto dado depois de preencher).
+      const segs = reconcileSegmentsToTotal(
+        parsePaymentMethod(order.payment_method ?? "money", Number(order.total_amount), Number(order.change_amount) || 0).filter((seg) => seg.amount > 0),
+        Number(order.total_amount), Number(order.change_amount) || 0,
+      );
       const orderGross = segs.reduce((sum, seg) => sum + seg.amount, 0);
       const orderFee = Number(order.fee_amount) || 0;
       // O segmento "money" guarda o valor RECEBIDO do cliente (ex.: cliente paga R$20

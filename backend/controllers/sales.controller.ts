@@ -4,7 +4,7 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { awardPointsForOrder } from "./loyalty.controller";
 import { localDateString } from "../utils/date";
-import { parsePaymentMethod, buildMethodSummary, computeSegmentFeeRaw } from "../utils/payment-method";
+import { parsePaymentMethod, buildMethodSummary, computeSegmentFeeRaw, normalizePaymentMethodString } from "../utils/payment-method";
 import { assertBoletoAllowed, createBoletoReceivable, SalePaymentError } from "../utils/sale-payment";
 import { decrementProductStock, returnProductStock } from "../utils/stock-adjust";
 import { emitToTenant } from "../services/realtime.service";
@@ -145,7 +145,10 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
       }
     }
 
-    const pmString    = paymentMethod || "money";
+    // Ajusta formas com valor desatualizado (desconto dado depois de preencher o pagamento):
+    // sem isso a venda era gravada com PIX R$ 89,77 num total de R$ 88,00 e o fechamento de
+    // caixa, os relatórios e a dívida do crediário somavam o valor antigo.
+    const pmString    = normalizePaymentMethodString(paymentMethod || "money", totalAmount, Number(changeAmount) || 0);
     const pmSegments  = parsePaymentMethod(pmString);
 
     // Crediário: parte da venda que fica como dívida do cliente, quitada depois.

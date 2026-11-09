@@ -12,6 +12,42 @@ export function parsePaymentMethod(pm: string, totalAmount = 0, changeAmount = 0
   return parsePaymentSegments(pm, totalAmount, changeAmount);
 }
 
+// O valor de cada forma de pagamento pode chegar DESATUALIZADO: o PDV preenche o valor com o
+// total uma vez e, se o operador dá desconto depois, o valor da forma continua o antigo (ex.:
+// PIX de R$ 89,77 numa venda de R$ 88,00). Se a soma das formas passa do que a venda realmente
+// custou (+ troco), reduz todas proporcionalmente até bater. Nunca aumenta: soma menor é
+// pagamento parcial/saldo devedor aceito.
+export function reconcileSegmentsToTotal(
+  segs: PaymentMethodSegment[],
+  totalAmount: number,
+  changeAmount = 0,
+): PaymentMethodSegment[] {
+  const paid = segs.reduce((sum, s) => sum + s.amount, 0);
+  const expected = Math.round((Number(totalAmount) + (Number(changeAmount) || 0)) * 100) / 100;
+  if (!(expected > 0) || paid <= expected + 0.009) return segs;
+  const factor = expected / paid;
+  let accumulated = 0;
+  return segs.map((s, i) => {
+    const amount = i === segs.length - 1
+      ? Math.round((expected - accumulated) * 100) / 100
+      : Math.round(s.amount * factor * 100) / 100;
+    accumulated += amount;
+    return { ...s, amount };
+  });
+}
+
+// Versão em texto ("pix:89.77" → "pix:88.00"): devolve a mesma string quando não há ajuste.
+export function normalizePaymentMethodString(pm: string, totalAmount: number, changeAmount = 0): string {
+  const segs = parsePaymentMethod(pm, totalAmount, changeAmount);
+  const fixed = reconcileSegmentsToTotal(segs, totalAmount, changeAmount);
+  if (fixed === segs) return pm;
+  return fixed.map((s) => {
+    const brand = (s.method === "credit" || s.method === "debit") ? `-${s.brand}` : "";
+    const inst = s.method === "credit" && s.installments > 1 ? `-${s.installments}x` : "";
+    return `${s.method}${brand}${inst}:${s.amount.toFixed(2)}`;
+  }).join("|");
+}
+
 const METHOD_LABELS: Record<string, string> = {
   money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto à vista",
 };
