@@ -1115,6 +1115,10 @@ model AccountReceivable {
   // foi capturado via "Faturar" (pagamento imediato) — o cliente paga só depois de um
   // prazo. onDelete SetNull: excluir a OS não deve apagar o histórico financeiro já gerado.
   service_order_id          Int?
+  // Venda (Order) que originou este lançamento — usado pelo "Boleto à vista": ao dar baixa,
+  // a receita é lançada no Fluxo de Caixa (Finance). Sem FK de propósito: apagar o pedido
+  // não deve apagar o histórico de contas a receber.
+  order_id                  Int?
   payment_method            String?
   document_number           String?
   cost_center               String?
@@ -1130,6 +1134,7 @@ model AccountReceivable {
   @@unique([series_id, installment_number])
   @@index([series_id])
   @@index([service_order_id])
+  @@index([order_id])
   @@map("accounts_receivable")
 }
 

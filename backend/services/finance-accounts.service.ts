@@ -242,6 +242,23 @@ export async function settleFinanceAccounts(kind: Kind, tenantId: number, inputI
       const update = await accounts.updateMany({ where: { id: existing.id, tenant_id: tenantId, status: "pending" }, data: { status, [dateField]: date, amount, ...payment } });
       if (!update.count) continue;
       count++;
+      // Conta nascida de uma venda (Boleto à vista): a receita só entra no Fluxo de Caixa agora,
+      // na data do recebimento. O updateMany acima só passa uma vez (status pending), então não duplica.
+      const saleOrderId = kind === "receivable" ? Number((existing as Data).order_id) : NaN;
+      if (Number.isInteger(saleOrderId) && saleOrderId > 0) {
+        await tx.finance.create({
+          data: {
+            tenant_id: tenantId,
+            type: "income",
+            description: `Recebimento boleto — ${String((existing as Data).description ?? "Venda")}`,
+            amount,
+            gross_amount: amount,
+            payment_method: `boleto:${amount.toFixed(2)}`,
+            source: "boleto_receipt",
+            date,
+          },
+        });
+      }
       if (existing.is_recurring && existing.recurrence_interval_unit && input.continue_recurring !== false) {
         await extendRecurring(accounts, kind, tenantId, existing, Math.max(.01, (Math.round(amount * 100) - Math.round(Number(existing.interest_amount || 0) * 100)) / 100));
       }

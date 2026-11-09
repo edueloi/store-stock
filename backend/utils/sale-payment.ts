@@ -119,6 +119,7 @@ export async function createBoletoReceivable(params: {
       category: "Venda",
       customer_name: params.customerName || null,
       payment_method: "boleto",
+      order_id: params.orderId,
       notes: `Gerado automaticamente pela venda #${params.orderId}.`,
     },
   });
