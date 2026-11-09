@@ -766,8 +766,11 @@ export async function convertToOrder(req: Request, res: Response) {
         status:          "completed",
         payment_method:  pmString,
         items: {
-          create: quote.items.filter((i) => i.product_id).map((i) => ({
-            product_id: i.product_id!,
+          // Item avulso (sem produto do catálogo) vira OrderItem sem product_id, com o nome digitado —
+          // antes era descartado na conversão e a venda saía sem esse item (e sem o valor dele).
+          create: quote.items.map((i) => ({
+            product_id: i.product_id ?? null,
+            name:       i.product_id ? null : i.name,
             quantity:   i.quantity,
             unit_price: i.unit_price,
             dimensions_label: i.dimensions_label,

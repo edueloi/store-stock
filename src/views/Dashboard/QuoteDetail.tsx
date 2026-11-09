@@ -318,6 +318,11 @@ export default function QuoteDetail() {
 
   // Form state (mirrors quote, editable inline)
   const [productSearch, setProductSearch] = useState("");
+  // Item avulso: linha digitada na hora (nome, quantidade e preço), sem produto do catálogo.
+  const [showAvulso, setShowAvulso] = useState(false);
+  const [avulsoName, setAvulsoName] = useState("");
+  const [avulsoQty, setAvulsoQty] = useState("1");
+  const [avulsoPrice, setAvulsoPrice] = useState("");
   const [measureProduct, setMeasureProduct] = useState<Product | null>(null);
   // Produto por m² marcado como peça de vidraçaria: abre o mesmo formulário de peça dos serviços
   const [pieceProduct, setPieceProduct] = useState<Product | null>(null);
@@ -591,6 +596,27 @@ export default function QuoteDetail() {
     setMeasureProduct(null);
     setMeasureHeight("");
     setMeasureWidth("");
+  };
+
+  const avulsoUnitPrice = parseMaskedPrice(avulsoPrice);
+  // Quantidade inteira (QuoteItem.quantity é Int no banco).
+  const avulsoQuantity = Math.max(0, Math.floor(Number(avulsoQty.replace(",", ".")) || 0));
+  const canAddAvulso = avulsoName.trim().length >= 2 && avulsoQuantity > 0 && avulsoUnitPrice > 0;
+
+  const addAvulsoItem = () => {
+    if (!canAddAvulso) return;
+    const next = [...formItems, {
+      name: avulsoName.trim(),
+      quantity: avulsoQuantity,
+      unit_price: avulsoUnitPrice,
+      total: Math.round(avulsoQuantity * avulsoUnitPrice * 100) / 100,
+    }];
+    setFormItems(next);
+    autosaveItems(next, formServices);
+    setAvulsoName("");
+    setAvulsoQty("1");
+    setAvulsoPrice("");
+    setShowAvulso(false);
   };
 
   const updateItemQty = (idx: number, qty: number) => {
@@ -1147,6 +1173,39 @@ export default function QuoteDetail() {
                               </button>
                             ))
                           )}
+                        </div>
+                      )}
+
+                      {/* Item avulso — algo fora do catálogo (ex.: mão de obra, peça sob encomenda) */}
+                      {!showAvulso ? (
+                        <Button variant="outline" size="sm" iconLeft={<PlusCircle size={14} />} onClick={() => setShowAvulso(true)}>
+                          Item avulso
+                        </Button>
+                      ) : (
+                        <div className="space-y-2 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+                          <p className="text-[11px] font-semibold text-blue-800">Item avulso (fora do catálogo)</p>
+                          <Input
+                            label="Descrição" value={avulsoName} onChange={(e) => setAvulsoName(e.target.value)}
+                            placeholder="Ex.: Instalação de box" maxLength={120} autoFocus
+                          />
+                          <div className="flex flex-wrap items-end gap-2">
+                            <Input
+                              label="Qtd." wrapperClassName="w-24" className="text-center" inputMode="decimal"
+                              value={avulsoQty} onChange={(e) => setAvulsoQty(e.target.value)}
+                            />
+                            <Input
+                              label="Preço unitário" wrapperClassName="w-36" className="text-right font-mono" addonLeft="R$"
+                              inputMode="numeric" placeholder="0,00" value={avulsoPrice}
+                              onChange={(e) => setAvulsoPrice(applyMoneyMask(e.target.value))}
+                            />
+                            <span className="pb-2 text-xs font-semibold tabular-nums text-slate-700">
+                              {fmt(Math.round(avulsoQuantity * avulsoUnitPrice * 100) / 100)}
+                            </span>
+                            <div className="ml-auto flex gap-2">
+                              <Button variant="outline" size="sm" onClick={() => { setShowAvulso(false); setAvulsoName(""); setAvulsoQty("1"); setAvulsoPrice(""); }}>Cancelar</Button>
+                              <Button variant="primary" size="sm" disabled={!canAddAvulso} onClick={addAvulsoItem}>Adicionar</Button>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
