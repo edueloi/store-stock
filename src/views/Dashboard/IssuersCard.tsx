@@ -33,7 +33,7 @@ export default function IssuersCard() {
   const [busy, setBusy] = useState<number | "new" | null>(null);
   const [confirm, setConfirm] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ label: "", document: "" });
+  const [form, setForm] = useState({ label: "", document: "", copy: false });
   const [editAddr, setEditAddr] = useState<number | null>(null);
   const [addr, setAddr] = useState({ street: "", number: "", complement: "", district: "", city: "", state: "", zip: "" });
 
@@ -48,18 +48,18 @@ export default function IssuersCard() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  const call = async (key: number | "new", fn: () => Promise<Response>, ok: () => void) => {
+  const call = async (key: number | "new", fn: () => Promise<Response>, ok: (data: any) => void) => {
     setBusy(key); setError("");
     try {
       const r = await fn();
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d?.error || "Não foi possível concluir.");
-      ok();
+      ok(d);
     } catch (e) { setError((e as Error).message); } finally { setBusy(null); }
   };
 
   const activate = (id: number) => call(id, () => fetch(`/api/tenant/issuers/${id}/activate`, { method: "POST", headers: authHeaders() }), () => window.location.reload());
-  const add = () => call("new", () => fetch("/api/tenant/issuers", { method: "POST", headers: authHeaders(), body: JSON.stringify(form) }), () => { setAdding(false); setForm({ label: "", document: "" }); void load(); });
+  const add = () => call("new", () => fetch("/api/tenant/issuers", { method: "POST", headers: authHeaders(), body: JSON.stringify({ label: form.label, document: form.document, copyFromActive: form.copy }) }), (d) => { setAdding(false); setForm({ label: "", document: "", copy: false }); void load(); if (d?.id) setConfirm(d.id); });
   const remove = (id: number) => call(id, () => fetch(`/api/tenant/issuers/${id}`, { method: "DELETE", headers: authHeaders() }), () => void load());
   const saveAddr = (id: number) => call(id, () => fetch(`/api/tenant/issuers/${id}`, { method: "PUT", headers: authHeaders(), body: JSON.stringify({ address: addr }) }), () => { setEditAddr(null); void load(); });
 
@@ -94,9 +94,12 @@ export default function IssuersCard() {
             <Button size="sm" loading={busy === "new"} onClick={add}>Salvar</Button>
             <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setError(""); }}>Cancelar</Button>
           </div>
-          <p className="text-[11px] text-slate-500 sm:col-span-3">Depois de salvar, torne este CNPJ ativo e preencha os dados fiscais dele (inscrições, certificado, CSC) logo abaixo, como já faz hoje.</p>
+          <label className="flex items-start gap-2 text-[11px] text-slate-600 sm:col-span-3"><input type="checkbox" className="mt-0.5" checked={form.copy} onChange={(e) => setForm({ ...form, copy: e.target.checked })} /><span>Começar com os dados fiscais do CNPJ ativo (certificado, CSC, inscrições e regime). Marque só se a empresa for a mesma; se for outra empresa, deixe desmarcado e preencha tudo do zero.</span></label>
+          <p className="text-[11px] text-slate-500 sm:col-span-3">Outro CNPJ é outra empresa: certificado, CSC, inscrições, série e numeração são só dele. Ao salvar, você já pode torná-lo ativo e preencher os dados fiscais logo abaixo.</p>
         </div>
       )}
+
+      {active && <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-600">Os dados fiscais mais abaixo nesta aba (razão social, inscrições, CNAE, regime, certificado, CSC, séries e numeração) são do CNPJ ativo: <b>{active.label}</b>. Para editar os de outra empresa, torne-a ativa primeiro.</p>}
 
       <ul className="space-y-2">
         {issuers.map((i) => (

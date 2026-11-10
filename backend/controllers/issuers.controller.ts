@@ -61,8 +61,14 @@ export async function createIssuer(req: Request, res: Response) {
     const all = await prisma.tenantIssuer.findMany({ where: { tenant_id: tenantId }, select: { document: true, is_active: true, snapshot: true } });
     const used = all.some((i) => digits(i.is_active ? t?.document : (i.snapshot as any)?.document ?? i.document) === document);
     if (used) { res.status(409).json({ error: "Este CNPJ já está cadastrado na loja." }); return; }
+    // por padrão a empresa nova começa do zero (outro CNPJ = outro certificado, CSC e inscrições); opcionalmente parte dos dados do CNPJ ativo
+    let snapshot: Record<string, unknown> = { ...BLANK_FISCAL, document };
+    if (req.body?.copyFromActive) {
+      const cur = await prisma.tenant.findUnique({ where: { id: tenantId } });
+      snapshot = { ...pick(cur), document, nfce_next_number: 1, nfse_next_number: 1 };
+    }
     const created = await prisma.tenantIssuer.create({
-      data: { tenant_id: tenantId, label, document, is_active: false, snapshot: { ...BLANK_FISCAL, document } as any },
+      data: { tenant_id: tenantId, label, document, is_active: false, snapshot: snapshot as any },
     });
     res.status(201).json({ id: created.id });
   } catch (e) { console.error("createIssuer:", e); res.status(500).json({ error: "Falha ao cadastrar o CNPJ." }); }
