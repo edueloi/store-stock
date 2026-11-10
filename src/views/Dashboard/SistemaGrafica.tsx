@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Printer, CheckCircle2, ExternalLink, Users, Package, Calculator, MessageCircle, Globe, Gift, Sparkles } from "lucide-react";
+import { Loader2, Printer, CheckCircle2, ExternalLink, Users, Package, Calculator, MessageCircle, Globe, Gift, Sparkles } from "lucide-react";
 import { Badge, Button, ContentCard, PageWrapper, SectionTitle } from "../../components/ui";
 import { getStoredUser } from "../../lib/session";
 
@@ -18,8 +18,16 @@ function brl(v: number) {
 
 export default function SistemaGrafica() {
   const user = getStoredUser();
-  const enabled = !!user?.grafica_system_enabled;
+  // o login guarda uma cópia antiga dos dados da loja: a liberação do módulo vem sempre do servidor (sem precisar sair e entrar de novo)
+  const [enabled, setEnabled] = useState<boolean | null>(user?.grafica_system_enabled ? true : null);
   const [monthly, setMonthly] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/tenant", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      .then((r) => r.json())
+      .then((d) => setEnabled(!!d?.grafica_system_enabled))
+      .catch(() => setEnabled(!!user?.grafica_system_enabled));
+  }, [user?.grafica_system_enabled]);
 
   useEffect(() => {
     fetch("/api/tenant/billing", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
@@ -50,7 +58,9 @@ export default function SistemaGrafica() {
       <div className="space-y-4">
         <SectionTitle icon={Printer} title="Sistema Gráfica" description="Orçamentos, ordens de serviço, catálogo de brindes e site para gráficas e brindes" />
 
-        {enabled ? (
+        {enabled === null ? (
+          <div role="status" className="flex items-center gap-2 py-10 text-sm text-slate-500"><Loader2 size={16} className="animate-spin" />Carregando…</div>
+        ) : enabled ? (
           <ContentCard className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">
