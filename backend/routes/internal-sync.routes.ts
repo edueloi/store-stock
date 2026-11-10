@@ -199,4 +199,144 @@ router.post("/users", async (req, res) => {
   } catch (e) { console.error("internal-sync POST users:", e); res.status(500).json({ error: "Falha ao gravar o usuário." }); }
 });
 
+// ── Orçamentos e Ordens de Serviço ───────────────────────────────────────────
+// Orçamento ↔ orçamento do grafica; O.S. (só as que nascem de um orçamento) ↔ pedido do grafica. O grafica decide o que mudou
+// (hash dos campos); aqui só se lê e se grava. Estados "aguardando aprovação"/"convertido"/"expirado" são lidos como os vizinhos
+// mais próximos (enviado/aprovado/cancelado) para os dois lados falarem a mesma língua.
+const Q_NORM: Record<string, string> = { aguardando_aprovacao: "orcamento_enviado", converted: "aprovado", expired: "cancelled" };
+const qNorm = (v: unknown) => Q_NORM[String(v)] ?? String(v);
+const Q_STATUSES = new Set(["rascunho", "orcamento_enviado", "aprovado", "cancelled"]);
+const OS_STATUSES = new Set(["rascunho", "orcamento_enviado", "aguardando_aprovacao", "aprovado", "aguardando_arte", "arte_finalizada", "em_producao", "finalizado", "nota_emitida", "entregue", "cancelada"]);
+const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+const r2 = (n: number) => Math.round(n * 100) / 100;
+const day = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "");
+
+function quoteOut(q: any) {
+  const items = [
+    ...q.items.map((i: any) => ({ name: text(i.name, 300), quantity: i.quantity, unitPrice: money(i.unit_price), total: money(i.total) })),
+    ...q.services.map((i: any) => ({ name: text(i.name, 300), quantity: i.quantity, unitPrice: money(i.unit_price), total: money(i.total) })),
+  ];
+  const sub = num(q.subtotal);
+  const discount = q.discount_type === "percent" ? r2((sub * num(q.discount_value)) / 100) : Math.min(num(q.discount_value), sub);
+  return { id: q.id, number: q.number, customerId: q.customer_id, hasServices: q.services.length > 0, fields: { status: qNorm(q.status), items, discount: money(discount), notes: text(q.notes, 5000) } };
+}
+const QUOTE_INCLUDE = { items: { orderBy: { id: "asc" as const } }, services: { orderBy: { id: "asc" as const } } };
+
+router.get("/quotes", async (req, res) => {
+  try {
+    const rows = await prisma.quote.findMany({ where: { tenant_id: tid(req), customer_id: { not: null } }, include: QUOTE_INCLUDE, orderBy: { id: "asc" } });
+    res.json({ quotes: rows.map(quoteOut) });
+  } catch (e) { console.error("internal-sync GET quotes:", e); res.status(500).json({ error: "Falha ao listar orçamentos." }); }
+});
+
+router.post("/quotes", async (req, res) => {
+  try {
+    const tenantId = tid(req);
+    const f = (req.body?.fields ?? {}) as { status?: string; items?: any[]; discount?: string; notes?: string };
+    const id = Number(req.body?.id) || null;
+    const items = (Array.isArray(f.items) ? f.items : []).slice(0, 200).map((i) => ({
+      name: text(i?.name, 250) || "Item", quantity: Math.max(1, Math.round(num(i?.quantity))), unit_price: r2(num(i?.unitPrice)), total: r2(num(i?.total)),
+    }));
+    const status = Q_STATUSES.has(String(f.status)) ? String(f.status) : null;
+    const itemsTotal = r2(items.reduce((a, i) => a + i.total, 0));
+
+    if (id) {
+      const cur = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId }, include: QUOTE_INCLUDE });
+      if (!cur) return res.status(404).json({ error: "Orçamento não encontrado." });
+      const data: Record<string, unknown> = {};
+      if (status && status !== qNorm(cur.status)) { data.status = status; if (status === "aprovado" && !cur.approved_at) data.approved_at = new Date(); }
+      if (typeof f.notes === "string" && text(f.notes, 5000) !== text(cur.notes, 5000)) data.notes = text(f.notes, 5000) || null;
+      const editable = cur.services.length === 0 && Array.isArray(f.items) && !["converted", "cancelled", "expired"].includes(cur.status);
+      if (editable) {
+        const same = cur.items.length === items.length && cur.items.every((c, n) => text(c.name, 250) === items[n].name && c.quantity === items[n].quantity && r2(num(c.unit_price)) === items[n].unit_price && r2(num(c.total)) === items[n].total);
+        const disc = Math.min(Math.max(0, r2(num(f.discount))), itemsTotal);
+        const curDisc = quoteOut(cur).fields.discount;
+        if (!same || money(disc) !== curDisc) {
+          await prisma.$transaction(async (tx) => {
+            if (!same) { await tx.quoteItem.deleteMany({ where: { quote_id: cur.id } }); if (items.length) await tx.quoteItem.createMany({ data: items.map((i) => ({ ...i, quote_id: cur.id })) }); }
+            await tx.quote.update({ where: { id: cur.id }, data: { subtotal: itemsTotal, discount_type: "fixed", discount_value: disc, total_amount: r2(itemsTotal - disc) } });
+          });
+        }
+      }
+      if (Object.keys(data).length) await prisma.quote.update({ where: { id: cur.id }, data });
+      const fresh = await prisma.quote.findFirst({ where: { id: cur.id }, include: QUOTE_INCLUDE });
+      return res.json(quoteOut(fresh));
+    }
+
+    const customer = await prisma.customer.findFirst({ where: { id: Number(req.body?.customerId) || 0, tenant_id: tenantId } });
+    if (!customer) return res.status(422).json({ error: "Cliente não encontrado na loja." });
+    const disc = Math.min(Math.max(0, r2(num(f.discount))), itemsTotal);
+    let created: any = null;
+    for (let attempt = 0; attempt < 4 && !created; attempt++) {
+      const last = await prisma.quote.findFirst({ where: { tenant_id: tenantId }, orderBy: { number: "desc" }, select: { number: true } });
+      try {
+        created = await prisma.quote.create({
+          data: {
+            tenant_id: tenantId, number: (last?.number ?? 0) + 1, customer_id: customer.id, customer_name: text(customer.name, 160), customer_phone: customer.phone ?? null, customer_email: customer.email ?? null,
+            subtotal: itemsTotal, discount_type: "fixed", discount_value: disc, total_amount: r2(itemsTotal - disc), notes: text(f.notes, 5000) || null,
+            status: status ?? "rascunho", source: "grafica", ...(status === "aprovado" ? { approved_at: new Date() } : {}),
+            items: { create: items },
+          },
+          include: QUOTE_INCLUDE,
+        });
+      } catch (e: any) { if (e?.code !== "P2002") throw e; }
+    }
+    if (!created) return res.status(409).json({ error: "Não foi possível numerar o orçamento." });
+    res.status(201).json(quoteOut(created));
+  } catch (e) { console.error("internal-sync POST quotes:", e); res.status(500).json({ error: "Falha ao gravar o orçamento." }); }
+});
+
+function orderOut(o: any) {
+  return { id: o.id, number: o.number, quoteId: o.quote_id, fields: { status: o.status, dueDate: day(o.promised_at), notes: text(o.observations, 5000) } };
+}
+
+router.get("/orders", async (req, res) => {
+  try {
+    const rows = await prisma.serviceOrder.findMany({ where: { tenant_id: tid(req), quote_id: { not: null } }, orderBy: { id: "asc" } });
+    res.json({ orders: rows.map(orderOut) });
+  } catch (e) { console.error("internal-sync GET orders:", e); res.status(500).json({ error: "Falha ao listar ordens de serviço." }); }
+});
+
+router.post("/orders", async (req, res) => {
+  try {
+    const tenantId = tid(req);
+    const f = (req.body?.fields ?? {}) as { status?: string; dueDate?: string; notes?: string };
+    const id = Number(req.body?.id) || null;
+    const status = OS_STATUSES.has(String(f.status)) ? String(f.status) : null;
+    const due = /^\d{4}-\d{2}-\d{2}$/.test(String(f.dueDate ?? "")) ? new Date(`${f.dueDate}T00:00:00.000Z`) : null;
+
+    if (id) {
+      const cur = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId } });
+      if (!cur) return res.status(404).json({ error: "Ordem de serviço não encontrada." });
+      const data: Record<string, unknown> = {};
+      if (status && status !== cur.status) data.status = status;
+      if ("dueDate" in f && day(due) !== day(cur.promised_at)) data.promised_at = due;
+      if (typeof f.notes === "string" && text(f.notes, 5000) !== text(cur.observations, 5000)) data.observations = text(f.notes, 5000) || null;
+      const updated = Object.keys(data).length ? await prisma.serviceOrder.update({ where: { id: cur.id }, data }) : cur;
+      if (data.status) await prisma.serviceOrderAction.create({ data: { tenant_id: tenantId, service_order_id: cur.id, action: "status", from_status: cur.status, to_status: String(data.status), actor: "Sistema Gráfica" } });
+      return res.json(orderOut(updated));
+    }
+
+    const quote = await prisma.quote.findFirst({ where: { id: Number(req.body?.quoteId) || 0, tenant_id: tenantId } });
+    if (!quote) return res.status(422).json({ error: "Orçamento não encontrado na loja." });
+    if (await prisma.serviceOrder.findFirst({ where: { quote_id: quote.id } })) return res.status(409).json({ error: "Este orçamento já tem ordem de serviço." });
+    let created: any = null;
+    for (let attempt = 0; attempt < 4 && !created; attempt++) {
+      const last = await prisma.serviceOrder.findFirst({ where: { tenant_id: tenantId }, orderBy: { number: "desc" }, select: { number: true } });
+      try {
+        created = await prisma.serviceOrder.create({
+          data: {
+            tenant_id: tenantId, number: (last?.number ?? 0) + 1, customer_id: quote.customer_id, customer_name: text(quote.customer_name, 160), customer_phone: quote.customer_phone ?? null,
+            has_equipment: false, equipment_category: "", status: status ?? "aprovado", promised_at: due, observations: text(f.notes, 5000) || null, quote_id: quote.id,
+            subtotal: quote.total_amount, total_amount: quote.total_amount,
+          },
+        });
+      } catch (e: any) { if (e?.code !== "P2002") throw e; }
+    }
+    if (!created) return res.status(409).json({ error: "Não foi possível numerar a ordem de serviço." });
+    await prisma.serviceOrderAction.create({ data: { tenant_id: tenantId, service_order_id: created.id, action: "created", to_status: created.status, actor: "Sistema Gráfica", note: "Criada a partir do pedido no Sistema Gráfica" } });
+    res.status(201).json(orderOut(created));
+  } catch (e) { console.error("internal-sync POST orders:", e); res.status(500).json({ error: "Falha ao gravar a ordem de serviço." }); }
+});
+
 export default router;
