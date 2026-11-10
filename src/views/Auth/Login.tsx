@@ -114,6 +114,7 @@ export default function Login() {
         fluxo_producao_enabled: !!data.tenant?.fluxo_producao_enabled,
         grafica_enabled: !!data.tenant?.grafica_enabled,
         food_enabled: !!data.tenant?.food_enabled,
+        grafica_system_enabled: !!data.tenant?.grafica_system_enabled,
         plan_features: Array.isArray(data.tenant?.plan_features) ? data.tenant.plan_features : null,
       });
       setRedirectTo(data.user?.role === "super_admin" ? "/super-admin" : "/admin");

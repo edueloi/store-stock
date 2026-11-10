@@ -15,6 +15,7 @@ import {
   Tags,
   Users,
   Receipt,
+  Printer,
   Wallet,
   UserCheck,
   Truck,
@@ -100,6 +101,7 @@ import WhatsappAtendimento from "./WhatsappAtendimento";
 import WhatsappHistory from "./WhatsappHistory";
 import Consignments from "./Consignments";
 import Assinatura from "./Assinatura";
+import SistemaGrafica from "./SistemaGrafica";
 import MinhaLoja from "./MinhaLoja";
 
 // ── Tooltip da sidebar recolhida (portal, foge do overflow do nav) ───────────
@@ -897,6 +899,7 @@ export default function AdminDashboard() {
     {
       label: "Sistema",
       items: [
+        { icon: Printer,      label: "Sistema Gráfica", path: "/admin/sistema-grafica", key: "sistema_grafica" },
         { icon: Receipt,      label: "Assinatura",    path: "/admin/assinatura", key: "assinatura" },
         { icon: SettingsIcon, label: "Configurações", path: "/admin/settings", key: "settings" },
         { icon: HelpCircle,   label: "Tour guiado",   path: "action:tour",       key: "tour", action: "tour" as const },
@@ -910,7 +913,7 @@ export default function AdminDashboard() {
   const currentUser = getStoredUser();
   const allowedMenus = currentUser?.menus ?? [];
   const planFeatures = currentUser?.plan_features;
-  const alwaysAvailable = ["dashboard", "settings", "my_store", "tour", "meu_perfil", "cardapio_qr"];
+  const alwaysAvailable = ["dashboard", "settings", "my_store", "tour", "meu_perfil", "cardapio_qr", "sistema_grafica"];
   const canSeeMenu = (key: string) => {
     const isIncludedInPlan = !Array.isArray(planFeatures) || alwaysAvailable.includes(key) || planFeatures.includes(key);
     return isIncludedInPlan && (currentUser?.role === "admin" || allowedMenus.includes(key) || key === "tour" || key === "meu_perfil");
@@ -1298,6 +1301,7 @@ export default function AdminDashboard() {
               <Route path="minha-loja" element={<MinhaLoja />} />
               <Route path="minha-loja/configurar" element={<Settings storeMode />} />
               <Route path="assinatura" element={<Assinatura />} />
+              <Route path="sistema-grafica" element={<SistemaGrafica />} />
               <Route path="loyalty" element={<Loyalty />} />
               <Route path="inventory" element={<Stock />} />
             </Routes>

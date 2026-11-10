@@ -1,0 +1,81 @@
+import { useEffect, useState } from "react";
+import { Printer, CheckCircle2, ExternalLink, Users, Package, Calculator, MessageCircle, Globe, Gift, Sparkles } from "lucide-react";
+import { Badge, Button, ContentCard, PageWrapper, SectionTitle } from "../../components/ui";
+import { getStoredUser } from "../../lib/session";
+
+const GRAFICA_URL = "https://grafica.boxsys.com.br";
+const SUPPORT_WA = "5515992418299";
+
+const BENEFITS = [
+  { icon: Calculator, t: "Orçamentos e ordens de serviço", d: "Orçamento na hora, pedidos e acompanhamento da produção." },
+  { icon: Gift, t: "Catálogo de brindes (XBZ)", d: "Milhares de brindes prontos, com fotos e cores. Você define o preço de venda." },
+  { icon: Globe, t: "Site com a sua marca", d: "Vitrine online no seu endereço, com catálogo e pedido de orçamento." },
+  { icon: MessageCircle, t: "WhatsApp com atendente virtual", d: "Responde clientes e monta orçamentos sem perder tempo." },
+];
+
+function brl(v: number) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+export default function SistemaGrafica() {
+  const user = getStoredUser();
+  const enabled = !!user?.grafica_system_enabled;
+  const [monthly, setMonthly] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/tenant/billing", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+      .then((r) => r.json())
+      .then((d) => { if (d && typeof d.value !== "undefined") setMonthly(Number(d.value)); })
+      .catch(() => {});
+  }, []);
+
+  const ADDON = 100;
+  const wa = `https://wa.me/${SUPPORT_WA}?text=${encodeURIComponent("Olá! Quero contratar o Sistema Gráfica (+R$ 100/mês) para a minha loja no Store BoxSys.")}`;
+
+  return (
+    <PageWrapper>
+      <div className="space-y-4">
+        <SectionTitle icon={Printer} title="Sistema Gráfica" description="Orçamentos, ordens de serviço, catálogo de brindes e site para gráficas e brindes" />
+
+        {enabled ? (
+          <ContentCard className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-1">
+                <Badge color="success" icon={<CheckCircle2 size={12} />}>Ativo na sua loja</Badge>
+                <p className="text-sm text-slate-600">Use o mesmo e-mail e senha do Store BoxSys para entrar.</p>
+              </div>
+              <a href={GRAFICA_URL} target="_blank" rel="noreferrer">
+                <Button icon={<ExternalLink size={14} />}>Abrir Sistema Gráfica</Button>
+              </a>
+            </div>
+            <ul className="grid gap-3 sm:grid-cols-2">
+              <li className="flex items-start gap-3 rounded-xl border border-slate-200 p-3"><Users size={18} className="mt-0.5 text-blue-600" /><div><p className="text-sm font-medium text-slate-800">Clientes sincronizados</p><p className="text-xs text-slate-500">Cadastre ou altere de um lado e aparece no outro em até 1 minuto.</p></div></li>
+              <li className="flex items-start gap-3 rounded-xl border border-slate-200 p-3"><Package size={18} className="mt-0.5 text-blue-600" /><div><p className="text-sm font-medium text-slate-800">Produtos sincronizados</p><p className="text-xs text-slate-500">Os produtos do Sistema Gráfica vão para a sua loja, com o custo separado do preço de venda.</p></div></li>
+            </ul>
+          </ContentCard>
+        ) : (
+          <ContentCard className="space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="max-w-xl space-y-1.5">
+                <Badge color="default" icon={<Sparkles size={12} />}>Módulo adicional</Badge>
+                <h2 className="text-lg font-semibold text-slate-900">Tem gráfica ou vende brindes? Leve o sistema completo.</h2>
+                <p className="text-sm text-slate-600">O Sistema Gráfica conversa com a sua loja: clientes e produtos ficam iguais nos dois, sem digitar duas vezes.</p>
+              </div>
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-center">
+                <p className="text-xs font-medium text-blue-700">Adicional na mensalidade</p>
+                <p className="text-3xl font-bold text-blue-900">+ {brl(ADDON)}</p>
+                {monthly !== null && monthly > 0 && <p className="mt-1 text-xs text-slate-600">Sua mensalidade vai de {brl(monthly)} para <b>{brl(monthly + ADDON)}</b></p>}
+              </div>
+            </div>
+            <ul className="grid gap-3 sm:grid-cols-2">
+              {BENEFITS.map(({ icon: Icon, t, d }) => (
+                <li key={t} className="flex items-start gap-3 rounded-xl border border-slate-200 p-3"><Icon size={18} className="mt-0.5 text-blue-600" /><div><p className="text-sm font-medium text-slate-800">{t}</p><p className="text-xs text-slate-500">{d}</p></div></li>
+              ))}
+            </ul>
+            <a href={wa} target="_blank" rel="noreferrer"><Button icon={<MessageCircle size={14} />}>Quero contratar</Button></a>
+          </ContentCard>
+        )}
+      </div>
+    </PageWrapper>
+  );
+}

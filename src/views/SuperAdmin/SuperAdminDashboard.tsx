@@ -270,9 +270,10 @@ export default function SuperAdminDashboard() {
     fluxoProducaoEnabled: boolean;
     graficaEnabled: boolean;
     foodEnabled: boolean;
+    graficaSystemEnabled: boolean;
   };
   const [editingTenant, setEditingTenant] = useState<ManagedTenant | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ tenantName: "", whatsapp: "", userName: "", userEmail: "", userPassword: "", fluxoProducaoEnabled: false, graficaEnabled: false, foodEnabled: false });
+  const [editForm, setEditForm] = useState<EditForm>({ tenantName: "", whatsapp: "", userName: "", userEmail: "", userPassword: "", fluxoProducaoEnabled: false, graficaEnabled: false, foodEnabled: false, graficaSystemEnabled: false });
   const [editSaving, setEditSaving] = useState(false);
   const [showEditPwd, setShowEditPwd] = useState(false);
   const [editTab, setEditTab] = useState<EditTab>("store");
@@ -289,6 +290,7 @@ export default function SuperAdminDashboard() {
       fluxoProducaoEnabled: !!tenant.fluxo_producao_enabled,
       graficaEnabled: !!tenant.grafica_enabled,
       foodEnabled: !!tenant.food_enabled,
+      graficaSystemEnabled: !!tenant.grafica_system_enabled,
     });
     setShowEditPwd(false);
     setEditingTenant(tenant);
@@ -302,7 +304,7 @@ export default function SuperAdminDashboard() {
       // 1. Update tenant (name + whatsapp + módulos habilitados)
       const tRes = await fetch(`/api/super-admin/tenants/${editingTenant.id}`, {
         method: "PATCH", headers: apiHeaders(),
-        body: JSON.stringify({ name: editForm.tenantName, whatsapp: editForm.whatsapp, fluxoProducaoEnabled: editForm.fluxoProducaoEnabled, graficaEnabled: editForm.graficaEnabled, foodEnabled: editForm.foodEnabled }),
+        body: JSON.stringify({ name: editForm.tenantName, whatsapp: editForm.whatsapp, fluxoProducaoEnabled: editForm.fluxoProducaoEnabled, graficaEnabled: editForm.graficaEnabled, foodEnabled: editForm.foodEnabled, graficaSystemEnabled: editForm.graficaSystemEnabled }),
       });
       const tData = (await tRes.json()) as ManagedTenant & { error?: string };
       if (!tRes.ok) { showToast("error", tData.error || "Erro ao salvar loja."); return; }
@@ -1091,6 +1093,13 @@ export default function SuperAdminDashboard() {
                         <p className="text-[11px] text-slate-500">Adega, bar, lanchonete ou conveniência: libera o cardápio digital (mesa, balcão, retirada e entrega) e as comandas</p>
                       </div>
                       <Switch checked={editForm.foodEnabled} aria-label="Estabelecimento alimentício" onChange={(checked) => setEditForm(f => ({ ...f, foodEnabled: checked }))} />
+                    </div>
+                    <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-slate-800">Sistema Gráfica (grafica.boxsys.com.br)</p>
+                        <p className="text-[11px] text-slate-500">Módulo pago à parte: +R$ 100,00 na mensalidade. Libera o atalho e a página do Sistema Gráfica no menu da loja. Depois de ligar, ajuste o valor da cobrança no Asaas (hoje R$ {Number(editingTenant.subscription_amount ?? 0).toFixed(2).replace(".", ",")} → R$ {(Number(editingTenant.subscription_amount ?? 0) + 100).toFixed(2).replace(".", ",")}).</p>
+                      </div>
+                      <Switch checked={editForm.graficaSystemEnabled} aria-label="Sistema Gráfica" onChange={(checked) => setEditForm(f => ({ ...f, graficaSystemEnabled: checked }))} />
                     </div>
                   </div>
                 )}

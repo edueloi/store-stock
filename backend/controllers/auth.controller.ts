@@ -140,6 +140,7 @@ export async function login(req: Request, res: Response) {
             fluxo_producao_enabled: true,
             grafica_enabled: true,
             food_enabled: true,
+            grafica_system_enabled: true,
             plan: { select: { features: true } },
             platform_subscription: { select: { status: true, next_due_date: true, grace_period_days: true } },
           },
@@ -201,6 +202,7 @@ export async function login(req: Request, res: Response) {
         fluxo_producao_enabled: user.tenant.fluxo_producao_enabled,
         grafica_enabled: user.tenant.grafica_enabled,
         food_enabled: user.tenant.food_enabled,
+        grafica_system_enabled: user.tenant.grafica_system_enabled,
         plan_features: Array.isArray(user.tenant.plan?.features) ? user.tenant.plan.features.map(String) : null,
       },
     });

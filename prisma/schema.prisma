@@ -92,6 +92,8 @@ model Tenant {
   // Estabelecimento alimentício (adega, bar, lanchonete, conveniência): libera comandas e o
   // cardápio digital por QR Code. Liberado manualmente pelo Super Admin.
   food_enabled           Boolean @default(false)
+  // Sistema Gráfica (grafica.boxsys.com.br): módulo pago à parte (+R$ 100/mês), liberado pelo Super Admin.
+  grafica_system_enabled Boolean @default(false)
 
   status              String    @default("active")
   trial_days          Int       @default(30)

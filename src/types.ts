@@ -172,6 +172,7 @@ export interface Tenant {
   fluxo_producao_enabled?: boolean;
   grafica_enabled?: boolean;
   food_enabled?: boolean;
+  grafica_system_enabled?: boolean;
   plan_features?: string[] | null;
   status?: 'pending_setup' | 'trial' | 'active' | 'suspended';
   trial_days?: number;
@@ -236,6 +237,8 @@ export interface User {
   grafica_enabled?: boolean;
   // Módulo de estabelecimento alimentício (comandas + cardápio QR) — ver Tenant.food_enabled.
   food_enabled?: boolean;
+  // Sistema Gráfica (módulo pago à parte), liberado pelo Super Admin.
+  grafica_system_enabled?: boolean;
   plan_features?: string[] | null;
 }
 
