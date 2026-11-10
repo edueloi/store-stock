@@ -1,4 +1,6 @@
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 
 import { Router } from "express";
 import type { NextFunction, Request, Response } from "express";
@@ -84,27 +86,94 @@ router.post("/customers", async (req, res) => {
   } catch (e) { console.error("internal-sync POST customers:", e); res.status(500).json({ error: "Falha ao gravar o cliente." }); }
 });
 
-/** Produtos da loja (somente leitura): o grafica traz o catálogo para a empresa. O custo é interno, nunca vai para o site público. */
+// ── Produtos ────────────────────────────────────────────────────────────────
+// O grafica traz o catálogo da loja e também manda para cá os produtos da empresa (inclusive os brindes da XBZ). O custo é
+// interno e o preço de venda é o que a empresa define: produto sem preço de venda fica inativo (nunca vende a R$ 0).
+const money = (v: unknown) => (v == null || v === "" ? "" : Number(v).toFixed(2));
+function productOut(p: any, catName: Map<number, string>) {
+  const imgs = [...new Set([p.image_url, ...(Array.isArray(p.images) ? (p.images as unknown[]).map((i) => (typeof i === "string" ? i : (i as { url?: string })?.url)) : [])].map((u) => text(u, 500)).filter(Boolean))].slice(0, 10);
+  return {
+    id: p.id,
+    fields: {
+      name: text(p.name, 160), description: text(p.description, 5000), category: text(p.category_id ? catName.get(p.category_id) : "", 80),
+      price: money(p.price), costPrice: money(p.cost_price), offerPrice: Number(p.discount_price) > 0 ? money(p.discount_price) : "", active: !!p.is_active,
+    },
+    imageUrls: imgs,
+  };
+}
+async function categoryNames(tenantId: number) {
+  const cats = await prisma.category.findMany({ where: { tenant_id: tenantId }, select: { id: true, name: true } });
+  return new Map(cats.map((c) => [c.id, c.name]));
+}
+
 router.get("/products", async (req, res) => {
   try {
     const tenantId = tid(req);
-    const [rows, cats] = await Promise.all([
-      prisma.product.findMany({ where: { tenant_id: tenantId }, orderBy: { id: "asc" } }),
-      prisma.category.findMany({ where: { tenant_id: tenantId }, select: { id: true, name: true } }),
-    ]);
-    const catName = new Map(cats.map((c) => [c.id, c.name]));
-    const money = (v: unknown) => (v == null ? "" : Number(v).toFixed(2));
-    res.json({
-      products: rows.map((p) => ({
-        id: p.id,
-        fields: {
-          name: text(p.name, 160), sku: text(p.sku, 80), description: text(p.description, 5000), category: text(p.category_id ? catName.get(p.category_id) : "", 80),
-          price: money(p.price), costPrice: money(p.cost_price), offerPrice: Number(p.discount_price) > 0 ? money(p.discount_price) : "", active: !!p.is_active,
-        },
-        imageUrls: [...new Set([p.image_url, ...(Array.isArray(p.images) ? (p.images as unknown[]).map((i) => (typeof i === "string" ? i : (i as { url?: string })?.url)) : [])].map((u) => text(u, 500)).filter(Boolean))].slice(0, 10),
-      })),
-    });
+    const [rows, names] = await Promise.all([prisma.product.findMany({ where: { tenant_id: tenantId }, orderBy: { id: "asc" } }), categoryNames(tenantId)]);
+    res.json({ products: rows.map((p) => productOut(p, names)) });
   } catch (e) { console.error("internal-sync GET products:", e); res.status(500).json({ error: "Falha ao listar produtos." }); }
+});
+
+// Fotos que vêm do grafica: só do endereço dele (GRAFICA_SYNC_ORIGIN) e só das rotas públicas de imagem.
+async function pullImages(tenantId: number, urls: unknown, current: { image_url: string | null; images: unknown }) {
+  const origin = process.env.GRAFICA_SYNC_ORIGIN || "http://127.0.0.1:3300";
+  const list: string[] = Array.isArray(current.images) ? (current.images as unknown[]).filter((x): x is string => typeof x === "string") : [];
+  const dir = path.join(process.cwd(), "public", "uploads", "products", String(tenantId));
+  let changed = false;
+  for (const raw of (Array.isArray(urls) ? urls : []).slice(0, 10)) {
+    try {
+      const u = new URL(String(raw));
+      if (u.origin !== origin || !u.pathname.startsWith("/api/site/images/")) continue;
+      const id = u.pathname.split("/").pop()!.replace(/[^a-zA-Z0-9-]/g, "");
+      const rel = `/uploads/products/${tenantId}/sync-${id}.webp`;
+      if (list.includes(rel)) continue;
+      const r = await fetch(u, { signal: AbortSignal.timeout(20_000), redirect: "error" });
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (!r.ok || buf.length === 0 || buf.length > 8 * 1024 * 1024 || !(r.headers.get("content-type") ?? "").startsWith("image/")) continue;
+      await fs.promises.mkdir(dir, { recursive: true });
+      await fs.promises.writeFile(path.join(dir, `sync-${id}.webp`), buf);
+      list.push(rel); changed = true;
+    } catch { /* foto indisponível: segue sem */ }
+  }
+  return changed ? { images: list, image_url: current.image_url || list[0] || null } : {};
+}
+
+/** Cria (sem id) ou atualiza (com id) um produto. Só grava o que mudou; categoria nova é criada na hora. */
+router.post("/products", async (req, res) => {
+  try {
+    const tenantId = tid(req);
+    const f = (req.body?.fields ?? {}) as Record<string, any>;
+    const id = Number(req.body?.id) || null;
+    const data: Record<string, any> = {};
+    if ("name" in f && text(f.name, 160)) data.name = text(f.name, 160);
+    if ("description" in f) data.description = text(f.description, 5000) || null;
+    if ("price" in f) { const n = Number(f.price); if (Number.isFinite(n) && n >= 0) data.price = n.toFixed(2); }
+    if ("costPrice" in f) { const n = Number(f.costPrice); data.cost_price = Number.isFinite(n) && n >= 0 ? n.toFixed(2) : "0.00"; }
+    if ("offerPrice" in f) { const n = Number(f.offerPrice); data.discount_price = Number.isFinite(n) && n > 0 ? n.toFixed(2) : null; }
+    if ("active" in f) data.is_active = f.active === true;
+    if ("category" in f) {
+      const name = text(f.category, 80);
+      if (!name) data.category_id = null;
+      else {
+        const cat = (await prisma.category.findFirst({ where: { tenant_id: tenantId, name } })) ?? (await prisma.category.create({ data: { tenant_id: tenantId, name } }));
+        data.category_id = cat.id;
+      }
+    }
+    let saved;
+    if (id) {
+      const cur = await prisma.product.findFirst({ where: { id, tenant_id: tenantId } });
+      if (!cur) return res.status(404).json({ error: "Produto não encontrado." });
+      const img = await pullImages(tenantId, req.body?.imageUrls, cur);
+      saved = Object.keys(data).length || Object.keys(img).length ? await prisma.product.update({ where: { id }, data: { ...data, ...img } }) : cur;
+    } else {
+      if (!data.name) return res.status(422).json({ error: "Informe o nome." });
+      // produto da gráfica é feito sob encomenda: vende sem estoque e não entra nos alertas de esgotado
+      const created = await prisma.product.create({ data: { price: "0.00", is_active: false, track_stock: false, ...data, tenant_id: tenantId } as any });
+      const img = await pullImages(tenantId, req.body?.imageUrls, created);
+      saved = Object.keys(img).length ? await prisma.product.update({ where: { id: created.id }, data: img }) : created;
+    }
+    res.status(id ? 200 : 201).json(productOut(saved, await categoryNames(tenantId)));
+  } catch (e) { console.error("internal-sync POST products:", e); res.status(500).json({ error: "Falha ao gravar o produto." }); }
 });
 
 router.get("/users", async (req, res) => {
