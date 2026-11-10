@@ -3,7 +3,6 @@ import { Printer, CheckCircle2, ExternalLink, Users, Package, Calculator, Messag
 import { Badge, Button, ContentCard, PageWrapper, SectionTitle } from "../../components/ui";
 import { getStoredUser } from "../../lib/session";
 
-const GRAFICA_URL = "https://grafica.boxsys.com.br";
 const SUPPORT_WA = "5515992418299";
 
 const BENEFITS = [
@@ -29,6 +28,20 @@ export default function SistemaGrafica() {
       .catch(() => {});
   }, []);
 
+  const [opening, setOpening] = useState(false);
+  const [openError, setOpenError] = useState("");
+  // abre o Sistema Gráfica já logado (a aba é aberta antes da chamada para o navegador não bloquear)
+  const openGrafica = async () => {
+    setOpening(true); setOpenError("");
+    const tab = window.open("", "_blank");
+    try {
+      const r = await fetch("/api/tenant/grafica-sso", { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.url) throw new Error(d?.error || "Não foi possível abrir o Sistema Gráfica.");
+      if (tab) tab.location.href = d.url; else window.location.href = d.url;
+    } catch (e) { tab?.close(); setOpenError((e as Error).message); } finally { setOpening(false); }
+  };
+
   const ADDON = 100;
   const wa = `https://wa.me/${SUPPORT_WA}?text=${encodeURIComponent("Olá! Quero contratar o Sistema Gráfica (+R$ 100/mês) para a minha loja no Store BoxSys.")}`;
 
@@ -42,11 +55,10 @@ export default function SistemaGrafica() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="space-y-1">
                 <Badge color="success" icon={<CheckCircle2 size={12} />}>Ativo na sua loja</Badge>
-                <p className="text-sm text-slate-600">Use o mesmo e-mail e senha do Store BoxSys para entrar.</p>
+                <p className="text-sm text-slate-600">Você entra direto, já logado, com o mesmo usuário do Store BoxSys.</p>
+                {openError && <p role="alert" className="text-xs text-red-600">{openError}</p>}
               </div>
-              <a href={GRAFICA_URL} target="_blank" rel="noreferrer">
-                <Button icon={<ExternalLink size={14} />}>Abrir Sistema Gráfica</Button>
-              </a>
+              <Button icon={<ExternalLink size={14} />} loading={opening} onClick={openGrafica}>Abrir Sistema Gráfica</Button>
             </div>
             <ul className="grid gap-3 sm:grid-cols-2">
               <li className="flex items-start gap-3 rounded-xl border border-slate-200 p-3"><Users size={18} className="mt-0.5 text-blue-600" /><div><p className="text-sm font-medium text-slate-800">Clientes sincronizados</p><p className="text-xs text-slate-500">Cadastre ou altere de um lado e aparece no outro em até 1 minuto.</p></div></li>

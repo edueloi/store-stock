@@ -48,6 +48,15 @@ export async function listIssuers(req: Request, res: Response) {
   } catch (e) { console.error("listIssuers:", e); res.status(500).json({ error: "Falha ao listar os CNPJs." }); }
 }
 
+/** Resumo leve para o topo do painel (só administrador; não cria nada: se a loja não usa vários CNPJs, devolve lista vazia). */
+export async function issuersSummary(req: Request, res: Response) {
+  try {
+    if (!isAdmin(req)) { res.json({ issuers: [] }); return; }
+    const rows = await prisma.tenantIssuer.findMany({ where: { tenant_id: tenantOf(req) }, orderBy: { id: "asc" }, select: { id: true, label: true, is_active: true } });
+    res.json({ issuers: rows.map((r) => ({ id: r.id, label: r.label, isActive: r.is_active })) });
+  } catch (e) { console.error("issuersSummary:", e); res.json({ issuers: [] }); }
+}
+
 export async function createIssuer(req: Request, res: Response) {
   try {
     if (!isAdmin(req)) { res.status(403).json({ error: "Só o administrador cadastra CNPJs." }); return; }

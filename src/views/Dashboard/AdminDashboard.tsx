@@ -102,6 +102,7 @@ import WhatsappHistory from "./WhatsappHistory";
 import Consignments from "./Consignments";
 import Assinatura from "./Assinatura";
 import SistemaGrafica from "./SistemaGrafica";
+import IssuerSwitcher from "./IssuerSwitcher";
 import MinhaLoja from "./MinhaLoja";
 
 // ── Tooltip da sidebar recolhida (portal, foge do overflow do nav) ───────────
@@ -1234,6 +1235,7 @@ export default function AdminDashboard() {
           </div>
 
           <div className="flex items-center gap-2">
+            <IssuerSwitcher />
             <Button variant="outline" size="sm" onClick={viewPublicStore} iconLeft={<BarChart3 size={14} />}>
               <span className="hidden sm:inline">Loja</span>
               <span className="sr-only sm:hidden">Loja</span>

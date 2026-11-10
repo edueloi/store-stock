@@ -88,6 +88,26 @@ export async function getMyBilling(req: Request, res: Response) {
   }
 }
 
+/** Abre o Sistema Gráfica já logado: gera um ticket assinado (90 s, uso único) com o e-mail de quem está logado aqui. */
+export async function graficaSso(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const linked = Number(process.env.GRAFICA_SYNC_TENANT_ID);
+    const secretBase = process.env.SYNC_TOKEN ?? "";
+    if (!Number.isInteger(linked) || linked !== tenantId || secretBase.length < 24) { res.status(404).json({ error: "O Sistema Gráfica não está ligado a esta loja." }); return; }
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { grafica_system_enabled: true } });
+    if (!tenant?.grafica_system_enabled) { res.status(403).json({ error: "O Sistema Gráfica não está liberado para esta loja." }); return; }
+    const user = await prisma.user.findUnique({ where: { id: (req as AuthenticatedRequest).user.userId }, select: { email: true } });
+    if (!user?.email) { res.status(404).json({ error: "Usuário não encontrado." }); return; }
+    const crypto = await import("crypto");
+    const body = Buffer.from(JSON.stringify({ e: user.email.toLowerCase(), x: Math.floor(Date.now() / 1000) + 90, j: crypto.randomBytes(12).toString("hex") })).toString("base64url");
+    const key = crypto.createHash("sha256").update("sso:" + secretBase).digest();
+    const sig = crypto.createHmac("sha256", key).update(body).digest("base64url");
+    const base = (process.env.GRAFICA_PUBLIC_URL || "https://grafica.boxsys.com.br").replace(/\/$/, "");
+    res.json({ url: `${base}/sso#t=${body}.${sig}` });
+  } catch (e) { console.error("graficaSso:", e); res.status(500).json({ error: "Não foi possível abrir o Sistema Gráfica." }); }
+}
+
 export async function getTenant(req: Request, res: Response) {
   try {
     const tenant = await prisma.tenant.findUnique({

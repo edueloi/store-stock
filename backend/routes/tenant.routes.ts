@@ -1,8 +1,8 @@
 import { Router } from "express";
 
-import { getTenant, updateTenant, uploadNfceCert, uploadNfceCertificate, getNfceCertificateInfo, deleteNfceCertificate, getMyBilling, sendReportNowHandler, listAutomatedMessageLogs, testEmailConnection, getStorePaymentGateways, saveStorePaymentGateway } from "../controllers/tenant.controller";
+import { graficaSso, getTenant, updateTenant, uploadNfceCert, uploadNfceCertificate, getNfceCertificateInfo, deleteNfceCertificate, getMyBilling, sendReportNowHandler, listAutomatedMessageLogs, testEmailConnection, getStorePaymentGateways, saveStorePaymentGateway } from "../controllers/tenant.controller";
 import { onboardAsaas, saveChargeRules, createChargeLink, listCharges, getAsaasAccountOverview, withdrawAsaasBalance } from "../controllers/store-charges.controller";
-import { listIssuers, createIssuer, updateIssuer, activateIssuer, deleteIssuer } from "../controllers/issuers.controller";
+import { listIssuers, issuersSummary, createIssuer, updateIssuer, activateIssuer, deleteIssuer } from "../controllers/issuers.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -10,6 +10,7 @@ const router = Router();
 router.use(authenticateToken);
 
 router.get("/", getTenant);
+router.post("/grafica-sso", graficaSso);
 router.put("/", updateTenant);
 router.get("/payment-gateways", getStorePaymentGateways);
 router.put("/payment-gateways/:provider", saveStorePaymentGateway);
@@ -20,6 +21,7 @@ router.post("/payment-gateways/asaas/withdraw", withdrawAsaasBalance);
 router.post("/charges", createChargeLink);
 router.get("/charges", listCharges);
 router.get("/issuers", listIssuers);
+router.get("/issuers/summary", issuersSummary);
 router.post("/issuers", createIssuer);
 router.put("/issuers/:id", updateIssuer);
 router.post("/issuers/:id/activate", activateIssuer);
