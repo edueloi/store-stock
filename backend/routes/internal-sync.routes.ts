@@ -84,6 +84,29 @@ router.post("/customers", async (req, res) => {
   } catch (e) { console.error("internal-sync POST customers:", e); res.status(500).json({ error: "Falha ao gravar o cliente." }); }
 });
 
+/** Produtos da loja (somente leitura): o grafica traz o catálogo para a empresa. O custo é interno, nunca vai para o site público. */
+router.get("/products", async (req, res) => {
+  try {
+    const tenantId = tid(req);
+    const [rows, cats] = await Promise.all([
+      prisma.product.findMany({ where: { tenant_id: tenantId }, orderBy: { id: "asc" } }),
+      prisma.category.findMany({ where: { tenant_id: tenantId }, select: { id: true, name: true } }),
+    ]);
+    const catName = new Map(cats.map((c) => [c.id, c.name]));
+    const money = (v: unknown) => (v == null ? "" : Number(v).toFixed(2));
+    res.json({
+      products: rows.map((p) => ({
+        id: p.id,
+        fields: {
+          name: text(p.name, 160), sku: text(p.sku, 80), description: text(p.description, 5000), category: text(p.category_id ? catName.get(p.category_id) : "", 80),
+          price: money(p.price), costPrice: money(p.cost_price), offerPrice: Number(p.discount_price) > 0 ? money(p.discount_price) : "", active: !!p.is_active,
+        },
+        imageUrls: [...new Set([p.image_url, ...(Array.isArray(p.images) ? (p.images as unknown[]).map((i) => (typeof i === "string" ? i : (i as { url?: string })?.url)) : [])].map((u) => text(u, 500)).filter(Boolean))].slice(0, 10),
+      })),
+    });
+  } catch (e) { console.error("internal-sync GET products:", e); res.status(500).json({ error: "Falha ao listar produtos." }); }
+});
+
 router.get("/users", async (req, res) => {
   try {
     const rows = await prisma.user.findMany({ where: { tenant_id: tid(req) }, select: { id: true, email: true, name: true, phone: true, password: true } });
