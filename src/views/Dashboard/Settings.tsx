@@ -1,4 +1,5 @@
 import GlassDefaultsSettings from "../../components/GlassDefaultsSettings";
+import IssuersCard from "./IssuersCard";
 import GlassOptionsSettings from "../../components/GlassOptionsSettings";
 import GlassExtrasSettings from "../../components/GlassExtrasSettings";
 import GlassPricesSettings from "../../components/GlassPricesSettings";
@@ -2736,6 +2737,8 @@ export default function Settings({
                   title="Dados Fiscais"
                   subtitle="Informações usadas na emissão de NFC-e junto à SEFAZ-SP. Preencha com atenção — erros aqui geram rejeição das notas."
                 />
+
+                <IssuersCard />
 
                 {/* Dados da empresa */}
                 <div className="space-y-3">

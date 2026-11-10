@@ -1,4 +1,5 @@
 import fs from "fs";
+import { activeIssuerId, issuerFilter } from "../utils/issuers";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -89,7 +90,7 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
       if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
       invoice = await prisma.$transaction(async (tx) => {
         const created = await tx.nfseInvoice.create({ data: {
-          tenant_id: tenantId, service_order_id: serviceOrderId, status: "pending",
+          tenant_id: tenantId, service_order_id: serviceOrderId, status: "pending", issuer_id: await activeIssuerId(tenantId),
           environment: tenant.nfse_environment, serie: tenant.nfse_serie, numero: tenant.nfse_next_number,
           ...retryData,
         }});
@@ -158,6 +159,7 @@ export async function testNfseEmission(req: Request, res: Response) {
           tenant_id: tenantId,
           service_order_id: testOrder.id,
           status: "pending",
+          issuer_id: await activeIssuerId(tenantId),
           environment: "homologacao",
           serie: tenant.nfse_serie,
           numero: tenant.nfse_next_number,
@@ -274,7 +276,7 @@ export async function emitNfseAvulsa(req: Request, res: Response) {
       });
       const created = await tx.nfseInvoice.create({
         data: {
-          tenant_id: tenantId, service_order_id: order.id, status: "pending",
+          tenant_id: tenantId, service_order_id: order.id, status: "pending", issuer_id: await activeIssuerId(tenantId),
           environment: tenant.nfse_environment, serie: tenant.nfse_serie, numero: tenant.nfse_next_number,
           codigo_tributacao_nacional, descricao_servico: descricao_servico.trim(), valor_servico: valorServico,
         },
@@ -556,13 +558,13 @@ export async function listNfse(req: Request, res: Response) {
 
     const [invoices, total] = await Promise.all([
       prisma.nfseInvoice.findMany({
-        where: { tenant_id: tenantId },
+        where: { tenant_id: tenantId, ...(await issuerFilter(tenantId)) },
         include: { service_order: { select: { customer_name: true, service_value: true, number: true } } },
         orderBy: { created_at: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      prisma.nfseInvoice.count({ where: { tenant_id: tenantId } }),
+      prisma.nfseInvoice.count({ where: { tenant_id: tenantId, ...(await issuerFilter(tenantId)) } }),
     ]);
 
     res.json({ invoices, total, page, pageSize });

@@ -1,4 +1,5 @@
 import fs from "fs";
+import { activeIssuerId, issuerFilter } from "../utils/issuers";
 import path from "path";
 import archiver from "archiver";
 import type { Request, Response } from "express";
@@ -147,7 +148,7 @@ export async function emitNfceForOrder(req: Request, res: Response) {
       if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
       invoice = await prisma.$transaction(async (tx) => {
         const created = await tx.nfceInvoice.create({ data: {
-          tenant_id: tenantId, order_id: orderId, status: "pending", environment: tenant.nfce_environment,
+          tenant_id: tenantId, order_id: orderId, status: "pending", environment: tenant.nfce_environment, issuer_id: await activeIssuerId(tenantId),
           series: tenant.nfce_series, number: tenant.nfce_next_number,
         }});
         await tx.tenant.update({ where: { id: tenantId }, data: { nfce_next_number: { increment: 1 } } });
@@ -581,13 +582,13 @@ export async function listNfce(req: Request, res: Response) {
 
     const [invoices, total] = await Promise.all([
       prisma.nfceInvoice.findMany({
-        where: { tenant_id: tenantId },
+        where: { tenant_id: tenantId, ...(await issuerFilter(tenantId)) },
         include: { order: { select: { customer_name: true, total_amount: true } } },
         orderBy: { created_at: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      prisma.nfceInvoice.count({ where: { tenant_id: tenantId } }),
+      prisma.nfceInvoice.count({ where: { tenant_id: tenantId, ...(await issuerFilter(tenantId)) } }),
     ]);
 
     res.json({ invoices, total, page, pageSize });

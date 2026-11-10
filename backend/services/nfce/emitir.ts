@@ -1,4 +1,5 @@
 import fs from "fs";
+import { withIssuerAddress } from "../../utils/issuers";
 import path from "path";
 
 import type { Product } from "@prisma/client";
@@ -46,7 +47,8 @@ export async function emitirNfce(orderId: number): Promise<void> {
   });
   if (!order) return;
 
-  const tenant = await prisma.tenant.findUnique({ where: { id: order.tenant_id } });
+  const tenantRaw = await prisma.tenant.findUnique({ where: { id: order.tenant_id } });
+  const tenant = tenantRaw ? await withIssuerAddress(tenantRaw) : tenantRaw; // endereço do emitente = o do CNPJ ativo, se tiver
   if (!tenant) return;
   tenant.nfce_cert_password = decryptSecret(tenant.nfce_cert_password);
   tenant.nfce_csc_token = decryptSecret(tenant.nfce_csc_token);

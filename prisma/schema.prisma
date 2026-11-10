@@ -181,6 +181,7 @@ model Tenant {
   platform_subscription  PlatformSubscription?
   store_payment_gateways StorePaymentGateway[]
   store_charges          StoreCharge[]
+  issuers                TenantIssuer[]
 
   @@map("tenants")
 }
@@ -773,6 +774,25 @@ model TerminalTransaction {
   @@map("terminal_transactions")
 }
 
+// CNPJs emissores da loja (uma mensalidade). O CNPJ ATIVO vive nas colunas fiscais do Tenant (todo o código fiscal segue lendo de lá);
+// os inativos guardam aqui o conjunto fiscal (snapshot). Trocar o ativo troca esse conjunto. Só dados fiscais mudam.
+model TenantIssuer {
+  id         Int      @id @default(autoincrement())
+  tenant_id  Int
+  label      String
+  document   String?
+  is_active  Boolean  @default(false)
+  snapshot   Json
+  address    Json? // endereço do emitente usado só dentro das notas (o da loja online não muda)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id])
+  @@map("tenant_issuers")
+}
+
 model NfceInvoice {
   id               Int       @id @default(autoincrement())
   tenant_id        Int
@@ -813,8 +833,11 @@ model NfceInvoice {
   tenant Tenant @relation(fields: [tenant_id], references: [id])
   order  Order  @relation(fields: [order_id], references: [id])
 
+  issuer_id Int? // CNPJ emissor (TenantIssuer)
+
   @@index([tenant_id])
   @@index([status])
+  @@index([issuer_id])
   @@map("nfce_invoices")
 }
 
@@ -855,8 +878,11 @@ model NfseInvoice {
   tenant        Tenant       @relation(fields: [tenant_id], references: [id])
   service_order ServiceOrder @relation(fields: [service_order_id], references: [id])
 
+  issuer_id Int? // CNPJ emissor (TenantIssuer)
+
   @@index([tenant_id])
   @@index([status])
+  @@index([issuer_id])
   @@map("nfse_invoices")
 }
 

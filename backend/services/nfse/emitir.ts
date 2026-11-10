@@ -1,4 +1,5 @@
 import fs from "fs";
+import { withIssuerAddress } from "../../utils/issuers";
 import path from "path";
 
 import { prisma } from "../../config/prisma";
@@ -94,7 +95,8 @@ async function emitirNfseInterno(input: EmitirNfseInput): Promise<void> {
   const serviceOrder = await prisma.serviceOrder.findUnique({ where: { id: serviceOrderId } });
   if (!serviceOrder) return;
 
-  const tenant = await prisma.tenant.findUnique({ where: { id: serviceOrder.tenant_id } });
+  const tenantRaw = await prisma.tenant.findUnique({ where: { id: serviceOrder.tenant_id } });
+  const tenant = tenantRaw ? await withIssuerAddress(tenantRaw) : tenantRaw; // endereço do emitente = o do CNPJ ativo, se tiver
   if (!tenant) return;
   tenant.nfce_cert_password = decryptSecret(tenant.nfce_cert_password);
 

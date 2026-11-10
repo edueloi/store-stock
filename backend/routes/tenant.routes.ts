@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { getTenant, updateTenant, uploadNfceCert, uploadNfceCertificate, getNfceCertificateInfo, deleteNfceCertificate, getMyBilling, sendReportNowHandler, listAutomatedMessageLogs, testEmailConnection, getStorePaymentGateways, saveStorePaymentGateway } from "../controllers/tenant.controller";
 import { onboardAsaas, saveChargeRules, createChargeLink, listCharges, getAsaasAccountOverview, withdrawAsaasBalance } from "../controllers/store-charges.controller";
+import { listIssuers, createIssuer, updateIssuer, activateIssuer, deleteIssuer } from "../controllers/issuers.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -18,6 +19,11 @@ router.get("/payment-gateways/asaas/account", getAsaasAccountOverview);
 router.post("/payment-gateways/asaas/withdraw", withdrawAsaasBalance);
 router.post("/charges", createChargeLink);
 router.get("/charges", listCharges);
+router.get("/issuers", listIssuers);
+router.post("/issuers", createIssuer);
+router.put("/issuers/:id", updateIssuer);
+router.post("/issuers/:id/activate", activateIssuer);
+router.delete("/issuers/:id", deleteIssuer);
 router.get("/billing", getMyBilling);
 router.get("/nfce-certificate", getNfceCertificateInfo);
 router.post("/nfce-certificate", uploadNfceCert.single("certificate"), uploadNfceCertificate);
