@@ -56,6 +56,7 @@ import { generateQuotePDF, getIncludeDrawingPref, quoteHasGlassPieces, setInclud
 import { getHideValuesPref, setHideValuesPref } from "../../lib/documentPrefs";
 import { getStoredUser } from "../../lib/session";
 import ProductVariationModal, { productHasVariations, type VariationOptions } from "../../components/pdv/ProductVariationModal";
+import NfceOrderPanel from "../../components/fiscal/NfceOrderPanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -857,6 +858,8 @@ export default function QuoteDetail() {
   };
 
   const [convertingOS, setConvertingOS] = useState(false);
+  const [emitNfceAfter, setEmitNfceAfter] = useState(false);
+  const [autoEmitNfce, setAutoEmitNfce] = useState(false);
 
   // "Converter em OS": cria a ordem de serviço do orçamento (ou abre a que já existe) e vai para ela.
   const handleConvertToOS = async () => {
@@ -889,6 +892,9 @@ export default function QuoteDetail() {
       setConvertForm(newSalePaymentFormState());
       await fetchQuote(true);
       toast.success("Orçamento convertido em venda.");
+      // a emissão em si fica a cargo do painel de NFC-e (autoEmit), que antes confere os dados fiscais dos produtos
+      setAutoEmitNfce(!!emitNfceAfter);
+      setEmitNfceAfter(false);
     } finally {
       setConverting(false);
     }
@@ -1634,6 +1640,7 @@ export default function QuoteDetail() {
                   Converter em Venda
                 </Button>
               )}
+              {quote.converted_order_id && <NfceOrderPanel orderId={quote.converted_order_id} autoEmit={autoEmitNfce} />}
               {quote.status === "aguardando_aprovacao" && (
                 <Button fullWidth variant="outline" size="sm" loading={generatingLink} onClick={handleCopyApprovalLink} iconLeft={<Link2 size={14} />}>
                   {linkCopied ? "Link copiado!" : "Copiar Link de Aprovação"}
@@ -2014,6 +2021,10 @@ export default function QuoteDetail() {
               </div>
             ) : undefined}
           />
+          <label className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-xs text-slate-700">
+            <input type="checkbox" className="mt-0.5" checked={emitNfceAfter} onChange={(e) => setEmitNfceAfter(e.target.checked)} />
+            <span><b>Emitir NFC-e dos produtos</b> assim que confirmar. Serviços saem pela NFS-e.</span>
+          </label>
         </div>
       </Modal>
 

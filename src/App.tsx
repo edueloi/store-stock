@@ -1,20 +1,22 @@
+import { Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { lazyRetry } from "./lib/lazyRetry";
 
 import PwaUpdateBanner from "./components/PwaUpdateBanner";
-import AdminDashboard from "./views/Dashboard/AdminDashboard";
-import StoreLayout from "./views/Store/StoreLayout";
+const AdminDashboard = lazyRetry(() => import("./views/Dashboard/AdminDashboard"));
+const StoreLayout = lazyRetry(() => import("./views/Store/StoreLayout"));
 import Login from "./views/Auth/Login";
-import ForgotPassword from "./views/Auth/ForgotPassword";
-import ResetPassword from "./views/Auth/ResetPassword";
-import PDVStandalone from "./views/PDVStandalone";
-import PDVClassico from "./views/PDVClassico";
-import SuperAdminDashboard from "./views/SuperAdmin/SuperAdminDashboard";
-import SetupInvite from "./views/Auth/SetupInvite";
-import QuoteApproval from "./views/Public/QuoteApproval";
+const ForgotPassword = lazyRetry(() => import("./views/Auth/ForgotPassword"));
+const ResetPassword = lazyRetry(() => import("./views/Auth/ResetPassword"));
+const PDVStandalone = lazyRetry(() => import("./views/PDVStandalone"));
+const PDVClassico = lazyRetry(() => import("./views/PDVClassico"));
+const SuperAdminDashboard = lazyRetry(() => import("./views/SuperAdmin/SuperAdminDashboard"));
+const SetupInvite = lazyRetry(() => import("./views/Auth/SetupInvite"));
+const QuoteApproval = lazyRetry(() => import("./views/Public/QuoteApproval"));
 import { getStoredUser } from "./lib/session";
 import { isTenantSubdomainHost } from "./views/Store/store-routing";
 import { useRemotePrintBridge } from "./hooks/useRemotePrintBridge";
-import DigitalMenu from "./views/Menu/DigitalMenu";
+const DigitalMenu = lazyRetry(() => import("./views/Menu/DigitalMenu"));
 
 function HostAwareEntry() {
   if (isTenantSubdomainHost()) {
@@ -45,6 +47,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <Suspense fallback={<div role="status" style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontSize: 14 }}>Carregando…</div>}>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -59,6 +62,7 @@ export default function App() {
         <Route path="/s/:slug/*" element={<StoreLayout />} />
         <Route path="/*" element={<HostAwareEntry />} />
       </Routes>
+      </Suspense>
       <PwaUpdateBanner />
     </BrowserRouter>
   );

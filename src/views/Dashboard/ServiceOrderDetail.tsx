@@ -41,6 +41,7 @@ import { cn } from "../../lib/utils";
 import Modal from "../../components/ui/Modal";
 import Combobox from "../../components/ui/Combobox";
 import { useToast } from "../../components/ui/Toast";
+import NfceOrderPanel from "../../components/fiscal/NfceOrderPanel";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { onRealtimeAny } from "../../lib/realtime";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
@@ -144,6 +145,8 @@ export default function ServiceOrderDetail() {
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
   const [discountValue, setDiscountValue] = useState(0);
   const [nfseInvoice, setNfseInvoice] = useState<NfseInvoice | null>(null);
+  const [emitNfceAfter, setEmitNfceAfter] = useState(false);
+  const [autoEmitNfce, setAutoEmitNfce] = useState(false);
   const [nfseCodigoServico, setNfseCodigoServico] = useState("140601");
   const [nfseDescricao, setNfseDescricao] = useState("");
   const [nfseEmitting, setNfseEmitting] = useState(false);
@@ -738,9 +741,13 @@ export default function ServiceOrderDetail() {
         body: JSON.stringify(buildSalePayload(invoiceBase, invoiceForm, invoiceSettings)),
       });
       if (res.ok) {
+        const done = await res.json().catch(() => ({}));
         setShowInvoiceModal(false);
         setInvoiceForm(newSalePaymentFormState());
         await fetchOrder(true);
+        // a emissão em si fica a cargo do painel de NFC-e (autoEmit), que antes confere os dados fiscais dos produtos
+        setAutoEmitNfce(!!emitNfceAfter && !!done?.orderId);
+        setEmitNfceAfter(false);
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error || "Falha ao faturar");
@@ -1492,6 +1499,8 @@ export default function ServiceOrderDetail() {
             </div>
           </ContentCard>
 
+          {selected.invoiced_order_id && <NfceOrderPanel orderId={selected.invoiced_order_id} autoEmit={autoEmitNfce} />}
+
           {/* NFS-e — emitida sobre a mão de obra (peças já geram NFC-e na venda) */}
           {Number(selected.service_value) > 0 && (
             <ContentCard padding="md" className="space-y-3">
@@ -2091,6 +2100,10 @@ export default function ServiceOrderDetail() {
             sellers={sellers}
             hasCustomer={!!selected.customer_id}
           />
+          <label className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-xs text-slate-700">
+            <input type="checkbox" className="mt-0.5" checked={emitNfceAfter} onChange={(e) => setEmitNfceAfter(e.target.checked)} />
+            <span><b>Emitir NFC-e das peças</b> assim que confirmar. A mão de obra sai pela NFS-e.</span>
+          </label>
         </div>
       </Modal>
 

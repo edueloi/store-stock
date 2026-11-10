@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import {
   getNfceByOrder,
+  fiscalCheckForOrder,
   emitNfceForOrder,
   retryNfce,
   retryNfceBatch,
@@ -26,6 +27,7 @@ router.get("/", listNfce);
 router.post("/retry-batch", retryNfceBatch);
 router.get("/xml-batch", downloadNfceXmlBatch);
 router.get("/danfe-batch", downloadDanfeBatch);
+router.get("/:orderId/fiscal-check", fiscalCheckForOrder);
 router.get("/:orderId", getNfceByOrder);
 router.post("/:orderId/emit", emitNfceForOrder);
 router.post("/:orderId/retry", retryNfce);

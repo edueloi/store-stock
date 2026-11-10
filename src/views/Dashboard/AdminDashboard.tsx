@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, RefObject, ComponentType } from "react";
+import { useState, useEffect, useRef, Suspense, RefObject, ComponentType } from "react";
 import { createPortal } from "react-dom";
 import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -50,60 +50,61 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
+import { lazyRetry } from "../../lib/lazyRetry";
 import { ToastProvider, useToast } from "../../components/ui/Toast";
 import { Button, IconButton, PageWrapper } from "../../components/ui";
 import { getStoredUser } from "../../lib/session";
 import { onRealtime } from "../../lib/realtime";
-import MenuSettingsPage from "./MenuSettingsPage";
+const MenuSettingsPage = lazyRetry(() => import("./MenuSettingsPage"));
 import { MENU_LAYOUT_PREF_KEY, MENU_PROFILES_PREF_KEY, activeLayout, emptyProfiles, isInternalUrl, isValidLayout, isValidProfiles, profilesFromLegacy, resolveMenu, type MenuGroupDef, type MenuItemDef, type MenuProfiles } from "./menuLayout";
 import { listHeldSales, type HeldSale } from "../../lib/heldSales";
 import OnboardingTour, { maybeAutoStartTour, type OnboardingTourHandle } from "../../components/onboarding/OnboardingTour";
 
 // Sub-views
-import Home from "./Home";
-import Inventory from "./Inventory"; // This will be "Catálogo"
-import Stock from "./Stock"; // This will be "Estoque"
-import PDV from "./PDV";
-import Orders from "./Orders";
-import CardapioQr from "./CardapioQr";
-import NfceInvoices from "./NfceInvoices";
-import TerminalTransactions from "./TerminalTransactions";
-import Finance from "./Finance";
-import ContasReceber from "./ContasReceber";
-import ContasPagar from "./ContasPagar";
-import CalendarioFinanceiro from "./CalendarioFinanceiro";
-import RelatorioFinanceiro from "./RelatorioFinanceiro";
-import CashSessionHistory from "./CashSessionHistory";
-import MeuPerfil from "./MeuPerfil";
-import Settings from "./Settings";
-import Customers from "./Customers";
-import CustomerDetail from "./CustomerDetail";
-import CustomerFormPage from "./CustomerFormPage";
-import Suppliers from "./Suppliers";
-import Categories from "./Categories";
-import Analytics from "./Analytics";
-import Loyalty from "./Loyalty";
-import Quotes from "./Quotes";
-import QuoteNew from "./QuoteNew";
-import QuoteDetail from "./QuoteDetail";
-import Sellers from "./Sellers";
-import Technicians from "./Technicians";
-import Goals from "./Goals";
-import Barcodes from "./Barcodes";
-import Markup from "./Markup";
-import Services from "./Services";
-import ServiceOrders from "./ServiceOrders";
-import ServiceOrderNew from "./ServiceOrderNew";
-import ServiceOrderDetail from "./ServiceOrderDetail";
-import WorkflowBoard from "./WorkflowBoard";
-import WhatsappChannelConfig from "./WhatsappChannelConfig";
-import WhatsappAtendimento from "./WhatsappAtendimento";
-import WhatsappHistory from "./WhatsappHistory";
-import Consignments from "./Consignments";
-import Assinatura from "./Assinatura";
-import SistemaGrafica from "./SistemaGrafica";
+const Home = lazyRetry(() => import("./Home"));
+const Inventory = lazyRetry(() => import("./Inventory")); // This will be "Catálogo"
+const Stock = lazyRetry(() => import("./Stock")); // This will be "Estoque"
+const PDV = lazyRetry(() => import("./PDV"));
+const Orders = lazyRetry(() => import("./Orders"));
+const CardapioQr = lazyRetry(() => import("./CardapioQr"));
+const NfceInvoices = lazyRetry(() => import("./NfceInvoices"));
+const TerminalTransactions = lazyRetry(() => import("./TerminalTransactions"));
+const Finance = lazyRetry(() => import("./Finance"));
+const ContasReceber = lazyRetry(() => import("./ContasReceber"));
+const ContasPagar = lazyRetry(() => import("./ContasPagar"));
+const CalendarioFinanceiro = lazyRetry(() => import("./CalendarioFinanceiro"));
+const RelatorioFinanceiro = lazyRetry(() => import("./RelatorioFinanceiro"));
+const CashSessionHistory = lazyRetry(() => import("./CashSessionHistory"));
+const MeuPerfil = lazyRetry(() => import("./MeuPerfil"));
+const Settings = lazyRetry(() => import("./Settings"));
+const Customers = lazyRetry(() => import("./Customers"));
+const CustomerDetail = lazyRetry(() => import("./CustomerDetail"));
+const CustomerFormPage = lazyRetry(() => import("./CustomerFormPage"));
+const Suppliers = lazyRetry(() => import("./Suppliers"));
+const Categories = lazyRetry(() => import("./Categories"));
+const Analytics = lazyRetry(() => import("./Analytics"));
+const Loyalty = lazyRetry(() => import("./Loyalty"));
+const Quotes = lazyRetry(() => import("./Quotes"));
+const QuoteNew = lazyRetry(() => import("./QuoteNew"));
+const QuoteDetail = lazyRetry(() => import("./QuoteDetail"));
+const Sellers = lazyRetry(() => import("./Sellers"));
+const Technicians = lazyRetry(() => import("./Technicians"));
+const Goals = lazyRetry(() => import("./Goals"));
+const Barcodes = lazyRetry(() => import("./Barcodes"));
+const Markup = lazyRetry(() => import("./Markup"));
+const Services = lazyRetry(() => import("./Services"));
+const ServiceOrders = lazyRetry(() => import("./ServiceOrders"));
+const ServiceOrderNew = lazyRetry(() => import("./ServiceOrderNew"));
+const ServiceOrderDetail = lazyRetry(() => import("./ServiceOrderDetail"));
+const WorkflowBoard = lazyRetry(() => import("./WorkflowBoard"));
+const WhatsappChannelConfig = lazyRetry(() => import("./WhatsappChannelConfig"));
+const WhatsappAtendimento = lazyRetry(() => import("./WhatsappAtendimento"));
+const WhatsappHistory = lazyRetry(() => import("./WhatsappHistory"));
+const Consignments = lazyRetry(() => import("./Consignments"));
+const Assinatura = lazyRetry(() => import("./Assinatura"));
+const SistemaGrafica = lazyRetry(() => import("./SistemaGrafica"));
 import IssuerSwitcher from "./IssuerSwitcher";
-import MinhaLoja from "./MinhaLoja";
+const MinhaLoja = lazyRetry(() => import("./MinhaLoja"));
 
 // ── Tooltip da sidebar recolhida (portal, foge do overflow do nav) ───────────
 function SidebarTooltip({ anchorRef, label }: { anchorRef: RefObject<HTMLElement>; label: string }) {
@@ -1256,6 +1257,7 @@ export default function AdminDashboard() {
         )}>
           <div className={isPDV ? "flex-1 min-h-0 flex flex-col" : ""}>
             <AdminPage pdv={isPDV}>
+            <Suspense fallback={<div role="status" className="flex items-center justify-center py-24 text-sm text-slate-400">Carregando…</div>}>
             <Routes>
               <Route index element={<Home />} />
               <Route path="catalog/*" element={<Inventory />} />
@@ -1307,6 +1309,7 @@ export default function AdminDashboard() {
               <Route path="loyalty" element={<Loyalty />} />
               <Route path="inventory" element={<Stock />} />
             </Routes>
+            </Suspense>
             </AdminPage>
           </div>
         </div>

@@ -123,6 +123,31 @@ export async function getNfceByOrder(req: Request, res: Response) {
   }
 }
 
+/** Produtos do pedido que ainda não têm dados fiscais completos (NCM de 8 dígitos, CFOP e CSOSN/CST) — a SEFAZ rejeita a nota sem eles. */
+export async function fiscalCheckForOrder(req: Request, res: Response) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const tenantId = getTenantId(req);
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId },
+      select: { items: { select: { product: { select: { id: true, name: true, sku: true, ncm: true, cest: true, cfop: true, csosn: true, origem: true, unidade_comercial: true } } } } },
+    });
+    if (!order) { res.status(404).json({ error: "Venda não encontrada" }); return; }
+    const seen = new Set<number>();
+    const missing = [];
+    for (const it of order.items) {
+      const p = it.product;
+      if (!p || seen.has(p.id)) continue;
+      seen.add(p.id);
+      const ncmOk = String(p.ncm ?? "").replace(/D/g, "").length === 8;
+      if (!ncmOk || !p.cfop || !p.csosn) missing.push(p);
+    }
+    res.json({ products: missing });
+  } catch {
+    res.status(500).json({ error: "Não foi possível conferir os dados fiscais dos produtos" });
+  }
+}
+
 /** Cria e emite a NFC-e somente quando o operador solicitar após a venda. */
 export async function emitNfceForOrder(req: Request, res: Response) {
   try {
