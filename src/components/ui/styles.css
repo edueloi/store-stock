@@ -48,7 +48,8 @@
 .ui-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: none; padding: 10px 16px; border-bottom: 1px solid #e8edf2; }
 .ui-modal .ui-modal-title { margin: 0; color: #0f172a; font-size: 14px; font-weight: 600; line-height: 1.4; min-width: 0; overflow-wrap: anywhere; }
 .ui-modal-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px; font-size: 13px; }
-.ui-modal-actions { flex: none; padding: 10px 16px; border-top: 1px solid #e8edf2; background: #fafbfc; }
+.ui-modal-actions { flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid #e8edf2; background: #fafbfc; }
+.ui-modal-actions > div { flex: 1 1 auto; min-width: 0; }
 .ui-modal-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .ui-modal .ui-modal-body :where(.text-2xl, .text-3xl, .text-4xl) { font-size: 18px; line-height: 1.4; }
 .ui-modal .ui-modal-body :where(.rounded-3xl, .rounded-2xl) { border-radius: 6px; }

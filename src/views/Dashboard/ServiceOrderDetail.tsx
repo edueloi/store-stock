@@ -1837,7 +1837,7 @@ export default function ServiceOrderDetail() {
         }
       >
         {/* Abas */}
-        <div className="flex gap-1.5 p-1 bg-slate-100 rounded-lg">
+        <div className="mb-4 flex gap-1.5 rounded-lg bg-slate-100 p-1">
           <button onClick={() => { setAddPartTab("catalog"); setFreePartName(""); setPartSelectedService(null); }}
             className={cn("flex-1 h-8 rounded-lg text-[11px] font-semibold transition-all",
               addPartTab === "catalog" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
