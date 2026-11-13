@@ -162,24 +162,24 @@ export default function NfceOrderPanel({ orderId, autoEmit = false, className = 
           </>
         }
       >
-        <div className="space-y-3">
+        <div className="space-y-4">
           {missing?.map((p) => {
             const d = drafts[p.id];
             if (!d) return null;
             return (
-              <div key={p.id} className="space-y-2 rounded-lg border border-slate-200 p-3">
-                <p className="text-xs font-semibold text-slate-900">{p.name}{p.sku ? <span className="ml-1.5 font-mono text-[10px] font-normal text-slate-400">{p.sku}</span> : null}</p>
-                <div className="grid gap-2 sm:grid-cols-6">
-                  <div className="sm:col-span-3">
-                    <Input label="NCM (8 dígitos)" value={d.ncm} onChange={(e) => setField(p.id, { ncm: digits(e.target.value).slice(0, 8) })} inputMode="numeric" placeholder="00000000" />
-                    <FiscalCodeLookup kind="ncm" token={token()} onSelect={(item) => setField(p.id, { ncm: digits(item.code).slice(0, 8) })} className="mt-1" />
+              <div key={p.id} className="space-y-4 rounded-xl border border-slate-200 bg-white p-4">
+                <p className="border-b border-slate-100 pb-3 text-sm font-semibold text-slate-900">{p.name}{p.sku ? <span className="ml-1.5 font-mono text-[10px] font-normal text-slate-400">{p.sku}</span> : null}</p>
+                <div className="grid gap-x-4 gap-y-4 sm:grid-cols-6">
+                  <div className="flex items-end gap-2 sm:col-span-3">
+                    <div className="min-w-0 flex-1"><Input label="NCM (8 dígitos)" value={d.ncm} onChange={(e) => setField(p.id, { ncm: digits(e.target.value).slice(0, 8) })} inputMode="numeric" placeholder="00000000" /></div>
+                    <FiscalCodeLookup kind="ncm" token={token()} onSelect={(item) => setField(p.id, { ncm: digits(item.code).slice(0, 8) })} />
                   </div>
                   <div className="sm:col-span-3"><Input label="CEST (opcional)" value={d.cest} onChange={(e) => setField(p.id, { cest: digits(e.target.value).slice(0, 7) })} inputMode="numeric" /></div>
                   <div className="sm:col-span-2"><Input label="CFOP" value={d.cfop} onChange={(e) => setField(p.id, { cfop: digits(e.target.value).slice(0, 4) })} inputMode="numeric" /></div>
                   <div className="sm:col-span-2"><Input label="CSOSN / CST" value={d.csosn} onChange={(e) => setField(p.id, { csosn: e.target.value.slice(0, 3) })} /></div>
                   <label className="block sm:col-span-2">
-                    <span className="mb-1 block text-xs font-medium text-slate-600">Origem</span>
-                    <select value={d.origem} onChange={(e) => setField(p.id, { origem: e.target.value })} className="h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-xs">
+                    <span className="mb-1.5 block text-xs font-medium text-slate-600">Origem</span>
+                    <select value={d.origem} onChange={(e) => setField(p.id, { origem: e.target.value })} className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
                       {ORIGENS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                     </select>
                   </label>
@@ -187,7 +187,7 @@ export default function NfceOrderPanel({ orderId, autoEmit = false, className = 
               </div>
             );
           })}
-          <p className="text-[11px] text-slate-500">CFOP 5102 e CSOSN 102 são o padrão para revenda no Simples Nacional. Na dúvida, confirme com o contador.</p>
+          <p className="px-1 text-xs text-slate-500">CFOP 5102 e CSOSN 102 são o padrão para revenda no Simples Nacional. Na dúvida, confirme com o contador.</p>
           {saveError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{saveError}</p>}
         </div>
       </Modal>
