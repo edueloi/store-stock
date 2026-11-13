@@ -25,7 +25,7 @@ import { computeMeasuredPrice, measureUnitAbbr, measureUnitLabel, parseMeasureIn
 import { productHasStock } from "../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../lib/cashSession";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../components/PaymentSegmentsEditor";
-import { buildInstallmentBookletText, printThermalText, buildCashCloseReceiptText } from "../lib/thermalReceipt";
+import { buildInstallmentBookletText, printThermalText, buildCashCloseFullReceiptText } from "../lib/thermalReceipt";
 import { htmlToPdfBase64 } from "../lib/pdf";
 import { buildWarrantyDocumentHtml, type WarrantyPolicy } from "../lib/warrantyDocument";
 import OpenCashSessionScreen from "../components/pdv/OpenCashSessionScreen";
@@ -5133,8 +5133,9 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             }
             const closed = await apiCloseCashSession(token, cashSession.id, counted, breakdown, note);
             if (printCashCloseReceipt && !closed.pendingSync) {
-              const receiptText = buildCashCloseReceiptText(tenantName, operatorName, closed, PM_LABEL);
-              printThermalText(receiptText, "Fechamento de Caixa").catch(() => {});
+              buildCashCloseFullReceiptText(tenantName, operatorName, closed, PM_LABEL, token)
+                .then((receiptText) => printThermalText(receiptText, "Fechamento de Caixa"))
+                .catch(() => {});
             }
             return closed;
           }}

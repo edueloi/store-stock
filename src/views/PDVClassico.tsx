@@ -11,7 +11,7 @@ import {
   fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession,
   type CashSessionInfo,
 } from "../lib/cashSession";
-import { buildCashCloseReceiptText, buildOrderReceiptText, printThermalText } from "../lib/thermalReceipt";
+import { buildCashCloseFullReceiptText, buildOrderReceiptText, printThermalText } from "../lib/thermalReceipt";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, listHeldSales, resumeHeldSale, type HeldSale } from "../lib/heldSales";
 import { ClassicCloseCash, ClassicLogin, ClassicOpenCash } from "../components/pdv/ClassicCash";
 import { ToastProvider } from "../components/ui/Toast";
@@ -1630,7 +1630,9 @@ function ClassicPDV() {
               throw e;
             }
             if (tenant.print_cash_close_receipt && !closed.pendingSync) {
-              printThermalText(buildCashCloseReceiptText(tenantName, operatorName, closed, PM_SHORT), "Fechamento de Caixa").catch(() => {});
+              buildCashCloseFullReceiptText(tenantName, operatorName, closed, PM_SHORT, token)
+                .then((text) => printThermalText(text, "Fechamento de Caixa"))
+                .catch(() => {});
             }
             return closed;
           }}

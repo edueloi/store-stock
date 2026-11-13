@@ -2,6 +2,8 @@
 // buildThermalText (recibo de venda) e buildCashCloseReceiptText (fechamento de
 // caixa) em PDV.tsx/PDVStandalone.tsx, extraído aqui pra ser compartilhado sem
 // duplicar em mais um lugar (carnê de pagamento).
+import { parsePaymentSegments } from "../../shared/paymentSegments";
+
 const W = 42;
 
 export const thermalRule = "=".repeat(W);
@@ -236,6 +238,81 @@ export function buildCashCloseReceiptText(
   receipt += thermalRow(diff === 0 ? "CAIXA CONFERE" : diff > 0 ? "SOBRA" : "FALTA", `R$ ${thermalMoney(Math.abs(diff))}`) + "\n";
   receipt += `${thermalRule}\n\n\n`;
   return receipt;
+}
+
+export interface CashCloseSalesOrder {
+  status?: string | null;
+  gross_amount?: string | number | null;
+  total_amount: string | number;
+  discount_amount?: string | number | null;
+  fee_amount?: string | number | null;
+  change_amount?: string | number | null;
+  payment_method: string;
+}
+
+// Bloco de VENDAS do fechamento: quantidade e valor por forma de pagamento (todas as formas, mesmo zeradas),
+// líquido de troco, e o TOTAL DAS VENDAS. É o que o operador confere no papel ao fechar o caixa.
+export function buildCashCloseSalesText(orders: CashCloseSalesOrder[], pmLabel: Record<string, string>): string {
+  const valid = orders.filter((o) => o.status !== "cancelled");
+  const totalGross = valid.reduce((sum, o) => sum + Number(o.gross_amount ?? o.total_amount), 0);
+  const totalDiscount = valid.reduce((sum, o) => sum + Number(o.discount_amount ?? 0), 0);
+  const totalFee = valid.reduce((sum, o) => sum + Number(o.fee_amount ?? 0), 0);
+
+  const byMethod: Record<string, { count: number; amount: number; brands: Record<string, number> }> = {};
+  ["money", "pix", "debit", "credit", "crediario", "boleto"].forEach((m) => { byMethod[m] = { count: 0, amount: 0, brands: {} }; });
+  valid.forEach((o) => {
+    let change = Number(o.change_amount) || 0;
+    const seen = new Set<string>();
+    (o.payment_method ? parsePaymentSegments(o.payment_method, 0, 0) : []).forEach((seg) => {
+      let amount = seg.amount;
+      if (seg.method === "money" && change > 0) {
+        const applied = Math.min(change, amount);
+        amount -= applied;
+        change -= applied;
+      }
+      const e = (byMethod[seg.method] ??= { count: 0, amount: 0, brands: {} });
+      e.amount += amount;
+      if (!seen.has(seg.method)) { e.count += 1; seen.add(seg.method); }
+      if (seg.brand && seg.brand !== "other") e.brands[seg.brand] = (e.brands[seg.brand] ?? 0) + amount;
+    });
+  });
+
+  let text = `${thermalThin}\n${thermalCenter("VENDAS POR FORMA DE PAGTO")}\n${thermalThin}\n`;
+  Object.entries(byMethod).forEach(([m, e]) => {
+    text += thermalRow(`${pmLabel[m] ?? m} (${e.count})`, `R$ ${thermalMoney(e.amount)}`) + "\n";
+    Object.entries(e.brands).forEach(([br, v]) => { text += thermalRow(`  ${br.toUpperCase()}`, `R$ ${thermalMoney(v)}`) + "\n"; });
+  });
+  text += `${thermalRule}\n`;
+  text += thermalRow(`TOTAL DAS VENDAS (${valid.length})`, `R$ ${thermalMoney(Object.values(byMethod).reduce((t, e) => t + e.amount, 0))}`) + "\n";
+  if (totalDiscount > 0 || totalFee > 0) {
+    text += `${thermalThin}\n${thermalCenter("VENDAS DO PERÍODO")}\n${thermalThin}\n`;
+    text += thermalRow("Vendas (bruto)", `R$ ${thermalMoney(totalGross)}`) + "\n";
+    if (totalDiscount > 0) text += thermalRow("(-) Descontos", `R$ ${thermalMoney(totalDiscount)}`) + "\n";
+    if (totalFee > 0) text += thermalRow("(-) Taxa maquininha", `R$ ${thermalMoney(totalFee)}`) + "\n";
+    text += thermalRow("= Vendas (líquido)", `R$ ${thermalMoney(totalGross - totalDiscount - totalFee)}`) + "\n";
+  }
+  return text + `${thermalRule}\n\n\n`;
+}
+
+// Comprovante COMPLETO do fechamento ao vivo: o resumo de caixa (esperado x contado) + o total das vendas da sessão.
+// As vendas vêm do servidor; se não der para buscá-las (offline, falha), imprime só o resumo de caixa em vez de não imprimir.
+export async function buildCashCloseFullReceiptText(
+  tenantName: string,
+  operatorName: string,
+  session: CashCloseReceiptSession & { id?: number },
+  pmLabel: Record<string, string>,
+  token: string | null,
+): Promise<string> {
+  const base = buildCashCloseReceiptText(tenantName, operatorName, session, pmLabel).replace(/\n+$/, "\n");
+  if (!session.id || !token) return base + "\n\n";
+  try {
+    const res = await fetch(`/api/cash-sessions/${session.id}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return base + "\n\n";
+    const detail = await res.json();
+    return base + buildCashCloseSalesText(Array.isArray(detail?.orders) ? detail.orders : [], pmLabel);
+  } catch {
+    return base + "\n\n";
+  }
 }
 
 export interface OrderReceiptTenant {

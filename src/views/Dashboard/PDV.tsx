@@ -23,7 +23,7 @@ import { computeMeasuredPrice, measureUnitAbbr, measureUnitLabel, parseMeasureIn
 import { productHasStock } from "../../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../../lib/cashSession";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
-import { buildInstallmentBookletText, printThermalText, buildCashCloseReceiptText } from "../../lib/thermalReceipt";
+import { buildInstallmentBookletText, printThermalText, buildCashCloseFullReceiptText } from "../../lib/thermalReceipt";
 import { htmlToPdfBase64 } from "../../lib/pdf";
 import { buildWarrantyDocumentHtml, type WarrantyPolicy } from "../../lib/warrantyDocument";
 import OpenCashSessionScreen from "../../components/pdv/OpenCashSessionScreen";
@@ -1662,7 +1662,7 @@ export default function PDV() {
   // com o Histórico de Caixa (reimpressão) — precisa ser o MESMO cupom nos
   // dois lugares, ver buildCashCloseReceiptText em lib/thermalReceipt.ts.
   const printCashCloseReceiptText = async (session: ClosedCashSession) => {
-    const receiptText = buildCashCloseReceiptText(tenant.name, operatorName, session, PM_LABEL);
+    const receiptText = await buildCashCloseFullReceiptText(tenant.name, operatorName, session, PM_LABEL, token);
     await printThermalText(receiptText, "Fechamento de Caixa");
   };
 
