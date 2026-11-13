@@ -49,10 +49,10 @@ export default function ServiceOrders() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | SOStatus>("all");
-  // Período: por padrão só o dia de hoje (De/Até = data atual); "Mês" e "Tudo" ampliam com um clique.
-  const [period, setPeriod] = useState<ListPeriod>("today");
-  const [dateFrom, setDateFrom] = useState<string | null>(() => presetRange("today").from);
-  const [dateTo, setDateTo] = useState<string | null>(() => presetRange("today").to);
+  // Período: por padrão o mês atual (do dia 1 até hoje); "Hoje", "7 dias" e "Tudo" mudam com um clique.
+  const [period, setPeriod] = useState<ListPeriod>("month");
+  const [dateFrom, setDateFrom] = useState<string | null>(() => presetRange("month").from);
+  const [dateTo, setDateTo] = useState<string | null>(() => presetRange("month").to);
   const choosePeriod = (p: ListPeriod) => { setPeriod(p); const r = presetRange(p); setDateFrom(r.from); setDateTo(r.to); };
 
   const [deleteTarget, setDeleteTarget] = useState<ServiceOrder | null>(null);
