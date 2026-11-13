@@ -18,7 +18,8 @@ export default function ServiceOrderNew() {
         const res = await fetch("/api/service-orders", {
           method: "POST",
           headers: authHeader(),
-          body: JSON.stringify({}),
+          // Padrão: sem equipamento (o operador troca para "Tem equipamento" na própria O.S. quando precisar)
+          body: JSON.stringify({ has_equipment: false }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));

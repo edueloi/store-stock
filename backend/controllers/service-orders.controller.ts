@@ -272,7 +272,8 @@ export async function createServiceOrder(req: Request, res: Response) {
       parts?: Array<{ product_id: number; quantity: number }>;
     };
 
-    const requiresEquipment = has_equipment !== false;
+    // Padrão: sem equipamento. Só exige categoria de equipamento quando o cliente da API pede explicitamente.
+    const requiresEquipment = has_equipment === true;
 
     // Criar/preencher uma OS não confirma o envio do orçamento ao cliente.
     // Ela só sai de rascunho após envio confirmado por e-mail ou manualmente.
