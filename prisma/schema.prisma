@@ -1576,6 +1576,11 @@ model ServiceOrder {
   invoiced_order_id Int?
   invoiced_at       DateTime?
 
+  // Entrada (sinal) recebida antes de faturar: abate o saldo no faturamento.
+  deposit_amount         Decimal?  @db.Decimal(10, 2)
+  deposit_payment_method String?
+  deposit_paid_at        DateTime?
+
   // Orçamento que originou esta OS (só lojas de gráfica — ver Tenant.grafica_enabled
   // e createLinkedServiceOrder em quotes.controller.ts). SetNull pra não arrastar a OS
   // junto se o orçamento for excluído — ela pode ter peças/checklist/fotos próprias.

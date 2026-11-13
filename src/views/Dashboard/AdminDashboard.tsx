@@ -580,6 +580,8 @@ export default function AdminDashboard() {
     const cached = localStorage.getItem(SIDEBAR_CACHE_KEY);
     return cached !== null ? cached === "true" : true;
   });
+  // O módulo Sistema Gráfica só aparece se o Super Admin liberou para esta loja. A cópia do login pode estar velha: o servidor confirma abaixo.
+  const [graficaEnabled, setGraficaEnabled] = useState<boolean>(() => !!getStoredUser()?.grafica_system_enabled);
   const [tenantSlug, setTenantSlug] = useState<string>("");
   const [tenantPublicUrl, setTenantPublicUrl] = useState<string>("");
   const [tenantName, setTenantName] = useState<string>("Nexus ERP");
@@ -926,6 +928,7 @@ export default function AdminDashboard() {
   const tenantModuleGate: Record<string, boolean> = {
     fluxo_producao: !!currentUser?.fluxo_producao_enabled,
     cardapio_qr: !!currentUser?.food_enabled,
+    sistema_grafica: graficaEnabled,
   };
   const isTenantModuleEnabled = (key: string) => tenantModuleGate[key] ?? true;
 
@@ -1001,6 +1004,7 @@ export default function AdminDashboard() {
       })
       .then((data) => {
         if (!data) return;
+        if (typeof data?.grafica_system_enabled === "boolean") setGraficaEnabled(data.grafica_system_enabled);
         if (data?.slug) setTenantSlug(data.slug);
         if (data?.name) setTenantName(data.name);
         if (data?.public_url) setTenantPublicUrl(data.public_url);

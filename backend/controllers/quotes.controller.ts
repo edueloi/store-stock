@@ -312,6 +312,7 @@ async function createLinkedServiceOrder(
       reported_issue: reportedIssue,
       subtotal: quote.subtotal,
       total_amount: quote.total_amount,
+      ...(Number(quote.deposit_amount ?? 0) > 0 ? { deposit_amount: quote.deposit_amount, deposit_payment_method: quote.deposit_payment_method, deposit_paid_at: quote.deposit_paid_at } : {}),
     },
   });
 

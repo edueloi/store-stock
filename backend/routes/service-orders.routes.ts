@@ -13,6 +13,7 @@ import {
   deleteServiceOrderPhoto,
   invoiceServiceOrder,
   createServiceOrderReceivable,
+  recordServiceOrderDeposit,
   deleteServiceOrder,
   bulkDeleteServiceOrders,
 } from "../controllers/service-orders.controller";
@@ -39,6 +40,7 @@ router.delete("/:id/parts/:partId", removeServiceOrderPart);
 router.post("/:id/photos", attachServiceOrderPhoto);
 router.delete("/:id/photos/:photoId", deleteServiceOrderPhoto);
 router.post("/:id/faturar", invoiceServiceOrder);
+router.post("/:id/deposit", recordServiceOrderDeposit);
 router.post("/:id/receivable", createServiceOrderReceivable);
 router.delete("/bulk", bulkDeleteServiceOrders);
 router.delete("/:id", deleteServiceOrder);

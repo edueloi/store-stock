@@ -20,6 +20,7 @@ import {
   ArrowRight,
   Ban,
   Banknote,
+  Wallet,
   CreditCard,
   QrCode,
   FileDown,
@@ -42,10 +43,11 @@ import Modal from "../../components/ui/Modal";
 import Combobox from "../../components/ui/Combobox";
 import { useToast } from "../../components/ui/Toast";
 import NfceOrderPanel from "../../components/fiscal/NfceOrderPanel";
+import DepositModal from "../../components/DepositModal";
 import { computeMeasuredPrice } from "../../utils/measurePricing";
 import { onRealtimeAny } from "../../lib/realtime";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
-import {
+import { depositMethodLabel,
   ServiceOrder,
   ChecklistItem,
   Product,
@@ -146,6 +148,8 @@ export default function ServiceOrderDetail() {
   const [discountValue, setDiscountValue] = useState(0);
   const [nfseInvoice, setNfseInvoice] = useState<NfseInvoice | null>(null);
   const [emitNfceAfter, setEmitNfceAfter] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [savingDeposit, setSavingDeposit] = useState(false);
   const [autoEmitNfce, setAutoEmitNfce] = useState(false);
   const [nfseCodigoServico, setNfseCodigoServico] = useState("140601");
   const [nfseDescricao, setNfseDescricao] = useState("");
@@ -722,13 +726,36 @@ export default function ServiceOrderDetail() {
 
   // ── Invoice ("Faturar") ────────────────────────────────────────────────
   const invoiceSettings = parseSalePaymentSettings(tenant);
-  const invoiceBase = selected ? Number(selected.total_amount) : 0;
+  const depositPaid = selected ? Number(selected.deposit_amount ?? 0) : 0;
+  const invoiceBase = selected ? Math.max(0, Math.round((Number(selected.total_amount) - depositPaid) * 100) / 100) : 0;
   const invoiceCalc = computeSalePayment(invoiceBase, invoiceForm, invoiceSettings);
   const invoiceHasCrediarioWithoutCustomer = invoiceForm.payments.some((p) => p.method === "crediario" || p.method === "boleto") && !selected?.customer_id;
 
   const openInvoiceModal = () => {
     setInvoiceForm(newSalePaymentFormState(invoiceBase > 0 ? invoiceBase.toFixed(2) : ""));
     setShowInvoiceModal(true);
+  };
+
+  const handleRecordDeposit = async (amount: number, paymentMethod: string) => {
+    if (!selected) return;
+    setSavingDeposit(true);
+    try {
+      const res = await fetch(`/api/service-orders/${selected.id}/deposit`, {
+        method: "POST",
+        headers: authHeader(),
+        body: JSON.stringify({ amount, payment_method: paymentMethod }),
+      });
+      if (res.ok) {
+        setShowDepositModal(false);
+        await fetchOrder(true);
+        toast.success("Entrada registrada.");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error || "Falha ao registrar entrada");
+      }
+    } finally {
+      setSavingDeposit(false);
+    }
   };
 
   const handleInvoice = async () => {
@@ -1496,6 +1523,18 @@ export default function ServiceOrderDetail() {
                 <span>Total</span>
                 <span className="font-mono">{fmt(selected.total_amount)}</span>
               </div>
+              {depositPaid > 0 && (
+                <>
+                  <div className="flex justify-between text-[11px] font-semibold text-emerald-400">
+                    <span>Entrada recebida{selected.deposit_payment_method ? ` · ${depositMethodLabel(selected.deposit_payment_method)}` : ""}</span>
+                    <span className="font-mono">-{fmt(depositPaid)}</span>
+                  </div>
+                  <div className="flex justify-between text-[13px] font-semibold text-white pt-1.5 border-t border-slate-700">
+                    <span>Saldo a receber</span>
+                    <span className="font-mono">{fmt(Math.max(0, Number(selected.total_amount) - depositPaid))}</span>
+                  </div>
+                </>
+              )}
             </div>
           </ContentCard>
 
@@ -1613,6 +1652,12 @@ export default function ServiceOrderDetail() {
             )}
           </div>
           {emailDelivery?.sent && emailDelivery.sent_at && <p className="text-center text-[10px] font-semibold text-emerald-600">Enviado para {emailDelivery.recipient} em {new Date(emailDelivery.sent_at).toLocaleString("pt-BR")}</p>}
+
+          {!selected.invoiced_order_id && selected.status !== "cancelada" && selected.status !== "rascunho" && depositPaid <= 0 && Number(selected.total_amount) > 0 && (
+            <Button variant="outline" size="md" onClick={() => setShowDepositModal(true)} className="w-full justify-center">
+              <Wallet size={14} /> Registrar Entrada
+            </Button>
+          )}
 
           {!selected.invoiced_order_id && CAN_INVOICE_STATUSES.includes(selected.status) && (
             receivable ? (
@@ -2088,15 +2133,21 @@ export default function ServiceOrderDetail() {
       >
         <div className="space-y-3">
           <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <span className="text-[11px] text-slate-500">Total da OS</span>
+            <span className="text-[11px] text-slate-500">{depositPaid > 0 ? "Saldo a receber" : "Total da OS"}</span>
             <span className="font-mono text-base font-semibold text-slate-900">{fmt(invoiceBase)}</span>
           </div>
+          {depositPaid > 0 && (
+            <div className="space-y-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] text-emerald-800">
+              <div className="flex justify-between"><span>Total da OS</span><span className="font-mono">{fmt(Number(selected.total_amount))}</span></div>
+              <div className="flex justify-between font-semibold"><span>Entrada já recebida{selected.deposit_payment_method ? ` (${depositMethodLabel(selected.deposit_payment_method)})` : ""}</span><span className="font-mono">-{fmt(depositPaid)}</span></div>
+            </div>
+          )}
           <SalePaymentForm
             state={invoiceForm}
             onChange={setInvoiceForm}
             settings={invoiceSettings}
             baseAmount={invoiceBase}
-            baseLabel="Total da OS"
+            baseLabel={depositPaid > 0 ? "Saldo da OS" : "Total da OS"}
             sellers={sellers}
             hasCustomer={!!selected.customer_id}
           />
@@ -2106,6 +2157,8 @@ export default function ServiceOrderDetail() {
           </label>
         </div>
       </Modal>
+
+      <DepositModal open={showDepositModal} onClose={() => setShowDepositModal(false)} saving={savingDeposit} total={Number(selected.total_amount)} onConfirm={handleRecordDeposit} />
 
       {/* ── LANÇAR A RECEBER MODAL ───────────────────────────────────────── */}
       <Modal

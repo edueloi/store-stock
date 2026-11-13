@@ -1112,6 +1112,58 @@ export async function bulkDeleteServiceOrders(req: Request, res: Response) {
   }
 }
 
+// ── Entrada (sinal) ──────────────────────────────────────────────────────────
+// Registra o valor recebido adiantado, com a forma de pagamento, e lança a receita no financeiro (igual ao orçamento).
+// Ao faturar, o valor é abatido e só o saldo é cobrado.
+export async function recordServiceOrderDeposit(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const id = Number(req.params.id);
+    const order = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!order) { res.status(404).json({ error: "Ordem de serviço não encontrada" }); return; }
+    if (order.invoiced_order_id) { res.status(400).json({ error: "Ordem de serviço já foi faturada" }); return; }
+    if (order.status === "cancelada") { res.status(400).json({ error: "Ordem de serviço está cancelada" }); return; }
+    if (order.status === "rascunho") { res.status(400).json({ error: "Avance a ordem de serviço (saia do rascunho) antes de registrar a entrada" }); return; }
+    if (Number(order.deposit_amount ?? 0) > 0) { res.status(400).json({ error: "Esta ordem de serviço já tem uma entrada registrada" }); return; }
+
+    const { amount, payment_method } = req.body as { amount?: number; payment_method?: string };
+    const depositAmount = Math.round((Number(amount) || 0) * 100) / 100;
+    if (depositAmount <= 0) { res.status(400).json({ error: "Valor da entrada inválido" }); return; }
+    if (depositAmount >= Number(order.total_amount)) {
+      res.status(400).json({ error: "A entrada precisa ser menor que o total da O.S. Para receber o valor todo, use Faturar." });
+      return;
+    }
+
+    const pmString = payment_method || "money";
+    const methodSummary = buildMethodSummary(pmString);
+    await prisma.serviceOrder.update({
+      where: { id },
+      data: { deposit_amount: depositAmount, deposit_payment_method: pmString, deposit_paid_at: new Date() },
+    });
+    await prisma.finance.create({
+      data: {
+        tenant_id: tenantId,
+        type: "income",
+        description: `Entrada — OS #${order.number} — ${methodSummary}`,
+        amount: depositAmount,
+        gross_amount: depositAmount,
+        payment_method: pmString,
+        date: localDateString(),
+      },
+    });
+    await logAction(tenantId, id, "deposit_recorded", {
+      actor: getActor(req),
+      meta: { amount: depositAmount, payment_method: pmString },
+    });
+    emitToTenant(tenantId, "service-order:changed", { id });
+    emitToTenant(tenantId, "finance:changed", { serviceOrderId: id });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao registrar entrada" });
+  }
+}
+
 // ── Invoicing ("Faturar") ────────────────────────────────────────────────────
 // Mirrors quotes.controller.ts convertToOrder
 
@@ -1148,7 +1200,12 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
     });
     const cardFees = (tenantData?.card_fees ?? {}) as Record<string, number[]>;
 
-    const orderBase = Number(order.total_amount);
+    // Entrada já recebida: só o saldo é cobrado agora (o pedido guarda o total cheio, como na conversão do orçamento).
+    const depositPaid = Math.round(Number(order.deposit_amount ?? 0) * 100) / 100;
+    const orderBase = Math.round((Number(order.total_amount) - depositPaid) * 100) / 100;
+    if (depositPaid > 0 && orderBase <= 0.009) {
+      return res.status(400).json({ error: "A entrada já cobre o total da O.S. Ajuste os valores da O.S. antes de faturar." });
+    }
     const calc = computeSalePaymentTotals({
       baseAmount: orderBase,
       pmString,
@@ -1163,7 +1220,7 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
     await assertBoletoAllowed(tenantId, boletoAmount, order.customer_id);
 
     const roundedFeeFinal = roundedFee;
-    const totalAmount = calc.payableTotal;
+    const totalAmount = Math.round((calc.payableTotal + depositPaid) * 100) / 100;
     const grossAmount = Math.round((totalAmount + discountVal - surchargeVal) * 100) / 100;
     const netAmount = calc.netAmount;
     const changeAmount = Number(body.change_amount) > 0 ? Number(body.change_amount) : 0;
@@ -1261,16 +1318,17 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
     const discountNote = discountVal > 0 ? ` (desc. R$ ${discountVal.toFixed(2)})` : "";
     const surchargeNote = surchargeVal > 0 ? ` (acrés. R$ ${surchargeVal.toFixed(2)})` : "";
     const feeNote = roundedPassedFee > 0 ? ` (taxa repassada R$ ${roundedPassedFee.toFixed(2)})` : "";
+    const depositNote = depositPaid > 0 ? ` (saldo após entrada de R$ ${depositPaid.toFixed(2)})` : "";
     // A parte fiada (crediário) só vira receita quando o cliente pagar a dívida.
     // O boleto à vista também só vira receita ao ser recebido em Contas a Receber.
     const nonCrediarioNet = Math.round((netAmount - crediarioAmount - boletoAmount) * 100) / 100;
-    const nonCrediarioGross = Math.round((grossAmount - crediarioAmount - boletoAmount) * 100) / 100;
+    const nonCrediarioGross = Math.round((grossAmount - depositPaid - crediarioAmount - boletoAmount) * 100) / 100;
     if (nonCrediarioNet > 0.009) {
       await prisma.finance.create({
         data: {
           tenant_id: tenantId,
           type: "income",
-          description: `Faturamento OS #${order.number} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`,
+          description: `Faturamento OS #${order.number} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}${depositNote}`,
           amount: nonCrediarioNet,
           gross_amount: nonCrediarioGross,
           fee_amount: roundedFeeFinal > 0 ? roundedFeeFinal : null,

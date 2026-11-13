@@ -121,6 +121,9 @@ export interface ServiceOrder {
   observations: string | null;
   invoiced_order_id: number | null;
   invoiced_at: string | null;
+  deposit_amount?: number | string | null;
+  deposit_payment_method?: string | null;
+  deposit_paid_at?: string | null;
   quote_id: number | null;
   quote?: LinkedQuote | null;
   accounts_receivable?: { id: number; status: string; due_date: string }[];
@@ -217,6 +220,17 @@ export const CARD_BRANDS: { key: PayBrand; label: string; color: string }[] = [
   { key: "hiper", label: "Hipercard", color: "#B22222" },
   { key: "other", label: "Outra", color: "#64748b" },
 ];
+
+/** "credit-visa-3x" → "Crédito Visa 3x" (forma de pagamento da entrada, gravada como método-bandeira-parcelas). */
+export function depositMethodLabel(pm: string | null | undefined): string {
+  if (!pm) return "";
+  const [method, ...rest] = String(pm).split("-");
+  const base: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito" };
+  const brand: Record<string, string> = { visa: "Visa", master: "Mastercard", elo: "Elo", amex: "Amex", hiper: "Hipercard" };
+  const parts = [base[method] ?? method];
+  for (const r of rest) { if (brand[r]) parts.push(brand[r]); else if (/^\d+x$/.test(r)) parts.push(r); }
+  return parts.join(" ");
+}
 
 export function newPayment(): InvoicePayment {
   return { id: Math.random().toString(36).slice(2), method: "money", cardBrand: "visa", installments: 1, amount: "" };
@@ -447,6 +461,8 @@ ${hideValues ? "" : `<div class="doc-section">
       <div class="doc-totals-row"><span>Mão de obra</span><span>${fmtMoney(so.service_value)}</span></div>
       <div class="doc-totals-row"><span>Peças / itens adicionais</span><span>${fmtMoney(so.parts_total)}</span></div>
       <div class="doc-totals-row grand"><span>TOTAL</span><span>${fmtMoney(so.total_amount)}</span></div>
+      ${Number(so.deposit_amount ?? 0) > 0 ? `<div class="doc-totals-row"><span>Entrada recebida${so.deposit_payment_method ? ` (${depositMethodLabel(so.deposit_payment_method)})` : ""}</span><span>- ${fmtMoney(Number(so.deposit_amount))}</span></div>
+      <div class="doc-totals-row grand"><span>SALDO A PAGAR</span><span>${fmtMoney(Math.max(0, Number(so.total_amount) - Number(so.deposit_amount)))}</span></div>` : ""}
     </div>
   </div>
 </div>`}
