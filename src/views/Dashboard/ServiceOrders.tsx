@@ -3,12 +3,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, Trash2, Download, X, HelpCircle, Wrench } from "lucide-react";
 import {
   Button, IconButton, Badge, SectionTitle, ContentCard, EmptyState, ConfirmModal,
-  FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch,
+  FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch, FilterLineSegmented, FilterLineDateRange,
   GridTable, usePagination,
 } from "../../components/ui";
 import type { Column } from "../../components/ui";
 import Combobox, { type ComboboxOption } from "../../components/ui/Combobox";
 import { onRealtime } from "../../lib/realtime";
+import { PERIOD_OPTIONS, inPeriod, presetRange, type ListPeriod } from "../../lib/listPeriod";
 import ServiceOrdersPageTour, { type ServiceOrdersPageTourHandle } from "../../components/onboarding/ServiceOrdersPageTour";
 import {
   ServiceOrder,
@@ -48,6 +49,11 @@ export default function ServiceOrders() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | SOStatus>("all");
+  // Período: por padrão só o dia de hoje (De/Até = data atual); "Mês" e "Tudo" ampliam com um clique.
+  const [period, setPeriod] = useState<ListPeriod>("today");
+  const [dateFrom, setDateFrom] = useState<string | null>(() => presetRange("today").from);
+  const [dateTo, setDateTo] = useState<string | null>(() => presetRange("today").to);
+  const choosePeriod = (p: ListPeriod) => { setPeriod(p); const r = presetRange(p); setDateFrom(r.from); setDateTo(r.to); };
 
   const [deleteTarget, setDeleteTarget] = useState<ServiceOrder | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -172,7 +178,19 @@ export default function ServiceOrders() {
     }
   };
 
-  const filtered = orders.filter((o) => {
+  // período + busca (a contagem por etapa abaixo usa só esses dois, para o número de cada etapa bater com a lista)
+  const baseList = orders.filter((o) => {
+    if (!inPeriod(o.created_at, dateFrom, dateTo)) return false;
+    return (
+      !searchTerm ||
+      o.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(o.number).includes(searchTerm) ||
+      (o.equipment_brand ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (o.equipment_model ?? "").toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
+
+  const filtered = baseList.filter((o) => {
     const matchStatus = statusFilter === "all" || o.status === statusFilter;
     const matchSearch =
       !searchTerm ||
@@ -188,12 +206,12 @@ export default function ServiceOrders() {
   const statusOrderForTenant = getStatusOrderForTenant(tenant?.grafica_enabled);
 
   const statusCounts = statusOrderForTenant.reduce((acc, s) => {
-    acc[s] = orders.filter((o) => o.status === s).length;
+    acc[s] = baseList.filter((o) => o.status === s).length;
     return acc;
   }, {} as Record<SOStatus, number>);
 
   const statusOptions: ComboboxOption[] = [
-    { value: "all", label: `Todas as etapas (${orders.length})` },
+    { value: "all", label: `Todas as etapas (${baseList.length})` },
     ...statusOrderForTenant.map((s) => ({
       value: s,
       label: `${STATUS_META[s].label} (${statusCounts[s]})`,
@@ -207,17 +225,14 @@ export default function ServiceOrders() {
 
   const columns: Column<ServiceOrder>[] = [
     { header: "Número", render: (o) => <span className="font-mono text-xs font-medium text-slate-700">#{String(o.number).padStart(4, "0")}</span> },
-    { header: "Cliente", render: (o) => <span className="text-xs font-medium text-slate-800">{o.customer_name || "—"}</span> },
-    ...(orders.some((o) => o.has_equipment) ? [{
-      header: "Equipamento",
-      render: (o) => (
-        <span className="text-xs text-slate-500">
-          {o.has_equipment
-            ? `${o.equipment_category}${o.equipment_brand ? ` — ${o.equipment_brand}` : ""}${o.equipment_model ? ` ${o.equipment_model}` : ""}`
-            : <span className="italic text-slate-400">Sem equipamento</span>}
-        </span>
-      ),
-    }] : []),
+    { header: "Cliente", render: (o) => (
+      <div className="space-y-0.5">
+        <span className="text-xs font-medium text-slate-800">{o.customer_name || "—"}</span>
+        {o.has_equipment && (o.equipment_category || o.equipment_brand || o.equipment_model) && (
+          <div className="text-[11px] text-slate-400">{[o.equipment_category, o.equipment_brand, o.equipment_model].filter(Boolean).join(" · ")}</div>
+        )}
+      </div>
+    ) },
     { header: "Status", render: (o) => <Badge color={STATUS_BADGE[o.status]} size="sm" icon={STATUS_META[o.status].icon}>{STATUS_META[o.status].label}</Badge> },
     { header: "Responsável", render: (o) => <span className="text-xs text-slate-500">{o.technician_name || (o.seller_id ? sellers.find((s) => s.id === o.seller_id)?.name : "—") || "—"}</span> },
     { header: "Valor", className: "text-right", headerClassName: "text-right", render: (o) => <span className="text-xs font-semibold tabular-nums whitespace-nowrap text-slate-800">{fmt(o.total_amount)}</span> },
@@ -284,6 +299,10 @@ export default function ServiceOrders() {
               onChange={(v) => setStatusFilter(v as "all" | SOStatus)}
             />
           </FilterLineItem>
+          <FilterLineSegmented value={period} onChange={(v) => choosePeriod(v as ListPeriod)} options={PERIOD_OPTIONS} />
+          <FilterLineDateRange from={dateFrom} to={dateTo}
+            onFromChange={(v) => { setDateFrom(v); setPeriod("custom"); }}
+            onToChange={(v) => { setDateTo(v); setPeriod("custom"); }} />
         </FilterLineSection>
       </FilterLine>
 
@@ -318,7 +337,7 @@ export default function ServiceOrders() {
             <EmptyState
               icon={Wrench}
               title="Nenhuma ordem de serviço encontrada"
-              description={searchTerm || statusFilter !== "all" ? "Ajuste a busca ou o filtro." : "Crie a primeira ordem de serviço para começar."}
+              description={searchTerm || statusFilter !== "all" || period !== "all" ? "Nada neste período ou filtro. Toque em \"Tudo\" para ver todas as ordens." : "Crie a primeira ordem de serviço para começar."}
             />
           }
           pagination={{ total: filtered.length, page: pg.page, pageSize: pg.pageSize, onPageChange: pg.setPage, onPageSizeChange: pg.setPageSize }}

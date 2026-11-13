@@ -14,11 +14,12 @@ import {
 } from "lucide-react";
 import {
   Button, IconButton, Badge, SectionTitle, StatGrid, StatCard, ContentCard, EmptyState,
-  FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch, FilterLineSegmented,
+  FilterLine, FilterLineSection, FilterLineItem, FilterLineSearch, FilterLineSegmented, FilterLineDateRange,
   GridTable, usePagination,
 } from "../../components/ui";
 import type { Column } from "../../components/ui";
 import { onRealtimeAny } from "../../lib/realtime";
+import { PERIOD_OPTIONS, inPeriod, presetRange, type ListPeriod } from "../../lib/listPeriod";
 import { generateQuotePDF } from "../../lib/quotePdf";
 import type { DocumentTenant } from "../../lib/documentPdf";
 import QuotesPageTour, { type QuotesPageTourHandle } from "../../components/onboarding/QuotesPageTour";
@@ -97,6 +98,7 @@ const STATUS_FILTERS = [
   { value: "all", label: "Todos" },
   { value: "rascunho", label: "Rascunhos" },
   { value: "orcamento_enviado", label: "Abertos" },
+  { value: "aprovado", label: "Aprovados" },
   { value: "converted", label: "Convertidos" },
   { value: "cancelled", label: "Cancelados" },
 ];
@@ -110,6 +112,11 @@ export default function Quotes() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  // Período: por padrão só o dia de hoje (De/Até = data atual); "Mês" e "Tudo" ampliam com um clique.
+  const [period, setPeriod] = useState<ListPeriod>("today");
+  const [dateFrom, setDateFrom] = useState<string | null>(() => presetRange("today").from);
+  const [dateTo, setDateTo] = useState<string | null>(() => presetRange("today").to);
+  const choosePeriod = (p: ListPeriod) => { setPeriod(p); const r = presetRange(p); setDateFrom(r.from); setDateTo(r.to); };
 
   const quotesPageTourRef = useRef<QuotesPageTourHandle>(null);
 
@@ -145,7 +152,10 @@ export default function Quotes() {
 
   // ── Filter (rascunhos agora aparecem também na aba "Todos") ──
   const filtered = quotes.filter((q) => {
-    const matchStatus = statusFilter === "all" ? true : q.status === statusFilter;
+    if (!inPeriod(q.created_at, dateFrom, dateTo)) return false;
+    const matchStatus = statusFilter === "all" ? true
+      : statusFilter === "aprovado" ? ["aprovado", "aguardando_arte", "arte_finalizada"].includes(q.status)
+      : q.status === statusFilter;
     const matchSearch =
       !searchTerm ||
       q.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -239,6 +249,10 @@ export default function Quotes() {
             />
           </FilterLineItem>
           <FilterLineSegmented value={statusFilter} onChange={(v) => setStatusFilter(String(v))} options={STATUS_FILTERS} />
+          <FilterLineSegmented value={period} onChange={(v) => choosePeriod(v as ListPeriod)} options={PERIOD_OPTIONS} />
+          <FilterLineDateRange from={dateFrom} to={dateTo}
+            onFromChange={(v) => { setDateFrom(v); setPeriod("custom"); }}
+            onToChange={(v) => { setDateTo(v); setPeriod("custom"); }} />
         </FilterLineSection>
       </FilterLine>
 
@@ -254,7 +268,7 @@ export default function Quotes() {
             <EmptyState
               icon={FileText}
               title="Nenhum orçamento encontrado"
-              description={searchTerm || statusFilter !== "all" ? "Ajuste a busca ou o filtro." : "Crie o primeiro orçamento para começar."}
+              description={searchTerm || statusFilter !== "all" || period !== "all" ? "Nada neste período ou filtro. Toque em \"Tudo\" para ver todos os orçamentos." : "Crie o primeiro orçamento para começar."}
               action={<Button size="sm" onClick={() => navigate("/admin/orcamentos/novo")}>Criar primeiro orçamento</Button>}
             />
           }
