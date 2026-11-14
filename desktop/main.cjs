@@ -705,7 +705,42 @@ ipcMain.handle("printers:print-by-role", async (_e, role, text) => {
 // cai no diálogo normal).
 // size = { widthMm, heightMm }: tamanho exato da página (fileira inteira de etiquetas). Sem isso o driver usa o
 // papel padrão dele e as etiquetas das pontas saem cortadas.
+// Envia a página ao driver; sempre resolve com { ok, error }.
+function sendPrint(win, options) {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (r) => { if (!done) { done = true; resolve(r); } };
+    // se o driver nunca responder, não deixa a tela esperando para sempre
+    const timer = setTimeout(() => finish({ ok: false, error: "A impressora não respondeu em 45 segundos." }), 45000);
+    try {
+      win.webContents.print(options, (ok, reason) => {
+        clearTimeout(timer);
+        finish(ok ? { ok: true } : { ok: false, error: reason ? String(reason) : "A impressora recusou o trabalho." });
+      });
+    } catch (err) {
+      clearTimeout(timer);
+      finish({ ok: false, error: err.message });
+    }
+  });
+}
+
 async function printHtmlOnDevice(html, deviceName, size) {
+  log.info(`[print-html] impressora="${deviceName || "(padrão)"}" tamanho=${size ? `${size.widthMm}x${size.heightMm}mm` : "driver"} bytes=${html.length}`);
+
+  // A impressora cadastrada precisa existir no Windows com exatamente esse nome.
+  if (deviceName) {
+    try {
+      const installed = await mainWindow.webContents.getPrintersAsync();
+      if (!installed.some((p) => p.name === deviceName)) {
+        const names = installed.map((p) => p.name).join(" | ") || "nenhuma";
+        log.warn(`[print-html] impressora "${deviceName}" não encontrada. Instaladas: ${names}`);
+        return { ok: false, error: `A impressora "${deviceName}" não está instalada neste Windows (nome mudou ou foi removida). Em Configurar impressoras, escolha-a de novo. Instaladas: ${names}.` };
+      }
+    } catch (err) {
+      log.warn("[print-html] não foi possível listar impressoras: " + err.message);
+    }
+  }
+
   // Janela fora da tela (e não "show:false"): alguns drivers (ex.: Argox/PPLA) imprimem em branco quando a página
   // nunca chegou a ser pintada numa janela oculta.
   const win = new BrowserWindow({
@@ -724,15 +759,24 @@ async function printHtmlOnDevice(html, deviceName, size) {
     await new Promise((r) => setTimeout(r, 900));
     try { win.webContents.invalidate(); } catch {}
     await new Promise((r) => setTimeout(r, 150));
-    return await new Promise((resolve) => {
-      const pageSize = size && size.widthMm > 0 && size.heightMm > 0
-        ? { width: Math.round(size.widthMm * 1000), height: Math.round(size.heightMm * 1000) }
-        : undefined;
-      win.webContents.print({ silent: true, printBackground: true, deviceName: deviceName || undefined, margins: { marginType: "none" }, ...(pageSize ? { pageSize } : {}) }, (ok, reason) => {
-        resolve(ok ? { ok: true } : { ok: false, error: reason || "A impressora recusou o trabalho." });
-      });
-    });
+
+    const base = { silent: true, printBackground: true, deviceName: deviceName || undefined, margins: { marginType: "none" } };
+    const pageSize = size && size.widthMm > 0 && size.heightMm > 0
+      ? { width: Math.round(size.widthMm * 1000), height: Math.round(size.heightMm * 1000) }
+      : undefined;
+
+    // 1ª tentativa: com o tamanho exato da fileira. Se o driver recusar, tenta de novo com o papel dele.
+    let result = await sendPrint(win, pageSize ? { ...base, pageSize } : base);
+    if (!result.ok && pageSize) {
+      log.warn(`[print-html] falhou com tamanho ${size.widthMm}x${size.heightMm}mm (${result.error}); tentando com o papel do driver`);
+      result = await sendPrint(win, base);
+      if (result.ok) log.info("[print-html] ok com o papel do driver (o tamanho exato foi recusado)");
+    }
+    if (result.ok) log.info("[print-html] enviado ao spooler");
+    else log.warn("[print-html] falhou: " + result.error);
+    return result;
   } catch (err) {
+    log.warn("[print-html] erro: " + err.message);
     return { ok: false, error: err.message };
   } finally {
     setTimeout(() => { try { win.destroy(); } catch {} }, 1500);

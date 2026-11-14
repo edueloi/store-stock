@@ -429,8 +429,9 @@ export default function Barcodes() {
       if (desk?.printHtmlByRole) {
         void desk.printHtmlByRole("label", html, pageSizeMm).then((r: { ok: boolean; error?: string; notConfigured?: boolean }) => {
           if (r.ok) { toast.success("Etiquetas enviadas para a etiquetadora."); return; }
-          if (!r.notConfigured) toast.warning(`Etiquetadora: ${r.error ?? "falha ao imprimir"}. Abrindo a janela de impressão.`);
-          openPrintWindow(html);
+          if (r.notConfigured) { openPrintWindow(html); return; }
+          // No app desktop a janela de impressão do navegador não imprime de verdade: mostra o motivo real da falha.
+          toast.error(`Etiquetadora: ${r.error ?? "falha ao imprimir"}`);
         });
         return;
       }
