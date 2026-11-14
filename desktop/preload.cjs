@@ -34,6 +34,9 @@ contextBridge.exposeInMainWorld("boxsysDesktop", {
   deletePrinter: (printerId) => ipcRenderer.invoke("printers:delete", printerId),
   testPrinterConfig: (config) => ipcRenderer.invoke("printers:test", config),
   printByRole: (role, text) => ipcRenderer.invoke("printers:print-by-role", role, text),
+  // A4 / DANFE / etiquetas: imprime HTML direto na impressora configurada para o uso (sem janela de impressão)
+  printHtmlByRole: (role, html) => ipcRenderer.invoke("printers:print-html-by-role", role, html),
+  printHtmlTest: (config, role) => ipcRenderer.invoke("printers:print-html-test", config, role),
 
   // Banco local (SQLite) — cache de catálogo e fila de operações offline
   dbSaveCache: (key, value) => ipcRenderer.invoke("db:save-cache", key, value),

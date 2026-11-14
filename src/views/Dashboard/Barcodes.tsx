@@ -296,9 +296,25 @@ export default function Barcodes() {
     const code = p.barcode || p.sku || "";
     if (showOnly === "with"    && !code) return false;
     if (showOnly === "without" && code)  return false;
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !code.toLowerCase().includes(search.toLowerCase())) return false;
+    const t = search.trim().toLowerCase();
+    if (t && !p.name.toLowerCase().includes(t) && !(p.barcode ?? "").toLowerCase().includes(t) && !(p.sku ?? "").toLowerCase().includes(t)) return false;
     return true;
   });
+
+  // Leitor de código de barras: digita o código e dá Enter → o produto entra na seleção (cada leitura soma 1 etiqueta)
+  const handleScanEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    const t = search.trim();
+    if (!t) return;
+    const target = products.find((p) => p.barcode === t || p.sku === t) ?? (filtered.length === 1 ? filtered[0] : null);
+    e.preventDefault();
+    if (!target) { toast.warning("Nenhum produto com esse código."); return; }
+    setSelected((cur) => cur.some((x) => x.product.id === target.id)
+      ? cur.map((x) => x.product.id === target.id ? { ...x, qty: Math.min(2000, x.qty + 1) } : x)
+      : [...cur, { product: target, qty: 1 }]);
+    setSearch("");
+    toast.success(`${target.name} adicionado`);
+  };
 
   const isSelected = (id: number) => selected.some((s) => s.product.id === id);
 
@@ -384,6 +400,21 @@ export default function Barcodes() {
   const openPrint = useCallback((contents: string[], title: string, calibration = false, settings = printSettings) => {
     try {
       const html = labelPrintDocument(settings, contents, title, calibration);
+      // App desktop com etiquetadora cadastrada (Configurar impressoras → Etiquetas): imprime direto nela
+      const desk = (window as any).boxsysDesktop;
+      if (desk?.printHtmlByRole) {
+        void desk.printHtmlByRole("label", html).then((r: { ok: boolean; error?: string; notConfigured?: boolean }) => {
+          if (r.ok) { toast.success("Etiquetas enviadas para a etiquetadora."); return; }
+          if (!r.notConfigured) toast.warning(`Etiquetadora: ${r.error ?? "falha ao imprimir"}. Abrindo a janela de impressão.`);
+          openPrintWindow(html);
+        });
+        return;
+      }
+      openPrintWindow(html);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível preparar as etiquetas."); }
+  }, [printSettings, toast]);
+  const openPrintWindow = useCallback((html: string) => {
+    try {
       const popup = window.open("", "_blank", "width=1000,height=760");
       if (!popup) { toast.warning("Permita a abertura da janela de impressão neste navegador."); return; }
       popup.document.open(); popup.document.write(html); popup.document.close();
@@ -394,7 +425,7 @@ export default function Barcodes() {
         else if (++attempts > 160) { clearInterval(timer); toast.warning("A prévia está aberta. Aguarde o carregamento e use o botão Imprimir nessa janela."); }
       }, 50);
     } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível preparar as etiquetas."); }
-  }, [printSettings, toast]);
+  }, [toast]);
   const handlePrint = useCallback(() => { try { openPrint(productContents(true), "Etiquetas de produtos"); } catch (error) { toast.error((error as Error).message); } }, [productContents, openPrint, toast]);
   const handlePrintCustom = useCallback(() => { try { openPrint(customContents(true), "Etiquetas personalizadas"); } catch (error) { toast.error((error as Error).message); } }, [customContents, openPrint, toast]);
   const handleTestPrint = (settings: LabelPrintConfig) => openPrint(calibrationContents(settings), "Teste de alinhamento · etiquetas", true, settings);
@@ -449,9 +480,11 @@ export default function Barcodes() {
             <FilterLineSection grow>
               <FilterLineItem grow minWidth={200}>
                 <FilterLineSearch
-                  placeholder="Buscar produto ou código..."
+                  placeholder="Buscar produto ou escanear código de barras (Enter adiciona)..."
                   value={search}
                   onChange={setSearch}
+                  onKeyDown={handleScanEnter}
+                  autoFocus
                 />
               </FilterLineItem>
               <FilterLineItem>

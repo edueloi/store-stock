@@ -698,6 +698,49 @@ ipcMain.handle("printers:print-by-role", async (_e, role, text) => {
   }
 });
 
+// ─── Impressão de HTML (A4, DANFE, etiquetas) em impressora do Windows ───────
+// Renderiza o HTML numa janela invisível e manda para a impressora cadastrada no uso (role),
+// sem abrir a janela de impressão. Se a impressora não responde, devolve o erro (quem chama
+// cai no diálogo normal).
+async function printHtmlOnDevice(html, deviceName) {
+  const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: true } });
+  try {
+    await win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
+    // etiquetas ajustam o conteúdo por script e avisam com window.__labelsReady
+    for (let i = 0; i < 80; i++) {
+      const ready = await win.webContents.executeJavaScript("(window.__labelsReady === true) || !document.querySelector('.label-safe')").catch(() => true);
+      if (ready) break;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return await new Promise((resolve) => {
+      win.webContents.print({ silent: true, printBackground: true, deviceName: deviceName || undefined, margins: { marginType: "none" } }, (ok, reason) => {
+        resolve(ok ? { ok: true } : { ok: false, error: reason || "A impressora recusou o trabalho." });
+      });
+    });
+  } catch (err) {
+    return { ok: false, error: err.message };
+  } finally {
+    setTimeout(() => { try { win.destroy(); } catch {} }, 1500);
+  }
+}
+
+ipcMain.handle("printers:print-html-by-role", async (_e, role, html) => {
+  try {
+    requirePairedTerminalId();
+    const printer = await findPrinterForRole(role);
+    if (!printer) return { ok: false, error: `Nenhuma impressora configurada para "${role}" neste terminal`, notConfigured: true };
+    return await printHtmlOnDevice(html, printer.config?.usbPrinterName);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle("printers:print-html-test", async (_e, config, role) => {
+  const name = role === "label" ? "Etiquetadora" : role === "danfe" ? "DANFE A4" : "Ordem de Serviço A4";
+  const html = `<!doctype html><meta charset="utf-8"><style>body{font-family:Arial;padding:12mm}h1{font-size:18px}</style><h1>Teste de impressão — ${name}</h1><p>BoxSys Store · ${new Date().toLocaleString("pt-BR")}</p><p>Se você está lendo isto no papel, a impressora está configurada.</p>`;
+  return printHtmlOnDevice(html, config?.usbPrinterName);
+});
+
 // ─── Offline SQLite IPC ──────────────────────────────────────────────────────
 ipcMain.handle("db:save-cache", (_e, key, value) => offlineDb.saveCache(key, value));
 ipcMain.handle("db:get-cache", (_e, key) => offlineDb.getCache(key));

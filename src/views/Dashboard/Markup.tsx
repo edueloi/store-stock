@@ -67,6 +67,12 @@ const DEFAULT_INPUTS: MarkupInputs = {
 };
 
 const STORAGE_KEY = "markup_inputs_v1";
+const ROUND_KEY = "markup_round_v1";
+
+/** Arredonda para cima até o próximo preço terminado em ,99 (ex.: 177,48 → 177,99). */
+const roundUp99 = (v: number) => (v <= 0 ? 0 : Math.round((Math.ceil(v - 0.99 - 1e-9) + 0.99) * 100) / 100);
+
+const norm = (s: unknown) => String(s ?? "").toLowerCase();
 
 function loadSavedInputs(): MarkupInputs {
   try {
@@ -632,6 +638,13 @@ export default function Markup() {
   const [applyingPrice, setApplyingPrice] = useState(false);
   const [appliedMsg, setAppliedMsg] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
+  const [roundPrice, setRoundPrice] = useState<boolean>(() => {
+    try { return localStorage.getItem(ROUND_KEY) !== "0"; } catch { return true; }
+  });
+  const [finalOverride, setFinalOverride] = useState<string | null>(null); // preço final editado no card principal
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [rowPrices, setRowPrices] = useState<Record<number, string>>({}); // preços editados na tabela
+  const [savingRow, setSavingRow] = useState<number | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markupPageTourRef = useRef<MarkupPageTourHandle>(null);
 
@@ -659,6 +672,7 @@ export default function Markup() {
   function saveInputs(vals: MarkupInputs) {
     const { cost_price: _cp, ...toSave } = vals;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    try { localStorage.setItem(ROUND_KEY, roundPrice ? "1" : "0"); } catch { /* ignore */ }
     setSavedMsg(true);
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => setSavedMsg(false), 2500);
@@ -667,9 +681,17 @@ export default function Markup() {
   const set = (key: keyof MarkupInputs) => (v: number) =>
     setInputs((prev) => ({ ...prev, [key]: v }));
 
+  const toggleRound = (v: boolean) => {
+    setRoundPrice(v);
+    setFinalOverride(null);
+    try { localStorage.setItem(ROUND_KEY, v ? "1" : "0"); } catch { /* ignore */ }
+  };
+  const finalPriceOf = (raw: number) => (roundPrice ? roundUp99(raw) : Math.round(raw * 100) / 100);
+
   // When product selected, fill cost_price
   function selectProduct(p: Product) {
     setSelectedProduct(p);
+    setFinalOverride(null);
     setInputs((prev) => ({ ...prev, cost_price: Number(p.cost_price ?? 0) }));
     setShowProductPicker(false);
     setAppliedMsg(false);
@@ -702,7 +724,16 @@ export default function Markup() {
 
   const result = useMemo(() => calcMarkup(inputs), [inputs]);
 
-  // Apply suggested price to product
+  // Preço final do card principal: sugerido (arredondado se marcado) ou o valor editado à mão
+  const suggestedFinal = finalPriceOf(result.suggested_price);
+  const overrideNum = finalOverride === null ? null : Number(finalOverride.replace(",", "."));
+  const finalPrice = overrideNum !== null && Number.isFinite(overrideNum) && overrideNum > 0 ? overrideNum : suggestedFinal;
+  const finalMarginPct = finalPrice > 0 ? ((finalPrice - inputs.cost_price) / finalPrice) * 100 : 0;
+  const finalNetProfit = finalPrice > 0
+    ? finalPrice * (1 - (inputs.tax_pct + inputs.commission_pct + inputs.card_fee_pct + inputs.other_var_pct + inputs.freight_pct + inputs.fixed_cost_pct + inputs.loan_pct) / 100) - inputs.cost_price
+    : 0;
+
+  // Apply price to product
   async function applyPrice() {
     if (!selectedProduct) return;
     setApplyingPrice(true);
@@ -710,7 +741,7 @@ export default function Markup() {
       await fetch(`/api/products/${selectedProduct.id}`, {
         method: "PUT",
         headers: { ...authH(), "Content-Type": "application/json" },
-        body: JSON.stringify({ price: parseFloat(result.suggested_price.toFixed(2)) }),
+        body: JSON.stringify({ price: parseFloat(finalPrice.toFixed(2)) }),
       });
       setAppliedMsg(true);
       await fetchAll();
@@ -738,9 +769,47 @@ export default function Markup() {
     }
   }
 
-  const filteredProducts = products.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase())
-  );
+  // Busca por nome, SKU ou código de barras (leitor de código de barras digita e dá Enter)
+  const matchesTerm = (p: Product, term: string) => {
+    const t = norm(term).trim();
+    if (!t) return true;
+    return norm(p.name).includes(t) || norm(p.barcode).includes(t) || norm(p.sku).includes(t) || norm((p as any).code).includes(t);
+  };
+  const filteredProducts = products.filter((p) => matchesTerm(p, search));
+
+  function pickOnEnter(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    const t = search.trim();
+    if (!t) return;
+    const exact = products.find((p) => p.barcode === t || p.sku === t || (p as any).code === t);
+    const target = exact ?? (filteredProducts.length === 1 ? filteredProducts[0] : null);
+    if (target) { e.preventDefault(); selectProduct(target); setSearch(""); }
+  }
+
+  async function saveRowPrice(p: Product) {
+    const raw = rowPrices[p.id];
+    const v = Number(String(raw ?? "").replace(",", "."));
+    if (!Number.isFinite(v) || v <= 0) return;
+    setSavingRow(p.id);
+    try {
+      const r = await fetch(`/api/products/${p.id}`, {
+        method: "PUT",
+        headers: { ...authH(), "Content-Type": "application/json" },
+        body: JSON.stringify({ price: parseFloat(v.toFixed(2)) }),
+      });
+      if (r.ok) {
+        setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, price: v } : x)));
+        setRowPrices((prev) => { const n = { ...prev }; delete n[p.id]; return n; });
+      }
+    } finally {
+      setSavingRow(null);
+    }
+  }
+
+  function openInCalculator(p: Product) {
+    selectProduct(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   // Donut chart segments
   const donutSegments = result.suggested_price > 0 ? [
@@ -763,7 +832,12 @@ export default function Markup() {
   });
   const noCost = products.filter((p) => !p.cost_price || Number(p.cost_price) === 0);
 
-  const analysisPagination = usePagination(productsWithCost, 15);
+  const analysisList = useMemo(
+    () => productsWithCost.filter((p) => matchesTerm(p, catalogSearch)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [products, catalogSearch],
+  );
+  const analysisPagination = usePagination(analysisList, 15);
 
   const analysisColumns: Column<Product>[] = [
     {
@@ -781,7 +855,40 @@ export default function Markup() {
     { header: "Preço Atual", headerClassName: "text-right", className: "text-right font-semibold text-slate-800 tabular-nums", render: (p) => fmt(Number(p.price)) },
     {
       header: "Preço Sugerido", headerClassName: "text-right", className: "text-right font-semibold text-blue-600 tabular-nums",
-      render: (p) => fmt(calcMarkup({ ...inputs, cost_price: Number(p.cost_price) }).suggested_price),
+      render: (p) => fmt(finalPriceOf(calcMarkup({ ...inputs, cost_price: Number(p.cost_price) }).suggested_price)),
+    },
+    {
+      header: "Novo Preço", headerClassName: "text-right", className: "text-right",
+      render: (p) => {
+        const sug = finalPriceOf(calcMarkup({ ...inputs, cost_price: Number(p.cost_price) }).suggested_price);
+        const edited = rowPrices[p.id];
+        const shown = edited ?? "";
+        return (
+          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <Input
+              size="sm"
+              inputMode="decimal"
+              placeholder={sug.toFixed(2).replace(".", ",")}
+              value={shown}
+              onChange={(e) => setRowPrices((prev) => ({ ...prev, [p.id]: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === "Enter") saveRowPrice(p); }}
+              addonLeft="R$"
+              wrapperClassName="w-28 shrink-0"
+              className="text-right font-semibold"
+              aria-label={`Novo preço de ${p.name}`}
+            />
+            {edited !== undefined && edited !== "" ? (
+              <Button size="xs" onClick={() => saveRowPrice(p)} disabled={savingRow === p.id}>
+                {savingRow === p.id ? "…" : "Salvar"}
+              </Button>
+            ) : (
+              <Button size="xs" variant="outline" onClick={() => setRowPrices((prev) => ({ ...prev, [p.id]: sug.toFixed(2).replace(".", ",") }))}>
+                Usar
+              </Button>
+            )}
+          </div>
+        );
+      },
     },
     {
       header: "Margem Atual", headerClassName: "text-right", className: "text-right",
@@ -848,6 +955,46 @@ export default function Markup() {
       />
 
       <MarkupPageTour ref={markupPageTourRef} />
+
+      <PanelCard title="Como usar o Markup — dicas e sugestões" icon={Info}>
+        <details className="group">
+          <summary className="cursor-pointer text-[12px] font-medium text-blue-700">Ver explicação e sugestões de uso</summary>
+          <div className="mt-3 grid grid-cols-1 gap-3 text-[12px] leading-relaxed text-slate-600 md:grid-cols-2">
+            <div>
+              <p className="mb-1 font-semibold text-slate-800">Para que serve</p>
+              <p>Calcula o preço de venda que cobre o custo do produto, os impostos, a taxa de cartão, a comissão, as despesas fixas e ainda deixa a margem de lucro que você quer. A conta é: <strong>Preço = Custo ÷ (1 − soma dos percentuais)</strong>.</p>
+              <p className="mt-2">Os valores são <strong>cálculos feitos com os seus próprios gastos</strong> (os percentuais que você informa ao lado). Eles são uma <strong>sugestão</strong>, não uma regra: o preço final é decisão sua.</p>
+            </div>
+            <div>
+              <p className="mb-1 font-semibold text-slate-800">Passo a passo</p>
+              <ol className="list-decimal space-y-0.5 pl-4">
+                <li>Preencha os percentuais (imposto, cartão, despesas fixas etc.) e a margem desejada, e clique em <strong>Salvar Config.</strong></li>
+                <li>Busque o produto por nome, SKU ou <strong>código de barras</strong> (leitor também funciona) ou clique em uma linha da tabela.</li>
+                <li>Veja o preço sugerido. Marque <strong>Arredondar</strong> para terminar em ,99 ou edite o valor à mão.</li>
+                <li>Clique em <strong>Aplicar ao produto</strong> ou ajuste direto na coluna <strong>Novo Preço</strong> da tabela.</li>
+              </ol>
+            </div>
+            <div>
+              <p className="mb-1 font-semibold text-slate-800">Variações que mudam o resultado</p>
+              <ul className="list-disc space-y-0.5 pl-4">
+                <li><strong>Despesas fixas</strong> = gastos do mês (aluguel, luz, salários) ÷ faturamento do mês. Se o faturamento cair, o percentual sobe.</li>
+                <li><strong>Taxa de cartão</strong> maior (parcelado) pede preço maior; para venda no Pix/dinheiro pode usar menos.</li>
+                <li><strong>Frete e comissão</strong> só entram nos produtos que realmente têm esses custos.</li>
+                <li>Soma dos percentuais perto de 100% faz o preço disparar; abaixo de 100% é obrigatório.</li>
+              </ul>
+            </div>
+            <div>
+              <p className="mb-1 font-semibold text-slate-800">Dicas</p>
+              <ul className="list-disc space-y-0.5 pl-4">
+                <li>O ajuste pode variar por produto: itens de giro rápido aceitam margem menor; itens raros ou de baixa saída, margem maior.</li>
+                <li>Olhe a concorrência: se o sugerido ficar muito acima do mercado, reduza a margem ou as despesas, não só o preço.</li>
+                <li>Produtos "Baixo" na tabela estão vendendo abaixo do recomendado; comece por eles.</li>
+                <li>Revise os percentuais a cada poucos meses, pois seus custos mudam.</li>
+              </ul>
+            </div>
+          </div>
+        </details>
+      </PanelCard>
 
       {/* Alerts */}
       {!loading && (belowSuggested.length > 0 || noCost.length > 0) && (
@@ -964,16 +1111,45 @@ export default function Markup() {
             )}
           >
             <p className="text-[11px] font-semibold text-slate-500">Preço de Venda Sugerido</p>
-            <p className={cn("text-4xl font-semibold", result.net_profit >= 0 ? "text-emerald-700" : "text-red-600")}>
-              {fmt(result.suggested_price)}
+            <p className={cn("text-4xl font-semibold", finalNetProfit >= 0 ? "text-emerald-700" : "text-red-600")}>
+              {fmt(finalPrice)}
             </p>
+            {(roundPrice || overrideNum !== null) && (
+              <p className="text-[11px] text-slate-500">
+                Cálculo puro: {fmt(result.suggested_price)}
+                {roundPrice && overrideNum === null && " · arredondado para ,99"}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center gap-3 mt-2">
+              <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-slate-700">
+                <input type="checkbox" checked={roundPrice} onChange={(e) => toggleRound(e.target.checked)} />
+                Arredondar preço (termina em ,99)
+              </label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-slate-500">Editar preço:</span>
+                <Input
+                  size="sm"
+                  inputMode="decimal"
+                  placeholder={suggestedFinal.toFixed(2).replace(".", ",")}
+                  value={finalOverride ?? ""}
+                  onChange={(e) => setFinalOverride(e.target.value === "" ? null : e.target.value)}
+                  addonLeft="R$"
+                  wrapperClassName="w-28"
+                  className="text-right font-semibold"
+                  aria-label="Editar preço final"
+                />
+                {finalOverride !== null && (
+                  <Button size="xs" variant="outline" onClick={() => setFinalOverride(null)}>Voltar ao sugerido</Button>
+                )}
+              </div>
+            </div>
             <div className="flex flex-wrap gap-3 mt-1">
               <span className="text-[11px] font-semibold text-slate-600">
-                Margem Bruta: <strong className="text-emerald-600">{fmtPct(result.gross_margin_pct)}</strong>
+                Margem Bruta: <strong className="text-emerald-600">{fmtPct(finalMarginPct)}</strong>
               </span>
               <span className="text-[11px] font-semibold text-slate-600">
-                Lucro Líq.: <strong className={result.net_profit >= 0 ? "text-emerald-600" : "text-red-600"}>
-                  {fmt(result.net_profit)} ({fmtPct(result.net_pct)})
+                Lucro Líq.: <strong className={finalNetProfit >= 0 ? "text-emerald-600" : "text-red-600"}>
+                  {fmt(finalNetProfit)} ({fmtPct(finalPrice > 0 ? (finalNetProfit / finalPrice) * 100 : 0)})
                 </strong>
               </span>
             </div>
@@ -981,7 +1157,7 @@ export default function Markup() {
               <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-200">
                 <span className="text-[11px] text-slate-500">
                   Preço atual: <strong>{fmt(Number(selectedProduct.price))}</strong>
-                  {Number(selectedProduct.price) < result.suggested_price * 0.95 && (
+                  {Number(selectedProduct.price) < finalPrice * 0.95 && (
                     <span className="ml-1 text-red-500 font-semibold">(abaixo ↓)</span>
                   )}
                 </span>
@@ -991,7 +1167,7 @@ export default function Markup() {
                   </span>
                 ) : (
                   <Button size="xs" onClick={applyPrice} disabled={applyingPrice} iconLeft={<ArrowRight size={11} />}>
-                    {applyingPrice ? "Aplicando…" : "Aplicar ao produto"}
+                    {applyingPrice ? "Aplicando…" : `Aplicar ${fmt(finalPrice)} ao produto`}
                   </Button>
                 )}
               </div>
@@ -1070,17 +1246,34 @@ export default function Markup() {
           data-tour="markup-analysis-table"
           title="Análise do Catálogo com Parâmetros Atuais"
           icon={Package}
-          action={<span className="text-[11px] text-slate-500">{productsWithCost.length} produtos com custo</span>}
+          action={<span className="text-[11px] text-slate-500">{analysisList.length} de {productsWithCost.length} produtos com custo · clique na linha para calcular</span>}
           contentClassName="p-0"
         >
+          <div className="border-b border-slate-100 p-3">
+            <Input
+              iconLeft={<Search size={14} />}
+              aria-label="Buscar no catálogo"
+              value={catalogSearch}
+              onChange={(e) => setCatalogSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                const t = catalogSearch.trim();
+                const exact = t ? productsWithCost.find((p) => p.barcode === t || p.sku === t) : null;
+                if (exact) { e.preventDefault(); openInCalculator(exact); setCatalogSearch(""); }
+              }}
+              placeholder="Buscar por nome, SKU ou código de barras (pode usar o leitor)…"
+            />
+          </div>
           <GridTable<Product>
             noDesktopCard
             data={analysisPagination.paginatedData}
             keyExtractor={(p) => p.id}
             columns={analysisColumns}
-            tableMinWidth={600}
+            onRowClick={openInCalculator}
+            emptyMessage="Nenhum produto encontrado para essa busca."
+            tableMinWidth={760}
             pagination={{
-              total: productsWithCost.length,
+              total: analysisList.length,
               page: analysisPagination.page,
               pageSize: analysisPagination.pageSize,
               onPageChange: analysisPagination.setPage,
@@ -1099,7 +1292,8 @@ export default function Markup() {
             aria-label="Buscar produto"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar produto…"
+            onKeyDown={pickOnEnter}
+            placeholder="Nome, SKU ou código de barras (Enter seleciona)…"
           />
           <div className="max-h-72 space-y-1 overflow-y-auto">
             {loading ? (

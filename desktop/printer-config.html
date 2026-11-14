@@ -70,6 +70,8 @@
     .badge.default { background: #ecfdf5; color: #047857; }
     .badge.role.receipt { background: #eff6ff; color: #1d4ed8; }
     .badge.role.service_order { background: #fffbeb; color: #b45309; }
+    .badge.role.label { background: #f0fdf4; color: #15803d; }
+    .badge.role.danfe { background: #faf5ff; color: #7e22ce; }
     .badge.role.custom { background: #f1f5f9; color: #475569; }
     .printer-item .del-btn { flex: none; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #94a3b8; font-size: 12px; cursor: pointer; transition: all .15s; }
     .printer-item .del-btn:hover { background: #fef2f2; color: #dc2626; }
@@ -106,9 +108,11 @@
     <input id="label" type="text" placeholder="Ex.: Térmica do balcão — se vazio, usa o nome da impressora" />
 
     <label>Uso</label>
-    <select id="role">
+    <select id="role" onchange="onRoleChange()">
       <option value="receipt">Cupom de venda (térmica)</option>
       <option value="service_order">Ordem de Serviço (A4)</option>
+      <option value="danfe">DANFE / Notas fiscais (A4)</option>
+      <option value="label">Etiquetas (etiquetadora)</option>
       <option value="custom">Outro</option>
     </select>
 
@@ -221,7 +225,15 @@
       });
     }
 
-    const ROLE_LABELS = { receipt: "Cupom", service_order: "Ordem de Serviço", custom: "Outro" };
+    const ROLE_LABELS = { receipt: "Cupom", service_order: "Ordem de Serviço", danfe: "DANFE A4", label: "Etiquetas", custom: "Outro" };
+    // A4 e etiquetadora imprimem pelo driver do Windows (sem ESC/POS): só a conexão "Impressora do Windows" faz sentido.
+    const isDriverRole = (r) => r === "service_order" || r === "danfe" || r === "label";
+    function onRoleChange() {
+      const driver = isDriverRole(document.getElementById("role").value);
+      document.querySelector(".tabs").style.display = driver ? "none" : "flex";
+      if (driver) setTransport("usb");
+      document.getElementById("testBtn").textContent = driver ? "Imprimir página de teste" : "Testar";
+    }
 
     const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -288,6 +300,7 @@
       document.getElementById("role").value = "receipt";
       document.getElementById("isDefault").checked = true;
       setTransport("usb");
+      onRoleChange();
       document.getElementById("msg").style.display = "none";
       document.getElementById("formBox").style.display = "block";
       document.getElementById("addLink").style.display = "none";
@@ -310,6 +323,7 @@
       if (p.config?.serialPort) document.getElementById("serialPort").value = p.config.serialPort;
       if (p.config?.networkHost) document.getElementById("networkHost").value = p.config.networkHost;
       if (p.config?.networkPort) document.getElementById("networkPort").value = p.config.networkPort;
+      onRoleChange();
       document.getElementById("msg").style.display = "none";
       document.getElementById("formBox").style.display = "block";
       document.getElementById("addLink").style.display = "none";
@@ -320,9 +334,12 @@
       btn.disabled = true;
       btn.textContent = "Testando...";
       const form = readForm();
-      const result = await window.boxsysDesktop.testPrinterConfig(form.config);
+      const driver = isDriverRole(form.role);
+      const result = driver && window.boxsysDesktop.printHtmlTest
+        ? await window.boxsysDesktop.printHtmlTest(form.config, form.role)
+        : await window.boxsysDesktop.testPrinterConfig(form.config);
       btn.disabled = false;
-      btn.textContent = "Testar";
+      btn.textContent = driver ? "Imprimir página de teste" : "Testar";
       if (result.ok) showMsg("Impressora conectada com sucesso!", "success");
       else showMsg(result.error || "Não foi possível conectar à impressora.", "error");
     }

@@ -303,16 +303,33 @@ export async function buildCashCloseFullReceiptText(
   pmLabel: Record<string, string>,
   token: string | null,
 ): Promise<string> {
-  const base = buildCashCloseReceiptText(tenantName, operatorName, session, pmLabel).replace(/\n+$/, "\n");
-  if (!session.id || !token) return base + "\n\n";
-  try {
-    const res = await fetch(`/api/cash-sessions/${session.id}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) return base + "\n\n";
-    const detail = await res.json();
-    return base + buildCashCloseSalesText(Array.isArray(detail?.orders) ? detail.orders : [], pmLabel);
-  } catch {
-    return base + "\n\n";
+  // Usa a MESMA fonte da reimpressão do Histórico (detalhe da sessão no servidor): o cupom do fechamento
+  // e o reimpresso saem idênticos. Só cai no objeto do fechamento se o servidor não responder.
+  if (session.id && token) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(`/api/cash-sessions/${session.id}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const detail = await res.json();
+          if (detail && typeof detail === "object") {
+            return buildCashCloseReceiptFromDetail(tenantName, operatorName, { ...session, ...detail }, pmLabel);
+          }
+        }
+      } catch { /* tenta de novo */ }
+    }
   }
+  return buildCashCloseReceiptText(tenantName, operatorName, session, pmLabel).replace(/\n+$/, "\n") + "\n\n";
+}
+
+/** Cupom completo (resumo de caixa + vendas) a partir do detalhe da sessão — usado no fechamento e na reimpressão. */
+export function buildCashCloseReceiptFromDetail(
+  tenantName: string,
+  operatorName: string,
+  detail: CashCloseReceiptSession & { orders?: CashCloseSalesOrder[] },
+  pmLabel: Record<string, string>,
+): string {
+  const base = buildCashCloseReceiptText(tenantName, operatorName, detail, pmLabel).replace(/\n+$/, "\n");
+  return base + buildCashCloseSalesText(Array.isArray(detail.orders) ? detail.orders : [], pmLabel);
 }
 
 export interface OrderReceiptTenant {

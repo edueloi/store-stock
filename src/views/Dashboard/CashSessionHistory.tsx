@@ -19,7 +19,7 @@ import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal
 import { cn } from "../../lib/utils";
 import { parsePaymentSegments } from "../../../shared/paymentSegments";
 import {
-  buildCashCloseReceiptText, buildCashCloseSalesText, printThermalText, thermalThin, thermalCenter, thermalRow,
+  buildCashCloseReceiptFromDetail, printThermalText, thermalThin, thermalCenter, thermalRow,
 } from "../../lib/thermalReceipt";
 import CashHistoryPageTour, { CASH_HISTORY_PAGE_TOUR_EVENTS, type CashHistoryPageTourHandle } from "../../components/onboarding/CashHistoryPageTour";
 
@@ -443,11 +443,9 @@ export default function CashSessionHistory() {
   // compartilhada pra reimpressão a partir daqui nunca divergir do que já
   // saiu na hora do fechamento.
   const buildSessionReceipt = async (session: CashSessionDetail) => {
-    const extra = buildCashCloseSalesText(session.orders, PM_LABEL);
-
     const tenantName = await fetchTenantName();
     const operatorName = session.closed_by_name ?? session.opened_by_name;
-    return buildCashCloseReceiptText(tenantName, operatorName, session, PM_LABEL).replace(/\n+$/, "\n") + extra;
+    return buildCashCloseReceiptFromDetail(tenantName, operatorName, session, PM_LABEL);
   };
 
   const printSessionReceipt = async (session: CashSessionDetail) => {
