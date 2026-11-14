@@ -61,8 +61,8 @@ export function useRemotePrintBridge() {
         identifyDesktopTerminal(state.terminalUid);
         if (subscribedTerminalUid === state.terminalUid) return;
         unsubscribe();
-        unsubscribe = onRealtime("print:requested", (payload: { role?: string; text?: string }) => {
-          if (cancelled || !payload?.role || !payload.text) return;
+        unsubscribe = onRealtime("print:requested", (payload: { role?: string; text?: string; html?: string }) => {
+          if (cancelled || !payload?.role || !payload.text) return; // HTML (etiquetas/A4) só o app novo imprime
           if (typeof desktop.printByRole !== "function") return;
           void desktop.printByRole(payload.role, payload.text);
         });

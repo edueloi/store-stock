@@ -164,9 +164,10 @@ function startRemotePrint() {
     uid: terminalUid,
     token: terminalToken,
     log,
-    onPrint: async (role, text) => {
+    onPrint: async (role, text, html) => {
       const printer = await findPrinterForRole(role);
       if (!printer) return { ok: false, error: `Nenhuma impressora configurada para "${role}"` };
+      if (html) return printHtmlOnDevice(html, printer.config?.usbPrinterName);
       return printerModule.printReceipt(text, printer.config);
     },
   });

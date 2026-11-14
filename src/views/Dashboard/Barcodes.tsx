@@ -16,6 +16,7 @@ import LabelPrintSettings, { LabelPrintSummary } from "../../components/labels/L
 import LabelPrintPreview from "../../components/labels/LabelPrintPreview";
 import { calibrationContents, labelBarcodeSvg, labelEscape, labelPrintDocument, labelSettingsStorageKey, storedLabelSettings, validateLabelPrint, type LabelPrintSettings as LabelPrintConfig } from "../../lib/labelPrinting";
 import { useToast } from "../../components/ui/Toast";
+import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 
 const API_HEADERS = () => ({
   "Content-Type": "application/json",
@@ -249,6 +250,16 @@ export default function Barcodes() {
   const [products, setProducts]     = useState<Product[]>([]);
   const [loading, setLoading]       = useState(true);
   const [search, setSearch]         = useState("");
+  // Destino da impressão: "local" (este computador) ou id de outro terminal vinculado que tenha etiquetadora
+  const [printTarget, setPrintTarget] = useState<string>("local");
+  const [labelTerminals, setLabelTerminals] = useState<RemotePrintTerminal[]>([]);
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetchRemotePrintTerminals(token)
+      .then((list) => setLabelTerminals(list.filter((t) => t.printers.some((p) => p.role === "label"))))
+      .catch(() => {});
+  }, []);
   const [selected, setSelected]     = useState<SelectedItem[]>([]);
   const [printSettings, setPrintSettings] = useState<LabelPrintConfig>(storedLabelSettings);
   const [configuring, setConfiguring] = useState(false);
@@ -401,6 +412,14 @@ export default function Barcodes() {
     try {
       const html = labelPrintDocument(settings, contents, title, calibration);
       // App desktop com etiquetadora cadastrada (Configurar impressoras → Etiquetas): imprime direto nela
+      if (printTarget !== "local") {
+        const token = localStorage.getItem("token") || "";
+        void requestRemotePrint(token, Number(printTarget), "label", "", html).then((r) => {
+          if (r.ok) toast.success("Etiquetas enviadas para o outro terminal.");
+          else toast.error(r.error || "Não foi possível enviar para o outro terminal.");
+        }).catch(() => toast.error("Falha ao enviar para o outro terminal."));
+        return;
+      }
       const desk = (window as any).boxsysDesktop;
       if (desk?.printHtmlByRole) {
         void desk.printHtmlByRole("label", html).then((r: { ok: boolean; error?: string; notConfigured?: boolean }) => {
@@ -412,7 +431,7 @@ export default function Barcodes() {
       }
       openPrintWindow(html);
     } catch (error) { toast.error(error instanceof Error ? error.message : "Não foi possível preparar as etiquetas."); }
-  }, [printSettings, toast]);
+  }, [printSettings, toast, printTarget]);
   const openPrintWindow = useCallback((html: string) => {
     try {
       const popup = window.open("", "_blank", "width=1000,height=760");
@@ -443,6 +462,12 @@ export default function Barcodes() {
         description="Gere, visualize e imprima etiquetas com código de barras"
         action={
           <>
+            {labelTerminals.length > 0 && (
+              <Select size="sm" aria-label="Imprimir em" value={printTarget} onChange={(e) => setPrintTarget(e.target.value)}>
+                <option value="local">Imprimir neste computador</option>
+                {labelTerminals.map((t) => <option key={t.id} value={String(t.id)}>Etiquetadora em: {t.name}</option>)}
+              </Select>
+            )}
             {labelMode === "products" && selected.length > 0 && (
               <Button variant="primary" iconLeft={<Printer size={14} />} onClick={handlePrint} disabled={printErrors.length > 0}>
                 Imprimir {totalLabels} etiqueta{totalLabels !== 1 ? "s" : ""}

@@ -36,9 +36,9 @@ function start({ server, uid, token, onPrint, log }) {
   socket.on("disconnect", (reason) => log?.warn?.(`[remote-print] desconectado: ${reason}`));
   socket.on("connect_error", (err) => log?.warn?.(`[remote-print] erro de conexão: ${err?.message || err}`));
   socket.on("print:requested", async (payload) => {
-    if (!payload?.role || !payload?.text) return;
+    if (!payload?.role || (!payload?.text && !payload?.html)) return;
     try {
-      const result = await onPrint(payload.role, payload.text);
+      const result = await onPrint(payload.role, payload.text, payload.html);
       if (result && result.ok === false) log?.warn?.(`[remote-print] falha ao imprimir: ${result.error}`);
     } catch (err) {
       log?.warn?.(`[remote-print] falha ao imprimir: ${err?.message || err}`);

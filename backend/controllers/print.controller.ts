@@ -14,11 +14,11 @@ function getTenantId(req: Request) {
 // Socket.IO pro terminal certo, não conhece o formato do cupom/documento.
 export async function requestRemotePrint(req: Request, res: Response) {
   const tenantId = getTenantId(req);
-  const { terminal_id, role, text } = req.body as {
-    terminal_id?: number; role?: string; text?: string;
+  const { terminal_id, role, text, html } = req.body as {
+    terminal_id?: number; role?: string; text?: string; html?: string;
   };
-  if (!terminal_id || !role || !text) {
-    res.status(400).json({ error: "terminal_id, role e text são obrigatórios" });
+  if (!terminal_id || !role || (!text && !html)) {
+    res.status(400).json({ error: "terminal_id, role e text (ou html) são obrigatórios" });
     return;
   }
   try {
@@ -37,7 +37,7 @@ export async function requestRemotePrint(req: Request, res: Response) {
       res.status(422).json({ error: `Nenhuma impressora configurada para "${role}" neste terminal` });
       return;
     }
-    if (!emitToTerminal(terminal.terminal_uid, "print:requested", { role, text })) {
+    if (!emitToTerminal(terminal.terminal_uid, "print:requested", { role, text, html })) {
       res.status(409).json({ error: "Terminal está offline. Abra o app desktop vinculado e tente novamente." });
       return;
     }

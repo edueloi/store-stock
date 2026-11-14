@@ -15,13 +15,14 @@ export async function fetchRemotePrintTerminals(token: string): Promise<RemotePr
 export async function requestRemotePrint(
   token: string,
   terminalId: number,
-  role: "receipt" | "service_order",
-  text: string
+  role: "receipt" | "service_order" | "label" | "danfe",
+  text: string,
+  html?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   const res = await fetch("/api/print/remote", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ terminal_id: terminalId, role, text }),
+    body: JSON.stringify(html ? { terminal_id: terminalId, role, html } : { terminal_id: terminalId, role, text }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return { ok: false, error: data?.error || "Falha ao pedir impressão remota" };
