@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Printer, RefreshCw, Ruler, Save, Settings2 } from "lucide-react";
 import { Alert, Button, Input, PanelCard, SectionTitle, Select, Switch, Tabs } from "../ui";
 import { useToast } from "../ui/Toast";
+import LabelSettingsPreview from "./LabelSettingsPreview";
 import { DEFAULT_LABEL_PRINT, LABEL_FONTS, LABEL_PRINT_PRESETS, labelGeometry, labelSettingsStorageKey, validateLabelPrint, type LabelPrintSettings as Settings } from "../../lib/labelPrinting";
 
 type Profile = { name: string; settings: Settings };
@@ -145,9 +146,9 @@ export default function LabelPrintSettings({ value: applied, onChange: apply, on
         <p className="text-xs leading-5 text-slate-500">Salvar aplica o perfil e volta às etiquetas. Voltar descarta os ajustes desta tela. Os perfis ficam guardados para este usuário neste navegador.</p>
       </div>
       <aside className="min-w-0 xl:sticky xl:top-4">
-        <PanelCard title="Formato da fileira" description="As medidas físicas permanecem fixas." icon={Ruler} contentClassName="space-y-4">
+        <PanelCard title="Formato da fileira" description="Prévia em tempo real, na proporção real das suas configurações." icon={Ruler} contentClassName="space-y-4">
           {!errors.length ? <>
-            <div className="relative overflow-hidden rounded border border-slate-300 bg-slate-100" style={{ aspectRatio: `${value.paperWidth} / ${value.height}` }}>{Array.from({ length: value.columns }, (_, i) => <div key={i} className="absolute top-0 flex h-full items-center justify-center border border-dashed border-blue-400 bg-white text-xs font-semibold text-blue-700" style={{ left: `${(value.marginLeft + i * (value.width + value.gapX)) / value.paperWidth * 100}%`, width: `${value.width / value.paperWidth * 100}%` }}>{i + 1}</div>)}</div>
+            <LabelSettingsPreview settings={value} />
             <dl className="space-y-3 text-xs"><div className="flex justify-between gap-2"><dt className="text-slate-500">Cada etiqueta</dt><dd className="font-medium">{value.width} × {value.height} mm</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Colunas por fileira</dt><dd className="font-medium">{value.columns}</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Papel no driver</dt><dd className="font-medium">{value.paperWidth} × {g.pageHeight} mm</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Área de conteúdo</dt><dd className="font-medium">{g.contentWidth.toFixed(1)} × {g.contentHeight.toFixed(1)} mm</dd></div></dl>
             <p className="border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">Faça um teste de alinhamento antes de imprimir um lote.</p>
           </> : <p className="text-xs text-slate-500">Corrija as medidas para visualizar a fileira.</p>}
