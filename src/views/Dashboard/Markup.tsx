@@ -72,6 +72,10 @@ const ROUND_KEY = "markup_round_v1";
 /** Arredonda para cima até o próximo preço terminado em ,99 (ex.: 177,48 → 177,99). */
 const roundUp99 = (v: number) => (v <= 0 ? 0 : Math.round((Math.ceil(v - 0.99 - 1e-9) + 0.99) * 100) / 100);
 
+/** Arredonda para cima até o próximo valor inteiro (ex.: 177,48 → 178,00). */
+const roundUp00 = (v: number) => (v <= 0 ? 0 : Math.ceil(v - 1e-9));
+
+const ROUND_MODE_KEY = "markup_round_mode_v1";
 const norm = (s: unknown) => String(s ?? "").toLowerCase();
 
 function loadSavedInputs(): MarkupInputs {
@@ -641,6 +645,9 @@ export default function Markup() {
   const [roundPrice, setRoundPrice] = useState<boolean>(() => {
     try { return localStorage.getItem(ROUND_KEY) !== "0"; } catch { return true; }
   });
+  const [roundMode, setRoundMode] = useState<"99" | "00">(() => {
+    try { return localStorage.getItem(ROUND_MODE_KEY) === "00" ? "00" : "99"; } catch { return "99"; }
+  });
   const [finalOverride, setFinalOverride] = useState<string | null>(null); // preço final editado no card principal
   const [catalogSearch, setCatalogSearch] = useState("");
   const [rowPrices, setRowPrices] = useState<Record<number, string>>({}); // preços editados na tabela
@@ -686,7 +693,12 @@ export default function Markup() {
     setFinalOverride(null);
     try { localStorage.setItem(ROUND_KEY, v ? "1" : "0"); } catch { /* ignore */ }
   };
-  const finalPriceOf = (raw: number) => (roundPrice ? roundUp99(raw) : Math.round(raw * 100) / 100);
+  const changeRoundMode = (m: "99" | "00") => {
+    setRoundMode(m);
+    setFinalOverride(null);
+    try { localStorage.setItem(ROUND_MODE_KEY, m); } catch { /* ignore */ }
+  };
+  const finalPriceOf = (raw: number) => (roundPrice ? (roundMode === "00" ? roundUp00(raw) : roundUp99(raw)) : Math.round(raw * 100) / 100);
 
   // When product selected, fill cost_price
   function selectProduct(p: Product) {
@@ -970,7 +982,7 @@ export default function Markup() {
               <ol className="list-decimal space-y-0.5 pl-4">
                 <li>Preencha os percentuais (imposto, cartão, despesas fixas etc.) e a margem desejada, e clique em <strong>Salvar Config.</strong></li>
                 <li>Busque o produto por nome, SKU ou <strong>código de barras</strong> (leitor também funciona) ou clique em uma linha da tabela.</li>
-                <li>Veja o preço sugerido. Marque <strong>Arredondar</strong> para terminar em ,99 ou edite o valor à mão.</li>
+                <li>Veja o preço sugerido. Marque <strong>Arredondar</strong> para terminar em ,99 ou ,00 (inteiro), ou edite o valor à mão.</li>
                 <li>Clique em <strong>Aplicar ao produto</strong> ou ajuste direto na coluna <strong>Novo Preço</strong> da tabela.</li>
               </ol>
             </div>
@@ -1117,14 +1129,24 @@ export default function Markup() {
             {(roundPrice || overrideNum !== null) && (
               <p className="text-[11px] text-slate-500">
                 Cálculo puro: {fmt(result.suggested_price)}
-                {roundPrice && overrideNum === null && " · arredondado para ,99"}
+                {roundPrice && overrideNum === null && ` · arredondado para ,${roundMode}`}
               </p>
             )}
             <div className="flex flex-wrap items-center gap-3 mt-2">
               <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-slate-700">
                 <input type="checkbox" checked={roundPrice} onChange={(e) => toggleRound(e.target.checked)} />
-                Arredondar preço (termina em ,99)
+                Arredondar preço
               </label>
+              <select
+                aria-label="Tipo de arredondamento"
+                disabled={!roundPrice}
+                value={roundMode}
+                onChange={(e) => changeRoundMode(e.target.value as "99" | "00")}
+                className="h-7 rounded border border-slate-200 bg-white px-1.5 text-[12px] text-slate-700 disabled:opacity-50"
+              >
+                <option value="99">termina em ,99</option>
+                <option value="00">inteiro (,00)</option>
+              </select>
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] text-slate-500">Editar preço:</span>
                 <Input
