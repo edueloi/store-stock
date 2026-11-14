@@ -76,6 +76,16 @@
     .printer-item .del-btn { flex: none; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #94a3b8; font-size: 12px; cursor: pointer; transition: all .15s; }
     .printer-item .del-btn:hover { background: #fef2f2; color: #dc2626; }
 
+    /* Escolha do uso em cartões */
+    #role { display: none; }
+    .role-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .role-card { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; cursor: pointer; transition: all .15s; }
+    .role-card:hover { border-color: #93c5fd; background: #f8fbff; }
+    .role-card.active { border-color: #2563eb; background: #eff6ff; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    .role-card .rt { font-size: 12px; font-weight: 600; color: #0f172a; }
+    .role-card .rd { font-size: 11px; color: #64748b; line-height: 1.35; }
+    .role-card.active .rt { color: #1d4ed8; }
+
     /* Formulário */
     .form-box { display: none; margin-top: 6px; padding: 14px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
     .form-title { font-size: 13px; font-weight: 600; color: #0f172a; margin-bottom: 10px; }
@@ -93,7 +103,7 @@
     </div>
     <div>
       <h1>Impressoras deste terminal</h1>
-      <p class="sub">Cadastre a térmica do cupom, a A4 das ordens de serviço e o que mais precisar. Se a impressora aparece em &quot;Dispositivos e Impressoras&quot; do Windows, use <b>Impressora do Windows</b>.</p>
+      <p class="sub">Cadastre a térmica do cupom, a etiquetadora, a A4 das ordens de serviço e das notas, e o que mais precisar. Se a impressora aparece em &quot;Dispositivos e Impressoras&quot; do Windows, use <b>Impressora do Windows</b>.</p>
     </div>
   </div>
 
@@ -107,7 +117,14 @@
     <label>Nome <span class="opt">(opcional)</span></label>
     <input id="label" type="text" placeholder="Ex.: Térmica do balcão — se vazio, usa o nome da impressora" />
 
-    <label>Uso</label>
+    <label>Para que serve esta impressora?</label>
+    <div class="role-grid" id="roleGrid">
+      <button type="button" class="role-card" data-role="receipt" onclick="pickRole('receipt')"><span class="rt">Cupom de venda</span><span class="rd">Térmica do balcão (cupom e fechamento de caixa)</span></button>
+      <button type="button" class="role-card" data-role="label" onclick="pickRole('label')"><span class="rt">Etiquetas</span><span class="rd">Etiquetadora de código de barras e preços</span></button>
+      <button type="button" class="role-card" data-role="service_order" onclick="pickRole('service_order')"><span class="rt">Ordem de Serviço (A4)</span><span class="rd">Folha A4 de ordens e orçamentos</span></button>
+      <button type="button" class="role-card" data-role="danfe" onclick="pickRole('danfe')"><span class="rt">DANFE / Notas (A4)</span><span class="rd">Impressão das notas fiscais em A4</span></button>
+      <button type="button" class="role-card" data-role="custom" onclick="pickRole('custom')"><span class="rt">Outro</span><span class="rd">Qualquer outro uso</span></button>
+    </div>
     <select id="role" onchange="onRoleChange()">
       <option value="receipt">Cupom de venda (térmica)</option>
       <option value="service_order">Ordem de Serviço (A4)</option>
@@ -228,8 +245,11 @@
     const ROLE_LABELS = { receipt: "Cupom", service_order: "Ordem de Serviço", danfe: "DANFE A4", label: "Etiquetas", custom: "Outro" };
     // A4 e etiquetadora imprimem pelo driver do Windows (sem ESC/POS): só a conexão "Impressora do Windows" faz sentido.
     const isDriverRole = (r) => r === "service_order" || r === "danfe" || r === "label";
+    function pickRole(r) { document.getElementById("role").value = r; onRoleChange(); }
     function onRoleChange() {
-      const driver = isDriverRole(document.getElementById("role").value);
+      const cur = document.getElementById("role").value;
+      document.querySelectorAll(".role-card").forEach((c) => c.classList.toggle("active", c.dataset.role === cur));
+      const driver = isDriverRole(cur);
       document.querySelector(".tabs").style.display = driver ? "none" : "flex";
       if (driver) setTransport("usb");
       document.getElementById("testBtn").textContent = driver ? "Imprimir página de teste" : "Testar";

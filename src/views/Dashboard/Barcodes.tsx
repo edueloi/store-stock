@@ -252,12 +252,13 @@ export default function Barcodes() {
   const [search, setSearch]         = useState("");
   // Destino da impressão: "local" (este computador) ou id de outro terminal vinculado que tenha etiquetadora
   const [printTarget, setPrintTarget] = useState<string>("local");
-  const [labelTerminals, setLabelTerminals] = useState<RemotePrintTerminal[]>([]);
+  const [allTerminals, setAllTerminals] = useState<RemotePrintTerminal[]>([]);
+  const labelTerminals = allTerminals.filter((t) => t.printers.some((p) => p.role === "label"));
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) return;
     fetchRemotePrintTerminals(token)
-      .then((list) => setLabelTerminals(list.filter((t) => t.printers.some((p) => p.role === "label"))))
+      .then((list) => setAllTerminals(Array.isArray(list) ? list : []))
       .catch(() => {});
   }, []);
   const [selected, setSelected]     = useState<SelectedItem[]>([]);
@@ -462,12 +463,6 @@ export default function Barcodes() {
         description="Gere, visualize e imprima etiquetas com código de barras"
         action={
           <>
-            {labelTerminals.length > 0 && (
-              <Select size="sm" aria-label="Imprimir em" value={printTarget} onChange={(e) => setPrintTarget(e.target.value)}>
-                <option value="local">Imprimir neste computador</option>
-                {labelTerminals.map((t) => <option key={t.id} value={String(t.id)}>Etiquetadora em: {t.name}</option>)}
-              </Select>
-            )}
             {labelMode === "products" && selected.length > 0 && (
               <Button variant="primary" iconLeft={<Printer size={14} />} onClick={handlePrint} disabled={printErrors.length > 0}>
                 Imprimir {totalLabels} etiqueta{totalLabels !== 1 ? "s" : ""}
@@ -672,6 +667,21 @@ export default function Barcodes() {
             </div>
             {selected.length === 1 && printSettings.columns > 1 && totalLabels !== printSettings.columns && <Button variant="outline" fullWidth onClick={() => setSelected(current => current.map(item => ({ ...item, qty: printSettings.columns })))}>Preencher fileira com {printSettings.columns} cópias</Button>}
 
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="mb-1.5 text-[12px] font-semibold text-slate-700">Imprimir em</p>
+              <Select size="sm" aria-label="Imprimir em" value={printTarget} onChange={(e) => setPrintTarget(e.target.value)}>
+                <option value="local">Este computador (janela de impressão / etiquetadora do app)</option>
+                {allTerminals.map((t) => {
+                  const has = t.printers.some((p) => p.role === "label");
+                  return <option key={t.id} value={String(t.id)} disabled={!has}>{t.name}{has ? " — etiquetadora" : " — sem etiquetadora cadastrada"}</option>;
+                })}
+              </Select>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                {labelTerminals.length > 0
+                  ? "Escolha outro terminal para imprimir direto na etiquetadora dele (o app precisa estar aberto)."
+                  : "Para imprimir direto na etiquetadora ou em outro terminal: no app desktop, abra PDV → Configurar impressoras, vincule o computador à loja e cadastre uma impressora com uso \"Etiquetas\". Requer o app desktop 1.5.5 ou mais novo."}
+              </p>
+            </div>
             <Button
               data-tour="barcodes-print-btn"
               variant="primary"
