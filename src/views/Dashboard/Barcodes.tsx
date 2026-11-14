@@ -14,7 +14,7 @@ import { cn } from "../../lib/utils";
 import BarcodesPageTour, { BARCODES_PAGE_TOUR_EVENTS, type BarcodesPageTourHandle } from "../../components/onboarding/BarcodesPageTour";
 import LabelPrintSettings, { LabelPrintSummary } from "../../components/labels/LabelPrintSettings";
 import LabelPrintPreview from "../../components/labels/LabelPrintPreview";
-import { calibrationContents, labelBarcodeSvg, labelEscape, labelPrintDocument, labelSettingsStorageKey, storedLabelSettings, validateLabelPrint, type LabelPrintSettings as LabelPrintConfig } from "../../lib/labelPrinting";
+import { calibrationContents, labelBarcodeSvg, labelEscape, labelGeometry, labelPrintDocument, labelSettingsStorageKey, storedLabelSettings, validateLabelPrint, type LabelPrintSettings as LabelPrintConfig } from "../../lib/labelPrinting";
 import { useToast } from "../../components/ui/Toast";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 
@@ -415,7 +415,7 @@ export default function Barcodes() {
     try {
       const html = labelPrintDocument(settings, contents, title, calibration);
       // Página = fileira inteira (largura do papel x altura da fileira), para o driver não cortar as pontas
-      const pageSizeMm = { widthMm: settings.paperWidth, heightMm: labelGeometry(settings).pageHeight };
+      const pageSizeMm = settings.sendPageSize === false ? undefined : { widthMm: settings.paperWidth, heightMm: labelGeometry(settings).pageHeight };
       // App desktop com etiquetadora cadastrada (Configurar impressoras → Etiquetas): imprime direto nela
       if (printTarget !== "local") {
         const token = localStorage.getItem("token") || "";

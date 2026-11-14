@@ -706,7 +706,12 @@ ipcMain.handle("printers:print-by-role", async (_e, role, text) => {
 // size = { widthMm, heightMm }: tamanho exato da página (fileira inteira de etiquetas). Sem isso o driver usa o
 // papel padrão dele e as etiquetas das pontas saem cortadas.
 async function printHtmlOnDevice(html, deviceName, size) {
-  const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: true } });
+  // Janela fora da tela (e não "show:false"): alguns drivers (ex.: Argox/PPLA) imprimem em branco quando a página
+  // nunca chegou a ser pintada numa janela oculta.
+  const win = new BrowserWindow({
+    show: true, x: -12000, y: -12000, width: 1000, height: 700, frame: false, skipTaskbar: true, focusable: false,
+    webPreferences: { sandbox: true, javascript: true, backgroundThrottling: false },
+  });
   try {
     await win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
     // etiquetas ajustam o conteúdo por script e avisam com window.__labelsReady
@@ -715,6 +720,10 @@ async function printHtmlOnDevice(html, deviceName, size) {
       if (ready) break;
       await new Promise((r) => setTimeout(r, 50));
     }
+    // dá tempo de desenhar (fontes, SVG do código de barras) e força um repaint antes de mandar ao driver
+    await new Promise((r) => setTimeout(r, 900));
+    try { win.webContents.invalidate(); } catch {}
+    await new Promise((r) => setTimeout(r, 150));
     return await new Promise((resolve) => {
       const pageSize = size && size.widthMm > 0 && size.heightMm > 0
         ? { width: Math.round(size.widthMm * 1000), height: Math.round(size.heightMm * 1000) }

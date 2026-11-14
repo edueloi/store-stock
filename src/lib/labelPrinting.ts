@@ -12,6 +12,8 @@ export interface LabelPrintSettings {
   fontFamily: string; align: "center" | "left" | "right";
   nameSize: number; nameBold: boolean; nameLines: number;
   priceSize: number; priceBold: boolean; skuSize: number; barcodeHeight: number;
+  /** App desktop: enviar ao driver o tamanho exato da fileira (desmarque se a etiqueta sair em branco) */
+  sendPageSize: boolean;
 }
 
 export const LABEL_FONTS = ["Arial", "Verdana", "Tahoma", "Trebuchet MS", "Calibri", "Courier New", "Times New Roman", "Georgia"];
@@ -22,6 +24,7 @@ export const DEFAULT_LABEL_PRINT: LabelPrintSettings = {
   marginLeft: 10, marginRight: 10, marginTop: 10, marginBottom: 10,
   safety: 1.5, offsetX: 0, offsetY: 0, scale: 100, skip: 0, borders: false,
   fontFamily: "Arial", align: "center", nameSize: 8, nameBold: true, nameLines: 2, priceSize: 9, priceBold: true, skuSize: 6.5, barcodeHeight: 9,
+  sendPageSize: true,
 };
 export const LABEL_PRINT_PRESETS = [
   { id: "a4", name: "Exemplo: A4 · 50 × 30 mm", settings: DEFAULT_LABEL_PRINT },
