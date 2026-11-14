@@ -25,11 +25,15 @@ function describeConnection(c?: DesktopTerminal["printers"][number]["config"]) {
   return `Windows: ${c.usbPrinterName ?? "?"}`;
 }
 
-const ONLINE_WINDOW_MS = 45_000;
+const ONLINE_WINDOW_MS = 75_000;
 
 function getTerminalPresence(lastSeenAt: string) {
-  const elapsed = Date.now() - new Date(lastSeenAt).getTime();
-  if (!Number.isFinite(elapsed) || elapsed < 0) return { online: false, label: "Sem atividade registrada" };
+  let elapsed = Date.now() - new Date(lastSeenAt).getTime();
+  if (!Number.isFinite(elapsed)) return { online: false, label: "Sem atividade registrada" };
+  // Relógio deste computador atrasado em relação ao servidor faz a "última atividade" parecer estar no futuro.
+  // Isso não é falta de atividade: tolera até 10 min de diferença e trata como "agora".
+  if (elapsed < 0) elapsed = elapsed > -10 * 60_000 ? 0 : NaN;
+  if (!Number.isFinite(elapsed)) return { online: false, label: "Relógio deste computador fora de hora" };
   if (elapsed <= ONLINE_WINDOW_MS) return { online: true, label: "Online agora" };
   const minutes = Math.floor(elapsed / 60_000);
   if (minutes < 60) return { online: false, label: `Visto há ${minutes} min` };
