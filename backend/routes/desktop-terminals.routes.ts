@@ -6,6 +6,7 @@ import {
   pairTerminal,
   listTerminals,
   deleteTerminal,
+  renameTerminal,
   createPrinter,
   updatePrinter,
   deletePrinter,
@@ -29,6 +30,7 @@ router.post("/token", authenticateToken, issueTerminalToken);
 // Com auth — chamadas pelo painel web, usuário já logado.
 router.post("/pair", authenticateToken, pairTerminal);
 router.get("/", authenticateToken, listTerminals);
+router.put("/:id", authenticateToken, renameTerminal);
 router.delete("/:id", authenticateToken, deleteTerminal);
 
 router.post("/:terminalId/printers", authenticateToken, createPrinter);

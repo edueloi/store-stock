@@ -211,6 +211,8 @@ function CustomLabelCard({ data, labelSize, fields, onReady }: { data: CustomLab
 interface SelectedItem {
   product: Product;
   qty: number;
+  /** Nome que sai impresso na etiqueta (vazio = nome do produto) */
+  labelName?: string;
 }
 
 type LabelSize = "small" | "medium" | "large";
@@ -370,8 +372,8 @@ export default function Barcodes() {
   }, [filtered, selected]);
 
   // Gera lista expandida de etiquetas (produto repetido pela qty)
-  const labelItems = useMemo(() => selected.flatMap(({ product, qty }) =>
-    Array.from({ length: qty }, (_, i) => ({ product, key: `${product.id}-${i}` }))
+  const labelItems = useMemo(() => selected.flatMap(({ product, qty, labelName }) =>
+    Array.from({ length: qty }, (_, i) => ({ product, labelName, key: `${product.id}-${i}` }))
   ), [selected]);
 
   const codeImages = useCallback((card: Element | null, code: string, barcode: boolean, qr: boolean, strict = false) => {
@@ -383,9 +385,9 @@ export default function Barcodes() {
   }, []);
   const productContents = useCallback((strict = false) => {
     const cards = new Map(Array.from(printRef.current?.querySelectorAll("[data-label-card]") || []).map(card => [(card as HTMLElement).dataset.productId, card]));
-    return labelItems.map(({ product }) => {
+    return labelItems.map(({ product, labelName }) => {
       const code = product.barcode || product.sku || "";
-      return `<div class="label-name">${fields.showName ? labelEscape(product.name) : ""}</div>` +
+      return `<div class="label-name">${fields.showName ? labelEscape((labelName ?? "").trim() || product.name) : ""}</div>` +
         (fields.showPrice ? `<div class="label-price">${labelEscape(Number(product.price).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }))}</div>` : "") +
         (fields.showSku && code ? `<div class="label-sku">${labelEscape(code)}</div>` : "") +
         codeImages(cards.get(String(product.id)) || null, code, fields.showBarcode, fields.showQrCode, strict);
@@ -412,10 +414,12 @@ export default function Barcodes() {
   const openPrint = useCallback((contents: string[], title: string, calibration = false, settings = printSettings) => {
     try {
       const html = labelPrintDocument(settings, contents, title, calibration);
+      // Página = fileira inteira (largura do papel x altura da fileira), para o driver não cortar as pontas
+      const pageSizeMm = { widthMm: settings.paperWidth, heightMm: labelGeometry(settings).pageHeight };
       // App desktop com etiquetadora cadastrada (Configurar impressoras → Etiquetas): imprime direto nela
       if (printTarget !== "local") {
         const token = localStorage.getItem("token") || "";
-        void requestRemotePrint(token, Number(printTarget), "label", "", html).then((r) => {
+        void requestRemotePrint(token, Number(printTarget), "label", "", html, pageSizeMm).then((r) => {
           if (r.ok) toast.success("Etiquetas enviadas para o outro terminal.");
           else toast.error(r.error || "Não foi possível enviar para o outro terminal.");
         }).catch(() => toast.error("Falha ao enviar para o outro terminal."));
@@ -423,7 +427,7 @@ export default function Barcodes() {
       }
       const desk = (window as any).boxsysDesktop;
       if (desk?.printHtmlByRole) {
-        void desk.printHtmlByRole("label", html).then((r: { ok: boolean; error?: string; notConfigured?: boolean }) => {
+        void desk.printHtmlByRole("label", html, pageSizeMm).then((r: { ok: boolean; error?: string; notConfigured?: boolean }) => {
           if (r.ok) { toast.success("Etiquetas enviadas para a etiquetadora."); return; }
           if (!r.notConfigured) toast.warning(`Etiquetadora: ${r.error ?? "falha ao imprimir"}. Abrindo a janela de impressão.`);
           openPrintWindow(html);
@@ -594,6 +598,18 @@ export default function Barcodes() {
                       </div>
 
                       {/* qty control (só quando selecionado) */}
+                      {sel && (
+                        <div className="w-full border-t border-blue-100 pt-3">
+                          <Input
+                            label="Nome na etiqueta"
+                            hint="Deixe vazio para usar o nome do produto. Encurte aqui se o nome for grande."
+                            value={item?.labelName ?? ""}
+                            placeholder={p.name}
+                            maxLength={120}
+                            onChange={event => setSelected(current => current.map(row => row.product.id === p.id ? { ...row, labelName: event.target.value } : row))}
+                          />
+                        </div>
+                      )}
                       {sel && (
                         <div className="flex w-full flex-wrap items-center justify-end gap-2 border-t border-blue-100 pt-3">
                           <span className="mr-auto text-xs font-medium text-slate-600">Cópias deste produto</span>

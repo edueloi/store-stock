@@ -8,13 +8,20 @@ export interface LabelPrintSettings {
   marginLeft: number; marginRight: number; marginTop: number; marginBottom: number;
   safety: number; offsetX: number; offsetY: number; scale: number;
   skip: number; borders: boolean;
+  // Aparência do texto da etiqueta
+  fontFamily: string; align: "center" | "left" | "right";
+  nameSize: number; nameBold: boolean; nameLines: number;
+  priceSize: number; priceBold: boolean; skuSize: number; barcodeHeight: number;
 }
+
+export const LABEL_FONTS = ["Arial", "Verdana", "Tahoma", "Trebuchet MS", "Calibri", "Courier New", "Times New Roman", "Georgia"];
 
 export const DEFAULT_LABEL_PRINT: LabelPrintSettings = {
   mode: "sheet", printer: "generic", media: "gap", width: 50, height: 30, columns: 3,
   paperWidth: 210, paperHeight: 297, gapX: 3, gapY: 2,
   marginLeft: 10, marginRight: 10, marginTop: 10, marginBottom: 10,
   safety: 1.5, offsetX: 0, offsetY: 0, scale: 100, skip: 0, borders: false,
+  fontFamily: "Arial", align: "center", nameSize: 8, nameBold: true, nameLines: 2, priceSize: 9, priceBold: true, skuSize: 6.5, barcodeHeight: 9,
 };
 export const LABEL_PRINT_PRESETS = [
   { id: "a4", name: "Exemplo: A4 · 50 × 30 mm", settings: DEFAULT_LABEL_PRINT },
@@ -64,6 +71,7 @@ export function validateLabelPrint(s: LabelPrintSettings): string[] {
   if (s.paperWidth < 10 || s.paperWidth > 500 || s.paperHeight < 8 || s.paperHeight > 1000) errors.push("Informe um tamanho de papel válido.");
   if ([s.gapX, s.gapY, s.marginLeft, s.marginRight, s.marginTop, s.marginBottom, s.safety].some(n => n < 0 || n > 100)) errors.push("Espaços, margens e segurança devem ficar entre 0 e 100 mm.");
   if (Math.abs(s.offsetX) > 20 || Math.abs(s.offsetY) > 20) errors.push("Os deslocamentos devem ficar entre -20 e 20 mm.");
+  if (![s.nameSize, s.priceSize, s.skuSize, s.barcodeHeight, s.nameLines].every(Number.isFinite) || s.nameSize < 4 || s.nameSize > 40 || s.priceSize < 4 || s.priceSize > 60 || s.skuSize < 4 || s.skuSize > 30 || s.barcodeHeight < 3 || s.barcodeHeight > 60 || !Number.isInteger(s.nameLines) || s.nameLines < 1 || s.nameLines > 6) errors.push("Revise a aparência: fontes entre 4 e 40 pt (preço até 60), nome de 1 a 6 linhas e código de barras de 3 a 60 mm de altura.");
   if (s.scale < 50 || s.scale > 100) errors.push("A escala do conteúdo deve ficar entre 50% e 100%, mantendo a proporção.");
   const g = labelGeometry(s);
   if (g.rowWidth + s.marginLeft + s.marginRight > s.paperWidth + 0.001) errors.push(`As colunas, espaços e margens precisam de ${(g.rowWidth + s.marginLeft + s.marginRight).toFixed(2)} mm de largura; o papel tem ${s.paperWidth} mm.`);
@@ -128,11 +136,11 @@ export function labelPrintDocument(s: LabelPrintSettings, contents: string[], ti
 .label{position:absolute;width:${s.width}mm;height:${s.height}mm;${s.borders || calibration ? "outline:0.15mm solid #000;outline-offset:-0.25mm;" : ""}}
 .empty-slot{display:flex;align-items:center;justify-content:center;border:0.15mm dashed #adb9cb;color:#738297;font-size:6pt;background:#f8fafc}
 .label-safe{position:absolute;left:${g.contentLeft}mm;top:${g.contentTop}mm;width:${g.contentWidth}mm;height:${g.contentHeight}mm;overflow:hidden}
-.label-content{width:100%;display:flex;flex-direction:column;align-items:center;gap:0.35mm;text-align:center;transform-origin:top left;overflow-wrap:anywhere}
-.label-name,.label-title{font-size:8pt;font-weight:700;line-height:1.12}.label-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.label-price{font-size:9pt;font-weight:800;line-height:1.1}.label-sku,.label-reference{font:6.5pt monospace;line-height:1.15}.label-customer{font-size:7.5pt;font-weight:700}
+.label-content{width:100%;display:flex;flex-direction:column;align-items:${s.align === "left" ? "flex-start" : s.align === "right" ? "flex-end" : "center"};gap:0.35mm;text-align:${s.align};transform-origin:top left;overflow-wrap:anywhere;font-family:'${s.fontFamily}',Arial,sans-serif}
+.label-name,.label-title{font-size:${s.nameSize}pt;font-weight:${s.nameBold ? 700 : 400};line-height:1.12}.label-name{display:-webkit-box;-webkit-line-clamp:${s.nameLines};-webkit-box-orient:vertical;overflow:hidden}
+.label-price{font-size:${s.priceSize}pt;font-weight:${s.priceBold ? 800 : 400};line-height:1.1}.label-sku,.label-reference{font:${s.skuSize}pt monospace;line-height:1.15}.label-customer{font-size:7.5pt;font-weight:700}
 .label-text,.label-notes,.label-nocode{font-size:6.5pt;line-height:1.15}.label-notes{font-style:italic}
-.label-content svg{display:block;width:100%;height:auto;max-height:9mm;flex-shrink:0}.label-content svg.calibration-svg{max-height:none;height:${g.contentHeight}mm}.label-qr{width:10mm;height:10mm;object-fit:contain;flex-shrink:0}
+.label-content svg{display:block;width:100%;height:auto;max-height:${s.barcodeHeight}mm;flex-shrink:0}.label-content svg.calibration-svg{max-height:none;height:${g.contentHeight}mm}.label-qr{width:10mm;height:10mm;object-fit:contain;flex-shrink:0}
 .calibration{font-size:7pt;line-height:1.2}.ruler{width:10mm;height:2mm;border:0.2mm solid #000;border-top:0;margin-top:1mm}
 .print-help{padding:16px;background:#edf4ff;color:#1e3a5f;font-size:13px;line-height:1.6}.print-help button{margin-top:8px;padding:8px 14px;cursor:pointer}
 @media screen{body{background:#e9edf2}.print-sheet{background:white;margin:16px auto;box-shadow:0 2px 8px #0002}}

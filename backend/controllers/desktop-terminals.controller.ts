@@ -229,6 +229,21 @@ export async function listTerminals(req: Request, res: Response) {
   }
 }
 
+// Renomeia um terminal (ex.: "hp1102" -> "Caixa 2") para identificar qual computador é qual.
+export async function renameTerminal(req: Request, res: Response) {
+  const tenantId = getTenantId(req);
+  const id = Number(req.params.id);
+  const name = String((req.body as { name?: string }).name ?? "").trim().slice(0, 60);
+  if (!name) { res.status(400).json({ error: "Informe o nome do terminal" }); return; }
+  try {
+    const result = await prisma.desktopTerminal.updateMany({ where: { id, tenant_id: tenantId }, data: { name } });
+    if (result.count === 0) { res.status(404).json({ error: "Terminal não encontrado" }); return; }
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ error: "Failed to rename terminal" });
+  }
+}
+
 export async function deleteTerminal(req: Request, res: Response) {
   const tenantId = getTenantId(req);
   const id = Number(req.params.id);

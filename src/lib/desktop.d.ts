@@ -107,7 +107,7 @@ export interface BoxsysDesktopApi {
   deletePrinter: (id: number) => Promise<{ ok: boolean; error?: string }>;
   testPrinterConfig: (cfg: PrinterConfig) => Promise<PrinterActionResult>;
   printByRole: (role: string, text: string) => Promise<PrinterActionResult>;
-  printHtmlByRole?: (role: string, html: string) => Promise<PrinterActionResult & { notConfigured?: boolean }>;
+  printHtmlByRole?: (role: string, html: string, size?: { widthMm: number; heightMm: number }) => Promise<PrinterActionResult & { notConfigured?: boolean }>;
   printHtmlTest?: (config: PrinterConfig, role: string) => Promise<PrinterActionResult>;
 
   // Banco local (SQLite) — cache de catálogo e fila de operações offline

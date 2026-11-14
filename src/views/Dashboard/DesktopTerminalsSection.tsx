@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Monitor, Trash2, Loader2, LinkIcon } from "lucide-react";
+import { Monitor, Trash2, Loader2, LinkIcon, Pencil, Check, X } from "lucide-react";
 import { useToast } from "../../components/ui/Toast";
 import { Button, IconButton, Input } from "../../components/ui";
 
@@ -16,7 +16,7 @@ interface DesktopTerminal {
   }[];
 }
 
-const ROLE_LABEL: Record<string, string> = { receipt: "Cupom", service_order: "Ordem de serviço", custom: "Personalizada" };
+const ROLE_LABEL: Record<string, string> = { receipt: "Cupom", service_order: "Ordem de serviço", danfe: "DANFE A4", label: "Etiquetas", custom: "Personalizada" };
 
 function describeConnection(c?: DesktopTerminal["printers"][number]["config"]) {
   if (!c) return "Sem configuração";
@@ -50,6 +50,33 @@ export default function DesktopTerminalsSection() {
   const [name, setName] = useState("");
   const [pairing, setPairing] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const jsonHeaders = () => ({ Authorization: `Bearer ${token()}`, "Content-Type": "application/json" });
+
+  const saveRename = async (id: number) => {
+    const n = renameValue.trim();
+    if (!n) return;
+    const res = await fetch(`/api/desktop-terminals/${id}`, { method: "PUT", headers: jsonHeaders(), body: JSON.stringify({ name: n }) });
+    if (res.ok) { toast.success("Nome atualizado."); setRenamingId(null); fetchTerminals(); }
+    else toast.error("Não foi possível renomear.");
+  };
+
+  const changePrinterRole = async (terminalId: number, printerId: number, role: string) => {
+    const res = await fetch(`/api/desktop-terminals/${terminalId}/printers/${printerId}`, {
+      method: "PUT", headers: jsonHeaders(), body: JSON.stringify({ role, is_default: true }),
+    });
+    if (res.ok) { toast.success("Uso da impressora atualizado."); fetchTerminals(); }
+    else toast.error("Não foi possível alterar o uso.");
+  };
+
+  const removePrinter = async (terminalId: number, printerId: number) => {
+    if (!confirm("Remover esta impressora do terminal?")) return;
+    const res = await fetch(`/api/desktop-terminals/${terminalId}/printers/${printerId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token()}` } });
+    if (res.ok) { toast.success("Impressora removida."); fetchTerminals(); }
+    else toast.error("Não foi possível remover.");
+  };
 
   const token = () => localStorage.getItem("token");
 
@@ -170,12 +197,47 @@ export default function DesktopTerminalsSection() {
                 <Monitor size={16} className="text-slate-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-semibold text-slate-900 truncate">{t.name}</p>
-                {t.printers.map((p) => (
-                  <p key={p.id} className="text-[11px] text-slate-600 mt-0.5 truncate">
-                    🖨 <span className="font-semibold">{p.label}</span> · {ROLE_LABEL[p.role] ?? p.role}
-                    {p.is_default ? " (padrão)" : ""} · {describeConnection(p.config)}
+                {renamingId === t.id ? (
+                  <div className="flex items-center gap-1.5">
+                    <Input
+                      autoFocus
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") void saveRename(t.id); if (e.key === "Escape") setRenamingId(null); }}
+                      placeholder="Ex.: Caixa 2, Escritório"
+                      wrapperClassName="max-w-[240px]"
+                      aria-label="Nome do terminal"
+                    />
+                    <IconButton variant="ghost" size="sm" aria-label="Salvar nome" onClick={() => void saveRename(t.id)}><Check size={14} /></IconButton>
+                    <IconButton variant="ghost" size="sm" aria-label="Cancelar" onClick={() => setRenamingId(null)}><X size={14} /></IconButton>
+                  </div>
+                ) : (
+                  <p className="flex items-center gap-1.5 text-[12px] font-semibold text-slate-900">
+                    <span className="truncate">{t.name}</span>
+                    <button type="button" title="Renomear terminal" aria-label="Renomear terminal"
+                      onClick={() => { setRenamingId(t.id); setRenameValue(t.name); }}
+                      className="text-slate-400 hover:text-blue-600"><Pencil size={12} /></button>
                   </p>
+                )}
+                {t.printers.map((p) => (
+                  <div key={p.id} className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-600">
+                    <span className="min-w-0 truncate">🖨 <span className="font-semibold">{p.label}</span>{p.is_default ? " (padrão)" : ""} · {describeConnection(p.config)}</span>
+                    <select
+                      aria-label={`Uso da impressora ${p.label}`}
+                      value={p.role}
+                      onChange={(e) => void changePrinterRole(t.id, p.id, e.target.value)}
+                      className="h-6 rounded border border-slate-200 bg-white px-1 text-[11px] text-slate-700"
+                    >
+                      <option value="receipt">Cupom de venda</option>
+                      <option value="label">Etiquetas</option>
+                      <option value="service_order">Ordem de serviço (A4)</option>
+                      <option value="danfe">DANFE / notas (A4)</option>
+                      <option value="custom">Personalizada</option>
+                    </select>
+                    <button type="button" title="Remover impressora" aria-label="Remover impressora"
+                      onClick={() => void removePrinter(t.id, p.id)}
+                      className="text-slate-300 hover:text-rose-500"><Trash2 size={12} /></button>
+                  </div>
                 ))}
                 <p className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
                   <span className={presence.online ? "w-1.5 h-1.5 rounded-full bg-emerald-500" : "w-1.5 h-1.5 rounded-full bg-slate-300"} />

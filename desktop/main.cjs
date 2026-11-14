@@ -164,10 +164,10 @@ function startRemotePrint() {
     uid: terminalUid,
     token: terminalToken,
     log,
-    onPrint: async (role, text, html) => {
+    onPrint: async (role, text, html, size) => {
       const printer = await findPrinterForRole(role);
       if (!printer) return { ok: false, error: `Nenhuma impressora configurada para "${role}"` };
-      if (html) return printHtmlOnDevice(html, printer.config?.usbPrinterName);
+      if (html) return printHtmlOnDevice(html, printer.config?.usbPrinterName, size);
       return printerModule.printReceipt(text, printer.config);
     },
   });
@@ -703,7 +703,9 @@ ipcMain.handle("printers:print-by-role", async (_e, role, text) => {
 // Renderiza o HTML numa janela invisível e manda para a impressora cadastrada no uso (role),
 // sem abrir a janela de impressão. Se a impressora não responde, devolve o erro (quem chama
 // cai no diálogo normal).
-async function printHtmlOnDevice(html, deviceName) {
+// size = { widthMm, heightMm }: tamanho exato da página (fileira inteira de etiquetas). Sem isso o driver usa o
+// papel padrão dele e as etiquetas das pontas saem cortadas.
+async function printHtmlOnDevice(html, deviceName, size) {
   const win = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: true } });
   try {
     await win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(html));
@@ -714,7 +716,10 @@ async function printHtmlOnDevice(html, deviceName) {
       await new Promise((r) => setTimeout(r, 50));
     }
     return await new Promise((resolve) => {
-      win.webContents.print({ silent: true, printBackground: true, deviceName: deviceName || undefined, margins: { marginType: "none" } }, (ok, reason) => {
+      const pageSize = size && size.widthMm > 0 && size.heightMm > 0
+        ? { width: Math.round(size.widthMm * 1000), height: Math.round(size.heightMm * 1000) }
+        : undefined;
+      win.webContents.print({ silent: true, printBackground: true, deviceName: deviceName || undefined, margins: { marginType: "none" }, ...(pageSize ? { pageSize } : {}) }, (ok, reason) => {
         resolve(ok ? { ok: true } : { ok: false, error: reason || "A impressora recusou o trabalho." });
       });
     });
@@ -725,12 +730,12 @@ async function printHtmlOnDevice(html, deviceName) {
   }
 }
 
-ipcMain.handle("printers:print-html-by-role", async (_e, role, html) => {
+ipcMain.handle("printers:print-html-by-role", async (_e, role, html, size) => {
   try {
     requirePairedTerminalId();
     const printer = await findPrinterForRole(role);
     if (!printer) return { ok: false, error: `Nenhuma impressora configurada para "${role}" neste terminal`, notConfigured: true };
-    return await printHtmlOnDevice(html, printer.config?.usbPrinterName);
+    return await printHtmlOnDevice(html, printer.config?.usbPrinterName, size);
   } catch (err) {
     return { ok: false, error: err.message };
   }

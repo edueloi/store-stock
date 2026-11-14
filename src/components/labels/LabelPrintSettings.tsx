@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Printer, RefreshCw, Ruler, Save, Settings2 } from "lucide-react";
 import { Alert, Button, Input, PanelCard, SectionTitle, Select, Switch, Tabs } from "../ui";
 import { useToast } from "../ui/Toast";
-import { DEFAULT_LABEL_PRINT, LABEL_PRINT_PRESETS, labelGeometry, labelSettingsStorageKey, validateLabelPrint, type LabelPrintSettings as Settings } from "../../lib/labelPrinting";
+import { DEFAULT_LABEL_PRINT, LABEL_FONTS, LABEL_PRINT_PRESETS, labelGeometry, labelSettingsStorageKey, validateLabelPrint, type LabelPrintSettings as Settings } from "../../lib/labelPrinting";
 
 type Profile = { name: string; settings: Settings };
 function storedProfiles(): Profile[] {
@@ -25,14 +25,14 @@ export function LabelPrintSummary({ value, onOpen }: { value: Settings; onOpen: 
   </section>;
 }
 
-const SETTING_TABS = [{ id: "paper", label: "Papel e medidas", icon: Ruler }, { id: "advanced", label: "Ajustes avançados", icon: Settings2 }] as const;
+const SETTING_TABS = [{ id: "paper", label: "Papel e medidas", icon: Ruler }, { id: "style", label: "Aparência do texto", icon: Settings2 }, { id: "advanced", label: "Ajustes avançados", icon: Settings2 }] as const;
 
 export default function LabelPrintSettings({ value: applied, onChange: apply, onTest, onBack }: { value: Settings; onChange: (value: Settings) => void; onTest: (value: Settings) => void; onBack: () => void }) {
   const toast = useToast(), root = useRef<HTMLElement>(null);
   const [profiles, setProfiles] = useState<Profile[]>(storedProfiles);
   const [name, setName] = useState(() => matchingProfile(profiles, applied)?.name || "Minha etiqueta");
   const [value, setValue] = useState<Settings>(() => ({ ...applied }));
-  const [tab, setTab] = useState<"paper" | "advanced">("paper"), [note, setNote] = useState("");
+  const [tab, setTab] = useState<"paper" | "style" | "advanced">("paper"), [note, setNote] = useState("");
   const [printers, setPrinters] = useState<Array<{ name: string; displayName: string; isDefault: boolean }>>([]);
   const [loadingPrinters, setLoadingPrinters] = useState(false), [printerError, setPrinterError] = useState("");
   const canListPrinters = !!window.boxsysDesktop?.listUsbPrinters;
@@ -85,7 +85,7 @@ export default function LabelPrintSettings({ value: applied, onChange: apply, on
           <Input label="Nome do perfil" value={name} showCount={false} maxLength={60} onChange={event => { setName(event.target.value); setNote(""); }} />
         </PanelCard>
         <PanelCard>
-          <Tabs<"paper" | "advanced"> items={SETTING_TABS} value={tab} onChange={setTab} label="Configuração da impressão">
+          <Tabs<"paper" | "style" | "advanced"> items={SETTING_TABS} value={tab} onChange={setTab} label="Configuração da impressão">
             {tab === "paper" ? <div className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <Select label="Tipo de papel" value={value.mode} onChange={event => { if (event.target.value === "sheet") setValue({ ...DEFAULT_LABEL_PRINT }); else preset(`roll-${Math.min(3, value.columns)}`); }}><option value="sheet">Folha A4 / folha personalizada</option><option value="thermal">Bobina de etiquetas</option></Select>
@@ -100,6 +100,21 @@ export default function LabelPrintSettings({ value: applied, onChange: apply, on
                 {number("gapY", value.mode === "thermal" ? "GAP / intervalo entre fileiras (mm)" : "Espaço entre linhas (mm)")}
               </div>
               <p className="text-xs leading-5 text-slate-500">Os modelos são exemplos: confira as medidas da sua etiqueta. Colunas são posições lado a lado; as cópias são escolhidas na tela de impressão.</p>
+            </div> : tab === "style" ? <div className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Select label="Fonte" value={value.fontFamily} onChange={event => set({ fontFamily: event.target.value })}>{LABEL_FONTS.map(f => <option key={f} value={f}>{f}</option>)}</Select>
+                <Select label="Alinhamento do texto" value={value.align} onChange={event => set({ align: event.target.value as Settings["align"] })}><option value="center">Centralizado</option><option value="left">À esquerda</option><option value="right">À direita</option></Select>
+                {number("nameSize", "Tamanho do nome (pt)", 4, 40, "Reduza para nomes grandes caberem.")}
+                <Select label="Linhas máximas do nome" value={value.nameLines} onChange={event => set({ nameLines: Number(event.target.value) })}>{[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} linha{n > 1 ? "s" : ""}</option>)}</Select>
+                {number("priceSize", "Tamanho do preço (pt)", 4, 60)}
+                {number("skuSize", "Tamanho do número/SKU (pt)", 4, 30)}
+                {number("barcodeHeight", "Altura máxima do código de barras (mm)", 3, 60)}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Switch label="Nome em negrito" checked={value.nameBold} onChange={nameBold => set({ nameBold })} />
+                <Switch label="Preço em negrito" checked={value.priceBold} onChange={priceBold => set({ priceBold })} />
+              </div>
+              <p className="text-xs leading-5 text-slate-500">Cada produto também pode ter um nome próprio na etiqueta: na tela de etiquetas, marque o produto e edite o campo "Nome na etiqueta". Se o texto não couber, o sistema reduz automaticamente para caber.</p>
             </div> : <div className="space-y-5">
               <div className="grid gap-4 sm:grid-cols-2">
                 {number("marginLeft", "Margem esquerda do papel (mm)")}
