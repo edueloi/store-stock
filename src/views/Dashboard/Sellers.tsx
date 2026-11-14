@@ -20,6 +20,7 @@ import {
   daysLeft,
   defaultDates,
 } from "../../lib/goals";
+import ServiceCommissions from "../../components/ServiceCommissions";
 import SellersPageTour, { SELLERS_PAGE_TOUR_EVENTS, type SellersPageTourHandle } from "../../components/onboarding/SellersPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -31,6 +32,8 @@ interface Seller {
   phone?: string;
   document?: string;
   commission_rate: number;
+  service_commission_type?: "percent" | "fixed";
+  service_commission_value?: number;
   is_active: boolean;
   notes?: string;
   created_at: string;
@@ -96,7 +99,8 @@ const MEDAL_ICONS = [
 
 const emptyForm = (): Omit<Seller, "id" | "created_at"> => ({
   name: "", email: "", phone: "", document: "",
-  commission_rate: 0, is_active: true, notes: "", user_id: null,
+  commission_rate: 0, service_commission_type: "percent", service_commission_value: 0,
+  is_active: true, notes: "", user_id: null,
 });
 
 const emptyGoalForm = () => ({
@@ -110,11 +114,12 @@ const emptyGoalForm = () => ({
   end_date: "",
 });
 
-type SellersTab = "ranking" | "metas" | "cadastro";
+type SellersTab = "ranking" | "servicos" | "metas" | "cadastro";
 type RankingMode = "revenue" | "goals";
 
 const SELLERS_TABS = [
   { id: "ranking", label: "Ranking & Comissões", icon: Trophy },
+  { id: "servicos", label: "Comissão de Serviços", icon: Percent },
   { id: "metas", label: "Metas", icon: Target },
   { id: "cadastro", label: "Cadastro", icon: Users },
 ] as const satisfies readonly { id: SellersTab; label: string; icon: React.ElementType }[];
@@ -222,6 +227,8 @@ export default function Sellers() {
     setForm({
       name: s.name, email: s.email ?? "", phone: s.phone ?? "",
       document: s.document ?? "", commission_rate: Number(s.commission_rate),
+      service_commission_type: s.service_commission_type ?? "percent",
+      service_commission_value: Number(s.service_commission_value ?? 0),
       is_active: s.is_active, notes: s.notes ?? "", user_id: s.user_id ?? null,
     });
     setShowModal(true);
@@ -744,6 +751,8 @@ export default function Sellers() {
         </div>
       )}
 
+      {tab === "servicos" && <ServiceCommissions role="seller" />}
+
       {/* ══════════════════ METAS TAB ══════════════════ */}
       {tab === "metas" && (
         <div className="space-y-3">
@@ -1055,6 +1064,28 @@ export default function Sellers() {
             iconRight={<Percent size={13} />}
             hint="Comissão calculada sobre o valor total das vendas do vendedor"
           />
+
+          {/* Comissão sobre serviços (O.S.) */}
+          <div className="rounded-lg border border-slate-200 p-3">
+            <p className="mb-2 text-[12px] font-semibold text-slate-700">Comissão sobre serviços (Ordens de Serviço)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="Tipo"
+                value={form.service_commission_type ?? "percent"}
+                onChange={(e) => setForm((f) => ({ ...f, service_commission_type: e.target.value as "percent" | "fixed" }))}
+              >
+                <option value="percent">Porcentagem do serviço (%)</option>
+                <option value="fixed">Valor fixo por O.S. (R$)</option>
+              </Select>
+              <Input
+                label={form.service_commission_type === "fixed" ? "Valor (R$)" : "Porcentagem (%)"}
+                type="number" min={0} step={0.01}
+                value={form.service_commission_value ?? 0}
+                onChange={(e) => setForm((f) => ({ ...f, service_commission_value: Number(e.target.value) }))}
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] text-slate-500">Vale para as O.S. concluídas em que este vendedor está vinculado. Dá para ajustar uma O.S. específica na aba "Comissão de Serviços".</p>
+          </div>
 
           {/* Status */}
           <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-3">

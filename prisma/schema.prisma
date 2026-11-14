@@ -1001,6 +1001,12 @@ model Seller {
   phone           String?
   document        String?
   commission_rate Decimal  @default(0) @db.Decimal(5, 2)
+  // Comissão sobre SERVIÇOS das O.S. concluídas: "percent" (% do serviço) ou "fixed" (R$ por O.S.)
+  service_commission_type  String  @default("percent")
+  service_commission_value Decimal @default(0) @db.Decimal(10, 2)
+  // Comissão sobre SERVIÇOS das O.S. faturadas: "percent" (% do valor do serviço) ou "fixed" (R$ por O.S.)
+  service_commission_type  String  @default("percent")
+  service_commission_value Decimal @default(0) @db.Decimal(10, 2)
   is_active       Boolean  @default(true)
   notes           String?  @db.Text
   // Login do sistema vinculado a este vendedor — quando esse usuário loga e
@@ -1032,6 +1038,10 @@ model Technician {
   document   String?
   is_active  Boolean  @default(true)
   notes      String?  @db.Text
+  service_commission_type  String  @default("percent")
+  service_commission_value Decimal @default(0) @db.Decimal(10, 2)
+  service_commission_type  String  @default("percent")
+  service_commission_value Decimal @default(0) @db.Decimal(10, 2)
   // Mesmo vínculo de login que Seller.user_id — ver comentário acima.
   user_id    Int?     @unique
   created_at DateTime @default(now())
@@ -1456,6 +1466,14 @@ model Quote {
   deposit_payment_method String?
   deposit_paid_at        DateTime?
 
+  // Comissão de serviço: ajuste desta O.S. (null = usa a regra padrão do técnico/vendedor) e pagamento
+  commission_technician_type    String?
+  commission_technician_value   Decimal?  @db.Decimal(10, 2)
+  commission_seller_type        String?
+  commission_seller_value       Decimal?  @db.Decimal(10, 2)
+  technician_commission_paid_at DateTime?
+  seller_commission_paid_at     DateTime?
+
   source             String    @default("manual") // manual | vitrine (solicitado pelo cliente na loja)
 
   approval_token     String?   @unique // link público para o cliente aprovar o orçamento
@@ -1580,6 +1598,14 @@ model ServiceOrder {
   deposit_amount         Decimal?  @db.Decimal(10, 2)
   deposit_payment_method String?
   deposit_paid_at        DateTime?
+
+  // Comissão de serviço: ajuste desta O.S. (null = regra padrão do técnico/vendedor) e pagamento
+  commission_technician_type    String?
+  commission_technician_value   Decimal?  @db.Decimal(10, 2)
+  commission_seller_type        String?
+  commission_seller_value       Decimal?  @db.Decimal(10, 2)
+  technician_commission_paid_at DateTime?
+  seller_commission_paid_at     DateTime?
 
   // Orçamento que originou esta OS (só lojas de gráfica — ver Tenant.grafica_enabled
   // e createLinkedServiceOrder em quotes.controller.ts). SetNull pra não arrastar a OS

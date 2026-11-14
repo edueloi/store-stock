@@ -6,6 +6,7 @@ import {
 import { motion } from "motion/react";
 import { cn } from "../../lib/utils";
 import { Button, Input, Textarea, Select, Switch, Modal, ModalFooter, Badge, EmptyState, IconButton, ContentCard, SectionTitle } from "../../components/ui";
+import ServiceCommissions from "../../components/ServiceCommissions";
 import TechniciansPageTour, { TECHNICIANS_PAGE_TOUR_EVENTS, type TechniciansPageTourHandle } from "../../components/onboarding/TechniciansPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -19,6 +20,8 @@ interface Technician {
   notes?: string;
   created_at: string;
   user_id?: number | null;
+  service_commission_type?: "percent" | "fixed";
+  service_commission_value?: number;
 }
 
 interface TeamUser {
@@ -37,6 +40,7 @@ const authH = () => ({
 
 const emptyForm = (): Omit<Technician, "id" | "created_at"> => ({
   name: "", phone: "", document: "", is_active: true, notes: "", user_id: null,
+  service_commission_type: "percent", service_commission_value: 0,
 });
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -45,6 +49,7 @@ export default function Technicians() {
   const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [loading, setLoading]         = useState(true);
   const [search, setSearch]           = useState("");
+  const [view, setView]               = useState<"cadastro" | "comissoes">("cadastro");
 
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing]     = useState<Technician | null>(null);
@@ -81,6 +86,8 @@ export default function Technicians() {
     setForm({
       name: t.name, phone: t.phone ?? "", document: t.document ?? "",
       is_active: t.is_active, notes: t.notes ?? "", user_id: t.user_id ?? null,
+      service_commission_type: t.service_commission_type ?? "percent",
+      service_commission_value: Number(t.service_commission_value ?? 0),
     });
     setShowModal(true);
   };
@@ -177,6 +184,19 @@ export default function Technicians() {
 
       <TechniciansPageTour ref={techniciansPageTourRef} />
 
+      <div className="flex gap-1 border-b border-slate-200">
+        {([["cadastro", "Cadastro"], ["comissoes", "Comissão de Serviços"]] as const).map(([id, text]) => (
+          <button key={id} type="button" onClick={() => setView(id)}
+            className={cn("-mb-px border-b-2 px-3 py-2 text-[13px] font-medium transition-colors",
+              view === id ? "border-blue-600 text-blue-700" : "border-transparent text-slate-500 hover:text-slate-800")}>
+            {text}
+          </button>
+        ))}
+      </div>
+
+      {view === "comissoes" && <ServiceCommissions role="technician" />}
+
+      {view === "cadastro" && <>
       {/* Search */}
       <Input
         wrapperClassName="max-w-sm"
@@ -244,6 +264,17 @@ export default function Technicians() {
                 <p className="line-clamp-2 break-words rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] text-slate-500">{t.notes}</p>
               )}
 
+              <div className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-[11px] text-blue-800">
+                Comissão de serviços:{" "}
+                <strong>
+                  {Number(t.service_commission_value ?? 0) > 0
+                    ? t.service_commission_type === "fixed"
+                      ? `R$ ${Number(t.service_commission_value).toFixed(2).replace(".", ",")} por O.S.`
+                      : `${Number(t.service_commission_value)}% do serviço`
+                    : "não definida"}
+                </strong>
+              </div>
+
               <Button
                 data-tour="technician-toggle-active-btn"
                 variant={t.is_active ? "outline" : "success"}
@@ -258,6 +289,8 @@ export default function Technicians() {
           ))}
         </div>
       )}
+
+      </>}
 
       {/* ══════════ MODAL CADASTRO / EDIÇÃO ══════════ */}
       <Modal
@@ -313,6 +346,27 @@ export default function Technicians() {
               <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
             ))}
           </Select>
+
+          <div className="rounded-lg border border-slate-200 p-3">
+            <p className="mb-2 text-[12px] font-semibold text-slate-700">Comissão sobre serviços (Ordens de Serviço)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="Tipo"
+                value={form.service_commission_type ?? "percent"}
+                onChange={(e) => setForm((f) => ({ ...f, service_commission_type: e.target.value as "percent" | "fixed" }))}
+              >
+                <option value="percent">Porcentagem do serviço (%)</option>
+                <option value="fixed">Valor fixo por O.S. (R$)</option>
+              </Select>
+              <Input
+                label={form.service_commission_type === "fixed" ? "Valor (R$)" : "Porcentagem (%)"}
+                type="number" min={0} step={0.01}
+                value={form.service_commission_value ?? 0}
+                onChange={(e) => setForm((f) => ({ ...f, service_commission_value: Number(e.target.value) }))}
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] text-slate-500">Vale para as O.S. concluídas deste técnico. Na aba "Comissão de Serviços" dá para ajustar uma O.S. específica, vincular o técnico e marcar como paga.</p>
+          </div>
 
           <div className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-3">
             <div className="min-w-0">

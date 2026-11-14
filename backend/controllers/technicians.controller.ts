@@ -46,6 +46,10 @@ export async function createTechnician(req: Request, res: Response) {
         is_active: req.body.is_active ?? true,
         notes:     req.body.notes    || null,
         user_id:   userId,
+        service_commission_type:  req.body.service_commission_type === "fixed" ? "fixed" : "percent",
+        service_commission_value: Math.max(0, Number(req.body.service_commission_value) || 0),
+        service_commission_type:  req.body.service_commission_type === "fixed" ? "fixed" : "percent",
+        service_commission_value: Math.max(0, Number(req.body.service_commission_value) || 0),
       },
     });
     res.json(technician);
@@ -78,6 +82,10 @@ export async function updateTechnician(req: Request, res: Response) {
         is_active: req.body.is_active ?? existing.is_active,
         notes:     req.body.notes    || null,
         user_id:   userId,
+        service_commission_type:  req.body.service_commission_type !== undefined ? (req.body.service_commission_type === "fixed" ? "fixed" : "percent") : existing.service_commission_type,
+        service_commission_value: req.body.service_commission_value !== undefined ? Math.max(0, Number(req.body.service_commission_value) || 0) : existing.service_commission_value,
+        service_commission_type:  req.body.service_commission_type !== undefined ? (req.body.service_commission_type === "fixed" ? "fixed" : "percent") : existing.service_commission_type,
+        service_commission_value: req.body.service_commission_value !== undefined ? Math.max(0, Number(req.body.service_commission_value) || 0) : existing.service_commission_value,
       },
     });
     res.json(technician);
