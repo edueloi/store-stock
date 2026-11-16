@@ -142,6 +142,7 @@ interface Product {
   name: string;
   price: number;
   discount_price?: number;
+  cost_price?: number;
   stock_quantity: number;
   sku?: string | null;
   barcode?: string | null;
@@ -1239,7 +1240,9 @@ export default function QuoteDetail() {
                                   <span className="font-medium text-slate-800">{p.name}</span>
                                   <span className="ml-2 text-[11px] text-slate-500">Estoque: {p.stock_quantity}</span>
                                 </div>
-                                <span className="shrink-0 font-semibold text-blue-700">{fmt(Number(p.discount_price ?? p.price))}</span>
+                                {Number(p.discount_price ?? p.price) > 0
+                                  ? <span className="shrink-0 font-semibold text-blue-700">{fmt(Number(p.discount_price ?? p.price))}</span>
+                                  : <span className="shrink-0 text-[11px] font-medium text-amber-700">Sob encomenda · custo {fmt(Number(p.cost_price ?? 0))}</span>}
                               </button>
                             ))
                           )}

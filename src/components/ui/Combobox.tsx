@@ -32,6 +32,8 @@ interface ComboboxProps {
   className?: string;
   /** Notifica o texto digitado na busca (para quem carrega/filtra opções fora do componente). */
   onQueryChange?: (query: string) => void;
+  /** Texto da lista vazia enquanto nada foi digitado. */
+  emptyText?: string;
 }
 
 type DropdownPos = { top: number; left: number; width: number; openUp: boolean };
@@ -53,6 +55,7 @@ export default function Combobox({
   onAddNew,
   className,
   onQueryChange,
+  emptyText,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -236,7 +239,7 @@ export default function Combobox({
                   Adicionar "{query}"
                 </button>
               ) : (
-                "Nenhuma opção encontrada"
+                (!query && emptyText) ? emptyText : "Nenhuma opção encontrada"
               )}
             </li>
           ) : (

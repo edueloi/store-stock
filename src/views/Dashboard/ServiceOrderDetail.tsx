@@ -1957,8 +1957,22 @@ export default function ServiceOrderDetail() {
                 }
                 setPartSelectedProduct(product ?? null);
               }}
-              options={filteredParts.length > 0 ? filteredParts.slice(0, 50).map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
-                : products.filter(canAddToOrder).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}`:`${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
+              emptyText="Digite o nome do produto para buscar"
+              options={(() => {
+                const toOption = (p: Product) => ({
+                  value: String(p.id),
+                  label: p.name,
+                  description: p.sale_unit && p.sale_unit !== "unidade"
+                    ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}`
+                    : Number(p.price) > 0
+                      ? `${fmt(p.price)} · estoque ${p.stock_quantity}`
+                      : `Sob encomenda · custo ${fmt(Number(p.cost_price ?? 0))}`,
+                });
+                // Só lista quando o usuário digita; o item já escolhido continua nas opções.
+                const found = partSearch.trim().length >= 2 ? filteredParts.slice(0, 50) : [];
+                if (partSelectedProduct && !found.some((p) => p.id === partSelectedProduct.id)) found.unshift(partSelectedProduct);
+                return found.map(toOption);
+              })()}
             />
 
             {partSelectedProduct && partOptions && (
