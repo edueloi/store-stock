@@ -30,6 +30,8 @@ interface ComboboxProps {
   /** Called when user clicks "Adicionar X" — receives the typed query. If provided, overrides the default freeInput behaviour. */
   onAddNew?: (query: string) => void;
   className?: string;
+  /** Notifica o texto digitado na busca (para quem carrega/filtra opções fora do componente). */
+  onQueryChange?: (query: string) => void;
 }
 
 type DropdownPos = { top: number; left: number; width: number; openUp: boolean };
@@ -50,6 +52,7 @@ export default function Combobox({
   freeInput = false,
   onAddNew,
   className,
+  onQueryChange,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -60,6 +63,8 @@ export default function Combobox({
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { onQueryChange?.(query); }, [query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selected = options.find((o) => o.value === value);
 

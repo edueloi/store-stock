@@ -1942,6 +1942,7 @@ export default function ServiceOrderDetail() {
             <Combobox
               placeholder="Buscar produto ou serviço no catálogo..."
               searchPlaceholder="Nome do produto..."
+              onQueryChange={setPartSearch}
               value={partSelectedProduct ? String(partSelectedProduct.id) : ""}
               onChange={(v) => {
                 const product = products.find((p) => String(p.id) === v);
@@ -1956,7 +1957,7 @@ export default function ServiceOrderDetail() {
                 }
                 setPartSelectedProduct(product ?? null);
               }}
-              options={filteredParts.length > 0 ? filteredParts.map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
+              options={filteredParts.length > 0 ? filteredParts.slice(0, 50).map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
                 : products.filter(canAddToOrder).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}`:`${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
             />
 
