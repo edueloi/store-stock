@@ -15,6 +15,7 @@ import {
 import type { Column } from "../../components/ui";
 import type { Product, Tenant } from "../../types";
 import CameraScanButton from "../../components/CameraScanButton";
+import MarkupReview, { type ReviewTab } from "./MarkupReview";
 import MarkupPageTour, { MARKUP_PAGE_TOUR_EVENTS, type MarkupPageTourHandle } from "../../components/onboarding/MarkupPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -671,6 +672,7 @@ export default function Markup() {
   const [statusFilter, setStatusFilter] = useState<PriceStatus | "todos">("todos");
   const [rowPrices, setRowPrices] = useState<Record<number, string>>({}); // preços editados na tabela
   const [savingRow, setSavingRow] = useState<number | null>(null);
+  const [reviewTab, setReviewTab] = useState<ReviewTab | null>(null); // revisão em lote (abaixo do markup / sem custo)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markupPageTourRef = useRef<MarkupPageTourHandle>(null);
 
@@ -978,6 +980,18 @@ export default function Markup() {
         icon={Calculator}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            {!loading && belowSuggested.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setReviewTab("abaixo")} iconLeft={<TrendingDown size={14} />}
+                className="border-red-200 text-red-700 hover:bg-red-50" title="Abrir todos os produtos abaixo do markup para revisar e aplicar">
+                Abaixo do markup ({belowSuggested.length})
+              </Button>
+            )}
+            {!loading && noCost.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setReviewTab("semcusto")} iconLeft={<AlertTriangle size={14} />}
+                className="border-amber-200 text-amber-700 hover:bg-amber-50" title="Abrir todos os produtos sem custo para informar o custo">
+                Sem custo ({noCost.length})
+              </Button>
+            )}
             <Button
               data-tour="markup-save-btn"
               size="sm"
@@ -1054,14 +1068,28 @@ export default function Markup() {
           {belowSuggested.length > 0 && (
             <Alert variant="error" className="flex-1">
               <strong>{belowSuggested.length}</strong> produto(s) com preço abaixo do markup recomendado
+              <button type="button" onClick={() => setReviewTab("abaixo")} className="ml-2 font-semibold underline">Revisar todos</button>
             </Alert>
           )}
           {noCost.length > 0 && (
             <Alert variant="warning" className="flex-1">
               <strong>{noCost.length}</strong> produto(s) sem custo cadastrado
+              <button type="button" onClick={() => setReviewTab("semcusto")} className="ml-2 font-semibold underline">Informar custos</button>
             </Alert>
           )}
         </div>
+      )}
+
+      {reviewTab && (
+        <MarkupReview
+          tab={reviewTab}
+          onTabChange={setReviewTab}
+          onClose={() => setReviewTab(null)}
+          below={belowSuggested}
+          noCost={noCost}
+          suggestedFor={(cost) => finalPriceOf(calcMarkup({ ...inputs, cost_price: cost }).suggested_price)}
+          onProductUpdated={(id, patch) => setProducts((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)))}
+        />
       )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
