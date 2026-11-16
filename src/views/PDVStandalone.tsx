@@ -1234,8 +1234,14 @@ export default function PDVStandalone() {
     if ((hasAttr || hasLeg) && !options) {
       setConfigProduct(product);
       const init: Record<string, string> = {};
-      if (hasAttr) product.attributes!.forEach((a) => (init[a.name] = a.values[0] ?? ""));
-      else product.variations!.forEach((v) => (init[v.name] = v.options[0]?.value ?? ""));
+      if (hasAttr) {
+        product.attributes!.forEach((a) => (init[a.name] = a.values[0] ?? ""));
+        // começa na primeira combinação com estoque (a primeira costuma estar esgotada e travava as outras opções)
+        const available = product.skus?.find((s) => s.stock > 0);
+        if (available) Object.assign(init, available.combo);
+      } else {
+        product.variations!.forEach((v) => (init[v.name] = (v.options.find((o) => o.stock > 0) ?? v.options[0])?.value ?? ""));
+      }
       setSelectedOptions(init);
       return;
     }
@@ -2552,8 +2558,10 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                 ? "bg-red-50 border-red-300 text-red-500"
                 : "bg-blue-50 border-blue-200 text-blue-600"
             )}>
-              <Scan size={11} />
-              {scanFeedback === "ok" ? "Adicionado!" : scanFeedback === "err" ? "Não encontrado" : "Scanner Pronto"}
+              <Scan size={12} />
+              <span className={!scanFeedback ? "hidden 2xl:inline" : ""}>
+                {scanFeedback === "ok" ? "Adicionado!" : scanFeedback === "err" ? "Não encontrado" : "Scanner Pronto"}
+              </span>
             </div>
           </div>
         )}
@@ -2606,7 +2614,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   className={cn("shrink-0 px-2.5", old
                     ? "border-amber-400/50 bg-amber-500/15 text-amber-300 hover:border-amber-400 hover:bg-amber-500/25 hover:text-amber-200"
                     : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-500/20 hover:text-emerald-300")}>
-                  <span className={old ? "block" : "hidden 2xl:block"}>{old ? `Aberto desde ${since} — fechar` : "Fechar caixa"}</span>
+                  <span className={old ? "block" : "hidden xl:block"}>{old ? `Aberto desde ${since} — fechar` : "Fechar caixa"}</span>
                 </Button>
               );
             })()
@@ -2621,11 +2629,11 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
           </Button>
           <Button variant="outline" size="lg" onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)" aria-label="Consultar Consignado (F8)"
             iconLeft={<ShoppingBag size={11} />} className="shrink-0 px-2.5 border-violet-500/20 bg-violet-500/10 text-violet-400 hover:border-violet-500/40 hover:bg-violet-500/20 hover:text-violet-300">
-            <span className="hidden 2xl:block">Consignado</span>
+            <span className="hidden xl:block">Consignado</span>
           </Button>
           <Button variant="outline" size="lg" onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas" aria-label="Vendas Abertas"
             iconLeft={<Clock size={11} />} className="relative shrink-0 px-2.5 border-orange-500/20 bg-orange-500/10 text-orange-400 hover:border-orange-500/40 hover:bg-orange-500/20 hover:text-orange-300">
-            <span className="hidden 2xl:block">Vendas abertas</span>
+            <span className="hidden xl:block">Abertas</span>
             {openHeldSalesCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold flex items-center justify-center leading-none">
                 {openHeldSalesCount > 99 ? "99+" : openHeldSalesCount}
@@ -2634,7 +2642,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
           </Button>
           <Button variant="outline" size="lg" onClick={() => setShowSaleHistoryDrawer(true)} title="Histórico de Vendas — buscar e reimprimir cupom" aria-label="Histórico de Vendas"
             iconLeft={<Printer size={11} />} className="shrink-0 px-2.5 border-sky-500/20 bg-sky-500/10 text-sky-400 hover:border-sky-500/40 hover:bg-sky-500/20 hover:text-sky-300">
-            <span className="hidden 2xl:block">Reimprimir venda</span>
+            <span className="hidden xl:block">Reimprimir</span>
           </Button>
           {/* Fullscreen toggle */}
           <Button variant="outline" size="lg" onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"} aria-label={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
@@ -3064,7 +3072,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       onClick={() => addToCart(product)}
                       whileTap={{ scale: 0.97 }}
                       className={cn(
-                        "bg-white rounded-lg border border-slate-100 flex flex-col items-start group relative text-left overflow-hidden transition-all duration-300 shadow-sm hover:shadow-sm hover:-translate-y-1",
+                        "bg-white rounded-xl border flex flex-col items-start group relative text-left overflow-hidden transition-all duration-200 shadow-sm hover:shadow-md",
                         qtyInCart > 0
                           ? "cursor-pointer border-blue-400 shadow-sm shadow-blue-100"
                           : "cursor-pointer border-slate-200 hover:border-blue-300 hover:shadow-sm hover:shadow-blue-50"
@@ -3077,7 +3085,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                           : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
 
                         {/* Badge estoque */}
-                        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
+                        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[11px] font-mono font-semibold bg-white/90 border border-slate-200 text-slate-600 shadow-sm">
                           {product.stock_quantity} un.
                         </div>
 
@@ -3110,21 +3118,21 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       </div>
 
                       {/* Info */}
-                      <div className="p-1.5 sm:p-2 w-full">
-                        <p className="text-[10px] sm:text-[11px] font-semibold text-slate-700 leading-tight line-clamp-2 mb-1 min-h-[2.2em]">{product.name}</p>
-                        {hasVariations && (
-                          <p className="text-[10px] font-semibold text-blue-500 mb-1">variações</p>
-                        )}
-                        {product.discount_price ? (
-                          <div className="flex flex-col">
-                            <span className="text-[10px] sm:text-[10px] font-mono text-slate-400 line-through leading-none">R$ {Number(product.price).toFixed(2)}</span>
-                            <span className="text-[11px] sm:text-[12px] font-mono font-semibold text-emerald-600 leading-tight">R$ {Number(product.discount_price).toFixed(2)}</span>
-                          </div>
-                        ) : (
-                          <p className="text-[11px] sm:text-[12px] font-mono font-semibold text-blue-600">
-                            R$ {Number(product.price).toFixed(2)}
-                          </p>
-                        )}
+                      <div className="w-full p-2.5">
+                        <p className="mb-1.5 line-clamp-2 min-h-[2.5em] text-[13px] font-semibold leading-snug text-slate-800">{product.name}</p>
+                        <div className="flex items-end justify-between gap-2">
+                          {product.discount_price ? (
+                            <div className="flex flex-col">
+                              <span className="font-mono text-[11px] leading-none text-slate-400 line-through">R$ {Number(product.price).toFixed(2)}</span>
+                              <span className="font-mono text-[15px] font-bold leading-tight text-emerald-600">R$ {Number(product.discount_price).toFixed(2)}</span>
+                            </div>
+                          ) : (
+                            <p className="font-mono text-[15px] font-bold text-blue-700">R$ {Number(product.price).toFixed(2)}</p>
+                          )}
+                          {hasVariations && (
+                            <span className="shrink-0 rounded-md bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-600">Variações</span>
+                          )}
+                        </div>
                       </div>
                     </motion.button>
                   );
@@ -3141,7 +3149,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
         </div>
 
         {/* ── Carrinho Desktop ──────────────────────────────────────────────── */}
-        <aside className="hidden xl:flex w-[360px] flex-col overflow-hidden shrink-0 border-l border-slate-200 bg-white shadow-[-8px_0_24px_rgba(15,23,42,0.05)]">
+        <aside className="hidden xl:flex w-[380px] 2xl:w-[420px] flex-col overflow-hidden shrink-0 border-l border-slate-200 bg-white shadow-[-8px_0_24px_rgba(15,23,42,0.05)]">
           <CartPanel
             cart={cart}
             updateQuantity={updateQuantity}
@@ -3177,13 +3185,9 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
         size="md"
         footer={configProduct ? (
           <ModalFooter>
-            <div className="mr-auto hidden items-center gap-1.5 text-[11px] font-medium text-slate-400 sm:flex">
-              <span className="rounded-md border border-slate-200 px-1.5 py-1 text-slate-500">Esc</span> fechar
-              <span className="ml-1 rounded-md border border-slate-200 px-1.5 py-1 text-slate-500">Enter</span> adicionar
-            </div>
-            <Button variant="outline" size="lg" onClick={() => setConfigProduct(null)}>Cancelar</Button>
+            <Button variant="outline" size="lg" onClick={() => setConfigProduct(null)}>Cancelar <span className="ml-1.5 hidden rounded border border-slate-200 px-1 text-[10px] font-medium text-slate-400 sm:inline">Esc</span></Button>
             <Button variant="primary" size="lg" iconLeft={<Plus size={16} />} onClick={() => addToCart(configProduct, selectedOptions)}>
-              Adicionar ao Carrinho
+              Adicionar ao Carrinho <span className="ml-1.5 hidden rounded border border-white/30 px-1 text-[10px] font-medium text-white/80 sm:inline">Enter</span>
             </Button>
           </ModalFooter>
         ) : undefined}
@@ -5573,14 +5577,14 @@ function CartPanel({
   return (
     <>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-950 text-white">
+      <div className="px-4 py-2.5 border-b border-slate-800 flex items-center justify-between shrink-0 bg-slate-950 text-white">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-blue-500/15 border border-blue-400/30 rounded-lg flex items-center justify-center">
-            <ShoppingCart size={14} className="text-blue-300" />
+          <div className="w-8 h-8 bg-blue-500/15 border border-blue-400/30 rounded-lg flex items-center justify-center">
+            <ShoppingCart size={15} className="text-blue-300" />
           </div>
-          <div>
-            <h3 className="text-[12px] font-semibold text-white">Carrinho</h3>
-            <span className="text-[10px] text-slate-400 font-semibold">{cartQty} {cartQty === 1 ? "item" : "itens"}</span>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-[15px] font-bold text-white">Carrinho</h3>
+            <span className="text-[12px] text-slate-400 font-medium">{cartQty} {cartQty === 1 ? "item" : "itens"}</span>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -5599,61 +5603,68 @@ function CartPanel({
         </div>
       </div>
 
-      {/* Items */}
-      <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 bg-slate-50 pdv-scroll-light">
+      {/* Items — linhas compactas: miniatura, nome, variação, quantidade e total na mesma linha */}
+      <div className="flex-1 overflow-y-auto p-2.5 space-y-2 bg-slate-50 pdv-scroll-light">
         <AnimatePresence initial={false}>
-          {cart.map((item) => (
+          {cart.map((item) => {
+            const unit = Number(item.price) || 0;
+            const maxStock = item.isAvulso || sellWithoutStockControl ? undefined : item.stock_quantity;
+            return (
             <motion.div
               key={item.cartItemId}
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20, height: 0 }}
               transition={{ duration: 0.18 }}>
-              <div className="p-3 rounded-lg border border-slate-200 bg-white hover:border-blue-200 transition-colors shadow-sm space-y-2.5">
-                <div className="flex items-start gap-2.5">
-                  {/* Thumbnail */}
-                  {item.image_url ? (
-                    <img src={item.image_url} alt={item.name} className="w-9 h-9 rounded-lg object-contain shrink-0 border border-slate-200 p-0.5 bg-slate-50" />
-                  ) : (
-                    <div className="w-9 h-9 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                      <Package size={14} className="text-slate-400" />
+              <div className="flex gap-3 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm transition-colors hover:border-blue-300">
+                {item.image_url ? (
+                  <img src={item.image_url} alt="" loading="lazy" decoding="async" className="h-12 w-12 shrink-0 rounded-lg border border-slate-200 bg-slate-50 object-contain p-0.5" />
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100">
+                    <Package size={16} className="text-slate-400" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="line-clamp-2 break-words text-[13px] font-semibold leading-snug text-slate-800" title={item.name}>{item.name}</p>
+                    <button type="button" onClick={() => removeFromCart(item.cartItemId)} aria-label="Remover item" title="Remover item"
+                      className="-mr-1 -mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                  {(item.isAvulso || item.variationLabel) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {item.isAvulso && <span className="rounded px-1.5 py-0.5 text-[11px] font-semibold bg-emerald-100 text-emerald-700">Avulso</span>}
+                      {item.variationLabel && <span className="rounded px-1.5 py-0.5 text-[11px] font-semibold bg-blue-50 text-blue-600">{item.variationLabel}</span>}
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-700 leading-snug line-clamp-2 break-words" title={item.name}>{item.name}</p>
-                    {(item.isAvulso || item.variationLabel) && (
-                      <div className="flex flex-wrap items-center gap-1 mt-1">
-                        {item.isAvulso && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">Avulso</span>}
-                        {item.variationLabel && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600">{item.variationLabel}</span>}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center shrink-0 -mt-1 -mr-1">
-                    <IconButton variant="ghost" size="sm" onClick={() => removeFromCart(item.cartItemId)} aria-label="Remover item" title="Remover item" className="border-transparent text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></IconButton>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg">
-                    <IconButton variant="ghost" size="sm" onClick={() => updateQuantity(item.cartItemId, -1)} aria-label="Diminuir quantidade" className="border-transparent"><Minus size={12} /></IconButton>
-                    <input
-                      type="number"
-                      min={1}
-                      max={item.isAvulso || sellWithoutStockControl ? undefined : item.stock_quantity}
-                      value={item.quantity}
-                      onChange={(e) => setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, item.isAvulso || sellWithoutStockControl ? undefined : item.stock_quantity)}
-                      onFocus={(e) => e.target.select()}
-                      className="w-9 text-center font-mono font-semibold text-xs text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    />
-                    <IconButton variant="ghost" size="sm" onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} aria-label="Aumentar quantidade" className="border-transparent"><Plus size={12} /></IconButton>
-                  </div>
-                  <div className="flex flex-col items-end leading-tight min-w-0">
-                    <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">R$ {(Number(item.price) || 0).toFixed(2)} × {item.quantity}</span>
-                    <span className="text-sm font-mono font-semibold text-slate-800 whitespace-nowrap">R$ {((Number(item.price) || 0) * item.quantity).toFixed(2)}</span>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50">
+                      <button type="button" onClick={() => updateQuantity(item.cartItemId, -1)} aria-label="Diminuir quantidade"
+                        className="flex h-8 w-8 items-center justify-center rounded-l-lg text-slate-500 transition-colors hover:bg-slate-200"><Minus size={13} /></button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={maxStock}
+                        value={item.quantity}
+                        onChange={(e) => setQuantityDirect(item.cartItemId, parseInt(e.target.value) || 1, maxStock)}
+                        onFocus={(e) => e.target.select()}
+                        className="w-10 border-none bg-transparent text-center font-mono text-[13px] font-semibold text-slate-800 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      />
+                      <button type="button" onClick={() => updateQuantity(item.cartItemId, 1)}
+                        disabled={!sellWithoutStockControl && !item.isAvulso && item.quantity >= item.stock_quantity} aria-label="Aumentar quantidade"
+                        className="flex h-8 w-8 items-center justify-center rounded-r-lg text-slate-500 transition-colors hover:bg-slate-200 disabled:opacity-40 disabled:hover:bg-transparent"><Plus size={13} /></button>
+                    </div>
+                    <div className="min-w-0 text-right leading-tight">
+                      {item.quantity > 1 && <div className="whitespace-nowrap font-mono text-[11px] text-slate-400">R$ {unit.toFixed(2)} × {item.quantity}</div>}
+                      <div className="whitespace-nowrap font-mono text-[15px] font-bold text-slate-900">R$ {(unit * item.quantity).toFixed(2)}</div>
+                    </div>
                   </div>
                 </div>
               </div>
             </motion.div>
-          ))}
+            );
+          })}
         </AnimatePresence>
         {/* Serviços no carrinho */}
         <AnimatePresence initial={false}>
@@ -5668,58 +5679,54 @@ function CartPanel({
             <motion.div key={`svc-${svc.id}`}
               initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20, height: 0 }}
               transition={{ duration: 0.18 }}>
-              <div className="p-3 rounded-lg border border-slate-200 bg-white hover:border-blue-200 transition-colors shadow-sm space-y-2.5">
-                <div className="flex items-start gap-2.5">
-                  <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border border-slate-200" style={{ background: `${catColor}1a`, color: catColor }}>
-                    <CatIcon size={14} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-700 leading-snug line-clamp-2 break-words" title={svc.name}>{svc.name}</p>
-                    <div className="flex flex-wrap items-center gap-1 mt-1">
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">Serviço</span>
-                      {isMeasured && svc.dimensionsLabel ? (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600">{svc.dimensionsLabel}</span>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="flex items-center shrink-0 -mt-1 -mr-1">
-                    <IconButton variant="ghost" size="sm" aria-label="Editar nome e valor nesta venda" title="Editar nome e valor (só nesta venda)"
-                      onClick={() => onEditService(svc)}
-                      className="border-transparent text-slate-400 hover:bg-blue-50 hover:text-blue-600">
-                      <Pencil size={14} />
-                    </IconButton>
-                    <IconButton variant="ghost" size="sm" aria-label="Remover serviço" title="Remover serviço"
-                      onClick={() => setCartServices(prev => prev.filter(x => x.id !== svc.id))}
-                      className="border-transparent text-slate-400 hover:bg-red-50 hover:text-red-600">
-                      <Trash2 size={14} />
-                    </IconButton>
-                  </div>
+              <div className="flex gap-3 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm transition-colors hover:border-blue-300">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-slate-200" style={{ background: `${catColor}1a`, color: catColor }}>
+                  <CatIcon size={16} />
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  {/* qty controls — item por medida tem quantidade fixa em 1 */}
-                  {isMeasured ? <span /> : (
-                    <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg">
-                      <IconButton variant="ghost" size="sm" aria-label="Diminuir quantidade" className="border-transparent"
-                        onClick={() => setCartServices(prev => (svc.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== svc.id) : prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}>
-                        <Minus size={12} />
-                      </IconButton>
-                      <input
-                        type="number"
-                        min={1}
-                        value={svcQty}
-                        onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: Math.max(1, v) } : x)); }}
-                        onFocus={(e) => e.target.select()}
-                        className="w-9 text-center font-mono font-semibold text-xs text-slate-700 bg-transparent border-none outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                      />
-                      <IconButton variant="ghost" size="sm" aria-label="Aumentar quantidade" className="border-transparent"
-                        onClick={() => setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}>
-                        <Plus size={12} />
-                      </IconButton>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="line-clamp-2 break-words text-[13px] font-semibold leading-snug text-slate-800" title={svc.name}>{svc.name}</p>
+                    <div className="-mr-1 -mt-0.5 flex shrink-0 items-center">
+                      <button type="button" aria-label="Editar nome e valor nesta venda" title="Editar nome e valor (só nesta venda)" onClick={() => onEditService(svc)}
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"><Pencil size={14} /></button>
+                      <button type="button" aria-label="Remover serviço" title="Remover serviço" onClick={() => setCartServices(prev => prev.filter(x => x.id !== svc.id))}
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                     </div>
-                  )}
-                  <div className="flex flex-col items-end leading-tight min-w-0">
-                    <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">R$ {svcPrice.toFixed(2)} × {svcQty}</span>
-                    <span className="text-sm font-mono font-semibold text-slate-800 whitespace-nowrap">R$ {(svcPrice * svcQty).toFixed(2)}</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <span className="rounded px-1.5 py-0.5 text-[11px] font-semibold bg-slate-100 text-slate-600">Serviço</span>
+                    {isMeasured && svc.dimensionsLabel ? (
+                      <span className="rounded px-1.5 py-0.5 text-[11px] font-semibold bg-blue-50 text-blue-600">{svc.dimensionsLabel}</span>
+                    ) : null}
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    {/* qty controls — item por medida tem quantidade fixa em 1 */}
+                    {isMeasured ? <span /> : (
+                      <div className="flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50">
+                        <button type="button" aria-label="Diminuir quantidade"
+                          className="flex h-8 w-8 items-center justify-center rounded-l-lg text-slate-500 transition-colors hover:bg-slate-200"
+                          onClick={() => setCartServices(prev => (svc.quantity ?? 1) <= 1 ? prev.filter(x => x.id !== svc.id) : prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) - 1 } : x))}>
+                          <Minus size={13} />
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          value={svcQty}
+                          onChange={(e) => { const v = parseInt(e.target.value) || 1; setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: Math.max(1, v) } : x)); }}
+                          onFocus={(e) => e.target.select()}
+                          className="w-10 border-none bg-transparent text-center font-mono text-[13px] font-semibold text-slate-800 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
+                        <button type="button" aria-label="Aumentar quantidade"
+                          className="flex h-8 w-8 items-center justify-center rounded-r-lg text-slate-500 transition-colors hover:bg-slate-200"
+                          onClick={() => setCartServices(prev => prev.map(x => x.id === svc.id ? { ...x, quantity: (x.quantity ?? 1) + 1 } : x))}>
+                          <Plus size={13} />
+                        </button>
+                      </div>
+                    )}
+                    <div className="min-w-0 text-right leading-tight">
+                      {svcQty > 1 && <div className="whitespace-nowrap font-mono text-[11px] text-slate-400">R$ {svcPrice.toFixed(2)} × {svcQty}</div>}
+                      <div className="whitespace-nowrap font-mono text-[15px] font-bold text-slate-900">R$ {(svcPrice * svcQty).toFixed(2)}</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -5742,34 +5749,34 @@ function CartPanel({
       </div>
 
       {/* Footer summary + checkout button */}
-      <div className="shrink-0 border-t border-slate-200 p-3.5 space-y-2.5 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.04)]">
+      <div className="shrink-0 border-t border-slate-200 p-3.5 space-y-3 bg-white shadow-[0_-6px_20px_rgba(15,23,42,0.04)]">
         <div className="space-y-1.5">
-          <div className="flex justify-between text-[11px] font-semibold text-slate-400">
+          <div className="flex justify-between text-[13px] font-medium text-slate-600">
             <span>Subtotal</span><span className="font-mono">R$ {subtotal.toFixed(2)}</span>
           </div>
           {discountValue > 0 && (
-            <div className="flex justify-between text-[11px] font-semibold text-emerald-600">
+            <div className="flex justify-between text-[13px] font-medium text-emerald-600">
               <span>Descontos</span><span className="font-mono">− R$ {discountValue.toFixed(2)}</span>
             </div>
           )}
           {discountValue === 0 && (
-            <div className="flex justify-between text-[11px] font-semibold text-slate-400">
+            <div className="flex justify-between text-[13px] font-medium text-slate-600">
               <span>Descontos</span><span className="font-mono">R$ 0,00</span>
             </div>
           )}
           {surchargeValue > 0 && (
-            <div className="flex justify-between text-[11px] font-semibold text-amber-500">
+            <div className="flex justify-between text-[13px] font-medium text-amber-600">
               <span>Acréscimo</span><span className="font-mono">+ R$ {surchargeValue.toFixed(2)}</span>
             </div>
           )}
           {feeAmount > 0 && (
-            <div className="flex justify-between text-[11px] font-semibold text-orange-500">
+            <div className="flex justify-between text-[13px] font-medium text-orange-600">
               <span>Juros máquina</span><span className="font-mono">+ R$ {feeAmount.toFixed(2)}</span>
             </div>
           )}
-          <div className="flex justify-between items-baseline pt-1.5 border-t border-slate-100">
-            <span className="text-[11px] font-semibold text-slate-400">Total</span>
-            <span className="text-xl font-mono font-semibold text-slate-800">R$ {total.toFixed(2)}</span>
+          <div className="flex justify-between items-baseline pt-2 border-t border-slate-200">
+            <span className="text-[15px] font-bold text-slate-700">Total</span>
+            <span className="text-[28px] leading-none font-mono font-extrabold tracking-tight text-slate-900">R$ {total.toFixed(2)}</span>
           </div>
         </div>
 
@@ -5777,12 +5784,12 @@ function CartPanel({
           {onHold && canHold && (
             <Button variant="outline" size="lg" onClick={onHold} disabled={holding} loading={holding}
               title="Segurar Venda" aria-label="Segurar Venda" iconLeft={<Clock size={14} />}
-              className="h-11 shrink-0 border-amber-200 text-amber-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700">
+              className="h-12 shrink-0 border-amber-200 text-amber-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700">
               <span className="hidden sm:inline">Segurar</span>
             </Button>
           )}
           <Button variant="primary" size="lg" onClick={onCheckout} disabled={!canFinish}
-            iconLeft={<CreditCard size={14} />} className="h-11 flex-1">
+            iconLeft={<CreditCard size={16} />} className="h-12 flex-1 text-[15px] font-bold">
             Ir para Pagamento
             {cartQty > 0 && (
               <span className="bg-white/20 rounded-md px-1.5 py-0.5 text-[10px] font-semibold">{cartQty}</span>

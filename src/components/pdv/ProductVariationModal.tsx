@@ -25,13 +25,16 @@ export function productHasVariations(product: Pick<VariationProduct, "attributes
     || (Array.isArray(product.variations) && product.variations.length > 0);
 }
 
-/** Primeira opção de cada atributo como seleção inicial. */
-export function initialVariationOptions(product: Pick<VariationProduct, "attributes" | "variations">): VariationOptions {
+/** Seleção inicial: a primeira combinação COM estoque (senão a primeira opção de cada atributo).
+ *  Começar numa combinação esgotada deixava todas as outras opções desabilitadas. */
+export function initialVariationOptions(product: Pick<VariationProduct, "attributes" | "variations"> & { skus?: VariationProduct["skus"] }): VariationOptions {
   const init: VariationOptions = {};
   if (Array.isArray(product.attributes) && product.attributes.length > 0) {
     product.attributes.forEach((a) => { init[a.name] = a.values[0] ?? ""; });
+    const available = product.skus?.find((s) => s.stock > 0);
+    if (available) Object.assign(init, available.combo);
   } else {
-    product.variations?.forEach((v) => { init[v.name] = v.options[0]?.value ?? ""; });
+    product.variations?.forEach((v) => { init[v.name] = (v.options.find((o) => o.stock > 0) ?? v.options[0])?.value ?? ""; });
   }
   return init;
 }
