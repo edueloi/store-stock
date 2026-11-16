@@ -1471,14 +1471,6 @@ model Quote {
   deposit_payment_method String?
   deposit_paid_at        DateTime?
 
-  // Comissão de serviço: ajuste desta O.S. (null = usa a regra padrão do técnico/vendedor) e pagamento
-  commission_technician_type    String?
-  commission_technician_value   Decimal?  @db.Decimal(10, 2)
-  commission_seller_type        String?
-  commission_seller_value       Decimal?  @db.Decimal(10, 2)
-  technician_commission_paid_at DateTime?
-  seller_commission_paid_at     DateTime?
-
   source             String    @default("manual") // manual | vitrine (solicitado pelo cliente na loja)
 
   approval_token     String?   @unique // link público para o cliente aprovar o orçamento
