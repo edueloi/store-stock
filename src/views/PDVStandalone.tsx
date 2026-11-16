@@ -2468,6 +2468,18 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
     return true;
   }), [products, searchTerm, selectedCategory]);
 
+  // Renderiza o catálogo em lotes: com milhares de produtos, desenhar todos os cards (e
+  // fotos) de uma vez travava o PDV. "Mostrar mais" libera o próximo lote.
+  const PRODUCT_PAGE = 60;
+  const [visibleCount, setVisibleCount] = useState(PRODUCT_PAGE);
+  useEffect(() => { setVisibleCount(PRODUCT_PAGE); }, [searchTerm, selectedCategory, viewMode]);
+  // Quantidade de cada produto no carrinho, calculada uma vez (antes era um cart.filter por card).
+  const cartQtyById = useMemo(() => {
+    const m = new Map<number, number>();
+    for (const i of cart) m.set(i.id, (m.get(i.id) ?? 0) + i.quantity);
+    return m;
+  }, [cart]);
+
   if (!token) return <PDVLogin onLogin={handleLogin} />;
 
   if (!cashSessionLoading && requireCashSession && !cashSession) {
@@ -2974,8 +2986,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               </div>
             ) : viewMode === "list" ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5">
-                {filteredProducts.map((product) => {
-                  const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
+                {filteredProducts.slice(0, visibleCount).map((product) => {
+                  const qtyInCart = cartQtyById.get(product.id) ?? 0;
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                     (Array.isArray(product.variations) && product.variations.length > 0);
                   return (
@@ -2991,7 +3003,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       {/* Miniatura */}
                       <div className="w-11 h-11 rounded-lg overflow-hidden relative flex items-center justify-center bg-slate-50 shrink-0">
                         {product.image_url
-                          ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full p-0.5" />
+                          ? <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" className="object-contain w-full h-full p-0.5" />
                           : <Package size={18} className="text-slate-300" />}
                         {qtyInCart > 0 && (
                           <span
@@ -3034,11 +3046,17 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     </motion.button>
                   );
                 })}
+                  {filteredProducts.length > visibleCount && (
+                    <button type="button" onClick={() => setVisibleCount((c) => c + PRODUCT_PAGE)}
+                      className="col-span-full h-10 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                      Mostrar mais ({filteredProducts.length - visibleCount} restantes)
+                    </button>
+                  )}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 3xl:grid-cols-7 gap-1.5 sm:gap-2">
-                {filteredProducts.map((product) => {
-                  const qtyInCart = cart.filter((i) => i.id === product.id).reduce((a, b) => a + b.quantity, 0);
+                {filteredProducts.slice(0, visibleCount).map((product) => {
+                  const qtyInCart = cartQtyById.get(product.id) ?? 0;
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                     (Array.isArray(product.variations) && product.variations.length > 0);
                   return (
@@ -3055,7 +3073,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       {/* Imagem */}
                       <div className="w-full aspect-[3/2] overflow-hidden relative flex items-center justify-center bg-slate-50">
                         {product.image_url
-                          ? <img src={product.image_url} alt={product.name} className="object-contain w-full h-full group-hover:scale-105 transition-transform duration-500 p-1" />
+                          ? <img src={product.image_url} alt={product.name} loading="lazy" decoding="async" className="object-contain w-full h-full group-hover:scale-105 transition-transform duration-500 p-1" />
                           : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
 
                         {/* Badge estoque */}
@@ -3111,6 +3129,12 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     </motion.button>
                   );
                 })}
+                  {filteredProducts.length > visibleCount && (
+                    <button type="button" onClick={() => setVisibleCount((c) => c + PRODUCT_PAGE)}
+                      className="col-span-full h-10 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50">
+                      Mostrar mais ({filteredProducts.length - visibleCount} restantes)
+                    </button>
+                  )}
               </div>
             )}
           </div>)}
