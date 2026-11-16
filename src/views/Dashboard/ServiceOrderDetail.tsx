@@ -818,9 +818,12 @@ export default function ServiceOrderDetail() {
     }
   };
 
+  // Produto sob encomenda (sem controle de estoque) sempre pode entrar na OS.
+  const canAddToOrder = (p: Product) => p.track_stock === false || p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade");
+
   const filteredParts = products.filter(
     (p) => partSearch && p.name.toLowerCase().includes(partSearch.toLowerCase()) &&
-      (p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade"))
+      canAddToOrder(p)
   );
 
   if (loading) {
@@ -1954,7 +1957,7 @@ export default function ServiceOrderDetail() {
                 setPartSelectedProduct(product ?? null);
               }}
               options={filteredParts.length > 0 ? filteredParts.map((p) => ({ value: String(p.id), label: p.name, description: `${fmt(p.price)} · estoque ${p.stock_quantity}` }))
-                : products.filter((p) => p.stock_quantity > 0 || (!!p.sale_unit && p.sale_unit !== "unidade")).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}`:`${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
+                : products.filter(canAddToOrder).slice(0, 20).map((p) => ({ value: String(p.id), label: p.name, description: p.sale_unit && p.sale_unit !== "unidade" ? `${fmt(p.price_per_measure ?? 0)}/${p.sale_unit === "m2" ? "m²" : "m"}`:`${fmt(p.price)} · estoque ${p.stock_quantity}` }))}
             />
 
             {partSelectedProduct && partOptions && (
