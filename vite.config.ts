@@ -34,6 +34,12 @@ export default defineConfig(({mode}) => {
             '**/recharts-*.js',
             '**/pdf-*.js',
             '**/logo-boxsys-vazado.png',
+            // Arquivos enviados pelos clientes (produtos, etc.) crescem sem limite:
+            // nunca entram no precache, senão o service worker baixa milhares de
+            // imagens ao instalar e trava o app. Eles são carregados sob demanda.
+            'uploads/**',
+            'nfce/**',
+            'downloads/**',
             // O HTML de entrada deve vir da rede a cada navegação; assim uma
             // atualização não depende de hard refresh para apontar aos novos assets.
             'index.html',
