@@ -251,7 +251,8 @@ router.post("/quotes", async (req, res) => {
       const cur = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId }, include: QUOTE_INCLUDE });
       if (!cur) return res.status(404).json({ error: "Orçamento não encontrado." });
       const data: Record<string, unknown> = {};
-      if (status && status !== qNorm(cur.status)) { data.status = status; if (status === "aprovado" && !cur.approved_at) data.approved_at = new Date(); }
+      const qLocked = (await prisma.serviceOrder.count({ where: { quote_id: cur.id } })) > 0 || ["converted", "cancelled", "expired"].includes(cur.status);
+      if (status && status !== qNorm(cur.status) && !qLocked) { data.status = status; if (status === "aprovado" && !cur.approved_at) data.approved_at = new Date(); }
       if (typeof f.notes === "string" && text(f.notes, 5000) !== text(cur.notes, 5000)) data.notes = text(f.notes, 5000) || null;
       const editable = cur.services.length === 0 && Array.isArray(f.items) && !["converted", "cancelled", "expired"].includes(cur.status);
       if (editable) {
@@ -326,7 +327,9 @@ router.post("/orders", async (req, res) => {
       const cur = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId } });
       if (!cur) return res.status(404).json({ error: "Ordem de serviço não encontrada." });
       const data: Record<string, unknown> = {};
-      if (status && status !== cur.status) data.status = status;
+      // O.S. já faturada, entregue ou cancelada não volta de etapa por causa do grafica (o grafica passa a refletir o status daqui).
+      const locked = !!cur.invoiced_order_id || ["entregue", "cancelada", "nota_emitida"].includes(cur.status);
+      if (status && status !== cur.status && !locked) data.status = status;
       if ("dueDate" in f && day(due) !== day(cur.promised_at)) data.promised_at = due;
       if (typeof f.notes === "string" && text(f.notes, 5000) !== text(cur.observations, 5000)) data.observations = text(f.notes, 5000) || null;
       const updated = Object.keys(data).length ? await prisma.serviceOrder.update({ where: { id: cur.id }, data }) : cur;
@@ -354,6 +357,73 @@ router.post("/orders", async (req, res) => {
     await prisma.serviceOrderAction.create({ data: { tenant_id: tenantId, service_order_id: created.id, action: "created", to_status: created.status, actor: "Sistema Gráfica", note: "Criada a partir do pedido no Sistema Gráfica" } });
     res.status(201).json(orderOut(await loadOrder(created.id)));
   } catch (e) { console.error("internal-sync POST orders:", e); res.status(500).json({ error: "Falha ao gravar a ordem de serviço." }); }
+});
+
+// ── Exclusões espelhadas ─────────────────────────────────────────────────────
+// O grafica pede para apagar aqui o que foi apagado lá. Só apaga registro SEM histórico: cliente, produto, orçamento ou O.S.
+// já usados em venda, financeiro, O.S. faturada etc. respondem 409 e ficam como estão (o grafica só registra o aviso).
+const blocked = (res: Response, why: string) => res.status(409).json({ error: why });
+
+router.delete("/customers/:id", async (req, res) => {
+  try {
+    const tenantId = tid(req), id = Number(req.params.id);
+    const cur = await prisma.customer.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!cur) return res.json({ deleted: false, gone: true });
+    const used = await Promise.all([
+      prisma.order.count({ where: { customer_id: id } }), prisma.serviceOrder.count({ where: { customer_id: id } }), prisma.quote.count({ where: { customer_id: id } }),
+      prisma.accountReceivable.count({ where: { tenant_id: tenantId, customer_name: cur.name } }), prisma.customerDebt.count({ where: { customer_id: id } }), prisma.customerPoint.count({ where: { customer_id: id } }),
+      prisma.customerCredit.count({ where: { customer_id: id } }), prisma.pointRedemption.count({ where: { customer_id: id } }),
+    ]);
+    if (used.some((n) => n > 0)) return blocked(res, "Cliente com vendas, O.S., orçamentos ou financeiro não é apagado.");
+    await prisma.customerNote.deleteMany({ where: { customer_id: id } });
+    await prisma.customer.delete({ where: { id } });
+    res.json({ deleted: true });
+  } catch (e) { console.error("internal-sync DELETE customers:", e); res.status(500).json({ error: "Falha ao apagar o cliente." }); }
+});
+
+router.delete("/products/:id", async (req, res) => {
+  try {
+    const tenantId = tid(req), id = Number(req.params.id);
+    const cur = await prisma.product.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!cur) return res.json({ deleted: false, gone: true });
+    const used = await Promise.all([prisma.orderItem.count({ where: { product_id: id } }), prisma.serviceOrderPart.count({ where: { product_id: id } }), prisma.consignmentItem.count({ where: { product_id: id } })]);
+    if (used.some((n) => n > 0)) return blocked(res, "Produto com vendas, O.S. ou consignação não é apagado.");
+    await prisma.product.delete({ where: { id } });
+    res.json({ deleted: true });
+  } catch (e) { console.error("internal-sync DELETE products:", e); res.status(500).json({ error: "Falha ao apagar o produto." }); }
+});
+
+router.delete("/quotes/:id", async (req, res) => {
+  try {
+    const tenantId = tid(req), id = Number(req.params.id);
+    const cur = await prisma.quote.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!cur) return res.json({ deleted: false, gone: true });
+    if ((await prisma.serviceOrder.count({ where: { quote_id: id } })) > 0) return blocked(res, "Orçamento com O.S. não é apagado.");
+    await prisma.$transaction(async (tx) => {
+      await tx.quoteItem.deleteMany({ where: { quote_id: id } });
+      await tx.quoteService.deleteMany({ where: { quote_id: id } });
+      await tx.quote.delete({ where: { id } });
+    });
+    res.json({ deleted: true });
+  } catch (e) { console.error("internal-sync DELETE quotes:", e); res.status(500).json({ error: "Falha ao apagar o orçamento." }); }
+});
+
+router.delete("/orders/:id", async (req, res) => {
+  try {
+    const tenantId = tid(req), id = Number(req.params.id);
+    const cur = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!cur) return res.json({ deleted: false, gone: true });
+    const [receivables, nfse] = await Promise.all([prisma.accountReceivable.count({ where: { service_order_id: id } }), prisma.nfseInvoice.count({ where: { service_order_id: id } })]);
+    if (cur.invoiced_order_id || receivables > 0 || nfse > 0 || Number(cur.deposit_amount ?? 0) > 0 || ["entregue", "nota_emitida"].includes(cur.status)) return blocked(res, "O.S. faturada, entregue ou com financeiro não é apagada.");
+    await prisma.$transaction(async (tx) => {
+      await tx.serviceOrderPart.deleteMany({ where: { service_order_id: id } });
+      await tx.serviceOrderChecklistItem.deleteMany({ where: { service_order_id: id } });
+      await tx.serviceOrderPhoto.deleteMany({ where: { service_order_id: id } });
+      await tx.serviceOrderAction.deleteMany({ where: { service_order_id: id } });
+      await tx.serviceOrder.delete({ where: { id } });
+    });
+    res.json({ deleted: true });
+  } catch (e) { console.error("internal-sync DELETE orders:", e); res.status(500).json({ error: "Falha ao apagar a O.S." }); }
 });
 
 export default router;
