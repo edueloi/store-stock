@@ -489,13 +489,22 @@ export default function PDV() {
   // Mantém o grid de produtos e o contador de vendas em espera sincronizados com
   // outros terminais/telas, sem o "flash" de loading do refreshProducts() (o
   // caixa pode estar no meio de uma venda quando o evento chega).
-  useEffect(() => onRealtimeAny(["stock:changed", "product:changed", "category:changed"], () => {
-    const headers = { Authorization: `Bearer ${token}` };
-    fetch("/api/products", { headers })
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setProducts(d); })
-      .catch(() => {});
-  }), [token]);
+  // Vários eventos seguidos (ex.: venda com muitos itens) viram uma única recarga, e o
+  // catálogo só é rebaixado se a resposta mudou — evita refazer o grid inteiro à toa.
+  useEffect(() => {
+    let timer: number | undefined;
+    const off = onRealtimeAny(["stock:changed", "product:changed", "category:changed"], () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const headers = { Authorization: `Bearer ${token}` };
+        fetch("/api/products", { headers })
+          .then((r) => r.json())
+          .then((d) => { if (Array.isArray(d)) setProducts(d); })
+          .catch(() => {});
+      }, 1500);
+    });
+    return () => { window.clearTimeout(timer); off(); };
+  }, [token]);
 
   useEffect(() => onRealtimeAny(["order:updated"], () => {
     if (token) getOpenHeldSalesCount(token).then(setOpenHeldSalesCount).catch(() => {});

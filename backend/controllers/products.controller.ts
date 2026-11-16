@@ -111,6 +111,43 @@ export async function getLowStockCount(req: Request, res: Response) {
 export async function listProducts(req: Request, res: Response) {
   try {
     const onlyActive = req.query.active === "true";
+
+    // Consulta paginada (PDV/catálogo grandes): só ativa quando o front manda page, limit
+    // ou search. Sem esses parâmetros o comportamento antigo (lista completa) continua
+    // igual, para não quebrar telas e o cache offline do desktop.
+    if (req.query.page !== undefined || req.query.limit !== undefined || req.query.search !== undefined) {
+      const page = Math.max(1, Math.floor(Number(req.query.page)) || 1);
+      const limit = Math.min(200, Math.max(1, Math.floor(Number(req.query.limit)) || 60));
+      const search = String(req.query.search ?? "").trim();
+      const categoryId = Number(req.query.category_id);
+      const where: Record<string, unknown> = {
+        tenant_id: getTenantId(req),
+        ...(onlyActive ? { is_active: true } : {}),
+        ...(Number.isFinite(categoryId) && categoryId > 0 ? { category_id: categoryId } : {}),
+        ...(search
+          ? { OR: [{ name: { contains: search } }, { sku: { contains: search } }, { barcode: { contains: search } }] }
+          : {}),
+      };
+      const [total, rows] = await Promise.all([
+        prisma.product.count({ where }),
+        prisma.product.findMany({
+          where,
+          include: { category: { select: { name: true } } },
+          orderBy: [{ name: "asc" }, { id: "asc" }],
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+      ]);
+      res.json({
+        items: rows.map((product) => ({ ...product, category_name: product.category?.name ?? null })),
+        total,
+        page,
+        limit,
+        hasMore: page * limit < total,
+      });
+      return;
+    }
+
     const products = await prisma.product.findMany({
       where: {
         tenant_id: getTenantId(req),
