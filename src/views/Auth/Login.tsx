@@ -1,6 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
+import { useStatusBarStyle } from "../../lib/nativeChrome";
 import { AlertCircle, Eye, EyeOff, LogIn, X } from "lucide-react";
 
 import { getStoredUser, saveSession } from "../../lib/session";
@@ -36,6 +37,7 @@ function StoreBoxMark({ className }: { className: string }) {
 }
 
 export default function Login() {
+  useStatusBarStyle(true); // login é escuro: ícones claros na barra de status do app
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState(() => localStorage.getItem("remembered_identifier") || "");
   const [password, setPassword] = useState("");

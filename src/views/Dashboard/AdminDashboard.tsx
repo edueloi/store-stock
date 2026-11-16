@@ -49,6 +49,7 @@ import {
   QrCode as QrCodeIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useStatusBarStyle } from "../../lib/nativeChrome";
 import { cn } from "../../lib/utils";
 import { lazyRetry } from "../../lib/lazyRetry";
 import { ToastProvider, useToast } from "../../components/ui/Toast";
@@ -595,6 +596,8 @@ export default function AdminDashboard() {
   const [dueSoonInstallments, setDueSoonInstallments] = useState<OverdueInstallment[]>([]);
   // Contas a receber lançadas manualmente (aba Administrativo) vencidas ou vencendo em breve.
   const [receivableAlertCount, setReceivableAlertCount] = useState(0);
+  // App do celular: menu lateral é escuro (ícones claros na barra de status); telas do sistema são claras.
+  useStatusBarStyle(isSidebarOpen && typeof window !== "undefined" && window.innerWidth < 1024);
   const [subscriptionOverdue, setSubscriptionOverdue] = useState(false);
   const [whatsappCounts, setWhatsappCounts] = useState({ bot: 0, queued: 0, assigned: 0, closed: 0 });
   const location = useLocation();

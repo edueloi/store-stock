@@ -43,6 +43,8 @@
   var APP_URL = "https://store.boxsys.com.br/";
   var SIGNUP_URL = "https://boxsys.com.br/store";
   var KEY = "boxsys_store_seen_v1";
+  // tela de boas-vindas é escura: ícones claros na barra de status
+  try { var C = window.Capacitor; var SB = C && (C.Plugins && C.Plugins.SystemBars || C.registerPlugin && C.registerPlugin("SystemBars")); if (SB) SB.setStyle({ style: "DARK" }); } catch (e) {}
 
   function openApp() {
     document.getElementById("actions").classList.add("off");

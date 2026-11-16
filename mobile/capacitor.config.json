@@ -20,7 +20,7 @@
       "showSpinner": false
     },
     "SystemBars": {
-      "style": "DARK",
+      "style": "LIGHT",
       "insetsHandling": "css"
     }
   }
