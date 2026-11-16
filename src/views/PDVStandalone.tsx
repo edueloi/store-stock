@@ -2576,8 +2576,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
         {pdvStep === "payment" && showCheckoutModal ? (
           <div className="flex items-center gap-3 shrink-0">
             <div className="text-right">
-              <p className="text-[10px] font-semibold text-slate-400">{cartQty} {cartQty === 1 ? "item" : "itens"}</p>
-              <p className="text-[18px] font-mono font-semibold text-slate-800 leading-none">R$ {total.toFixed(2)}</p>
+              <p className="text-[12px] font-medium text-slate-300">{cartQty} {cartQty === 1 ? "item" : "itens"}</p>
+              <p className="text-[22px] font-mono font-bold text-white leading-none">R$ {total.toFixed(2)}</p>
             </div>
           </div>
         ) : (
@@ -3437,7 +3437,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   <div className="p-4 border-b border-slate-200 shrink-0">
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <p className="text-[10px] font-semibold text-slate-400">Pedido atual</p>
+                        <p className="text-[12px] font-semibold text-slate-600">Pedido atual</p>
                         <p className="mt-1 text-[12px] font-semibold text-slate-800">{cartQty} {cartQty === 1 ? "item" : "itens"} na venda</p>
                       </div>
                       <button onClick={() => setShowAddProductModal(true)}
@@ -3450,10 +3450,10 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                       <table className="w-full table-fixed text-left">
                         <thead>
                           <tr className="bg-slate-50 border-b border-slate-100">
-                            <th className="w-[46%] px-3 py-2 text-[10px] font-semibold text-slate-400">Produto</th>
-                            <th className="hidden px-2 py-2 text-[10px] font-semibold text-slate-400 text-right 3xl:table-cell">Unit.</th>
-                            <th className="w-[23%] px-1 py-2 text-[10px] font-semibold text-slate-400 text-center">Qtd.</th>
-                            <th className="w-[22%] px-2 py-2 text-[10px] font-semibold text-slate-400 text-right">Subtotal</th>
+                            <th className="w-[46%] px-3 py-2 text-[12px] font-semibold text-slate-600">Produto</th>
+                            <th className="hidden px-2 py-2 text-[12px] font-semibold text-slate-600 text-right 3xl:table-cell">Unit.</th>
+                            <th className="w-[23%] px-1 py-2 text-[12px] font-semibold text-slate-600 text-center">Qtd.</th>
+                            <th className="w-[22%] px-2 py-2 text-[12px] font-semibold text-slate-600 text-right">Subtotal</th>
                             <th className="w-7"></th>
                           </tr>
                         </thead>
@@ -3534,7 +3534,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   <div className="p-4 space-y-3 shrink-0 bg-slate-50/70">
                     {/* Cliente */}
                     <div>
-                      <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Cliente</label>
+                      <label className="text-[12px] font-semibold text-slate-600 mb-1.5 block">Cliente</label>
                       <div className="flex gap-2">
                         <div className="flex-1 min-w-0">
                           <Combobox
@@ -3681,7 +3681,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         (nesse caso o documento do cadastro já é usado automaticamente) */}
                     {!selectedCustomerId && (
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">
+                        <label className="text-[12px] font-semibold text-slate-600 mb-1.5 block">
                           CPF/CNPJ na Nota (opcional)
                         </label>
                         <input value={customerDocument} onChange={(e) => setCustomerDocument(maskDoc(e.target.value))}
@@ -3693,7 +3693,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     {/* Vendedor */}
                     <div className="relative">
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[10px] font-semibold text-slate-400">Vendedor</label>
+                        <label className="text-[12px] font-semibold text-slate-600">Vendedor</label>
                         <button type="button" onClick={openNewSellerModal}
                           className="text-[10px] font-semibold text-blue-600 hover:text-blue-700">
                           + Novo
@@ -3712,7 +3712,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                     {/* Serviços */}
                     {services.length > 0 && (
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Serviços</label>
+                        <label className="text-[12px] font-semibold text-slate-600 mb-1.5 block">Serviços</label>
                         <button
                           type="button"
                           onClick={() => setShowServicesModal(true)}
@@ -3790,8 +3790,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1"><b className="text-white">F9</b> confirmar</span>
                       </div>
                       <div className="text-right">
-                        <p className="text-[10px] font-semibold text-slate-400">Total da venda</p>
-                        <p className="mt-0.5 text-[19px] leading-none font-mono font-semibold text-white">R$ {total.toFixed(2)}</p>
+                        <p className="text-[12px] font-medium text-slate-300">Total da venda</p>
+                        <p className="mt-0.5 text-[26px] leading-none font-mono font-bold text-white">R$ {total.toFixed(2)}</p>
                       </div>
                     </div>
                   </div>
@@ -3800,7 +3800,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                     {/* Label + adicionar */}
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-[10px] font-semibold text-slate-400">Formas de pagamento</p>
+                      <p className="text-[13px] font-semibold text-slate-600">Formas de pagamento</p>
                       <Button variant="outline" size="lg" onClick={addPayment} iconLeft={<PlusCircle size={11} />}>
                         Adicionar forma
                       </Button>
@@ -3808,7 +3808,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Desconto</label>
+                        <label className="text-[12px] font-semibold text-slate-600 mb-1.5 block">Desconto</label>
                         <div className="flex gap-1.5">
                           <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 shrink-0">
                             {(["R$", "%"] as const).map((m) => <button key={m} onClick={() => setDiscountMode(m)} className="h-7 px-2 rounded-lg text-[10px] font-semibold transition-all" style={discountMode === m ? { background: "#2563eb", color: "white" } : { color: "#94a3b8" }}>{m}</button>)}
@@ -3822,7 +3822,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                         )}
                       </div>
                       <div>
-                        <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Acréscimo</label>
+                        <label className="text-[12px] font-semibold text-slate-600 mb-1.5 block">Acréscimo</label>
                         <div className="flex gap-1.5">
                           <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 shrink-0">
                             {(["R$", "%"] as const).map((m) => <button key={m} onClick={() => setSurchargeMode(m)} className="h-7 px-2 rounded-lg text-[10px] font-semibold transition-all" style={surchargeMode === m ? { background: "#d97706", color: "white" } : { color: "#94a3b8" }}>{m}</button>)}
@@ -3862,40 +3862,40 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 
                       <div className="space-y-3 xl:sticky xl:top-0">
                     {/* Resumo financeiro */}
-                    <div className="rounded-lg px-4 py-3 bg-white border border-slate-200 shadow-sm space-y-1.5">
+                    <div className="rounded-xl px-4 py-3.5 bg-white border border-slate-200 shadow-sm space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-slate-400">Subtotal</span>
-                        <span className="text-[11px] font-mono font-semibold text-slate-600">R$ {subtotal.toFixed(2)}</span>
+                        <span className="text-[13px] font-medium text-slate-600">Subtotal</span>
+                        <span className="text-[13px] font-mono font-semibold text-slate-700">R$ {subtotal.toFixed(2)}</span>
                       </div>
                       {discountValue > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-slate-400">Desconto</span>
-                          <span className="text-[11px] font-mono font-semibold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
+                          <span className="text-[13px] font-medium text-slate-600">Desconto</span>
+                          <span className="text-[13px] font-mono font-semibold text-emerald-600">− R$ {discountValue.toFixed(2)}</span>
                         </div>
                       )}
                       {surchargeValue > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-slate-400">Acréscimo</span>
-                          <span className="text-[11px] font-mono font-semibold text-amber-500">+ R$ {surchargeValue.toFixed(2)}</span>
+                          <span className="text-[13px] font-medium text-slate-600">Acréscimo</span>
+                          <span className="text-[13px] font-mono font-semibold text-amber-600">+ R$ {surchargeValue.toFixed(2)}</span>
                         </div>
                       )}
                       {feeAmount > 0 && (
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-semibold text-slate-400">Juros máquina</span>
-                          <span className="text-[11px] font-mono font-semibold text-orange-500">+ R$ {feeAmount.toFixed(2)}</span>
+                          <span className="text-[13px] font-medium text-slate-600">Juros máquina</span>
+                          <span className="text-[13px] font-mono font-semibold text-orange-600">+ R$ {feeAmount.toFixed(2)}</span>
                         </div>
                       )}
                       <div className="pt-1.5 mt-1 border-t border-slate-200 flex items-center justify-between">
                         <div>
-                          <p className="text-[10px] font-semibold text-slate-400 mb-0.5">Total</p>
+                          <p className="mb-0.5 text-[15px] font-bold text-slate-700">Total</p>
                           {remaining > 0.009 && (
-                            <p className="text-[11px] font-semibold text-amber-500">⚠ Faltam R$ {remaining.toFixed(2)}</p>
+                            <p className="text-[12px] font-semibold text-amber-600">⚠ Faltam R$ {remaining.toFixed(2)}</p>
                           )}
                           {change > 0 && (
-                            <p className="text-[11px] font-semibold text-emerald-600">Troco R$ {change.toFixed(2)}</p>
+                            <p className="text-[12px] font-semibold text-emerald-600">Troco R$ {change.toFixed(2)}</p>
                           )}
                         </div>
-                        <span className="text-[22px] font-mono font-semibold text-slate-800">R$ {total.toFixed(2)}</span>
+                        <span className="text-[32px] leading-none font-mono font-extrabold tracking-tight text-slate-900">R$ {total.toFixed(2)}</span>
                       </div>
                     </div>
 
@@ -4826,11 +4826,11 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[500]" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 26, stiffness: 200 }}
-              className="fixed inset-y-0 right-0 w-full max-w-sm bg-white z-[510] shadow-sm flex flex-col">
+              className="fixed inset-y-0 right-0 w-full max-w-md bg-white z-[510] shadow-xl flex flex-col overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
                 <div>
                   <h2 className="font-semibold text-slate-900 text-[15px]">Consultar Cliente</h2>
-                  <p className="text-[11px] text-slate-500">Buscar cadastro e usar nesta venda</p>
+                  <p className="text-[12px] text-slate-500">Buscar cadastro e usar nesta venda</p>
                 </div>
                 <div className="flex items-center gap-1">
                   <Button variant="primary" size="lg" iconLeft={<UserPlus size={12} />}
@@ -4857,15 +4857,18 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
                 {customerLookupFiltered.length === 0 ? (
-                  <div className="text-center py-10 text-[11px] font-semibold text-slate-400">Nenhum cliente encontrado</div>
+                  <div className="py-10 text-center text-[13px] font-medium text-slate-400">Nenhum cliente encontrado</div>
                 ) : (
                   customerLookupFiltered.slice(0, 50).map((c) => (
-                    <div key={c.id} className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-slate-100 hover:border-blue-200 transition-colors">
-                      <div className="min-w-0">
-                        <p className="text-[12px] font-semibold text-slate-700 truncate">{c.name}</p>
-                        {c.phone && <p className="text-[11px] text-slate-400">{c.phone}</p>}
+                    <div key={c.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2.5 transition-colors hover:border-blue-300 hover:bg-blue-50/40">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[13px] font-bold text-slate-600">
+                        {(c.name || "?").trim().charAt(0).toUpperCase()}
                       </div>
-                      <Button variant="outline" size="lg" className="shrink-0"
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[14px] font-semibold text-slate-800">{c.name}</p>
+                        {c.phone && <p className="truncate text-[12px] text-slate-500">{c.phone}</p>}
+                      </div>
+                      <Button variant="primary" size="lg" className="h-9 shrink-0 px-4"
                         onClick={() => { setSelectedCustomerId(c.id); setCustomerName(c.name); setShowCustomerLookup(false); }}>
                         Usar
                       </Button>
@@ -5355,7 +5358,7 @@ const PaymentRow = React.memo(function PaymentRow({
       {p.method === "money" && idx === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_240px] gap-3">
           <div>
-            <label className="text-[10px] font-semibold text-slate-400 mb-1 block">Valor recebido</label>
+            <label className="text-[12px] font-semibold text-slate-600 mb-1 block">Valor recebido</label>
             <div className="relative">
               <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
               <input type="number" min="0" step="0.01" inputMode="decimal"

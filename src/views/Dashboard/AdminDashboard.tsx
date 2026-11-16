@@ -1260,7 +1260,7 @@ export default function AdminDashboard() {
           "flex-1 min-h-0",
           isPDV
             ? "overflow-hidden flex flex-col"
-            : "overflow-y-auto admin-scroll bg-[#f8fafc]"
+            : "overflow-y-auto overflow-x-hidden admin-scroll bg-[#f8fafc] min-w-0"
         )}>
           <div className={isPDV ? "flex-1 min-h-0 flex flex-col" : ""}>
             <AdminPage pdv={isPDV}>

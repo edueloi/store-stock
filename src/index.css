@@ -20,6 +20,23 @@ body {
    lateral direita de todas as telas. A rolagem continua por toque; apenas a
    barra visual é removida no mobile. */
 @media (max-width: 1023px) {
+  html, body {
+    overscroll-behavior-x: none;
+  }
+
+  /* Tela travada na horizontal: só rola para cima/baixo. Quem precisa rolar de lado
+     (abas, tabelas largas) faz isso dentro do próprio quadro, sem arrastar a página. */
+  .admin-scroll {
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+    touch-action: pan-y;
+    overflow-wrap: break-word;
+  }
+
+  .admin-scroll :is(.overflow-x-auto, .overflow-auto, .overflow-x-scroll, [data-scroll-x]) {
+    touch-action: pan-x pan-y;
+  }
+
   #root {
     overflow-x: clip;
   }
