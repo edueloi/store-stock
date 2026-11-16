@@ -337,20 +337,33 @@ router.post("/orders", async (req, res) => {
       return res.json(orderOut(await loadOrder(updated.id)));
     }
 
-    const quote = await prisma.quote.findFirst({ where: { id: Number(req.body?.quoteId) || 0, tenant_id: tenantId } });
-    if (!quote) return res.status(422).json({ error: "Orçamento não encontrado na loja." });
-    if (await prisma.serviceOrder.findFirst({ where: { quote_id: quote.id } })) return res.status(409).json({ error: "Este orçamento já tem ordem de serviço." });
+    // Origem: um orçamento (O.S. nasce dele) OU um cliente + itens (pedido criado direto no grafica, sem orçamento).
+    const quote = req.body?.quoteId ? await prisma.quote.findFirst({ where: { id: Number(req.body.quoteId) || 0, tenant_id: tenantId } }) : null;
+    if (req.body?.quoteId && !quote) return res.status(422).json({ error: "Orçamento não encontrado na loja." });
+    if (quote && (await prisma.serviceOrder.findFirst({ where: { quote_id: quote.id } }))) return res.status(409).json({ error: "Este orçamento já tem ordem de serviço." });
+    const customer = quote ? null : await prisma.customer.findFirst({ where: { id: Number(req.body?.customerId) || 0, tenant_id: tenantId } });
+    if (!quote && !customer) return res.status(422).json({ error: "Cliente não encontrado na loja." });
+    const partRows = quote ? [] : (Array.isArray(req.body?.items) ? req.body.items : []).slice(0, 200).map((i: any) => {
+      const qty = Math.max(1, Math.round(num(i?.quantity))), total = r2(num(i?.total)), unit = qty ? r2(total / qty) : r2(num(i?.unitPrice));
+      return { name: text(i?.name, 300) || "Item", quantity: qty, unit_price: unit, total_before_discount: total, total };
+    });
+    const partsSum = r2(partRows.reduce((a: number, p: { total: number }) => a + p.total, 0));
+    const orderTotal = quote ? Number(quote.total_amount) : num(req.body?.total) > 0 ? r2(num(req.body.total)) : partsSum;
     let created: any = null;
     for (let attempt = 0; attempt < 4 && !created; attempt++) {
       const last = await prisma.serviceOrder.findFirst({ where: { tenant_id: tenantId }, orderBy: { number: "desc" }, select: { number: true } });
       try {
         created = await prisma.serviceOrder.create({
           data: {
-            tenant_id: tenantId, number: (last?.number ?? 0) + 1, customer_id: quote.customer_id, customer_name: text(quote.customer_name, 160), customer_phone: quote.customer_phone ?? null,
-            has_equipment: false, equipment_category: "", status: status ?? "aprovado", promised_at: due, observations: text(f.notes, 5000) || null, quote_id: quote.id,
-            subtotal: quote.total_amount, total_amount: quote.total_amount,
+            tenant_id: tenantId, number: (last?.number ?? 0) + 1, customer_id: quote ? quote.customer_id : customer!.id,
+            customer_name: text(quote ? quote.customer_name : customer!.name, 160), customer_phone: (quote ? quote.customer_phone : customer!.phone) ?? null,
+            has_equipment: false, equipment_category: "", status: status ?? "aprovado", promised_at: due, observations: text(f.notes, 5000) || null, quote_id: quote ? quote.id : null,
+            ...(quote
+              ? { subtotal: quote.total_amount, total_amount: quote.total_amount }
+              : { parts_total: partsSum, subtotal: partsSum, discount_type: "fixed", discount_value: Math.max(0, r2(partsSum - orderTotal)), total_amount: orderTotal }),
           },
         });
+        if (partRows.length) await prisma.serviceOrderPart.createMany({ data: partRows.map((p: any) => ({ ...p, service_order_id: created.id })) });
       } catch (e: any) { if (e?.code !== "P2002") throw e; }
     }
     if (!created) return res.status(409).json({ error: "Não foi possível numerar a ordem de serviço." });
