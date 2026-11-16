@@ -847,6 +847,10 @@ autoUpdater.logger = log;
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
+// Ao instalar uma atualização o app PRECISA sair de verdade: sem isso o botão X só esconde a
+// janela na bandeja e o instalador não consegue fechar o app ("Não é possível fechar").
+autoUpdater.on("before-quit-for-update", () => { isQuitting = true; });
+
 autoUpdater.on("update-downloaded", () => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     dialog.showMessageBox(mainWindow, {

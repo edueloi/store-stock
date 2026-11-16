@@ -1,7 +1,7 @@
 {
   "name": "boxsys-pdv",
   "productName": "Store BoxSys",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Store BoxSys — aplicativo desktop de vendas e gestão",
   "main": "main.cjs",
   "author": "BoxSys",
@@ -31,6 +31,7 @@
       "remote-print.cjs",
       "fiscal-agent.cjs",
       "webcache.cjs",
+      "diagnostics.cjs",
       "offline-sync.cjs",
       "legacy-migration.cjs",
       "db.cjs",
@@ -69,7 +70,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "Store BoxSys"
+      "shortcutName": "Store BoxSys",
+      "include": "installer-scripts/installer.nsh"
     },
     "mac": {
       "target": [
