@@ -392,9 +392,7 @@ export async function receiveTerminalLogs(req: Request, res: Response) {
       message: clip(e?.message ?? "", e?.kind === "support-bundle" ? 120000 : 2000),
       data: e?.data === undefined ? undefined : clip(e.data, 6000),
       ctx: e?.ctx === undefined ? undefined : clip(e.ctx, 4000),
-    })).join("
-") + "
-";
+    })).join("\n") + "\n";
     await fs.promises.appendFile(file, lines);
     res.json({ ok: true, stored: entries.length });
   } catch {
@@ -413,8 +411,7 @@ export async function listTerminalLogs(req: Request, res: Response) {
     const limit = Math.min(500, Math.max(1, Math.floor(Number(req.query.limit)) || 100));
     const file = logFileFor(terminal.tenant_id, terminal.terminal_uid);
     const text = await fs.promises.readFile(file, "utf-8").catch(() => "");
-    const entries = text.split("
-").filter(Boolean).slice(-limit).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    const entries = text.split("\n").filter(Boolean).slice(-limit).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
     res.json({ entries: entries.reverse() });
   } catch {
     res.status(500).json({ error: "Failed to read logs" });

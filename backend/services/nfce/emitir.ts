@@ -40,6 +40,37 @@ function isGtinPrefixRejection(xMotivo: string | null): boolean {
   return !!xMotivo && /gtin.*prefixo|cean.*prefixo/i.test(xMotivo);
 }
 
+// CPF/CNPJ com dígitos verificadores corretos? Documento inválido nem deve ir para a SEFAZ.
+function isValidCpfCnpj(raw: string | undefined | null): boolean {
+  const d = (raw ?? "").replace(/\D/g, "");
+  if (!/^\d+$/.test(d) || /^(\d)+$/.test(d)) return false;
+  const check = (digits: number[], weights: number[]) => {
+    const sum = digits.reduce((acc, n, i) => acc + n * weights[i], 0);
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  const nums = d.split("").map(Number);
+  if (d.length === 11) {
+    const d1 = check(nums.slice(0, 9), [10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    const d2 = check(nums.slice(0, 9).concat(d1), [11, 10, 9, 8, 7, 6, 5, 4, 3, 2]);
+    return nums[9] === d1 && nums[10] === d2;
+  }
+  if (d.length === 14) {
+    const d1 = check(nums.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+    const d2 = check(nums.slice(0, 12).concat(d1), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]);
+    return nums[12] === d1 && nums[13] === d2;
+  }
+  return false;
+}
+
+// Rejeição por causa do destinatário (ex.: cStat 181 "CNPJ do destinatário não cadastrado
+// na Receita Federal"): a base da SEFAZ às vezes não reconhece um CPF/CNPJ real e válido.
+// Na NFC-e o destinatário é opcional (só serve a programas como a Nota Fiscal Paulista),
+// então a venda não pode ficar sem nota por causa dele.
+function isDestinatarioRejection(xMotivo: string | null | undefined): boolean {
+  return !!xMotivo && /destinat[aá]rio/i.test(xMotivo);
+}
+
 export async function emitirNfce(orderId: number): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -83,7 +114,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
 
   // Retorna o xMotivo quando a SEFAZ rejeitou a nota (para o chamador decidir se vale
   // tentar de novo), ou null quando autorizou. Lança em falha de infraestrutura/conexão.
-  async function attemptEmission(forceNoGtin: boolean): Promise<string | null> {
+  async function attemptEmission(forceNoGtin: boolean, forceNoDest = false): Promise<string | null> {
     if (!tenant.nfce_cert_path || !tenant.nfce_cert_password) {
       throw new Error("Certificado digital A1 não configurado para esta loja (Configurações > Dados Fiscais).");
     }
@@ -111,6 +142,13 @@ export async function emitirNfce(orderId: number): Promise<void> {
       // nome/apelido cadastrado manualmente, que pode estar incompleto (ex.:
       // "UNIMED SEDE" em vez de "UNIMED DE TATUI COOPERATIVA DE TRABALHO MEDICO").
       customerName = customer?.legal_name || customer?.name || undefined;
+    }
+
+    // Documento inválido, ou reemissão depois de a SEFAZ recusar o destinatário: segue sem
+    // identificar o consumidor (NFC-e permite), em vez de travar a nota.
+    if (customerDocument && (forceNoDest || !isValidCpfCnpj(customerDocument))) {
+      console.warn(`[emitirNfce] emitindo sem destinatário — order=${orderId} motivo=${forceNoDest ? "rejeição da SEFAZ" : "documento inválido"}`);
+      customerDocument = undefined;
     }
 
     // Item avulso (vendido sem produto no catálogo, ver sales.controller.ts) não tem
@@ -339,10 +377,16 @@ export async function emitirNfce(orderId: number): Promise<void> {
   }
 
   try {
-    const xMotivo = await attemptEmission(false);
+    let xMotivo = await attemptEmission(false);
+    let noGtin = false;
     if (xMotivo && isGtinPrefixRejection(xMotivo)) {
       console.warn(`[emitirNfce] retry sem GTIN — tenant=${tenant.id} order=${orderId} motivo="${xMotivo}"`);
-      await attemptEmission(true);
+      noGtin = true;
+      xMotivo = await attemptEmission(true);
+    }
+    if (xMotivo && isDestinatarioRejection(xMotivo)) {
+      console.warn(`[emitirNfce] retry sem destinatário — tenant=${tenant.id} order=${orderId} motivo="${xMotivo}"`);
+      await attemptEmission(noGtin, true);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
