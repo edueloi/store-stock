@@ -38,6 +38,9 @@ function commonOf(c: any) {
     name: text(c.name, 160), email: text(c.email, 160).toLowerCase(), phone: phoneNat(c.phone), document: digits(c.document),
     street: text(c.address_street, 200), number: text(c.address_number, 20), district: text(c.address_district, 100), city: text(c.address_city, 100),
     state: text(c.address_state, 2).toUpperCase(), zip: digits(c.address_zip), notes: text(c.notes, 5000), active: c.status !== "inactive",
+    complement: text(c.address_complement, 100), company: text(c.trade_name || c.legal_name, 160), contactName: text(c.contact_name, 160),
+    stateRegistration: text(c.state_registration, 30), personType: c.person_type === "legal" ? "legal" : "physical",
+    birthDate: c.birth_date ? new Date(c.birth_date).toISOString().slice(0, 10) : "", website: text(c.website, 200),
   };
 }
 type Common = ReturnType<typeof commonOf>;
@@ -66,6 +69,10 @@ router.post("/customers", async (req, res) => {
       ["district", "address_district", (v) => text(v, 100) || null], ["city", "address_city", (v) => text(v, 100) || null],
       ["state", "address_state", (v) => text(v, 2).toUpperCase() || null], ["zip", "address_zip", (v) => digits(v) || null],
       ["notes", "notes", (v) => text(v, 5000) || null], ["active", "status", (v) => (v === false ? "inactive" : "active")],
+      ["complement", "address_complement", (v) => text(v, 100) || null], ["company", "trade_name", (v) => text(v, 160) || null],
+      ["contactName", "contact_name", (v) => text(v, 160) || null], ["stateRegistration", "state_registration", (v) => text(v, 30) || null],
+      ["personType", "person_type", (v) => (v === "legal" ? "legal" : "physical")], ["website", "website", (v) => text(v, 200) || null],
+      ["birthDate", "birth_date", (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v ?? "")) ? new Date(`${v}T12:00:00.000Z`) : null)],
     ];
     if (id) {
       const cur = await prisma.customer.findFirst({ where: { id, tenant_id: tenantId } });

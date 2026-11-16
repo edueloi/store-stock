@@ -9,6 +9,7 @@ import authRoutes from "./auth.routes";
 import categoriesRoutes from "./categories.routes";
 import customersRoutes from "./customers.routes";
 import internalSyncRoutes from "./internal-sync.routes";
+import { graficaSyncNotifier } from "../services/grafica-sync-notify";
 import financeRoutes from "./finance.routes";
 import ordersRoutes from "./orders.routes";
 import productsRoutes from "./products.routes";
@@ -64,6 +65,7 @@ export function registerRoutes(app: Express) {
   app.use("/api/external/affiliates", affiliatesExternalRoutes);
   app.use("/api/store-signup", storeSignupRoutes);
 
+  app.use("/api", graficaSyncNotifier); // avisa o grafica quando a loja ligada a ele muda
   app.use("/api/internal/sync", internalSyncRoutes); // grafica-system (token próprio, desligado sem SYNC_TOKEN)
   app.use("/api/public", publicRoutes);
   app.use("/api/auth", authRoutes);
