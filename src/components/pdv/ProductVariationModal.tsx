@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { Modal, ModalFooter } from "../ui/Modal";
 import { Button } from "../ui/Button";
-import { Badge } from "../ui/Badge";
+import VariationPicker from "./VariationPicker";
 import { cn } from "../../lib/utils";
 
 // Escolha de variação (tamanho, cor etc.) de um produto fora do PDV — orçamento, ordem de serviço,
@@ -71,38 +71,13 @@ export default function ProductVariationModal({ product, onClose, onConfirm, con
   })();
   const soldOut = selectedStock !== null && selectedStock <= 0;
 
-  const optionButton = (key: string, label: string, stock: number | null, isSelected: boolean, onPick: () => void) => {
-    const hasStock = stock === null || stock > 0;
-    return (
-      <button
-        key={key}
-        type="button"
-        disabled={!hasStock}
-        onClick={onPick}
-        className={cn(
-          "flex min-h-[44px] min-w-[64px] flex-col items-center justify-center rounded-lg border px-3 py-1.5 transition-colors",
-          !hasStock ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-50"
-            : isSelected ? "border-blue-600 bg-blue-50"
-              : "border-slate-200 bg-white hover:border-blue-300",
-        )}
-      >
-        <span className={cn("text-xs font-medium", !hasStock && "line-through", isSelected ? "text-blue-700" : "text-slate-700")}>{label}</span>
-        {stock !== null && (
-          <span className={cn("mt-0.5 text-[10px] font-medium", stock === 0 ? "text-red-500" : stock <= 3 ? "text-amber-600" : "text-slate-400")}>
-            {stock === 0 ? "esgotado" : `${stock} un`}
-          </span>
-        )}
-      </button>
-    );
-  };
-
   return (
     <Modal
       open={!!product}
       onClose={onClose}
       title={product?.name}
       subtitle={product ? `Selecionar variação · R$ ${price.toFixed(2)}` : undefined}
-      size="md"
+      size="sm"
       zIndex={600}
       footer={product ? (
         <ModalFooter>
@@ -114,49 +89,8 @@ export default function ProductVariationModal({ product, onClose, onConfirm, con
       ) : undefined}
     >
       {product && (
-        <div className="space-y-4">
-          {Array.isArray(product.attributes) && product.attributes.length > 0
-            ? product.attributes.map((attr, aIdx) => (
-              <div key={aIdx}>
-                <p className="mb-2 text-xs font-medium text-slate-600">{attr.name}</p>
-                <div className="flex flex-wrap gap-2">
-                  {attr.values.map((val, vIdx) => {
-                    const current = { ...selected, [attr.name]: val };
-                    const sku = product.skus?.find((s) => Object.entries(s.combo).every(([k, v]) => current[k] === v));
-                    return optionButton(`${aIdx}-${vIdx}`, val, sku ? sku.stock : null, selected[attr.name] === val, () => setSelected({ ...selected, [attr.name]: val }));
-                  })}
-                </div>
-              </div>
-            ))
-            : product.variations?.map((variation, vIdx) => (
-              <div key={vIdx}>
-                <p className="mb-2 text-xs font-medium text-slate-600">{variation.name}</p>
-                <div className="flex flex-wrap gap-2">
-                  {variation.options.map((opt, oIdx) =>
-                    optionButton(`${vIdx}-${oIdx}`, opt.value, opt.stock, selected[variation.name] === opt.value, () => setSelected({ ...selected, [variation.name]: opt.value })))}
-                </div>
-              </div>
-            ))}
-
-          {product.skus && product.skus.length > 0 && (
-            <div>
-              <p className="mb-2 text-xs font-medium text-slate-600">Estoque disponível</p>
-              <div className="overflow-hidden rounded-lg border border-slate-200">
-                {product.skus.map((sku, sIdx) => {
-                  const isCurrent = Object.entries(sku.combo).every(([k, v]) => selected[k] === v);
-                  return (
-                    <div key={sIdx} className={cn("flex items-center justify-between px-3 py-2", sIdx > 0 && "border-t border-slate-100", isCurrent ? "bg-blue-50" : "bg-white")}>
-                      <span className="text-[11px] font-medium text-slate-600">{Object.values(sku.combo).join(" · ")}</span>
-                      <Badge size="sm" color={sku.stock === 0 ? "danger" : sku.stock <= 3 ? "warning" : "success"}>
-                        {sku.stock === 0 ? "Esgotado" : `${sku.stock} un`}
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
+        <VariationPicker product={product} selected={selected}
+          onSelect={(name, value) => setSelected({ ...selected, [name]: value })} />
       )}
     </Modal>
   );

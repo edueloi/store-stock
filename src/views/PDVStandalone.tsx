@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, NfceInvoice } from "../types";
 import { cn } from "../lib/utils";
 import Combobox from "../components/ui/Combobox";
+import VariationPicker from "../components/pdv/VariationPicker";
 import { SERVICE_UNITS, getCategoryIcon, UNCATEGORIZED_SERVICE_CATEGORY } from "./Dashboard/Services";
 import {
   cacheSet, cacheGet, queueSale, getPendingSales,
@@ -2610,8 +2611,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
               return (
                 <Button variant="outline" size="lg" onClick={() => setShowCloseCashModal(true)}
                   title={old ? `Este caixa está aberto desde ${since}. Feche e abra um novo para hoje.` : "Fechar Caixa"}
-                  aria-label="Fechar Caixa" iconLeft={<Wallet size={11} />}
-                  className={cn("shrink-0 px-2.5", old
+                  aria-label="Fechar Caixa" iconLeft={<Wallet size={14} />}
+                  className={cn("h-9 shrink-0 px-2.5", old
                     ? "border-amber-400/50 bg-amber-500/15 text-amber-300 hover:border-amber-400 hover:bg-amber-500/25 hover:text-amber-200"
                     : "border-emerald-500/20 bg-emerald-500/10 text-emerald-400 hover:border-emerald-500/40 hover:bg-emerald-500/20 hover:text-emerald-300")}>
                   <span className={old ? "block" : "hidden xl:block"}>{old ? `Aberto desde ${since} — fechar` : "Fechar caixa"}</span>
@@ -2620,19 +2621,19 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             })()
           )}
           <Button variant="outline" size="lg" onClick={() => setShowCrediarioModal(true)} title="Crediário (F6)" aria-label="Crediário (F6)"
-            iconLeft={<Wallet size={11} />} className="shrink-0 px-2.5 border-amber-500/20 bg-amber-500/10 text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/20 hover:text-amber-300">
+            iconLeft={<Wallet size={14} className="text-amber-400" />} className="h-9 shrink-0 px-2.5 border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10 hover:text-white">
             <span className="hidden xl:block">Crediário</span>
           </Button>
           <Button variant="outline" size="lg" onClick={() => setShowCustomerLookup(true)} title="Consultar Cliente (F7)" aria-label="Consultar Cliente (F7)"
-            iconLeft={<User size={11} />} className="shrink-0 px-2.5 border-blue-500/20 bg-blue-500/10 text-blue-400 hover:border-blue-500/40 hover:bg-blue-500/20 hover:text-blue-300">
+            iconLeft={<User size={14} className="text-blue-400" />} className="h-9 shrink-0 px-2.5 border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10 hover:text-white">
             <span className="hidden xl:block">Cliente</span>
           </Button>
           <Button variant="outline" size="lg" onClick={() => setShowConsignmentLookup(true)} title="Consultar Consignado (F8)" aria-label="Consultar Consignado (F8)"
-            iconLeft={<ShoppingBag size={11} />} className="shrink-0 px-2.5 border-violet-500/20 bg-violet-500/10 text-violet-400 hover:border-violet-500/40 hover:bg-violet-500/20 hover:text-violet-300">
+            iconLeft={<ShoppingBag size={14} className="text-violet-400" />} className="h-9 shrink-0 px-2.5 border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10 hover:text-white">
             <span className="hidden xl:block">Consignado</span>
           </Button>
           <Button variant="outline" size="lg" onClick={() => setShowHeldSalesDrawer(true)} title="Vendas Abertas" aria-label="Vendas Abertas"
-            iconLeft={<Clock size={11} />} className="relative shrink-0 px-2.5 border-orange-500/20 bg-orange-500/10 text-orange-400 hover:border-orange-500/40 hover:bg-orange-500/20 hover:text-orange-300">
+            iconLeft={<Clock size={14} className="text-orange-400" />} className="relative h-9 shrink-0 px-2.5 border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10 hover:text-white">
             <span className="hidden xl:block">Abertas</span>
             {openHeldSalesCount > 0 && (
               <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold flex items-center justify-center leading-none">
@@ -2641,13 +2642,13 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
             )}
           </Button>
           <Button variant="outline" size="lg" onClick={() => setShowSaleHistoryDrawer(true)} title="Histórico de Vendas — buscar e reimprimir cupom" aria-label="Histórico de Vendas"
-            iconLeft={<Printer size={11} />} className="shrink-0 px-2.5 border-sky-500/20 bg-sky-500/10 text-sky-400 hover:border-sky-500/40 hover:bg-sky-500/20 hover:text-sky-300">
+            iconLeft={<Printer size={14} className="text-sky-400" />} className="h-9 shrink-0 px-2.5 border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10 hover:text-white">
             <span className="hidden xl:block">Reimprimir</span>
           </Button>
           {/* Fullscreen toggle */}
           <Button variant="outline" size="lg" onClick={toggleFullscreen} title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"} aria-label={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
-            iconLeft={isFullscreen ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
-            className="hidden xl:inline-flex shrink-0 px-2.5 border-white/10 bg-white/5 text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white">
+            iconLeft={isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            className="hidden xl:inline-flex h-9 shrink-0 px-2.5 border-white/10 bg-white/5 text-slate-200 hover:border-white/20 hover:bg-white/10 hover:text-white">
             {isFullscreen ? "Sair" : "Tela Cheia"}
           </Button>
 
@@ -3182,7 +3183,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
         onClose={() => setConfigProduct(null)}
         title={configProduct?.name}
         subtitle={configProduct ? `Selecionar variação · R$ ${Number(configProduct.discount_price || configProduct.price).toFixed(2)}` : undefined}
-        size="md"
+        size="sm"
         footer={configProduct ? (
           <ModalFooter>
             <Button variant="outline" size="lg" onClick={() => setConfigProduct(null)}>Cancelar <span className="ml-1.5 hidden rounded border border-slate-200 px-1 text-[10px] font-medium text-slate-400 sm:inline">Esc</span></Button>
@@ -3193,103 +3194,8 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
         ) : undefined}
       >
         {configProduct && (
-          <div className="space-y-4">
-            {Array.isArray(configProduct.attributes) && configProduct.attributes.length > 0
-              ? configProduct.attributes.map((attr, aIdx) => (
-                  <div key={aIdx}>
-                    <p className="mb-2 text-xs font-medium text-slate-600">{attr.name}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {attr.values.map((val, vIdx) => {
-                        const currentOptions = { ...selectedOptions, [attr.name]: val };
-                        const sku = configProduct.skus?.find((s) =>
-                          Object.entries(s.combo).every(([k, v]) => currentOptions[k] === v));
-                        const stockQty = sku ? sku.stock : null;
-                        const hasStock = stockQty === null || stockQty > 0;
-                        const isSelected = selectedOptions[attr.name] === val;
-                        return (
-                          <button key={vIdx} type="button" disabled={!hasStock}
-                            onClick={() => setSelectedOptions({ ...selectedOptions, [attr.name]: val })}
-                            className={cn("flex min-h-[44px] min-w-[64px] flex-col items-center justify-center rounded-lg border px-3 py-1.5 transition-colors",
-                              !hasStock ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-50"
-                                : isSelected ? "border-blue-600 bg-blue-50"
-                                : "border-slate-200 bg-white hover:border-blue-300"
-                            )}>
-                            <span className={cn("text-xs font-medium", !hasStock && "line-through",
-                              isSelected ? "text-blue-700" : "text-slate-700")}>
-                              {val}
-                            </span>
-                            {stockQty !== null && (
-                              <span className={cn("mt-0.5 text-[10px] font-medium",
-                                stockQty === 0 ? "text-red-500"
-                                : stockQty <= 3 ? "text-amber-600"
-                                : "text-slate-400")}>
-                                {stockQty === 0 ? "esgotado" : `${stockQty} un`}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))
-              : configProduct.variations?.map((variation, vIdx) => (
-                  <div key={vIdx}>
-                    <p className="mb-2 text-xs font-medium text-slate-600">{variation.name}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {variation.options.map((opt, oIdx) => {
-                        const isSelected = selectedOptions[variation.name] === opt.value;
-                        return (
-                          <button key={oIdx} type="button" disabled={opt.stock === 0}
-                            onClick={() => setSelectedOptions({ ...selectedOptions, [variation.name]: opt.value })}
-                            className={cn("flex min-h-[44px] min-w-[64px] flex-col items-center justify-center rounded-lg border px-3 py-1.5 transition-colors",
-                              opt.stock === 0 ? "cursor-not-allowed border-slate-200 bg-slate-50 opacity-50"
-                                : isSelected ? "border-blue-600 bg-blue-50"
-                                : "border-slate-200 bg-white hover:border-blue-300"
-                            )}>
-                            <span className={cn("text-xs font-medium", opt.stock === 0 && "line-through",
-                              isSelected ? "text-blue-700" : "text-slate-700")}>
-                              {opt.value}
-                            </span>
-                            <span className={cn("mt-0.5 text-[10px] font-medium",
-                              opt.stock === 0 ? "text-red-500"
-                              : opt.stock <= 3 ? "text-amber-600"
-                              : "text-slate-400")}>
-                              {opt.stock === 0 ? "esgotado" : `${opt.stock} un`}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-
-            {/* Tabela resumo de estoque por combinação */}
-            {configProduct.skus && configProduct.skus.length > 0 && (
-              <div>
-                <p className="mb-2 text-xs font-medium text-slate-600">Estoque disponível</p>
-                <div className="overflow-hidden rounded-lg border border-slate-200">
-                  {configProduct.skus.map((sku, sIdx) => {
-                    const label = Object.values(sku.combo).join(" · ");
-                    const isCurrentSelection = Object.entries(sku.combo).every(([k, v]) => selectedOptions[k] === v);
-                    return (
-                      <div key={sIdx}
-                        className={cn("flex items-center justify-between px-3 py-2",
-                          sIdx > 0 && "border-t border-slate-100",
-                          isCurrentSelection ? "bg-blue-50" : "bg-white")}>
-                        <div className="flex items-center gap-2">
-                          {isCurrentSelection && <div className="h-4 w-1 rounded-full bg-blue-500" />}
-                          <span className="text-[11px] font-medium text-slate-600">{label}</span>
-                        </div>
-                        <Badge size="sm" color={sku.stock === 0 ? "danger" : sku.stock <= 3 ? "warning" : "success"}>
-                          {sku.stock === 0 ? "Esgotado" : `${sku.stock} un`}
-                        </Badge>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+          <VariationPicker product={configProduct} selected={selectedOptions}
+            onSelect={(name, value) => setSelectedOptions({ ...selectedOptions, [name]: value })} />
         )}
       </Modal>
 

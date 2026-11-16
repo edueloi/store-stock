@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { STANDARD_COLORS, colorHex, colorKey, isColorAttribute, normalizeColorName } from "../../lib/colorNames";
 import {
   Plus, Image as ImageIcon, Save, X, Upload, Zap, Camera, ChevronLeft, ChevronRight, GripVertical,
   Tag, Boxes, FileText, Fingerprint, FolderTree, DollarSign, Receipt, Palette, ArrowLeft,
@@ -375,13 +376,17 @@ export default function ProductForm({
 
   // Add a value to an attribute (creates attr if new), then regenerate combos preserving existing stocks
   const addAttrValue = (attrName: string, value: string) => {
-    const trimmedAttr = attrName.trim();
+    const isColor = isColorAttribute(attrName);
+    // atributo de cor sempre se chama "Cor"; o valor é padronizado (acento/maiúscula) para não ter "preto", "PRETO", "Pretoo"
+    const trimmedAttr = isColor ? "Cor" : attrName.trim();
     // vários valores de uma vez: "Azul, Marrom, Preto" (vírgula, ponto e vírgula ou quebra de linha)
-    const incoming = value.split(/[,;\n]+/).map(v => v.trim()).filter(Boolean);
+    const incoming = value.split(/[,;\n]+/).map(v => v.trim()).filter(Boolean).map(v => isColor ? normalizeColorName(v) : v);
     if (!trimmedAttr || incoming.length === 0) return;
 
     const attrs = [...(editingProduct?.attributes || [])];
-    const idx = attrs.findIndex(a => a.name.toLowerCase() === trimmedAttr.toLowerCase());
+    const idx = isColor
+      ? attrs.findIndex(a => isColorAttribute(a.name))
+      : attrs.findIndex(a => a.name.toLowerCase() === trimmedAttr.toLowerCase());
     const current = idx >= 0 ? attrs[idx].values : [];
     const fresh: string[] = [];
     for (const v of incoming) {
@@ -389,8 +394,14 @@ export default function ProductForm({
       fresh.push(v);
     }
     if (fresh.length === 0) return;
-    if (idx >= 0) attrs[idx] = { ...attrs[idx], values: [...current, ...fresh] };
-    else attrs.push({ name: trimmedAttr, values: fresh });
+    // bolinha de cor já com o código certo para as cores conhecidas
+    const withHex = (existing: Record<string, string> | undefined) => {
+      const colors = { ...(existing || {}) };
+      fresh.forEach(v => { const hex = colorHex(v); if (hex && !colors[v]) colors[v] = hex; });
+      return colors;
+    };
+    if (idx >= 0) attrs[idx] = { ...attrs[idx], values: [...current, ...fresh], ...(isColor ? { colors: withHex(attrs[idx].colors) } : {}) };
+    else attrs.push({ name: trimmedAttr, values: fresh, ...(isColor ? { colors: withHex(undefined) } : {}) });
 
     const oldSkus = editingProduct?.skus || [];
     const oldMap = Object.fromEntries(oldSkus.map(s => [comboKey(s.combo), s]));
@@ -923,17 +934,18 @@ export default function ProductForm({
                         </div>
                         {/* detect if this is a color attribute */}
                         {(() => {
-                          const isColorAttr = /^cor$/i.test(attr.name.trim()) || /^colou?r$/i.test(attr.name.trim());
+                          const isColorAttr = isColorAttribute(attr.name);
                           return (
+                            <>
                             <div className="flex flex-wrap items-center gap-1.5">
                               {attr.values.map((val, valIdx) => (
                                 <span key={valIdx} className={`inline-flex items-center gap-1.5 border text-[11px] font-medium px-2 py-1 rounded-lg ${isColorAttr ? "bg-white border-slate-200" : "bg-blue-50 border-blue-200 text-blue-700"}`}>
                                   {isColorAttr && (
                                     <label className="relative w-5 h-5 rounded-full overflow-hidden cursor-pointer border border-slate-300 shrink-0" title="Clique para definir a cor">
-                                      <span className="absolute inset-0 rounded-full" style={{ backgroundColor: attr.colors?.[val] || "#cccccc" }} />
+                                      <span className="absolute inset-0 rounded-full" style={{ backgroundColor: attr.colors?.[val] || colorHex(val) || "#cccccc" }} />
                                       <input
                                         type="color"
-                                        value={attr.colors?.[val] || "#cccccc"}
+                                        value={attr.colors?.[val] || colorHex(val) || "#cccccc"}
                                         onChange={e => updateAttrColor(attrIdx, val, e.target.value)}
                                         className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                                       />
@@ -948,10 +960,25 @@ export default function ProductForm({
                                 </span>
                               ))}
                               {/* inline add value to existing attr */}
-                              <Input size="sm" wrapperClassName="w-36" type="text" placeholder="+ valor (Enter ou vírgula)"
+                              <Input size="sm" wrapperClassName="w-36" type="text" placeholder={isColorAttr ? "+ outra cor" : "+ valor (Enter ou vírgula)"}
                                 onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); const inp = e.currentTarget; addAttrValue(attr.name, inp.value); inp.value = ""; } }}
                                 onBlur={e => { const inp = e.currentTarget; if (inp.value.trim()) { addAttrValue(attr.name, inp.value); inp.value = ""; } }} />
                             </div>
+                            {isColorAttr && (
+                              <div className="mt-2">
+                                <p className="mb-1 text-[11px] font-medium text-slate-500">Escolha a cor pelo nome — já entra com a grafia e a cor certas</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {STANDARD_COLORS.filter(c => !attr.values.some(v => colorKey(v) === colorKey(c.name))).map(c => (
+                                    <button key={c.name} type="button" onClick={() => addAttrValue(attr.name, c.name)}
+                                      className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50">
+                                      <span className="h-3 w-3 rounded-full border border-black/15" style={{ background: c.hex }} />
+                                      {c.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            </>
                           );
                         })()}
                       </motion.div>
@@ -973,6 +1000,18 @@ export default function ProductForm({
                         <Plus size={15} strokeWidth={3} />
                       </IconButton>
                     </div>
+                    {isColorAttribute(newAttrName) && (
+                      <div className="flex flex-wrap gap-1">
+                        {STANDARD_COLORS.map(c => (
+                          <button key={c.name} type="button"
+                            onClick={() => setNewAttrValue(v => (v.trim() ? `${v.trim().replace(/,$/, "")}, ${c.name}` : c.name))}
+                            className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-600 hover:border-blue-300 hover:bg-blue-50">
+                            <span className="h-3 w-3 rounded-full border border-black/15" style={{ background: c.hex }} />
+                            {c.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <p className="text-[11px] text-slate-400">Separe vários valores com vírgula (Azul, Marrom, Preto) — cada um vira uma opção. Para somar mais valores depois, use o campo "+ valor" acima.</p>
                   </div>
 
