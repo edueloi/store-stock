@@ -1,0 +1,24 @@
+{
+  "appId": "br.com.boxsys.store",
+  "appName": "Store BoxSys",
+  "webDir": "www",
+  "backgroundColor": "#09161f",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "store.boxsys.com.br",
+      "*.boxsys.com.br"
+    ],
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#09161f",
+      "showSpinner": false
+    }
+  }
+}

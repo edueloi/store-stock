@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#09161f" />
+<title>Store BoxSys</title>
+<style>
+  :root { --bg:#09161f; --card:#10222e; --line:#1f3a4b; --text:#f1f5f9; --muted:#94a3b8; --brand:#2563eb; --brand2:#1d4ed8; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { display:flex; flex-direction:column; justify-content:center; align-items:center; padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); }
+  .wrap { width:100%; max-width:380px; text-align:center; }
+  .logo { width:104px; height:104px; border-radius:24px; margin:0 auto 20px; display:block; box-shadow:0 10px 30px rgba(0,0,0,.35); }
+  h1 { font-size:26px; margin:0 0 6px; letter-spacing:-.02em; }
+  p.sub { margin:0 0 32px; color:var(--muted); font-size:15px; line-height:1.45; }
+  .btn { display:flex; align-items:center; justify-content:center; width:100%; height:52px; border-radius:14px; border:0; font-size:16px; font-weight:600; cursor:pointer; text-decoration:none; }
+  .btn-primary { background:var(--brand); color:#fff; }
+  .btn-primary:active { background:var(--brand2); }
+  .btn-ghost { margin-top:12px; background:transparent; color:var(--text); border:1px solid var(--line); }
+  .btn-ghost:active { background:var(--card); }
+  .hint { margin-top:28px; font-size:12.5px; color:var(--muted); line-height:1.5; }
+  .loading { display:none; }
+  .loading.on { display:block; color:var(--muted); font-size:14px; }
+  .actions.off { display:none; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <img class="logo" src="logo.png" alt="Store BoxSys" />
+    <h1>Store BoxSys</h1>
+    <p class="sub">Gestão, vendas e PDV na palma da mão.</p>
+
+    <div class="actions" id="actions">
+      <button class="btn btn-primary" id="enter">Entrar</button>
+      <button class="btn btn-ghost" id="signup">Criar minha conta</button>
+      <p class="hint">Já é cliente? Toque em <b>Entrar</b> e use seu e-mail e senha.<br/>Ainda não tem conta? Toque em <b>Criar minha conta</b>.</p>
+    </div>
+    <div class="loading" id="loading">Abrindo o sistema…</div>
+  </div>
+
+<script>
+  var APP_URL = "https://store.boxsys.com.br/";
+  var SIGNUP_URL = "https://boxsys.com.br/store";
+  var KEY = "boxsys_store_seen_v1";
+
+  function openApp() {
+    document.getElementById("actions").classList.add("off");
+    document.getElementById("loading").classList.add("on");
+    window.location.href = APP_URL;
+  }
+
+  function openSignup() {
+    var B = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Browser;
+    if (B && B.open) { B.open({ url: SIGNUP_URL }); }
+    else { window.location.href = SIGNUP_URL; }
+  }
+
+  document.getElementById("enter").addEventListener("click", function () {
+    try { localStorage.setItem(KEY, "1"); } catch (e) {}
+    openApp();
+  });
+  document.getElementById("signup").addEventListener("click", openSignup);
+
+  // Quem já entrou uma vez vai direto para o sistema (a sessão fica salva no próprio site).
+  // Para voltar a esta tela: ?welcome=1
+  try {
+    if (localStorage.getItem(KEY) === "1" && location.search.indexOf("welcome=1") < 0) openApp();
+  } catch (e) {}
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "store-boxsys-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Store BoxSys - app Android (Capacitor)",
+  "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/assets": "^4.0.0",
+    "@capacitor/browser": "^8.0.5",
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4"
+  }
+}
