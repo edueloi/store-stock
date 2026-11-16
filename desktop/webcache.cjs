@@ -20,23 +20,57 @@ function install(session, getServer, userDataDir) {
 
   const fileFor = (key) => path.join(dir, crypto.createHash("sha1").update(key).digest("hex"));
 
-  function readCached(key) {
+  // Todo acesso a disco aqui é ASSÍNCRONO: este código roda no processo principal do
+  // Electron e cada leitura/escrita síncrona congelava o app inteiro ("não está
+  // respondendo") — principalmente com centenas de fotos de produto passando pelo proxy.
+  const fsp = fs.promises;
+
+  async function readCached(key) {
     try {
-      const meta = JSON.parse(fs.readFileSync(`${fileFor(key)}.json`, "utf-8"));
-      const body = fs.readFileSync(`${fileFor(key)}.bin`);
-      return { meta, body };
+      const [metaText, body] = await Promise.all([
+        fsp.readFile(`${fileFor(key)}.json`, "utf-8"),
+        fsp.readFile(`${fileFor(key)}.bin`),
+      ]);
+      return { meta: JSON.parse(metaText), body };
     } catch {
       return null;
     }
   }
 
-  function writeCached(key, contentType, body) {
+  async function writeCached(key, contentType, body) {
     if (body.length > MAX_CACHED_BYTES) return;
     try {
-      fs.writeFileSync(`${fileFor(key)}.bin`, body);
-      fs.writeFileSync(`${fileFor(key)}.json`, JSON.stringify({ contentType }));
+      await fsp.writeFile(`${fileFor(key)}.bin`, body);
+      await fsp.writeFile(`${fileFor(key)}.json`, JSON.stringify({ contentType }));
     } catch {
       // disco cheio/sem permissão: segue sem cache, não afeta o uso online
+    }
+  }
+
+  // Só o que o app precisa para abrir offline entra no cache: a página, o JS/CSS do
+  // sistema e os ícones. Fotos de produto (/uploads) e demais arquivos de cliente NÃO são
+  // guardados — eram milhares de arquivos, escritos a cada abertura, sem limite.
+  const isCacheable = (pathname, isHtml) =>
+    isHtml || pathname.startsWith("/assets/") || pathname.startsWith("/system/") ||
+    /^\/(favicon\.[a-z]+|app-manifest\.json|pdv-manifest\.json|manifest\.webmanifest)$/.test(pathname);
+
+  // Limpeza única, em segundo plano e sem pressa, do que versões antigas gravaram
+  // (imagens de produto): devolve disco e deixa a pasta pequena.
+  async function pruneLegacyImages() {
+    try {
+      const files = (await fsp.readdir(dir)).filter((f) => f.endsWith(".json"));
+      let removed = 0;
+      for (const file of files) {
+        let meta;
+        try { meta = JSON.parse(await fsp.readFile(path.join(dir, file), "utf-8")); } catch { continue; }
+        if (!/^image\//.test(meta.contentType || "")) continue;
+        const base = path.join(dir, file.slice(0, -5));
+        await fsp.rm(`${base}.json`, { force: true });
+        await fsp.rm(`${base}.bin`, { force: true });
+        if (++removed % 25 === 0) await new Promise((r) => setTimeout(r, 20)); // respira entre lotes
+      }
+    } catch {
+      // melhor esforço
     }
   }
 
@@ -53,26 +87,26 @@ function install(session, getServer, userDataDir) {
     const seen = new Set();
     for (let round = 0; round < 4; round++) {
       const wanted = new Set();
-      for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".json"))) {
+      for (const file of (await fsp.readdir(dir)).filter((f) => f.endsWith(".json"))) {
         const base = path.join(dir, file.slice(0, -5));
         let meta;
-        try { meta = JSON.parse(fs.readFileSync(path.join(dir, file), "utf-8")); } catch { continue; }
+        try { meta = JSON.parse(await fsp.readFile(path.join(dir, file), "utf-8")); } catch { continue; }
         if (!/javascript|css/.test(meta.contentType || "")) continue;
         let text;
-        try { text = fs.readFileSync(`${base}.bin`, "utf-8"); } catch { continue; }
+        try { text = await fsp.readFile(`${base}.bin`, "utf-8"); } catch { continue; }
         for (const m of text.matchAll(/(?:assets\/|\.\/)([\w.-]+\.(?:js|css))/g)) wanted.add(m[1]);
       }
       let fetched = 0;
       for (const name of wanted) {
         const key = `/assets/${name}`;
-        if (seen.has(key) || readCached(key)) continue;
+        if (seen.has(key) || (await readCached(key))) continue;
         seen.add(key);
         try {
           const res = await net.fetch(`https://${server}${key}`, { bypassCustomProtocolHandlers: true });
           const type = res.headers.get("content-type") || "";
           // O SPA responde HTML para arquivo inexistente: só guarda se for JS/CSS de verdade.
           if (res.status === 200 && /javascript|css/.test(type)) {
-            writeCached(key, type || TYPES[name.split(".").pop()], Buffer.from(await res.arrayBuffer()));
+            await writeCached(key, type || TYPES[name.split(".").pop()], Buffer.from(await res.arrayBuffer()));
             fetched++;
           }
         } catch {
@@ -94,8 +128,10 @@ function install(session, getServer, userDataDir) {
 
       const accept = request.headers.get("accept") || "";
       const isHtml = request.mode === "navigate" || accept.includes("text/html");
+      // Fora da lista offline (ex.: fotos de produto) vai direto à rede, sem tocar no disco.
+      if (!isCacheable(url.pathname, isHtml)) return passthrough();
       const key = isHtml ? INDEX_KEY : url.pathname + url.search;
-      const cached = readCached(key);
+      const cached = await readCached(key);
 
       // Arquivos com hash no nome nunca mudam: cache primeiro (abre instantâneo e offline).
       if (cached && url.pathname.startsWith("/assets/")) return serveCached(cached);
@@ -124,6 +160,9 @@ function install(session, getServer, userDataDir) {
       return new Response(String(err?.message || err), { status: 504 });
     }
   });
+
+  // Limpa o legado depois que o app já abriu, sem competir com a inicialização.
+  setTimeout(() => { void pruneLegacyImages(); }, 45000);
 
   return { prefetchAssets };
 }
