@@ -2,7 +2,7 @@
 import { clientsClaim } from "workbox-core";
 import { precacheAndRoute } from "workbox-precaching";
 import { registerRoute, NavigationRoute } from "workbox-routing";
-import { NetworkFirst } from "workbox-strategies";
+import { NetworkFirst, StaleWhileRevalidate } from "workbox-strategies";
 import { ExpirationPlugin } from "workbox-expiration";
 
 declare const self: ServiceWorkerGlobalScope;
@@ -43,6 +43,19 @@ registerRoute(
     cacheName: "pdv-products",
     networkTimeoutSeconds: 5,
     plugins: [new ExpirationPlugin({ maxEntries: 500, maxAgeSeconds: 300 })],
+  })
+);
+
+// Imagens enviadas pelos clientes: nunca pré-baixadas. Entram no cache só
+// quando o usuário realmente as vê, com limite de quantidade e validade, então
+// o tamanho do catálogo de um cliente não afeta a instalação do app.
+registerRoute(
+  ({ url }) => url.pathname.startsWith("/uploads/"),
+  new StaleWhileRevalidate({
+    cacheName: "tenant-uploads",
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 300, maxAgeSeconds: 7 * 24 * 60 * 60, purgeOnQuotaError: true }),
+    ],
   })
 );
 
