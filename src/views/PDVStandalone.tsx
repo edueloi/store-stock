@@ -2991,7 +2991,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                     (Array.isArray(product.variations) && product.variations.length > 0);
                   return (
-                    <motion.button layout key={product.id}
+                    <motion.button key={product.id}
                       onClick={() => addToCart(product)}
                       whileTap={{ scale: 0.98 }}
                       className={cn(
@@ -3060,7 +3060,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
                   const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                     (Array.isArray(product.variations) && product.variations.length > 0);
                   return (
-                    <motion.button layout key={product.id}
+                    <motion.button key={product.id}
                       onClick={() => addToCart(product)}
                       whileTap={{ scale: 0.97 }}
                       className={cn(

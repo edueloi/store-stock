@@ -2341,7 +2341,7 @@ export default function PDV() {
                     const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0);
                     return (
-                      <motion.button layout key={product.id}
+                      <motion.button key={product.id}
                         onClick={() => !atLimit && addToCart(product)}
                         whileTap={atLimit ? {} : { scale: 0.98 }}
                         className={cn(
@@ -2413,7 +2413,7 @@ export default function PDV() {
                     const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0);
                     return (
-                      <motion.button layout key={product.id}
+                      <motion.button key={product.id}
                         onClick={() => !atLimit && addToCart(product)}
                         whileTap={atLimit ? {} : { scale: 0.97 }}
                         className={cn(
