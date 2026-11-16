@@ -1,3 +1,4 @@
+import { issuerForNew } from "../utils/issuers";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -51,6 +52,8 @@ interface SaleItemInput {
 interface ServiceItemInput { id: number; name: string; price: number; dimensionsLabel?: string | null }
 
 interface FinalizeSaleParams {
+  /** CNPJ da venda (visão escolhida no topo); vazio conta como o CNPJ padrão */
+  issuerId?: number | null;
   tenantId: number;
   items: SaleItemInput[];
   services?: ServiceItemInput[];
@@ -317,7 +320,7 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
     console.log("[createSale] creating order, grossAmount:", grossAmount, "netAmount:", netAmount, "fee:", roundedFee);
     const order = await prisma.order.create({
       data: {
-        tenant_id:       tenantId,
+        tenant_id:       tenantId, issuer_id: params.issuerId ?? null,
         seller_id:       sellerId ?? null,
         seller_name:     sellerName,
         customer_name:   resolvedCustomerName,
@@ -464,7 +467,7 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
     if (nonCrediarioNet > 0.009) {
       await prisma.finance.create({
         data: {
-          tenant_id:       tenantId,
+          tenant_id:       tenantId, issuer_id: params.issuerId ?? null,
           type:            "income",
           description:     descriptionPrefix
             ? `${descriptionPrefix} #${order.id} — ${methodSummary}${discountNote}${surchargeNote}${feeNote}`
@@ -596,6 +599,7 @@ export async function createSale(req: Request, res: Response) {
     console.log("[createSale] tenant:", tenantId, "items:", JSON.stringify(items), "pm:", paymentMethod);
 
     const result = await finalizeSaleOrder({
+      issuerId: await issuerForNew(req, tenantId),
       tenantId, items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod,
       discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
       soldAtDate, decrementStock: true,

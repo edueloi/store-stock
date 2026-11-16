@@ -1,3 +1,5 @@
+import { issuerClause } from "../utils/issuers";
+import { issuerForNew } from "../utils/issuers";
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
@@ -12,7 +14,7 @@ export async function listAccountsReceivable(req: Request, res: Response) {
   try {
     await backfillRecurring("receivable", getTenantId(req)).catch((error) => console.error("backfillRecurring receivable:", error));
     const items = await prisma.accountReceivable.findMany({
-      where: { tenant_id: getTenantId(req) },
+      where: { tenant_id: getTenantId(req), AND: (await issuerClause(req, getTenantId(req))) as any },
       include: { series: true },
       orderBy: { due_date: "asc" },
     });
@@ -170,7 +172,7 @@ export async function importAccountsReceivable(req: Request, res: Response) {
 
       await prisma.accountReceivable.create({
         data: {
-          tenant_id: tenantId,
+          tenant_id: tenantId, issuer_id: await issuerForNew(req, tenantId),
           description,
           amount,
           due_date: new Date(`${dueDateStr}T12:00:00`),

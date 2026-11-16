@@ -52,8 +52,9 @@ export async function listIssuers(req: Request, res: Response) {
 export async function issuersSummary(req: Request, res: Response) {
   try {
     if (!isAdmin(req)) { res.json({ issuers: [] }); return; }
-    const rows = await prisma.tenantIssuer.findMany({ where: { tenant_id: tenantOf(req) }, orderBy: { id: "asc" }, select: { id: true, label: true, is_active: true } });
-    res.json({ issuers: rows.map((r) => ({ id: r.id, label: r.label, isActive: r.is_active })) });
+    const tenant = await prisma.tenant.findUnique({ where: { id: tenantOf(req) }, select: { document: true } });
+    const rows = await prisma.tenantIssuer.findMany({ where: { tenant_id: tenantOf(req) }, orderBy: { id: "asc" }, select: { id: true, label: true, is_active: true, document: true, snapshot: true } });
+    res.json({ issuers: rows.map((r) => ({ id: r.id, label: r.label, isActive: r.is_active, document: String((r.is_active ? tenant?.document : (r.snapshot as any)?.document) ?? r.document ?? "") })) });
   } catch (e) { console.error("issuersSummary:", e); res.json({ issuers: [] }); }
 }
 

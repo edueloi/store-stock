@@ -1,3 +1,5 @@
+import { issuerClause } from "../utils/issuers";
+import { issuerForNew } from "../utils/issuers";
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
@@ -36,7 +38,7 @@ export async function listAccountsPayable(req: Request, res: Response) {
   try {
     await backfillRecurring("payable", getTenantId(req)).catch((error) => console.error("backfillRecurring payable:", error));
     const items = await prisma.accountPayable.findMany({
-      where: { tenant_id: getTenantId(req) },
+      where: { tenant_id: getTenantId(req), AND: (await issuerClause(req, getTenantId(req))) as any },
       include: { series: true },
       orderBy: { due_date: "asc" },
     });
@@ -82,7 +84,7 @@ export async function importAccountsPayable(req: Request, res: Response) {
 
       await prisma.accountPayable.create({
         data: {
-          tenant_id: tenantId,
+          tenant_id: tenantId, issuer_id: await issuerForNew(req, tenantId),
           description,
           amount,
           due_date: new Date(`${dueDateStr}T12:00:00`),

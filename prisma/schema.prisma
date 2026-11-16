@@ -683,6 +683,8 @@ model Order {
 
   @@index([cash_session_id])
   @@index([tenant_id, sales_channel, created_at])
+  issuer_id Int? // CNPJ (TenantIssuer) a que o registro pertence — vazio conta como o CNPJ padrão
+  @@index([issuer_id])
   @@map("orders")
 }
 
@@ -741,6 +743,8 @@ model CashSession {
 
   @@index([tenant_id, status])
   @@index([opened_by_id])
+  issuer_id Int? // CNPJ (TenantIssuer) a que o registro pertence — vazio conta como o CNPJ padrão
+  @@index([issuer_id])
   @@map("cash_sessions")
 }
 
@@ -1004,9 +1008,6 @@ model Seller {
   // Comissão sobre SERVIÇOS das O.S. concluídas: "percent" (% do serviço) ou "fixed" (R$ por O.S.)
   service_commission_type  String  @default("percent")
   service_commission_value Decimal @default(0) @db.Decimal(10, 2)
-  // Comissão sobre SERVIÇOS das O.S. faturadas: "percent" (% do valor do serviço) ou "fixed" (R$ por O.S.)
-  service_commission_type  String  @default("percent")
-  service_commission_value Decimal @default(0) @db.Decimal(10, 2)
   is_active       Boolean  @default(true)
   notes           String?  @db.Text
   // Login do sistema vinculado a este vendedor — quando esse usuário loga e
@@ -1038,8 +1039,6 @@ model Technician {
   document   String?
   is_active  Boolean  @default(true)
   notes      String?  @db.Text
-  service_commission_type  String  @default("percent")
-  service_commission_value Decimal @default(0) @db.Decimal(10, 2)
   service_commission_type  String  @default("percent")
   service_commission_value Decimal @default(0) @db.Decimal(10, 2)
   // Mesmo vínculo de login que Seller.user_id — ver comentário acima.
@@ -1120,6 +1119,8 @@ model Finance {
 
   tenant Tenant @relation(fields: [tenant_id], references: [id])
 
+  issuer_id Int? // CNPJ (TenantIssuer) a que o registro pertence — vazio conta como o CNPJ padrão
+  @@index([issuer_id])
   @@map("finance")
 }
 
@@ -1173,6 +1174,8 @@ model AccountReceivable {
   @@index([series_id])
   @@index([service_order_id])
   @@index([order_id])
+  issuer_id Int? // CNPJ (TenantIssuer) a que o registro pertence — vazio conta como o CNPJ padrão
+  @@index([issuer_id])
   @@map("accounts_receivable")
 }
 
@@ -1210,6 +1213,8 @@ model AccountPayable {
 
   @@unique([series_id, installment_number])
   @@index([series_id])
+  issuer_id Int? // CNPJ (TenantIssuer) a que o registro pertence — vazio conta como o CNPJ padrão
+  @@index([issuer_id])
   @@map("accounts_payable")
 }
 
@@ -1633,6 +1638,8 @@ model ServiceOrder {
   @@unique([tenant_id, number])
   @@index([tenant_id])
   @@index([tenant_id, status])
+  issuer_id Int? // CNPJ (TenantIssuer) a que o registro pertence — vazio conta como o CNPJ padrão
+  @@index([issuer_id])
   @@map("service_orders")
 }
 

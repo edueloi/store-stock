@@ -1,3 +1,4 @@
+import { issuerForNew } from "../utils/issuers";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -313,7 +314,7 @@ export async function createServiceOrder(req: Request, res: Response) {
 
     const order = await prisma.serviceOrder.create({
       data: {
-        tenant_id: tenantId,
+        tenant_id: tenantId, issuer_id: await issuerForNew(req, tenantId),
         number: nextNumber,
         status: "rascunho",
         customer_id: customer_id || null,
@@ -1436,7 +1437,7 @@ export async function createServiceOrderReceivable(req: Request, res: Response) 
 
     const receivable = await prisma.accountReceivable.create({
       data: {
-        tenant_id: tenantId,
+        tenant_id: tenantId, issuer_id: await issuerForNew(req, tenantId),
         description: `Serviço OS #${String(order.number).padStart(4, "0")} — ${order.customer_name}`,
         amount: order.total_amount,
         due_date: new Date(`${due_date}T12:00:00`),

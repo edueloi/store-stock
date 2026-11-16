@@ -1,5 +1,5 @@
 import fs from "fs";
-import { activeIssuerId, issuerFilter } from "../utils/issuers";
+import { activeIssuerId, issuerFilter, issuerForNote, fiscalTenant, bumpNextNumber } from "../utils/issuers";
 import path from "path";
 import archiver from "archiver";
 import type { Request, Response } from "express";
@@ -166,19 +166,23 @@ export async function emitNfceForOrder(req: Request, res: Response) {
     if (invoice?.status === "authorized") { res.status(409).json({ error: "NFC-e já autorizada" }); return; }
 
     if (!invoice) {
-      const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { nfce_environment: true, nfce_series: true, nfce_next_number: true },
-      });
+      const issuerPick = await issuerForNote(req, tenantId); // várias empresas: pergunta de qual CNPJ emitir
+      if (issuerPick.needChoice) { res.status(409).json({ error: "Escolha de qual CNPJ emitir a nota.", needIssuer: true, issuers: issuerPick.needChoice }); return; }
+      const tenant = await fiscalTenant(tenantId, issuerPick.id);
       if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
       invoice = await prisma.$transaction(async (tx) => {
         const created = await tx.nfceInvoice.create({ data: {
-          tenant_id: tenantId, order_id: orderId, status: "pending", environment: tenant.nfce_environment, issuer_id: await activeIssuerId(tenantId),
+          tenant_id: tenantId, order_id: orderId, status: "pending", environment: tenant.nfce_environment, issuer_id: issuerPick.id ?? (await activeIssuerId(tenantId)),
           series: tenant.nfce_series, number: tenant.nfce_next_number,
         }});
-        await tx.tenant.update({ where: { id: tenantId }, data: { nfce_next_number: { increment: 1 } } });
+        await bumpNextNumber(tx as any, tenantId, issuerPick.id, "nfce_next_number");
         return created;
       });
+      // a venda passa a ser do CNPJ que emitiu a nota (lucro e fluxo de caixa por CNPJ)
+      if (issuerPick.id) {
+        await prisma.order.update({ where: { id: orderId }, data: { issuer_id: issuerPick.id } });
+        await prisma.finance.updateMany({ where: { order_id: orderId, tenant_id: tenantId }, data: { issuer_id: issuerPick.id } });
+      }
     } else {
       invoice = await prisma.nfceInvoice.update({ where: { id: invoice.id }, data: { status: "pending" } });
     }
@@ -232,10 +236,8 @@ export async function emitNfceAsProduction(req: Request, res: Response) {
     const orderId = Number(req.params.orderId);
     const tenantId = getTenantId(req);
 
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { nfce_environment: true, nfce_series: true, nfce_next_number: true },
-    });
+    const noteIssuer = (await prisma.nfceInvoice.findFirst({ where: { order_id: orderId, tenant_id: tenantId }, select: { issuer_id: true } }))?.issuer_id ?? null;
+    const tenant = await fiscalTenant(tenantId, noteIssuer);
     if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
     if (tenant.nfce_environment !== "producao") {
       res.status(422).json({ error: "Configure o ambiente da loja para Produção (Configurações > Dados Fiscais) antes de emitir a nota de produção." });
@@ -281,7 +283,7 @@ export async function emitNfceAsProduction(req: Request, res: Response) {
           superseded_homologacao: homologacaoSnapshot,
         },
       });
-      await tx.tenant.update({ where: { id: tenantId }, data: { nfce_next_number: { increment: 1 } } });
+      await bumpNextNumber(tx as any, tenantId, noteIssuer, "nfce_next_number");
     });
 
     emitToTenant(tenantId, "nfce:changed", { orderId });

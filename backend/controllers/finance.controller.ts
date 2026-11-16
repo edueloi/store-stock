@@ -1,3 +1,5 @@
+import { issuerClause } from "../utils/issuers";
+import { issuerForNew } from "../utils/issuers";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -13,7 +15,7 @@ function getTenantId(req: Request) {
 export async function listFinanceEntries(req: Request, res: Response) {
   try {
     const entries = await prisma.finance.findMany({
-      where: { tenant_id: getTenantId(req) },
+      where: { tenant_id: getTenantId(req), AND: (await issuerClause(req, getTenantId(req))) as any },
       orderBy: { date: "desc" },
     });
 
@@ -86,7 +88,7 @@ export async function createFinanceEntry(req: Request, res: Response) {
     const entry = await prisma.finance.create({
       data: {
         ...rest,
-        tenant_id: getTenantId(req),
+        tenant_id: getTenantId(req), issuer_id: await issuerForNew(req, getTenantId(req)),
         date: parseDateField(date) ?? localDateString(),
       },
     });

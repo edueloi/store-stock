@@ -1,4 +1,5 @@
 import fs from "fs";
+import { fiscalTenant } from "../../utils/issuers";
 import path from "path";
 
 import { prisma } from "../../config/prisma";
@@ -28,7 +29,7 @@ export async function cancelarNfse(
     return { success: false, error: "Justificativa deve ter ao menos 15 caracteres" };
   }
 
-  const tenant = await prisma.tenant.findUnique({ where: { id: invoice.tenant_id } });
+  const tenant = await fiscalTenant(invoice.tenant_id, invoice.issuer_id);
   if (!tenant) return { success: false, error: "Loja não encontrada" };
   tenant.nfce_cert_password = decryptSecret(tenant.nfce_cert_password);
   if (!tenant.nfce_cert_path || !tenant.nfce_cert_password) {

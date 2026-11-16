@@ -1,3 +1,4 @@
+import { issuerClause, issuerSql } from "../utils/issuers";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -33,6 +34,7 @@ function endOfDay(d: Date): Date {
 export async function getTopSellingProducts(req: Request, res: Response) {
   try {
     const { from, to } = resolvePeriod(req);
+    const issuerAndTop = await issuerClause(req, getTenantId(req));
     const topProducts = await prisma.orderItem.groupBy({
       by: ["product_id"],
       where: {
@@ -42,6 +44,7 @@ export async function getTopSellingProducts(req: Request, res: Response) {
           tenant_id: getTenantId(req),
           status: "completed",
           created_at: { gte: from, lte: endOfDay(to) },
+          AND: issuerAndTop as any,
         },
       },
       _sum: { quantity: true },
@@ -79,7 +82,9 @@ export async function getDashboardStats(req: Request, res: Response) {
   const toEnd = endOfDay(to);
 
   try {
-    const baseWhere = { tenant_id: tenantId, type: "income", date: { gte: from, lte: to } } as const;
+    const issuerAnd = (await issuerClause(req, tenantId)) as any[]; // visão por CNPJ escolhida no topo
+    const issuerRaw = await issuerSql(req, tenantId, "o");
+    const baseWhere = { tenant_id: tenantId, type: "income", date: { gte: from, lte: to }, AND: issuerAnd } as const;
 
     const [totalGross, products, cogsResult, servicesRevenue, productsRevenue, servicesCount, productsCount] = await Promise.all([
       // Bruto total (todos os tipos)
@@ -98,6 +103,7 @@ export async function getDashboardStats(req: Request, res: Response) {
         JOIN products p ON p.id = oi.product_id
         WHERE o.tenant_id = ${tenantId} AND o.status = 'completed'
           AND o.created_at >= ${from} AND o.created_at <= ${toEnd}
+          ${issuerRaw}
       `,
       // Receita líquida de serviços (source = 'services')
       prisma.finance.aggregate({
@@ -111,11 +117,11 @@ export async function getDashboardStats(req: Request, res: Response) {
       }),
       // Contagem de ordens de serviço no período
       prisma.order.count({
-        where: { tenant_id: tenantId, status: "completed", order_type: "services", created_at: { gte: from, lte: toEnd } },
+        where: { tenant_id: tenantId, status: "completed", order_type: "services", created_at: { gte: from, lte: toEnd }, AND: issuerAnd },
       }),
       // Contagem de ordens de produto no período
       prisma.order.count({
-        where: { tenant_id: tenantId, status: "completed", order_type: { in: ["products", "mixed"] }, created_at: { gte: from, lte: toEnd } },
+        where: { tenant_id: tenantId, status: "completed", order_type: { in: ["products", "mixed"] }, created_at: { gte: from, lte: toEnd }, AND: issuerAnd },
       }),
     ]);
 
@@ -145,7 +151,7 @@ export async function getDashboardStats(req: Request, res: Response) {
     // Série diária — busca todos os registros do período e agrupa em JS
     // (evita dependência de timezone do MySQL em queries DATE() raw)
     const allDailyEntries = await prisma.finance.findMany({
-      where: { tenant_id: tenantId, type: "income", date: { gte: from, lte: toEnd } },
+      where: { tenant_id: tenantId, type: "income", date: { gte: from, lte: toEnd }, AND: issuerAnd },
       select: { date: true, amount: true, source: true },
     });
 

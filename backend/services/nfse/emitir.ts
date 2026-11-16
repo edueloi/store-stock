@@ -1,5 +1,5 @@
 import fs from "fs";
-import { withIssuerAddress } from "../../utils/issuers";
+import { withIssuerAddress, fiscalTenant, bumpNextNumber } from "../../utils/issuers";
 import path from "path";
 
 import { prisma } from "../../config/prisma";
@@ -95,8 +95,9 @@ async function emitirNfseInterno(input: EmitirNfseInput): Promise<void> {
   const serviceOrder = await prisma.serviceOrder.findUnique({ where: { id: serviceOrderId } });
   if (!serviceOrder) return;
 
-  const tenantRaw = await prisma.tenant.findUnique({ where: { id: serviceOrder.tenant_id } });
-  const tenant = tenantRaw ? await withIssuerAddress(tenantRaw) : tenantRaw; // endereço do emitente = o do CNPJ ativo, se tiver
+  const issuerOfNote = (await prisma.nfseInvoice.findUnique({ where: { service_order_id: serviceOrderId }, select: { issuer_id: true } }))?.issuer_id ?? null;
+  const tenantRaw = await fiscalTenant(serviceOrder.tenant_id, issuerOfNote); // dados fiscais do CNPJ desta nota
+  const tenant = tenantRaw ? await withIssuerAddress(tenantRaw, issuerOfNote) : tenantRaw; // endereço do emitente = o do CNPJ da nota, se tiver
   if (!tenant) return;
   tenant.nfce_cert_password = decryptSecret(tenant.nfce_cert_password);
 
@@ -308,10 +309,7 @@ async function emitirNfseInterno(input: EmitirNfseInput): Promise<void> {
       },
     });
 
-    await prisma.tenant.update({
-      where: { id: tenant.id },
-      data: { nfse_next_number: { increment: 1 } },
-    });
+    await bumpNextNumber(prisma, tenant.id, issuerOfNote, "nfse_next_number");
 
     await advanceServiceOrderToNotaEmitida(serviceOrderId, "Sistema (NFS-e)");
   } catch (err) {

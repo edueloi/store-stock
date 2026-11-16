@@ -1,3 +1,4 @@
+import { issuerClause } from "../utils/issuers";
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
@@ -119,13 +120,14 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
 
     const months: MonthReport[] = Array.from({ length: 12 }, (_, m) => emptyMonth(year, m));
 
+    const issuerAnd = (await issuerClause(req, tenantId)) as any[];
     const [incomeEntries, expenseEntries, payables, receivables] = await Promise.all([
       prisma.finance.findMany({
-        where: { tenant_id: tenantId, type: "income", date: { gte: from, lt: to } },
+        where: { tenant_id: tenantId, type: "income", date: { gte: from, lt: to }, AND: issuerAnd },
         select: { amount: true, payment_method: true, order_id: true, date: true },
       }),
       prisma.finance.findMany({
-        where: { tenant_id: tenantId, type: "expense", cost_type: { not: null }, date: { gte: from, lt: to } },
+        where: { tenant_id: tenantId, type: "expense", cost_type: { not: null }, date: { gte: from, lt: to }, AND: issuerAnd },
         select: { description: true, amount: true, cost_type: true, date: true },
       }),
       // Contas pagas entram no mês do pagamento; as ainda em aberto, no mês do vencimento —
@@ -133,6 +135,7 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
       prisma.accountPayable.findMany({
         where: {
           tenant_id: tenantId,
+          AND: issuerAnd,
           OR: [
             { status: "paid", paid_date: { gte: from, lt: to } },
             { status: { not: "paid" }, due_date: { gte: from, lt: to } },
@@ -143,7 +146,7 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
       // Contas a Receber não recebidas até o fim do ano consultado: as do ano entram no mês do
       // vencimento; as de anos anteriores ainda em aberto aparecem como "atrasadas anteriores".
       prisma.accountReceivable.findMany({
-        where: { tenant_id: tenantId, status: { notIn: ["received", "cancelled"] }, due_date: { lt: to } },
+        where: { tenant_id: tenantId, status: { notIn: ["received", "cancelled"] }, due_date: { lt: to }, AND: issuerAnd },
         select: { description: true, customer_name: true, amount: true, due_date: true },
         orderBy: { due_date: "asc" },
       }),
@@ -205,7 +208,7 @@ export async function getYearlyFinancialReport(req: Request, res: Response) {
     const soldItems = await prisma.orderItem.findMany({
       where: {
         product_id: { not: null },
-        order: { tenant_id: tenantId, status: "completed", created_at: { gte: from, lt: to } },
+        order: { tenant_id: tenantId, status: "completed", created_at: { gte: from, lt: to }, AND: issuerAnd },
       },
       select: { quantity: true, returned_quantity: true, product: { select: { cost_price: true } }, order: { select: { created_at: true, order_type: true } } },
     });

@@ -2,7 +2,12 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { ErrorBoundary } from './ErrorBoundary.tsx';
+import IssuerChooserHost from './components/IssuerChooserHost.tsx';
+import { installIssuerFetch } from './lib/issuerView';
 import './index.css';
+
+// Visão por CNPJ no cabeçalho de toda chamada à API + pergunta de qual CNPJ emitir nas notas.
+installIssuerFetch();
 
 // Após um deploy, abas abertas apontam para arquivos antigos: recarrega uma vez para pegar a versão nova.
 window.addEventListener('vite:preloadError', (event) => {
@@ -20,6 +25,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <App />
+      <IssuerChooserHost />
     </ErrorBoundary>
   </StrictMode>,
 );

@@ -1,5 +1,5 @@
 import fs from "fs";
-import { activeIssuerId, issuerFilter } from "../utils/issuers";
+import { activeIssuerId, issuerFilter, issuerForNote, fiscalTenant, bumpNextNumber } from "../utils/issuers";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -83,20 +83,24 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
     const retryData = { codigo_tributacao_nacional, descricao_servico: descricao, valor_servico: valorServico };
 
     if (!invoice) {
-      const tenant = await prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { nfse_environment: true, nfse_serie: true, nfse_next_number: true },
-      });
+      const issuerPick = await issuerForNote(req, tenantId); // várias empresas: pergunta de qual CNPJ emitir
+      if (issuerPick.needChoice) { res.status(409).json({ error: "Escolha de qual CNPJ emitir a nota.", needIssuer: true, issuers: issuerPick.needChoice }); return; }
+      const tenant = await fiscalTenant(tenantId, issuerPick.id);
       if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
       invoice = await prisma.$transaction(async (tx) => {
         const created = await tx.nfseInvoice.create({ data: {
-          tenant_id: tenantId, service_order_id: serviceOrderId, status: "pending", issuer_id: await activeIssuerId(tenantId),
+          tenant_id: tenantId, service_order_id: serviceOrderId, status: "pending", issuer_id: issuerPick.id ?? (await activeIssuerId(tenantId)),
           environment: tenant.nfse_environment, serie: tenant.nfse_serie, numero: tenant.nfse_next_number,
           ...retryData,
         }});
-        await tx.tenant.update({ where: { id: tenantId }, data: { nfse_next_number: { increment: 1 } } });
+        await bumpNextNumber(tx as any, tenantId, issuerPick.id, "nfse_next_number");
         return created;
       });
+      // a O.S. passa a ser do CNPJ que emitiu a nota
+      if (issuerPick.id) {
+        await prisma.serviceOrder.update({ where: { id: serviceOrderId }, data: { issuer_id: issuerPick.id } });
+        await prisma.accountReceivable.updateMany({ where: { service_order_id: serviceOrderId, tenant_id: tenantId }, data: { issuer_id: issuerPick.id } });
+      }
     } else {
       invoice = await prisma.nfseInvoice.update({ where: { id: invoice.id }, data: { status: "pending", ...retryData } });
     }
@@ -123,7 +127,9 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
 export async function testNfseEmission(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
-    const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    const issuerPick = await issuerForNote(req, tenantId);
+    if (issuerPick.needChoice) { res.status(409).json({ error: "Escolha de qual CNPJ emitir a nota.", needIssuer: true, issuers: issuerPick.needChoice }); return; }
+    const tenant = await fiscalTenant(tenantId, issuerPick.id);
     if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
     if (!tenant.nfce_cert_path || !tenant.nfce_cert_password) {
       res.status(422).json({ error: "Envie o certificado digital A1 antes de testar (Configurações > Dados Fiscais)." });
@@ -159,7 +165,7 @@ export async function testNfseEmission(req: Request, res: Response) {
           tenant_id: tenantId,
           service_order_id: testOrder.id,
           status: "pending",
-          issuer_id: await activeIssuerId(tenantId),
+          issuer_id: issuerPick.id ?? (await activeIssuerId(tenantId)),
           environment: "homologacao",
           serie: tenant.nfse_serie,
           numero: tenant.nfse_next_number,
@@ -168,7 +174,7 @@ export async function testNfseEmission(req: Request, res: Response) {
           valor_servico: 1,
         },
       });
-      await tx.tenant.update({ where: { id: tenantId }, data: { nfse_next_number: { increment: 1 } } });
+      await bumpNextNumber(tx as any, tenantId, issuerPick.id, "nfse_next_number");
       return { invoiceId: invoice.id, serviceOrderId: testOrder.id };
     });
 
@@ -237,10 +243,9 @@ export async function emitNfseAvulsa(req: Request, res: Response) {
       return;
     }
 
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { nfse_environment: true, nfse_serie: true, nfse_next_number: true, nfce_cert_path: true, nfce_cert_password: true, nfse_codigo_municipio: true },
-    });
+    const issuerPick = await issuerForNote(req, tenantId); // várias empresas: pergunta de qual CNPJ emitir
+    if (issuerPick.needChoice) { res.status(409).json({ error: "Escolha de qual CNPJ emitir a nota.", needIssuer: true, issuers: issuerPick.needChoice }); return; }
+    const tenant = await fiscalTenant(tenantId, issuerPick.id);
     if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
     if (!tenant.nfce_cert_path || !tenant.nfce_cert_password) {
       res.status(422).json({ error: "Envie o certificado digital A1 antes de emitir (Configurações > Dados Fiscais)." });
@@ -276,12 +281,12 @@ export async function emitNfseAvulsa(req: Request, res: Response) {
       });
       const created = await tx.nfseInvoice.create({
         data: {
-          tenant_id: tenantId, service_order_id: order.id, status: "pending", issuer_id: await activeIssuerId(tenantId),
+          tenant_id: tenantId, service_order_id: order.id, status: "pending", issuer_id: issuerPick.id ?? (await activeIssuerId(tenantId)),
           environment: tenant.nfse_environment, serie: tenant.nfse_serie, numero: tenant.nfse_next_number,
           codigo_tributacao_nacional, descricao_servico: descricao_servico.trim(), valor_servico: valorServico,
         },
       });
-      await tx.tenant.update({ where: { id: tenantId }, data: { nfse_next_number: { increment: 1 } } });
+      await bumpNextNumber(tx as any, tenantId, issuerPick.id, "nfse_next_number");
       return { invoice: created, serviceOrderId: order.id };
     });
 

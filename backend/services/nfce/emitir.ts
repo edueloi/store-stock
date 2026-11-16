@@ -1,5 +1,5 @@
 import fs from "fs";
-import { withIssuerAddress } from "../../utils/issuers";
+import { withIssuerAddress, fiscalTenant, bumpNextNumber } from "../../utils/issuers";
 import path from "path";
 
 import type { Product } from "@prisma/client";
@@ -47,8 +47,9 @@ export async function emitirNfce(orderId: number): Promise<void> {
   });
   if (!order) return;
 
-  const tenantRaw = await prisma.tenant.findUnique({ where: { id: order.tenant_id } });
-  const tenant = tenantRaw ? await withIssuerAddress(tenantRaw) : tenantRaw; // endereço do emitente = o do CNPJ ativo, se tiver
+  const issuerOfNote = (await prisma.nfceInvoice.findUnique({ where: { order_id: orderId }, select: { issuer_id: true } }))?.issuer_id ?? null;
+  const tenantRaw = await fiscalTenant(order.tenant_id, issuerOfNote); // dados fiscais do CNPJ desta nota
+  const tenant = tenantRaw ? await withIssuerAddress(tenantRaw, issuerOfNote) : tenantRaw; // endereço do emitente = o do CNPJ da nota, se tiver
   if (!tenant) return;
   tenant.nfce_cert_password = decryptSecret(tenant.nfce_cert_password);
   tenant.nfce_csc_token = decryptSecret(tenant.nfce_csc_token);

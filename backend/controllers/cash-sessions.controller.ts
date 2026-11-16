@@ -1,3 +1,5 @@
+import { issuerClause } from "../utils/issuers";
+import { issuerForNew } from "../utils/issuers";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -156,7 +158,7 @@ export async function openCashSession(req: Request, res: Response) {
 
     const session = await prisma.cashSession.create({
       data: {
-        tenant_id: tenantId,
+        tenant_id: tenantId, issuer_id: await issuerForNew(req, tenantId),
         opened_by_id: userId,
         opened_by_name: user?.name ?? "Operador",
         opening_amount: Number(openingAmount) || 0,
@@ -461,6 +463,7 @@ export async function listCashSessions(req: Request, res: Response) {
     const sessions = await prisma.cashSession.findMany({
       where: {
         tenant_id: tenantId,
+        AND: (await issuerClause(req, tenantId)) as any,
         ...(status ? { status } : {}),
         ...(userId ? { opened_by_id: Number(userId) } : {}),
         ...(from || to ? {
