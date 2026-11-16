@@ -13,6 +13,8 @@ import {
   issueTerminalToken,
   getMyTerminal,
   getTerminalSnapshot,
+  receiveTerminalLogs,
+  listTerminalLogs,
 } from "../controllers/desktop-terminals.controller";
 import { authenticateTerminal } from "../utils/terminal-auth";
 
@@ -25,11 +27,13 @@ router.get("/pairing-status/:terminal_uid", getPairingStatus);
 // Credencial do próprio terminal (headers x-terminal-uid / x-terminal-token), sem usuário.
 router.get("/me", authenticateTerminal, getMyTerminal);
 router.get("/me/snapshot", authenticateTerminal, getTerminalSnapshot);
+router.post("/me/logs", authenticateTerminal, receiveTerminalLogs);
 router.post("/token", authenticateToken, issueTerminalToken);
 
 // Com auth — chamadas pelo painel web, usuário já logado.
 router.post("/pair", authenticateToken, pairTerminal);
 router.get("/", authenticateToken, listTerminals);
+router.get("/:id/logs", authenticateToken, listTerminalLogs);
 router.put("/:id", authenticateToken, renameTerminal);
 router.delete("/:id", authenticateToken, deleteTerminal);
 

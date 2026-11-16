@@ -5,6 +5,9 @@ const https = require("https");
 const { SerialPort } = require("serialport");
 const { autoUpdater } = require("electron-updater");
 const log = require("electron-log");
+const diagnosticsModule = require("./diagnostics.cjs");
+// Diagnóstico remoto (travamentos/quedas enviados ao servidor); criado em app.whenReady.
+let diagnostics = null;
 const printerModule = require("./printer.cjs");
 const offlineDb = require("./db.cjs");
 const fiscalAgent = require("./fiscal-agent.cjs");
@@ -132,10 +135,10 @@ function apiRequestAuthed(method, apiPath, body) {
 }
 
 // Chamada autenticada pela credencial do próprio terminal (não depende de usuário logado).
-function terminalRequest(method, apiPath) {
+function terminalRequest(method, apiPath, body) {
   const { terminalUid, terminalToken } = readConfig();
   if (!terminalUid || !terminalToken) return Promise.reject(new Error("Terminal sem credencial ainda."));
-  return apiRequest(method, apiPath, undefined, undefined, {
+  return apiRequest(method, apiPath, body, undefined, {
     "x-terminal-uid": terminalUid,
     "x-terminal-token": terminalToken,
   });
@@ -457,6 +460,18 @@ function buildMenu() {
         { type: "separator" },
         { label: "Configurar Impressoras...", click: () => openPrinterConfigWindow() },
         { label: "Vincular Dispositivo...", click: () => openPairingWindow() },
+        {
+          label: "Enviar diagnóstico ao suporte",
+          click: async () => {
+            try {
+              if (!diagnostics) throw new Error("Diagnóstico indisponível.");
+              await diagnostics.sendSupportBundle();
+              dialog.showMessageBox(mainWindow, { type: "info", title: "Diagnóstico", message: "Diagnóstico enviado ao suporte. Obrigado!" });
+            } catch (err) {
+              dialog.showMessageBox(mainWindow, { type: "error", title: "Diagnóstico", message: "Não foi possível enviar o diagnóstico.", detail: String(err?.message || err) });
+            }
+          },
+        },
         { type: "separator" },
         {
           label: "Verificar Atualizações...",
@@ -873,6 +888,13 @@ app.whenReady().then(() => {
   const siteCache = webcache.install(session.defaultSession, () => readConfig().server, app.getPath("userData"));
   // Depois que a tela carregou (e foi gravada no cache), completa o resto em segundo plano.
   setTimeout(() => siteCache.prefetchAssets().catch(() => {}), 15000);
+  // Registra travamentos/quedas e envia ao servidor (ver diagnostics.cjs). Antes de criar
+  // as janelas, para já observar a primeira.
+  diagnostics = diagnosticsModule.install({
+    app,
+    log,
+    send: (entries) => terminalRequest("POST", "/desktop-terminals/me/logs", { entries }),
+  });
   buildMenu();
   createTray();
   createWindow();

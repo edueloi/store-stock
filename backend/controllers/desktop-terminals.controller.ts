@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
@@ -353,5 +355,68 @@ export async function deletePrinter(req: Request, res: Response) {
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: "Failed to delete printer" });
+  }
+}
+
+// ─── Diagnóstico remoto do app desktop ───────────────────────────────────────
+// O app envia travamentos, quedas e lentidão (ver desktop/diagnostics.cjs). Ficam em
+// arquivo JSONL por terminal (sem migração de banco): logs/desktop/<loja>/<terminal>.jsonl.
+const DESKTOP_LOG_DIR = path.join(process.cwd(), "logs", "desktop");
+const MAX_LOG_FILE_BYTES = 3 * 1024 * 1024;
+const MAX_ENTRIES_PER_POST = 60;
+
+function clip(value: unknown, max: number): string {
+  const text = typeof value === "string" ? value : JSON.stringify(value ?? "");
+  return text.length > max ? `${text.slice(0, max)}…[cortado]` : text;
+}
+
+function logFileFor(tenantId: number, terminalUid: string) {
+  const safeUid = terminalUid.replace(/[^a-zA-Z0-9._-]/g, "_");
+  return path.join(DESKTOP_LOG_DIR, String(tenantId), `${safeUid}.jsonl`);
+}
+
+export async function receiveTerminalLogs(req: Request, res: Response) {
+  const { tenant_id, terminal_uid } = (req as TerminalRequest).terminal;
+  try {
+    const entries = Array.isArray(req.body?.entries) ? req.body.entries.slice(0, MAX_ENTRIES_PER_POST) : [];
+    if (entries.length === 0) { res.json({ ok: true, stored: 0 }); return; }
+    const file = logFileFor(tenant_id, terminal_uid);
+    await fs.promises.mkdir(path.dirname(file), { recursive: true });
+    const stat = await fs.promises.stat(file).catch(() => null);
+    if (stat && stat.size > MAX_LOG_FILE_BYTES) await fs.promises.rename(file, `${file}.1`).catch(() => {});
+    const lines = entries.map((e: any) => JSON.stringify({
+      received_at: new Date().toISOString(),
+      ts: clip(e?.ts, 40),
+      level: clip(e?.level ?? "warn", 10),
+      kind: clip(e?.kind ?? "event", 60),
+      message: clip(e?.message ?? "", e?.kind === "support-bundle" ? 120000 : 2000),
+      data: e?.data === undefined ? undefined : clip(e.data, 6000),
+      ctx: e?.ctx === undefined ? undefined : clip(e.ctx, 4000),
+    })).join("
+") + "
+";
+    await fs.promises.appendFile(file, lines);
+    res.json({ ok: true, stored: entries.length });
+  } catch {
+    res.status(500).json({ error: "Failed to store logs" });
+  }
+}
+
+export async function listTerminalLogs(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.id);
+    const terminal = await prisma.desktopTerminal.findFirst({
+      where: { id, tenant_id: getTenantId(req) },
+      select: { terminal_uid: true, tenant_id: true },
+    });
+    if (!terminal) { res.status(404).json({ error: "Terminal não encontrado" }); return; }
+    const limit = Math.min(500, Math.max(1, Math.floor(Number(req.query.limit)) || 100));
+    const file = logFileFor(terminal.tenant_id, terminal.terminal_uid);
+    const text = await fs.promises.readFile(file, "utf-8").catch(() => "");
+    const entries = text.split("
+").filter(Boolean).slice(-limit).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+    res.json({ entries: entries.reverse() });
+  } catch {
+    res.status(500).json({ error: "Failed to read logs" });
   }
 }
