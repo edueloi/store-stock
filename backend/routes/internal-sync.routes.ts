@@ -293,13 +293,23 @@ router.post("/quotes", async (req, res) => {
   } catch (e) { console.error("internal-sync POST quotes:", e); res.status(500).json({ error: "Falha ao gravar o orçamento." }); }
 });
 
-function orderOut(o: any) {
-  return { id: o.id, number: o.number, quoteId: o.quote_id, fields: { status: o.status, dueDate: day(o.promised_at), notes: text(o.observations, 5000) } };
+// Itens da O.S. (peças e serviços) + valor do serviço, para o grafica montar o pedido quando a O.S. nasce direto na loja (sem orçamento).
+function orderItems(o: any) {
+  const items = (Array.isArray(o.parts) ? o.parts : []).map((p: any) => ({ name: text(p.name, 300) || "Item", quantity: Math.max(1, Math.round(num(p.quantity))), unitPrice: money(p.unit_price), total: money(p.total) }));
+  if (num(o.service_value) > 0) items.unshift({ name: text(o.service_description, 300) || "Serviço", quantity: 1, unitPrice: money(o.service_value), total: money(o.service_value) });
+  return items;
 }
+function orderOut(o: any) {
+  const items = orderItems(o);
+  const total = money(o.total_amount);
+  const sig = crypto.createHash("sha1").update(JSON.stringify([items, total, o.customer_id])).digest("hex").slice(0, 16);
+  return { id: o.id, number: o.number, quoteId: o.quote_id, customerId: o.customer_id, fields: { status: o.status, dueDate: day(o.promised_at), notes: text(o.observations, 5000), sig }, items, total };
+}
+const loadOrder = (id: number) => prisma.serviceOrder.findFirst({ where: { id }, include: { parts: true } });
 
 router.get("/orders", async (req, res) => {
   try {
-    const rows = await prisma.serviceOrder.findMany({ where: { tenant_id: tid(req), quote_id: { not: null } }, orderBy: { id: "asc" } });
+    const rows = await prisma.serviceOrder.findMany({ where: { tenant_id: tid(req) }, include: { parts: true }, orderBy: { id: "asc" } });
     res.json({ orders: rows.map(orderOut) });
   } catch (e) { console.error("internal-sync GET orders:", e); res.status(500).json({ error: "Falha ao listar ordens de serviço." }); }
 });
@@ -321,7 +331,7 @@ router.post("/orders", async (req, res) => {
       if (typeof f.notes === "string" && text(f.notes, 5000) !== text(cur.observations, 5000)) data.observations = text(f.notes, 5000) || null;
       const updated = Object.keys(data).length ? await prisma.serviceOrder.update({ where: { id: cur.id }, data }) : cur;
       if (data.status) await prisma.serviceOrderAction.create({ data: { tenant_id: tenantId, service_order_id: cur.id, action: "status", from_status: cur.status, to_status: String(data.status), actor: "Sistema Gráfica" } });
-      return res.json(orderOut(updated));
+      return res.json(orderOut(await loadOrder(updated.id)));
     }
 
     const quote = await prisma.quote.findFirst({ where: { id: Number(req.body?.quoteId) || 0, tenant_id: tenantId } });
@@ -342,7 +352,7 @@ router.post("/orders", async (req, res) => {
     }
     if (!created) return res.status(409).json({ error: "Não foi possível numerar a ordem de serviço." });
     await prisma.serviceOrderAction.create({ data: { tenant_id: tenantId, service_order_id: created.id, action: "created", to_status: created.status, actor: "Sistema Gráfica", note: "Criada a partir do pedido no Sistema Gráfica" } });
-    res.status(201).json(orderOut(created));
+    res.status(201).json(orderOut(await loadOrder(created.id)));
   } catch (e) { console.error("internal-sync POST orders:", e); res.status(500).json({ error: "Falha ao gravar a ordem de serviço." }); }
 });
 
