@@ -630,6 +630,23 @@ async function exportMarkupPDF(
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
+// Situação do preço de venda de cada item em relação ao custo e ao preço sugerido pelos parâmetros atuais.
+type PriceStatus = "sem_valor" | "so_custo" | "abaixo" | "ok" | "acima";
+const STATUS_INFO: { id: PriceStatus; label: string; hint: string; tone: string }[] = [
+  { id: "sem_valor", label: "Sem valor de venda", hint: "Tem custo, mas o preço de venda está zerado", tone: "border-red-300 bg-red-50 text-red-700" },
+  { id: "so_custo", label: "Só no custo", hint: "Preço de venda igual (ou menor) que o custo: sem acréscimo", tone: "border-amber-300 bg-amber-50 text-amber-800" },
+  { id: "abaixo", label: "Abaixo do sugerido", hint: "Tem acréscimo, mas menos que o sugerido", tone: "border-orange-300 bg-orange-50 text-orange-800" },
+  { id: "ok", label: "Ok", hint: "Perto do preço sugerido", tone: "border-emerald-300 bg-emerald-50 text-emerald-800" },
+  { id: "acima", label: "Muito caro", hint: "Bem acima do preço sugerido", tone: "border-violet-300 bg-violet-50 text-violet-800" },
+];
+function priceStatusOf(price: number, cost: number, suggested: number): PriceStatus {
+  if (!(price > 0)) return "sem_valor";
+  if (price <= cost * 1.001) return "so_custo";
+  if (price < suggested * 0.95) return "abaixo";
+  if (price > suggested * 1.15) return "acima";
+  return "ok";
+}
+
 export default function Markup() {
   const [products, setProducts]   = useState<Product[]>([]);
   const [tenant, setTenant]       = useState<Partial<Tenant> | null>(null);
@@ -651,6 +668,7 @@ export default function Markup() {
   });
   const [finalOverride, setFinalOverride] = useState<string | null>(null); // preço final editado no card principal
   const [catalogSearch, setCatalogSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<PriceStatus | "todos">("todos");
   const [rowPrices, setRowPrices] = useState<Record<number, string>>({}); // preços editados na tabela
   const [savingRow, setSavingRow] = useState<number | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -845,10 +863,24 @@ export default function Markup() {
   });
   const noCost = products.filter((p) => !p.cost_price || Number(p.cost_price) === 0);
 
-  const analysisList = useMemo(
-    () => productsWithCost.filter((p) => matchesTerm(p, catalogSearch)),
+  const statusById = useMemo(() => {
+    const map = new Map<number, PriceStatus>();
+    for (const p of productsWithCost) {
+      const sug = finalPriceOf(calcMarkup({ ...inputs, cost_price: Number(p.cost_price) }).suggested_price);
+      map.set(p.id, priceStatusOf(Number(p.price), Number(p.cost_price), sug));
+    }
+    return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [products, catalogSearch],
+  }, [products, inputs, roundPrice, roundMode]);
+  const statusCounts = useMemo(() => {
+    const c: Record<PriceStatus, number> = { sem_valor: 0, so_custo: 0, abaixo: 0, ok: 0, acima: 0 };
+    statusById.forEach((v) => { c[v] += 1; });
+    return c;
+  }, [statusById]);
+  const analysisList = useMemo(
+    () => productsWithCost.filter((p) => matchesTerm(p, catalogSearch) && (statusFilter === "todos" || statusById.get(p.id) === statusFilter)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [products, catalogSearch, statusFilter, statusById],
   );
   const analysisPagination = usePagination(analysisList, 15);
 
@@ -865,6 +897,13 @@ export default function Markup() {
       ),
     },
     { header: "Custo", headerClassName: "text-right", className: "text-right text-slate-500 tabular-nums", render: (p) => fmt(Number(p.cost_price)) },
+    {
+      header: "Situação",
+      render: (p) => {
+        const st = STATUS_INFO.find((i) => i.id === statusById.get(p.id));
+        return st ? <span className={cn("inline-block whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium", st.tone)} title={st.hint}>{st.label}</span> : null;
+      },
+    },
     { header: "Preço Atual", headerClassName: "text-right", className: "text-right font-semibold text-slate-800 tabular-nums", render: (p) => fmt(Number(p.price)) },
     {
       header: "Preço Sugerido", headerClassName: "text-right", className: "text-right font-semibold text-blue-600 tabular-nums",
@@ -1286,6 +1325,18 @@ export default function Markup() {
               }}
               placeholder="Buscar por nome, SKU ou código de barras (pode usar o leitor)…"
             />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-3 py-2.5" role="group" aria-label="Filtrar pela situação do preço">
+            <button type="button" aria-pressed={statusFilter === "todos"} onClick={() => setStatusFilter("todos")}
+              className={cn("h-8 rounded-full border px-3 text-xs font-medium transition", statusFilter === "todos" ? "border-blue-500 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600 hover:bg-slate-50")}>
+              Todos <span className="text-slate-400">{productsWithCost.length}</span>
+            </button>
+            {STATUS_INFO.map((st) => (
+              <button key={st.id} type="button" aria-pressed={statusFilter === st.id} title={st.hint} onClick={() => setStatusFilter(statusFilter === st.id ? "todos" : st.id)}
+                className={cn("h-8 rounded-full border px-3 text-xs font-medium transition", statusFilter === st.id ? st.tone : "border-slate-200 text-slate-600 hover:bg-slate-50")}>
+                {st.label} <span className="opacity-60">{statusCounts[st.id]}</span>
+              </button>
+            ))}
           </div>
           <GridTable<Product>
             noDesktopCard

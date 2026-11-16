@@ -1,37 +1,107 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Printer, RefreshCw, Ruler, Save, Settings2 } from "lucide-react";
+import { ArrowLeft, Check, Pencil, Plus, Printer, RefreshCw, Ruler, Save, Settings2, Trash2 } from "lucide-react";
 import { Alert, Button, Input, PanelCard, SectionTitle, Select, Switch, Tabs } from "../ui";
 import { useToast } from "../ui/Toast";
 import LabelSettingsPreview from "./LabelSettingsPreview";
 import { DEFAULT_LABEL_PRINT, LABEL_FONTS, LABEL_PRINT_PRESETS, labelGeometry, labelSettingsStorageKey, validateLabelPrint, type LabelPrintSettings as Settings } from "../../lib/labelPrinting";
 
-type Profile = { name: string; settings: Settings };
-function storedProfiles(): Profile[] {
+export type Profile = { name: string; settings: Settings };
+const MAX_MODELS = 30;
+export function storedProfiles(): Profile[] {
   try {
     const data = JSON.parse(localStorage.getItem(`${labelSettingsStorageKey()}:profiles`) || "[]");
-    return Array.isArray(data) ? data.filter(p => typeof p?.name === "string" && p.settings && !validateLabelPrint(p.settings).length).slice(0, 10) : [];
+    return Array.isArray(data) ? data.filter(p => typeof p?.name === "string" && p.settings && !validateLabelPrint(p.settings).length).slice(0, MAX_MODELS) : [];
   } catch { return []; }
 }
-function matchingProfile(profiles: Profile[], settings: Settings) {
+export function persistProfiles(next: Profile[]) {
+  try { localStorage.setItem(`${labelSettingsStorageKey()}:profiles`, JSON.stringify(next)); return true; } catch { return false; }
+}
+export function matchingProfile(profiles: Profile[], settings: Settings) {
   return profiles.find(p => (Object.keys(DEFAULT_LABEL_PRINT) as (keyof Settings)[]).every(key => p.settings[key] === settings[key]));
 }
 
-export function LabelPrintSummary({ value, onOpen }: { value: Settings; onOpen: () => void }) {
-  const profile = matchingProfile(storedProfiles(), value);
-  return <section className="rounded-xl border border-slate-200 bg-white" aria-label="Formato de impressão de etiquetas" data-tour="barcodes-print-settings">
-    <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
-      <div className="flex min-w-0 items-center gap-3"><div className="rounded-lg bg-blue-50 p-2.5 text-blue-600"><Ruler size={20} /></div><div className="min-w-0"><h3 className="text-sm font-semibold text-slate-900">Formato e alinhamento da impressão</h3><p className="mt-1 text-xs text-slate-500">{value.mode === "thermal" ? "Bobina" : "Folha"} · {value.width} × {value.height} mm · {value.columns} coluna{value.columns > 1 ? "s" : ""}{value.printer === "elgin-btp-l42" ? " · Elgin BTP-L42(U)" : ""}</p>{profile && <p className="mt-1 break-words text-xs font-medium text-emerald-700">Perfil ativo: {profile.name}</p>}</div></div>
-      <Button size="sm" variant="outline" onClick={onOpen} iconLeft={<Settings2 size={14} />}>Configurar medidas</Button>
+export function LabelPrintSummary({ value, onApply, onOpen }: { value: Settings; onApply: (value: Settings) => void; onOpen: (mode: "edit" | "new") => void }) {
+  const toast = useToast();
+  const [profiles, setProfiles] = useState<Profile[]>(storedProfiles);
+  const [renaming, setRenaming] = useState(false), [newName, setNewName] = useState(""), [asking, setAsking] = useState(false);
+  const current = matchingProfile(profiles, value);
+
+  const choose = (p: Profile) => { onApply({ ...p.settings }); setRenaming(false); setAsking(false); };
+  const rename = () => {
+    const title = Array.from(newName.trim()).slice(0, 60).join("");
+    if (!current || !title) return;
+    if (profiles.some((p) => p !== current && p.name.toLowerCase() === title.toLowerCase())) { toast.error("Já existe um modelo com esse nome."); return; }
+    const next = profiles.map((p) => (p === current ? { ...p, name: title } : p));
+    if (persistProfiles(next)) { setProfiles(next); setRenaming(false); toast.success("Nome do modelo alterado."); } else toast.error("Não foi possível salvar no navegador.");
+  };
+  const remove = () => {
+    if (!current) return;
+    const next = profiles.filter((p) => p !== current);
+    if (persistProfiles(next)) { setProfiles(next); setAsking(false); toast.success(`Modelo “${current.name}” excluído.`); } else toast.error("Não foi possível salvar no navegador.");
+  };
+
+  return <section className="rounded-xl border border-slate-200 bg-white" aria-label="Modelos de etiqueta" data-tour="barcodes-print-settings">
+    <div className="space-y-3 p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="rounded-lg bg-blue-50 p-2.5 text-blue-600"><Ruler size={20} /></div>
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-slate-900">Modelo de etiqueta</h3>
+            <p className="mt-0.5 text-xs text-slate-500">{value.mode === "thermal" ? "Bobina" : "Folha"} · {value.width} × {value.height} mm · {value.columns} coluna{value.columns > 1 ? "s" : ""}{value.printer === "elgin-btp-l42" ? " · Elgin BTP-L42(U)" : ""}{current ? <> · <span className="font-medium text-emerald-700">{current.name}</span></> : " · ajuste ainda não salvo como modelo"}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={() => onOpen("edit")} iconLeft={<Settings2 size={14} />}>Ajustar este modelo</Button>
+          <Button size="sm" onClick={() => onOpen("new")} iconLeft={<Plus size={14} />}>Novo modelo</Button>
+        </div>
+      </div>
+
+      {profiles.length === 0 ? (
+        <p className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">Ainda não há modelos salvos. Toque em <b>Novo modelo</b>, configure as medidas da sua etiqueta e dê um nome (ex.: “Etiqueta 32×25”, “Gôndola”). Depois é só escolher aqui.</p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Escolher o modelo de etiqueta">
+          {profiles.map((p) => {
+            const on = p === current;
+            return <button key={p.name} type="button" role="radio" aria-checked={on} onClick={() => choose(p)}
+              className={`inline-flex h-9 max-w-full items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition ${on ? "border-blue-500 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"}`}>
+              {on && <Check size={13} className="shrink-0" />}<span className="truncate">{p.name}</span>
+              <span className="shrink-0 text-[10px] text-slate-400">{p.settings.width}×{p.settings.height}</span>
+            </button>;
+          })}
+        </div>
+      )}
+
+      {current && !renaming && !asking && (
+        <div className="flex flex-wrap gap-1 border-t border-slate-100 pt-2">
+          <Button size="xs" variant="ghost" iconLeft={<Pencil size={12} />} onClick={() => { setNewName(current.name); setRenaming(true); }}>Renomear</Button>
+          <Button size="xs" variant="ghost" iconLeft={<Trash2 size={12} />} onClick={() => setAsking(true)}>Excluir</Button>
+        </div>
+      )}
+      {current && renaming && (
+        <div className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+          <Input label="Novo nome do modelo" value={newName} showCount={false} maxLength={60} onChange={(e) => setNewName(e.target.value)} wrapperClassName="min-w-[220px] flex-1" />
+          <Button size="sm" onClick={rename} disabled={!newName.trim()}>Salvar nome</Button>
+          <Button size="sm" variant="ghost" onClick={() => setRenaming(false)}>Cancelar</Button>
+        </div>
+      )}
+      {current && asking && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+          <span className="flex-1">Excluir o modelo <b>{current.name}</b>? As etiquetas já impressas não mudam.</span>
+          <Button size="sm" variant="danger" onClick={remove}>Excluir</Button>
+          <Button size="sm" variant="ghost" onClick={() => setAsking(false)}>Cancelar</Button>
+        </div>
+      )}
     </div>
   </section>;
 }
 
 const SETTING_TABS = [{ id: "paper", label: "Papel e medidas", icon: Ruler }, { id: "style", label: "Aparência do texto", icon: Settings2 }, { id: "advanced", label: "Ajustes avançados", icon: Settings2 }] as const;
 
-export default function LabelPrintSettings({ value: applied, onChange: apply, onTest, onBack }: { value: Settings; onChange: (value: Settings) => void; onTest: (value: Settings) => void; onBack: () => void }) {
+export default function LabelPrintSettings({ value: applied, onChange: apply, onTest, onBack, mode = "edit" }: { value: Settings; onChange: (value: Settings) => void; onTest: (value: Settings) => void; onBack: () => void; mode?: "edit" | "new" }) {
   const toast = useToast(), root = useRef<HTMLElement>(null);
   const [profiles, setProfiles] = useState<Profile[]>(storedProfiles);
-  const [name, setName] = useState(() => matchingProfile(profiles, applied)?.name || "Minha etiqueta");
+  const editing = mode === "edit" ? matchingProfile(profiles, applied) : undefined; // modelo que está sendo ajustado (some no modo "novo")
+  const [name, setName] = useState(() => (mode === "new" ? "" : editing?.name || "Minha etiqueta"));
   const [value, setValue] = useState<Settings>(() => ({ ...applied }));
   const [tab, setTab] = useState<"paper" | "style" | "advanced">("paper"), [note, setNote] = useState("");
   const [printers, setPrinters] = useState<Array<{ name: string; displayName: string; isDefault: boolean }>>([]);
@@ -57,31 +127,35 @@ export default function LabelPrintSettings({ value: applied, onChange: apply, on
   function save() {
     if (errors.length) return;
     const title = Array.from(name.trim()).slice(0, 60).join("");
-    if (!title) { setNote("Dê um nome ao perfil."); return; }
-    const index = profiles.findIndex(p => p.name.toLowerCase() === title.toLowerCase());
-    if (index < 0 && profiles.length >= 10) { setNote("Já existem 10 perfis. Use o nome de um deles para atualizá-lo."); return; }
+    if (!title) { setNote("Dê um nome ao modelo."); return; }
+    const clash = profiles.findIndex(p => p.name.toLowerCase() === title.toLowerCase());
+    const own = editing ? profiles.indexOf(editing) : -1;
+    // modo "novo": nunca sobrescreve outro modelo; modo "ajustar": atualiza o modelo aberto (e aceita novo nome)
+    if (mode === "new" && clash >= 0) { setNote("Já existe um modelo com esse nome. Escolha outro nome."); return; }
+    if (mode === "edit" && clash >= 0 && clash !== own) { setNote("Já existe outro modelo com esse nome. Escolha outro nome."); return; }
+    if ((mode === "new" || own < 0) && clash < 0 && profiles.length >= MAX_MODELS) { setNote(`Já existem ${MAX_MODELS} modelos. Exclua algum na tela de etiquetas.`); return; }
     const next = [...profiles], item = { name: title, settings: { ...value } };
-    if (index >= 0) next[index] = item; else next.push(item);
+    if (mode === "edit" && own >= 0) next[own] = item; else if (clash >= 0) next[clash] = item; else next.push(item);
     try {
       localStorage.setItem(`${labelSettingsStorageKey()}:profiles`, JSON.stringify(next));
       localStorage.setItem(labelSettingsStorageKey(), JSON.stringify(value));
       setProfiles(next); apply({ ...value }); onBack();
-      toast.success(`Configuração salva e aplicada: ${title}.`);
+      toast.success(mode === "new" ? `Modelo criado: ${title}.` : `Modelo salvo: ${title}.`);
     } catch { const message = "Não foi possível salvar no navegador. Verifique o armazenamento disponível."; setNote(message); toast.error(message); }
   }
   const number = (key: keyof Settings, label: string, min = 0, max = 100, hint?: string) => <Input key={key} label={label} type="number" step="0.1" min={min} max={max} showCount={false} hint={hint} value={Number.isFinite(value[key] as number) ? value[key] as number : ""} onChange={event => set({ [key]: event.target.value === "" ? NaN : Number(event.target.value) })} />;
 
   return <section ref={root} tabIndex={-1} className="space-y-4 outline-none" aria-label="Configurar etiquetas">
     <Button variant="ghost" size="sm" iconLeft={<ArrowLeft size={14} />} onClick={onBack}>Voltar</Button>
-    <SectionTitle title="Configurar etiquetas" description="Ajuste o formato da impressão e salve para voltar às etiquetas." action={<>
+    <SectionTitle title={mode === "new" ? "Novo modelo de etiqueta" : "Ajustar modelo de etiqueta"} description={mode === "new" ? "Configure as medidas e dê um nome. Ele fica salvo para escolher na tela de etiquetas." : "Ajuste o formato da impressão e salve para voltar às etiquetas."} action={<>
       <Button variant="outline" onClick={() => onTest(value)} disabled={errors.length > 0} iconLeft={<Printer size={14} />}>Teste de alinhamento</Button>
-      <Button onClick={save} disabled={errors.length > 0} iconLeft={<Save size={14} />}>Salvar e aplicar</Button>
+      <Button onClick={save} disabled={errors.length > 0} iconLeft={<Save size={14} />}>{mode === "new" ? "Criar modelo" : "Salvar modelo"}</Button>
     </>} />
     {note && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{note}</p>}
     {errors.length > 0 && <Alert variant="warning" title="Revise as medidas antes de imprimir"><ul className="list-disc space-y-1 pl-4">{errors.map(error => <li key={error}>{error}</li>)}</ul></Alert>}
     <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="min-w-0 space-y-4">
-        <PanelCard title="Perfil de impressão" contentClassName="grid gap-4 sm:grid-cols-2">
+        <PanelCard title={mode === "new" ? "Nome do novo modelo" : "Nome do modelo"} contentClassName="grid gap-4 sm:grid-cols-2">
           <Select label="Carregar perfil deste navegador" value="" onChange={event => { if (event.target.value === "") return; const profile = profiles[Number(event.target.value)]; if (profile) { setValue({ ...profile.settings }); setName(profile.name); setNote(""); } }}><option value="">Perfis salvos</option>{profiles.map((p, i) => <option key={p.name} value={i}>{p.name}</option>)}</Select>
           <Input label="Nome do perfil" value={name} showCount={false} maxLength={60} onChange={event => { setName(event.target.value); setNote(""); }} />
         </PanelCard>
