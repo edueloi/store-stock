@@ -14,6 +14,7 @@ import {
 } from "../../components/ui";
 import type { Column } from "../../components/ui";
 import type { Product, Tenant } from "../../types";
+import CameraScanButton from "../../components/CameraScanButton";
 import MarkupPageTour, { MARKUP_PAGE_TOUR_EVENTS, type MarkupPageTourHandle } from "../../components/onboarding/MarkupPageTour";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1308,15 +1309,22 @@ export default function Markup() {
       {/* ── Product Picker Modal ──────────────────────────────────────────── */}
       <Modal open={showProductPicker} onClose={() => setShowProductPicker(false)} title="Selecionar Produto" size="md">
         <div data-tour="markup-product-picker" className="space-y-3">
-          <Input
-            autoFocus
-            iconLeft={<Search size={14} />}
-            aria-label="Buscar produto"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={pickOnEnter}
-            placeholder="Nome, SKU ou código de barras (Enter seleciona)…"
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              autoFocus
+              iconLeft={<Search size={14} />}
+              aria-label="Buscar produto"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={pickOnEnter}
+              placeholder="Nome, SKU ou código de barras (Enter seleciona)…"
+              wrapperClassName="flex-1"
+            />
+            <CameraScanButton onScan={(code) => {
+              const exact = products.find((p) => p.barcode === code || p.sku === code || (p as any).code === code);
+              if (exact) { selectProduct(exact); setSearch(""); } else setSearch(code);
+            }} />
+          </div>
           <div className="max-h-72 space-y-1 overflow-y-auto">
             {loading ? (
               <p className="py-4 text-center text-xs text-slate-500">Carregando…</p>

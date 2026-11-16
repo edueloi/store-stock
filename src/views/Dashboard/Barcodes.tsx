@@ -16,6 +16,7 @@ import LabelPrintSettings, { LabelPrintSummary } from "../../components/labels/L
 import LabelPrintPreview from "../../components/labels/LabelPrintPreview";
 import { calibrationContents, labelBarcodeSvg, labelEscape, labelGeometry, labelPrintDocument, labelSettingsStorageKey, storedLabelSettings, validateLabelPrint, type LabelPrintSettings as LabelPrintConfig } from "../../lib/labelPrinting";
 import { useToast } from "../../components/ui/Toast";
+import CameraScanButton from "../../components/CameraScanButton";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 
 const API_HEADERS = () => ({
@@ -316,18 +317,22 @@ export default function Barcodes() {
   });
 
   // Leitor de código de barras: digita o código e dá Enter → o produto entra na seleção (cada leitura soma 1 etiqueta)
-  const handleScanEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter") return;
-    const t = search.trim();
+  const addByCode = (code: string, fromCamera = false) => {
+    const t = code.trim();
     if (!t) return;
-    const target = products.find((p) => p.barcode === t || p.sku === t) ?? (filtered.length === 1 ? filtered[0] : null);
-    e.preventDefault();
+    const target = products.find((p) => p.barcode === t || p.sku === t) ?? (!fromCamera && filtered.length === 1 ? filtered[0] : null);
     if (!target) { toast.warning("Nenhum produto com esse código."); return; }
     setSelected((cur) => cur.some((x) => x.product.id === target.id)
       ? cur.map((x) => x.product.id === target.id ? { ...x, qty: Math.min(2000, x.qty + 1) } : x)
       : [...cur, { product: target, qty: 1 }]);
     setSearch("");
     toast.success(`${target.name} adicionado`);
+  };
+  const handleScanEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    if (!search.trim()) return;
+    e.preventDefault();
+    addByCode(search);
   };
 
   const isSelected = (id: number) => selected.some((s) => s.product.id === id);
@@ -511,6 +516,9 @@ export default function Barcodes() {
                   onKeyDown={handleScanEnter}
                   autoFocus
                 />
+              </FilterLineItem>
+              <FilterLineItem>
+                <CameraScanButton onScan={(c) => addByCode(c, true)} />
               </FilterLineItem>
               <FilterLineItem>
                 <Select

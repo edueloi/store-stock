@@ -4,6 +4,7 @@
   "private": true,
   "description": "Store BoxSys - app Android (Capacitor)",
   "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "^8.2.2",
     "@capacitor/android": "^8.6.2",
     "@capacitor/assets": "^4.0.0",
     "@capacitor/browser": "^8.0.5",

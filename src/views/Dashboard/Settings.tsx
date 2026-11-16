@@ -66,6 +66,7 @@ import {
   Ruler,
 } from "lucide-react";
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
+import { CameraScannerPreference } from "../../components/CameraScanButton";
 import HeroSlidesEditor from "./HeroSlidesEditor";
 import VitraContentEditor from "./VitraContentEditor";
 import { sanitizeStorefrontHeadings } from "../../../shared/storefrontHeadings";
@@ -6629,6 +6630,7 @@ export default function Settings({
                   </div>
                 </div>
 
+                <CameraScannerPreference />
                 <DesktopTerminalsSection />
               </div>
             )}

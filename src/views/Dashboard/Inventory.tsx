@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import CameraScanButton from "../../components/CameraScanButton";
 import {
   Plus, Edit2, Trash2, Image as ImageIcon, Package,
   TrendingUp, LayoutGrid, List, Tag, AlertTriangle,
@@ -476,7 +477,7 @@ export default function Inventory() {
   const filteredProducts = [...products]
     .filter(p => {
       if (p.type !== "sale") return false;
-      if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase()) && !(p.sku?.toLowerCase().includes(searchTerm.toLowerCase()))) return false;
+      if (searchTerm && !p.name.toLowerCase().includes(searchTerm.toLowerCase()) && !(p.sku?.toLowerCase().includes(searchTerm.toLowerCase())) && !((p.barcode ?? "").toLowerCase().includes(searchTerm.toLowerCase()))) return false;
       if (filterCategory && p.category_id !== filterCategory) return false;
       if (filterStatus === "active" && !p.is_active) return false;
       if (filterStatus === "inactive" && p.is_active) return false;
@@ -791,10 +792,13 @@ export default function Inventory() {
             <FilterLineItem grow minWidth={200}>
               <FilterLineSearch
                 id="catalog-search-input"
-                placeholder="Buscar por nome ou SKU..."
+                placeholder="Buscar por nome, SKU ou código de barras..."
                 value={searchTerm}
                 onChange={(v) => { setSearchTerm(v); setCurrentPage(1); }}
               />
+            </FilterLineItem>
+            <FilterLineItem>
+              <CameraScanButton onScan={(code) => { setSearchTerm(code); setCurrentPage(1); }} />
             </FilterLineItem>
             <FilterLineItem>
               <Select size="sm" aria-label="Filtrar por categoria" value={filterCategory}

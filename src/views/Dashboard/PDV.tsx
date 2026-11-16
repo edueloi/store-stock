@@ -38,6 +38,7 @@ import { getStoredUser } from "../../lib/session";
 import { CategoryGlyph } from "../../components/categories/CategoryGlyph";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
 import { useBarcodeScanner } from "../../hooks/useBarcodeScanner";
+import CameraScanButton from "../../components/CameraScanButton";
 
 function maskPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -1971,6 +1972,13 @@ export default function PDV() {
             </div>
           </div>
         </div>
+
+        {/* Câmera do celular (somente no app Android): botão flutuante, já que a barra do leitor some em tela pequena */}
+        {!(pdvStep === "payment" && showCheckout) && (
+          <div className="fixed bottom-4 right-3 z-30 opacity-80">
+            <CameraScanButton variant="fab" onScan={(c) => handleScan(c)} />
+          </div>
+        )}
 
         {/* Scanner status — centro (some durante o pagamento e em telas pequenas, sem leitor físico) */}
         {!(pdvStep === "payment" && showCheckout) && (
