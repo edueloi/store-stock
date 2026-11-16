@@ -44,6 +44,8 @@ interface CartItem extends Product {
   variationLabel: string;
   selectedOptions?: Record<string, string>;
   heldSaleItemId?: number;
+  // item avulso: digitado na hora (nome + valor), sem cadastro; não baixa estoque
+  isAvulso?: boolean;
 }
 
 interface PaymentEntry {
@@ -212,7 +214,7 @@ function ClassicPDV() {
   const [completed, setCompleted] = useState<Completed | null>(null);
 
   // modais
-  type Modal = null | "pending" | "split" | "variation" | "price" | "operator" | "held" | "discount" | "customer" | "seller" | "qty" | "confirmCancel";
+  type Modal = null | "pending" | "split" | "variation" | "price" | "operator" | "held" | "discount" | "customer" | "seller" | "qty" | "confirmCancel" | "avulso";
   const [modal, setModal] = useState<Modal>(null);
   // Dividir a conta entre pessoas: cada parte é cobrada em sequência (cada uma pode usar uma forma de pagamento)
   const [split, setSplit] = useState<{ shares: number[]; idx: number } | null>(null);
@@ -464,6 +466,29 @@ function ClassicPDV() {
     return true;
   }, [cart, flash, sellWithoutStock]);
 
+  // Item avulso: nome + valor + quantidade digitados na hora, sem produto no catálogo.
+  const [avulsoName, setAvulsoName] = useState("");
+  const [avulsoPrice, setAvulsoPrice] = useState("");
+  const [avulsoQty, setAvulsoQty] = useState("1");
+  const [avulsoNcm, setAvulsoNcm] = useState("");
+  const addAvulso = () => {
+    const price = num(avulsoPrice);
+    const quantity = Math.max(1, Math.floor(num(avulsoQty)) || 1);
+    if (!avulsoName.trim()) { flash("Informe o nome do item."); return; }
+    if (!(price > 0)) { flash("Informe o valor do item."); return; }
+    const cartItemId = `avulso-${crypto.randomUUID()}`;
+    setCart((prev) => [...prev, {
+      id: -Date.now(), tenant_id: 0, name: avulsoName.trim(), stock_quantity: 0, type: "sale",
+      is_active: true, is_featured: false, track_stock: false, ncm: avulsoNcm.trim() || undefined,
+      price, quantity, cartItemId, variationLabel: "", isAvulso: true,
+    } as CartItem]);
+    setSelectedId(cartItemId);
+    setAvulsoName(""); setAvulsoPrice(""); setAvulsoQty("1"); setAvulsoNcm("");
+    setModal(null);
+    resetEntry();
+  };
+  const openAvulso = () => { setAvulsoName(""); setAvulsoPrice(""); setAvulsoQty("1"); setAvulsoNcm(""); setModal("avulso"); };
+
   const resetEntry = () => { setCode(""); setQty("1"); setPicked(null); setActiveSuggestion(0); codeRef.current?.focus(); };
 
   const handleCodeEnter = () => {
@@ -586,6 +611,7 @@ function ClassicPDV() {
 
   const holdSale = async () => {
     if (!token || cart.length === 0) return;
+    if (cart.some((i) => i.isAvulso)) { flash("Venda com item avulso não pode ficar em espera. Finalize ou remova o item avulso."); return; }
     if (!isOnline) { flash("Aguardar venda precisa de internet (reserva o estoque no servidor)."); return; }
     try {
       await createHeldSale(token, {
@@ -705,8 +731,11 @@ function ClassicPDV() {
     const d = new Date();
     const saleBody = {
       items: cart.map((i) => ({
-        id: i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null,
+        id: i.isAvulso ? undefined : i.id, quantity: i.quantity, price: i.price, selectedOptions: i.selectedOptions ?? null,
         heldSaleItemId: i.heldSaleItemId ?? undefined,
+        isAvulso: i.isAvulso ?? undefined,
+        name: i.isAvulso ? i.name : undefined,
+        ncm: i.isAvulso ? (i.ncm || undefined) : undefined,
       })),
       services: [],
       customerName: customer?.name ?? "",
@@ -833,7 +862,7 @@ function ClassicPDV() {
     F5: () => { if (screen === "sale") { setPriceQuery(""); setModal("price"); } },
     F6: () => (screen === "sale" ? goToPayment() : void finishSale()),
     F7: () => (screen === "sale" ? void holdSale() : setPrintReceipt((v) => !v)),
-    F8: () => { if (screen === "payment") setEmitNfce((v) => !v); },
+    F8: () => { if (screen === "payment") setEmitNfce((v) => !v); else if (screen === "sale") openAvulso(); },
     F9: () => { if (actions.current.hasCart) setModal("confirmCancel"); else if (screen === "payment") setScreen("sale"); },
     F10: () => { if (screen === "payment") { setLookup(""); setModal("seller"); } },
     Alt1: () => pickPayMethod(PAY_ORDER[0]), Alt2: () => pickPayMethod(PAY_ORDER[1]), Alt3: () => pickPayMethod(PAY_ORDER[2]),
@@ -1254,6 +1283,7 @@ function ClassicPDV() {
               <>
                 <FKey k="F4" label="Em aberto" badge={heldBadge} onClick={() => void openHeld()} />
                 <FKey k="F5" label="Preço" onClick={() => { setPriceQuery(""); setModal("price"); }} />
+                <FKey k="F8" label="Avulso" onClick={openAvulso} />
                 <FKey k="F2" label="Leitor" active={scannerMode} onClick={() => handlers.current.F2?.()} />
                 <FKey k="F3" label="Operador" onClick={() => setModal("operator")} />
               </>
@@ -1535,6 +1565,32 @@ function ClassicPDV() {
             );
           })()}
           <button className={cn(btn("blue"), "mt-3 w-full")} onClick={startSplit}>Começar (Enter)</button>
+        </Overlay>
+      )}
+
+      {modal === "avulso" && (
+        <Overlay title="Item avulso" onClose={() => setModal(null)} width={380} hint="Enter confirma · Esc cancela">
+          <div className="space-y-2.5" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addAvulso(); } }}>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-500">Nome do item</label>
+              <input className={inputCls} autoFocus value={avulsoName} onChange={(e) => setAvulsoName(e.target.value)} placeholder="Ex: Peça avulsa do cliente" />
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-slate-500">Valor unitário (R$)</label>
+                <input className={cn(inputCls, "text-center font-mono font-semibold")} inputMode="decimal" value={avulsoPrice} onChange={(e) => setAvulsoPrice(e.target.value)} placeholder="0,00" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-slate-500">Quantidade</label>
+                <input className={cn(inputCls, "text-center font-mono font-semibold")} inputMode="numeric" value={avulsoQty} onChange={(e) => setAvulsoQty(e.target.value)} onFocus={(e) => e.target.select()} />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-500">NCM (opcional)</label>
+              <input className={cn(inputCls, "font-mono")} value={avulsoNcm} onChange={(e) => setAvulsoNcm(e.target.value)} placeholder="Deixe em branco se não souber" />
+            </div>
+            <button type="button" onClick={addAvulso} className="h-9 w-full rounded-sm bg-emerald-600 text-[13px] font-semibold text-white hover:bg-emerald-700">Adicionar à venda</button>
+          </div>
         </Overlay>
       )}
 
