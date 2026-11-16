@@ -8,7 +8,7 @@ import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
 import { buildDpsXml, finNfseDefault, type TomadorInput } from "./dpsXmlBuilder";
 import { explicarErroNfse, explicarFalhaComunicacao } from "./errorMessages";
-import { loadPfx, assinarDPS } from "../nfce/signer";
+import { loadPfx, assinarDPSAsync } from "../nfce/signer";
 import { callNfseRest, gzipBase64, ungzipBase64, type NfseEnvironment } from "./restClient";
 import { consultarAliquotaServico } from "./parametrosMunicipais";
 import { generateNfsePdf } from "./pdf";
@@ -167,7 +167,7 @@ async function emitirNfseInterno(input: EmitirNfseInput): Promise<void> {
         includeFinNFSe,
       });
       idDPS = built.idDPS;
-      signedXml = assinarDPS(built.xml, idDPS, cert);
+      signedXml = await assinarDPSAsync(built.xml, idDPS, cert);
 
       result = await callNfseRest({
         environment,

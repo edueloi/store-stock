@@ -1,8 +1,10 @@
+import crypto from "crypto";
 import https from "https";
 import tls from "tls";
 import axios from "axios";
 
-import { loadPfx } from "./signer";
+import { loadPfx, isA3Path, parseA3 } from "./signer";
+import { askAgent } from "../fiscal-agent.service";
 import { ICP_BRASIL_ROOT_CA } from "./icpBrasilCa";
 
 // URLs dos webservices NFC-e da SEFAZ-SP (versão 4.00)
@@ -63,6 +65,19 @@ export async function callSefazSoap(input: SoapCallInput): Promise<SoapCallResul
   const { environment, service, soapBody, pfxPath, pfxPassword, timeoutMs } = input;
   const url = URLS[environment][service];
   const envelope = buildEnvelope(soapBody);
+
+  // Certificado A3: a conexão com a SEFAZ sai do computador do token (a chave não existe no servidor)
+  if (isA3Path(pfxPath)) {
+    const { terminalUid, thumbprint } = parseA3(pfxPath);
+    const r = await askAgent(terminalUid, "http", {
+      thumbprint, url, method: "POST", body: envelope, headers: {},
+      contentType: `application/soap+xml; charset=utf-8; action="${SOAP_ACTIONS[service]}"`,
+      caDers: [new crypto.X509Certificate(ICP_BRASIL_ROOT_CA).raw.toString("base64")], timeoutSec: Math.ceil(timeoutMs / 1000),
+    }, timeoutMs + 20_000);
+    if (!r.ok) return { ok: false, statusCode: 0, rawResponse: "", error: String(r.error || "Falha ao falar com a SEFAZ pelo app desktop.") };
+    const status = Number(r.status) || 0;
+    return { ok: status >= 200 && status < 300, statusCode: status, rawResponse: String(r.body ?? "") };
+  }
 
   // Extraímos chave/cert em PEM via node-forge (em vez de passar pfx/passphrase brutos
   // ao https.Agent) porque o parser PKCS12 nativo do OpenSSL do Node rejeita alguns

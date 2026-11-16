@@ -1,9 +1,11 @@
+import crypto from "crypto";
 import https from "https";
 import tls from "tls";
 import zlib from "zlib";
 import axios from "axios";
 
-import { loadPfx } from "../nfce/signer";
+import { loadPfx, isA3Path, parseA3 } from "../nfce/signer";
+import { askAgent } from "../fiscal-agent.service";
 import { ICP_BRASIL_ROOT_CA } from "../nfce/icpBrasilCa";
 
 // Sistema Nacional NFS-e — comunicação REST+JSON, autenticação mTLS (o certificado do
@@ -58,6 +60,21 @@ export function ungzipBase64(gzipB64: string): string {
 export async function callNfseRest(input: NfseRestCallInput): Promise<NfseRestCallResult> {
   const { environment, method, service = "sefin", path, body, pfxPath, pfxPassword, timeoutMs } = input;
   const url = `${BASE_URLS[service][environment]}${path}`;
+
+  // Certificado A3: a conexão (mTLS) com o Sistema Nacional NFS-e sai do computador do token
+  if (isA3Path(pfxPath)) {
+    const { terminalUid, thumbprint } = parseA3(pfxPath);
+    const r = await askAgent(terminalUid, "http", {
+      thumbprint, url, method, body: body === undefined ? "" : JSON.stringify(body), headers: {}, contentType: "application/json",
+      caDers: [new crypto.X509Certificate(ICP_BRASIL_ROOT_CA).raw.toString("base64")], timeoutSec: Math.ceil(timeoutMs / 1000),
+    }, timeoutMs + 20_000);
+    if (!r.ok) return { ok: false, statusCode: 0, data: null, raw: "", error: String(r.error || "Falha ao falar com o Sistema Nacional pelo app desktop.") };
+    const status = Number(r.status) || 0;
+    const raw = String(r.body ?? "");
+    let data: unknown = null;
+    try { data = JSON.parse(raw); } catch { /* resposta não é JSON */ }
+    return { ok: status >= 200 && status < 300, statusCode: status, data: data && typeof data === "object" ? (data as Record<string, unknown>) : null, raw };
+  }
 
   // mTLS: o certificado do contribuinte autentica a própria conexão TLS, exigido pelo
   // Sistema Nacional NFS-e além da assinatura do XML. Extraímos chave/cert em PEM via

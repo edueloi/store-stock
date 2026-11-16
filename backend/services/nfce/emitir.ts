@@ -9,7 +9,7 @@ import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
 import { normalizePaymentMethodString } from "../../utils/payment-method";
 import { buildNfceXml, type PaymentSegment } from "./xmlBuilder";
-import { loadPfx, assinarNfce } from "./signer";
+import { loadPfx, assinarNfceAsync } from "./signer";
 import { callSefazSoap, extractProtTag } from "./soapClient";
 import { buildQrCodeUrl, buildUrlChave } from "./qrcode";
 import { generateDanfePdf, generateDanfeA4Pdf, formatCpfCnpjDanfe, type DanfeInput } from "./danfe";
@@ -151,7 +151,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
     });
 
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);
-    const signedXmlWithDecl = assinarNfce(xml, chaveAcesso, cert);
+    const signedXmlWithDecl = await assinarNfceAsync(xml, chaveAcesso, cert);
     // assinarNfce (via xml-crypto) preserva a declaração XML ("<?xml version=...?>") do
     // documento original — válida como início de um XML "solto", mas ilegal no meio de
     // outro elemento. Embutir isso dentro de <enviNFe> quebra o parsing do envelope SOAP

@@ -7,6 +7,7 @@ import { env } from "../config/env";
 import { prisma } from "../config/prisma";
 import type { AuthTokenPayload } from "../types/auth";
 import { verifyTerminalCredentials } from "../utils/terminal-auth";
+import { resolveAgentResponse } from "./fiscal-agent.service";
 
 // Eventos em tempo real que o front escuta para atualizar telas sozinho, sem
 // precisar de F5 — cada tenant só recebe os próprios eventos (sala `tenant:<id>`).
@@ -28,6 +29,7 @@ export type RealtimeEvent =
   | "consignment:changed"    // consignação criada, editada ou liquidada
   | "nfce:changed"           // NFC-e emitida, autorizada, rejeitada ou cancelada
   | "nfse:changed"           // NFS-e emitida, autorizada, rejeitada ou cancelada
+  | "fiscal:requested"      // pedido ao app desktop do certificado A3 (assinar / falar com a SEFAZ)
   | "print:requested";       // pedido de impressão remota pra um terminal desktop específico
 
 let io: SocketIOServer | null = null;
@@ -79,6 +81,7 @@ export function initRealtime(httpServer: HttpServer) {
       };
       touch();
       socket.on("terminal:heartbeat", touch);
+      socket.on("fiscal:response", (msg) => resolveAgentResponse(nativeTerminal.uid, msg)); // resposta do certificado A3
       return;
     }
 

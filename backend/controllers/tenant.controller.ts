@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 
@@ -10,7 +11,8 @@ import { env } from "../config/env";
 import type { AuthenticatedRequest } from "../types/auth";
 import { buildTenantAccessUrl, normalizeSubdomain } from "../utils/tenant-domain";
 import { decryptSecret, encryptSecret } from "../utils/secretCrypto";
-import { parsePfx } from "../services/nfce/signer";
+import { parsePfx, isA3Path, parseA3, a3CertFile, A3_PREFIX } from "../services/nfce/signer";
+import { askAgent } from "../services/fiscal-agent.service";
 import { sendReportNow } from "../services/email-reports.service";
 import { sendStoreEmailConnectionTest } from "../services/store-email.service";
 import { sanitizeStorefrontHeadings } from "../../shared/storefrontHeadings";
@@ -393,6 +395,18 @@ export async function getNfceCertificateInfo(req: Request, res: Response) {
     });
     if (!tenant?.nfce_cert_path) { res.json({ configured: false }); return; }
 
+    // Certificado A3: a validade vem do certificado público guardado; o token fica no computador do terminal
+    if (isA3Path(tenant.nfce_cert_path)) {
+      try {
+        const { terminalUid, thumbprint } = parseA3(tenant.nfce_cert_path);
+        const x = new crypto.X509Certificate(fs.readFileSync(a3CertFile(thumbprint)));
+        const validUntil = new Date(x.validTo);
+        const daysLeft = Math.floor((validUntil.getTime() - Date.now()) / 86400000);
+        const terminal = await prisma.desktopTerminal.findFirst({ where: { terminal_uid: terminalUid, tenant_id: tenantId }, select: { name: true } });
+        res.json({ configured: true, readable: true, mode: "a3", terminalName: terminal?.name ?? null, subjectName: /CN=([^\n]+)/.exec(x.subject)?.[1] ?? null, validUntil: validUntil.toISOString(), daysLeft, expired: daysLeft < 0 });
+      } catch { res.json({ configured: true, readable: false, mode: "a3" }); }
+      return;
+    }
     const password = decryptSecret(tenant.nfce_cert_password);
     if (!password || !fs.existsSync(tenant.nfce_cert_path)) {
       res.json({ configured: true, readable: false });
@@ -529,4 +543,49 @@ export async function listAutomatedMessageLogs(req: Request, res: Response) {
     console.error("listAutomatedMessageLogs error:", err);
     res.status(500).json({ error: "Falha ao buscar histórico de envios" });
   }
+}
+
+// ── Certificado A3 (token/cartão) pelo app desktop ───────────────────────────────────────────────────────
+const isAdminUser = (req: Request) => (req as AuthenticatedRequest).user.role === "admin";
+async function ownTerminal(tenantId: number, id: unknown) {
+  const n = Number(id);
+  return Number.isInteger(n) && n > 0 ? prisma.desktopTerminal.findFirst({ where: { id: n, tenant_id: tenantId }, select: { id: true, name: true, terminal_uid: true } }) : null;
+}
+
+/** Pede ao app do terminal a lista de certificados instalados (A3 conectado ou A1 instalado) para a pessoa escolher. */
+export async function listA3Certificates(req: Request, res: Response) {
+  try {
+    if (!isAdminUser(req)) { res.status(403).json({ error: "Só o administrador configura o certificado." }); return; }
+    const terminal = await ownTerminal(getTenantId(req), req.body?.terminal_id);
+    if (!terminal) { res.status(404).json({ error: "Escolha um terminal desktop vinculado a esta loja." }); return; }
+    const r = await askAgent(terminal.terminal_uid, "list", {}, 40_000);
+    if (!r.ok) { res.status(502).json({ error: String(r.error || "O app não respondeu.") }); return; }
+    const certs = (Array.isArray(r.certs) ? r.certs : []) as { subject: string; issuer: string; thumbprint: string; notAfter: string }[];
+    res.json({ certs: certs.map((c) => ({ subject: c.subject, issuer: c.issuer, thumbprint: c.thumbprint, notAfter: c.notAfter })) });
+  } catch (e) { console.error("listA3Certificates:", e); res.status(500).json({ error: "Falha ao listar os certificados." }); }
+}
+
+/** Usa o certificado escolhido (A3) para este CNPJ: guarda o certificado público e marca o CNPJ como A3. */
+export async function selectA3Certificate(req: Request, res: Response) {
+  try {
+    if (!isAdminUser(req)) { res.status(403).json({ error: "Só o administrador configura o certificado." }); return; }
+    const tenantId = getTenantId(req);
+    const terminal = await ownTerminal(tenantId, req.body?.terminal_id);
+    const thumbprint = String(req.body?.thumbprint ?? "").toUpperCase().replace(/[^A-F0-9]/g, "");
+    if (!terminal || thumbprint.length < 20) { res.status(422).json({ error: "Escolha o terminal e o certificado." }); return; }
+    const r = await askAgent(terminal.terminal_uid, "list", {}, 40_000);
+    if (!r.ok) { res.status(502).json({ error: String(r.error || "O app não respondeu.") }); return; }
+    const found = ((Array.isArray(r.certs) ? r.certs : []) as { thumbprint: string; der: string; notAfter: string }[]).find((c) => c.thumbprint.toUpperCase() === thumbprint);
+    if (!found) { res.status(404).json({ error: "Esse certificado não está mais disponível no computador. Conecte o token e tente de novo." }); return; }
+    if (new Date(found.notAfter).getTime() < Date.now()) { res.status(422).json({ error: "Esse certificado está vencido." }); return; }
+    fs.mkdirSync(env.nfceCertsDir, { recursive: true });
+    fs.writeFileSync(a3CertFile(thumbprint), Buffer.from(found.der, "base64"));
+    const previous = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { nfce_cert_path: true } });
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { nfce_cert_path: `${A3_PREFIX}${terminal.terminal_uid}:${thumbprint}`, nfce_cert_password: encryptSecret("a3") },
+    });
+    if (previous?.nfce_cert_path && !isA3Path(previous.nfce_cert_path)) fs.unlink(previous.nfce_cert_path, () => {}); // troca do A1 pelo A3
+    res.json({ ok: true, terminalName: terminal.name });
+  } catch (e) { console.error("selectA3Certificate:", e); res.status(500).json({ error: "Falha ao configurar o certificado A3." }); }
 }

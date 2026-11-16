@@ -7,6 +7,7 @@ const { autoUpdater } = require("electron-updater");
 const log = require("electron-log");
 const printerModule = require("./printer.cjs");
 const offlineDb = require("./db.cjs");
+const fiscalAgent = require("./fiscal-agent.cjs");
 const remotePrint = require("./remote-print.cjs");
 const webcache = require("./webcache.cjs");
 const offlineSync = require("./offline-sync.cjs");
@@ -164,6 +165,15 @@ function startRemotePrint() {
     uid: terminalUid,
     token: terminalToken,
     log,
+    // Certificado A3 (token/cartão) deste computador: lista, assina e fala com a SEFAZ a pedido do servidor
+    onFiscal: async (action, payload) => {
+      if (process.platform !== "win32") return { ok: false, error: "O certificado A3 só é suportado no Windows." };
+      log.info(`[fiscal-agent] pedido: ${action}`);
+      if (action === "list") return fiscalAgent.listCerts();
+      if (action === "sign") return fiscalAgent.signData(payload);
+      if (action === "http") return fiscalAgent.httpRequest(payload);
+      return { ok: false, error: "Pedido desconhecido." };
+    },
     onPrint: async (role, text, html, size) => {
       const printer = await findPrinterForRole(role);
       if (!printer) return { ok: false, error: `Nenhuma impressora configurada para "${role}"` };

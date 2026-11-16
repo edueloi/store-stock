@@ -6,7 +6,7 @@ import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
 import { buildCancelamentoXml } from "./eventoXml";
-import { loadPfx, assinarEvento } from "./signer";
+import { loadPfx, assinarEventoAsync } from "./signer";
 import { callSefazSoap, extractTag } from "./soapClient";
 
 // Prazo regulamentar (Ajuste SINIEF 19/16, cláusula 15ª) para cancelamento comum de NFC-e.
@@ -59,7 +59,7 @@ export async function cancelarNfce(orderId: number, justificativa: string): Prom
     });
 
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);
-    const signedXmlWithDecl = assinarEvento(xml, idEvento, cert);
+    const signedXmlWithDecl = await assinarEventoAsync(xml, idEvento, cert);
     // Mesmo problema documentado em emitir.ts: a declaração XML ("<?xml ...?>") que
     // assinarEvento preserva do documento original é ilegal no meio de outro elemento —
     // embutir isso dentro de <envEvento> quebra o parsing do envelope SOAP e a SEFAZ

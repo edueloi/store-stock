@@ -29,6 +29,7 @@
       "preload.cjs",
       "printer.cjs",
       "remote-print.cjs",
+      "fiscal-agent.cjs",
       "webcache.cjs",
       "offline-sync.cjs",
       "legacy-migration.cjs",

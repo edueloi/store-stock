@@ -18,7 +18,7 @@ function stop() {
 
 // `onPrint(role, text)` resolve a impressora do terminal e imprime. Chamar de novo com
 // os mesmos dados é seguro (não recria a conexão); com dados novos, reconecta.
-function start({ server, uid, token, onPrint, log }) {
+function start({ server, uid, token, onPrint, onFiscal, log }) {
   if (!server || !uid || !token) return false;
   if (socket && current.server === server && current.uid === uid && current.token === token) return true;
   stop();
@@ -43,6 +43,15 @@ function start({ server, uid, token, onPrint, log }) {
     } catch (err) {
       log?.warn?.(`[remote-print] falha ao imprimir: ${err?.message || err}`);
     }
+  });
+
+  // Pedidos fiscais (certificado A3 deste computador): assina / fala com a SEFAZ e responde ao servidor
+  socket.on("fiscal:requested", async (req) => {
+    if (!req?.id || !req?.action) return;
+    let result;
+    try { result = onFiscal ? await onFiscal(req.action, req.payload || {}) : { ok: false, error: "Este app não tem o recurso de certificado A3." }; }
+    catch (err) { result = { ok: false, error: err?.message || String(err) }; }
+    socket?.emit("fiscal:response", { id: req.id, result });
   });
 
   heartbeat = setInterval(() => {

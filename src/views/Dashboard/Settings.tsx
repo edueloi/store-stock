@@ -66,6 +66,7 @@ import {
   Ruler,
 } from "lucide-react";
 import DesktopTerminalsSection from "./DesktopTerminalsSection";
+import A3CertificatePicker from "../../components/fiscal/A3CertificatePicker";
 import { CameraScannerPreference } from "../../components/CameraScanButton";
 import HeroSlidesEditor from "./HeroSlidesEditor";
 import VitraContentEditor from "./VitraContentEditor";
@@ -2953,6 +2954,8 @@ export default function Settings({
                             </Button>
                           </div>
                         </div>
+
+                        <A3CertificatePicker onDone={() => { setTenant((prev) => (prev ? { ...prev, nfce_cert_configured: true } : prev)); showSaved(); }} />
 
                         {certError && (
                           <p className="text-[11px] font-semibold text-red-600">

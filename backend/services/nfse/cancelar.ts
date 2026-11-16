@@ -6,7 +6,7 @@ import { prisma } from "../../config/prisma";
 import { env } from "../../config/env";
 import { decryptSecret } from "../../utils/secretCrypto";
 import { buildCancelamentoNfseXml, type MotivoCancelamentoNfse } from "./eventoXmlBuilder";
-import { loadPfx, assinarPedRegEvento } from "../nfce/signer";
+import { loadPfx, assinarPedRegEventoAsync } from "../nfce/signer";
 import { callNfseRest, gzipBase64, type NfseEnvironment } from "./restClient";
 import { explicarErroNfse } from "./errorMessages";
 
@@ -51,7 +51,7 @@ export async function cancelarNfse(
     });
 
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);
-    const signedXml = assinarPedRegEvento(xml, idEvento, cert);
+    const signedXml = await assinarPedRegEventoAsync(xml, idEvento, cert);
 
     const result = await callNfseRest({
       environment,
