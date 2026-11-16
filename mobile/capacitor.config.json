@@ -6,8 +6,7 @@
   "server": {
     "androidScheme": "https",
     "allowNavigation": [
-      "store.boxsys.com.br",
-      "*.boxsys.com.br"
+      "store.boxsys.com.br"
     ],
     "errorPath": "offline.html"
   },
@@ -19,6 +18,10 @@
       "launchShowDuration": 800,
       "backgroundColor": "#09161f",
       "showSpinner": false
+    },
+    "SystemBars": {
+      "style": "DARK",
+      "insetsHandling": "css"
     }
   }
 }

@@ -362,10 +362,21 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          {/* Criar conta */}
+          <div className="mt-8 border-t border-white/10 pt-6 text-center">
+            <p className="text-sm text-slate-400">Ainda não tem conta?</p>
+            <a
+              href="https://boxsys.com.br/store"
+              className="mt-3 flex h-[50px] w-full items-center justify-center rounded-xl border border-white/15 text-sm font-bold text-white transition-colors hover:bg-white/[0.06] active:scale-[0.99]"
+            >
+              Criar minha conta
+            </a>
+          </div>
         </motion.div>
 
-        {/* Footer */}
-        <p className="absolute bottom-6 text-center text-xs text-slate-500 lg:hidden">
+        {/* Footer (no fluxo da página; respeita a barra de navegação do celular) */}
+        <p className="mt-10 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-center text-xs text-slate-500 lg:hidden">
           &copy; {new Date().getFullYear()} BoxSys
         </p>
       </main>

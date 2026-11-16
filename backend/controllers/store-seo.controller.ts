@@ -35,6 +35,11 @@ function absoluteUrl(req: Request, pathOrUrl: string): string {
   return `${baseUrl(req)}${normalized}`;
 }
 
+// Ícone da loja: logo cadastrado; se não houver, o ícone padrão do Store BoxSys.
+function tenantIconUrl(req: Request, tenant: { logo_url?: string | null }) {
+  return absoluteUrl(req, tenant.logo_url || "/system/store-boxsys-icon-v1.png");
+}
+
 function fmtPrice(value: unknown): string {
   return Number(value ?? 0).toFixed(2);
 }
@@ -67,6 +72,8 @@ function renderSeoPage(res: Response, options: {
   canonicalUrl: string;
   siteName: string;
   image?: string;
+  /** Ícone/logo da loja (aba do navegador, resultado do Google, atalho). Sem ele usa o ícone padrão do sistema. */
+  iconUrl?: string;
   type?: "website" | "product";
   jsonLd: object;
   price?: string;
@@ -76,7 +83,10 @@ function renderSeoPage(res: Response, options: {
     return;
   }
 
-  const image = options.image || "";
+  const iconHref = escapeHtml(options.iconUrl || "");
+  // Sem foto própria, o compartilhamento (WhatsApp, Facebook) mostra o logo/ícone da loja.
+  const image = options.image || options.iconUrl || "";
+  const imageIsIcon = !options.image;
   const title = escapeHtml(options.title);
   const description = escapeHtml(options.description.slice(0, 300));
   const canonicalUrl = escapeHtml(options.canonicalUrl);
@@ -87,9 +97,14 @@ function renderSeoPage(res: Response, options: {
     : "";
   const imageTags = image
     ? `<meta property="og:image" content="${escapeHtml(image)}" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
+    ${imageIsIcon ? "" : `<meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />`}
     <meta name="twitter:image" content="${escapeHtml(image)}" />`
+    : "";
+  const iconTags = iconHref
+    ? `<link rel="icon" href="${iconHref}" />
+    <link rel="shortcut icon" href="${iconHref}" />
+    <link rel="apple-touch-icon" href="${iconHref}" />`
     : "";
   const metaBlock = `
     <meta name="description" content="${description}" />
@@ -102,7 +117,8 @@ function renderSeoPage(res: Response, options: {
     <meta property="og:locale" content="pt_BR" />
     ${imageTags}
     ${priceTags}
-    <meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}" />
+    <meta name="twitter:card" content="${image && !imageIsIcon ? "summary_large_image" : "summary"}" />
+    ${iconTags}
     <meta name="twitter:title" content="${title}" />
     <meta name="twitter:description" content="${description}" />
     <link rel="canonical" href="${canonicalUrl}" />
@@ -111,6 +127,7 @@ function renderSeoPage(res: Response, options: {
   const html = cachedTemplate
     .replace(/<title>.*?<\/title>/i, `<title>${title}</title>`)
     .replace(/<meta name="robots" content="[^"]*"\s*\/?>/i, "")
+    .replace(iconHref ? /<link rel="(?:icon|shortcut icon|apple-touch-icon)"[^>]*>\s*/gi : /$^/, "")
     .replace(/<meta property="og:type" content="[^"]*"\s*\/?>/i, "")
     .replace(/<meta name="twitter:card" content="[^"]*"\s*\/?>/i, "")
     .replace("</head>", `${metaBlock}\n  </head>`);
@@ -163,6 +180,7 @@ export async function handleProductSeo(req: Request, res: Response) {
       canonicalUrl,
       siteName: tenant.name,
       image,
+      iconUrl: tenantIconUrl(req, tenant),
       type: "product",
       price,
       jsonLd: {
@@ -243,6 +261,7 @@ export async function handleStoreSeo(req: Request, res: Response) {
       description: current.description,
       url: canonicalUrl,
       ...(image ? { image } : {}),
+      logo: tenantIconUrl(req, tenant),
       ...(tenant.whatsapp ? { telephone: `+${tenant.whatsapp.replace(/\D/g, "")}` } : {}),
       ...(tenant.address ? { address: { "@type": "PostalAddress", streetAddress: tenant.address } } : {}),
       ...(socialProfiles.length ? { sameAs: socialProfiles } : {}),
@@ -261,6 +280,7 @@ export async function handleStoreSeo(req: Request, res: Response) {
       canonicalUrl,
       siteName: tenant.name,
       image,
+      iconUrl: tenantIconUrl(req, tenant),
       jsonLd: schema,
     });
   } catch {
