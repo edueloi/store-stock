@@ -12,6 +12,7 @@ const printerModule = require("./printer.cjs");
 const offlineDb = require("./db.cjs");
 const fiscalAgent = require("./fiscal-agent.cjs");
 // Janela de PIN do token A3. Carregamento tolerante: se faltar por qualquer motivo, o app abre normalmente e o A3 cai no pedido do driver.
+app.on("will-quit", () => { try { fiscalAgent.stopWorker(); } catch { /* sem sessão aberta */ } });
 let pinPrompt = null;
 try { pinPrompt = require("./pin-prompt.cjs"); } catch (e) { console.error("[fiscal-agent] janela de PIN indisponivel:", e && e.message); }
 const remotePrint = require("./remote-print.cjs");
@@ -182,14 +183,12 @@ function startRemotePrint() {
       log.info(`[fiscal-agent] pedido: ${action}`);
       if (action === "list") return fiscalAgent.listCerts();
       if (action === "sign" || action === "http") {
-        // O PIN do token é pedido por uma janela do próprio app (sempre à frente), não pela janela do driver, que costuma não aparecer.
-        const thumb = payload?.thumbprint;
-        const pin = pinPrompt ? await pinPrompt.getPin(thumb) : "";
-        if (pinPrompt && !pin) return { ok: false, error: "PIN do token não informado." };
-        const r = action === "sign" ? await fiscalAgent.signData({ ...payload, pin }) : await fiscalAgent.httpRequest({ ...payload, pin });
-        // Falhou: esquece o PIN guardado (se estiver errado, pede de novo e não insiste sozinho — evita bloquear o token)
-        if (pinPrompt) { if (r?.ok) pinPrompt.touchPin(thumb); else pinPrompt.forgetPin(thumb); }
-        return r;
+        // Primeira assinatura do dia: janelinha visível do app como "janela-mãe" para a janela de PIN do driver abrir por cima dela.
+        // Com a sessão do token já aberta (PIN dado hoje) não mostra nada: o PIN vale o dia todo.
+        const wait = !fiscalAgent.sessionOpen() && pinPrompt ? pinPrompt.showWaiting() : { hwnd: "", close() {} };
+        try {
+          return action === "sign" ? await fiscalAgent.signData({ ...payload, hwnd: wait.hwnd }) : await fiscalAgent.httpRequest({ ...payload, hwnd: wait.hwnd });
+        } finally { wait.close(); }
       }
       return { ok: false, error: "Pedido desconhecido." };
     }),
