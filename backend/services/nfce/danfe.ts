@@ -162,6 +162,69 @@ export async function generateDanfePdf(input: DanfeInput): Promise<Buffer> {
   });
 }
 
+// Cupom fiscal (DANFE NFC-e) em TEXTO, para a impressora térmica (ESC/POS) do PDV: mesmo conteúdo do cupom em PDF
+// (empresa, itens, total, pagamento, consumidor, nº/série, protocolo, chave) em colunas fixas. O QR Code vai como o marcador
+// [[QR:url]], que o app desktop troca pelo comando de QR Code da impressora (ver desktop/printer.cjs).
+export function buildCupomText(input: DanfeInput, cols = 42): string {
+  const W = Math.max(24, Math.min(64, Math.floor(cols) || 42));
+  const rule = "-".repeat(W);
+  const money = (v: number) => formatMoney(Number(v) || 0);
+  const wrap = (text: string, width = W): string[] => {
+    const out: string[] = [];
+    for (const para of String(text ?? "").split("\n")) {
+      let line = "";
+      for (let word of para.split(/\s+/).filter(Boolean)) {
+        while (word.length > width) { if (line) { out.push(line); line = ""; } out.push(word.slice(0, width)); word = word.slice(width); }
+        if (!line) line = word;
+        else if (line.length + 1 + word.length <= width) line += ` ${word}`;
+        else { out.push(line); line = word; }
+      }
+      out.push(line);
+    }
+    return out;
+  };
+  const center = (text: string) => wrap(text).map((l) => " ".repeat(Math.max(0, Math.floor((W - l.length) / 2))) + l).join("\n");
+  const row = (left: string, right: string) => {
+    const gap = W - left.length - right.length;
+    return gap >= 1 ? left + " ".repeat(gap) + right : `${wrap(left).join("\n")}\n${" ".repeat(Math.max(0, W - right.length))}${right}`;
+  };
+
+  const lines: string[] = [];
+  lines.push(center(input.storeName.toUpperCase()));
+  if (input.storeDocument) lines.push(center(input.storeDocument + (input.storeStateRegistration ? `  IE: ${input.storeStateRegistration}` : "")));
+  if (input.storeAddress) lines.push(center(input.storeAddress));
+  lines.push(rule);
+  lines.push(center("DANFE NFC-e"));
+  lines.push(center("Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica"));
+  if (input.environment === "homologacao") lines.push(center("EMISSÃO EM AMBIENTE DE HOMOLOGAÇÃO - SEM VALOR FISCAL"));
+  lines.push(rule);
+
+  let totalQuantity = 0;
+  input.items.forEach((item, idx) => {
+    totalQuantity += item.quantity;
+    lines.push(wrap(`${String(idx + 1).padStart(2, "0")} ${item.code || "---"} ${item.name}`).join("\n"));
+    lines.push(row(`   ${Number(item.quantity)} ${item.unit} x ${money(item.unitPrice)}`, money(item.total)));
+  });
+  lines.push(rule);
+  lines.push(row("Qtde. total de itens", String(totalQuantity)));
+  if (input.surchargeAmount && input.surchargeAmount > 0) lines.push(row("Acréscimo", `R$ ${money(input.surchargeAmount)}`));
+  lines.push(row("VALOR TOTAL R$", money(input.totalAmount)));
+  lines.push(wrap(`Forma de pagamento: ${input.paymentSummary}`).join("\n"));
+  if (input.changeAmount && input.changeAmount > 0) lines.push(row("Troco R$", money(input.changeAmount)));
+  lines.push(rule);
+  lines.push(center(input.customerLabel));
+  lines.push(center(`NFC-e nº ${input.numero}  Série ${input.serie}`));
+  lines.push(center(`Emissão: ${input.emittedAt.toLocaleString("pt-BR")}`));
+  if (input.protocol) lines.push(center(`Protocolo de autorização: ${input.protocol}`));
+  if (input.approxTaxAmount != null) lines.push(center(`Trib. aprox. R$ ${money(input.approxTaxAmount)} Fonte: IBPT (Lei 12.741/2012)`));
+  lines.push(rule);
+  lines.push(center("CHAVE DE ACESSO"));
+  lines.push(center(input.chaveAcesso.replace(/(\d{4})/g, "$1 ").trim()));
+  lines.push(center("Consulte pela Chave de Acesso em www.nfce.fazenda.sp.gov.br"));
+  lines.push(`[[QR:${input.qrCodeUrl}]]`);
+  return lines.join("\n");
+}
+
 // Documento A4 formal da NFC-e — mesmo espírito do generateNfsePdf (moldura de
 // documento oficial, seções com título, tabela de valores), só que com uma
 // tabela de itens de produto no lugar da discriminação de serviço única. É o

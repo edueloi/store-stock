@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, dialog, shell, session } = require("electron");
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain, dialog, shell, session, Notification } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
@@ -897,6 +897,36 @@ app.on("second-instance", () => {
   showMainWindow();
 });
 
+// ─── Downloads ───────────────────────────────────────────────────────────────
+// Sem isto o Windows mostra a janela "Salvar como" a cada DANFE/cupom/XML (o navegador web salva direto em Downloads).
+// Aqui salva direto na pasta Downloads (sem sobrescrever: "nome (1).pdf") e, ao terminar, PDF abre no leitor padrão (ver/imprimir)
+// e os demais arquivos (XML, ZIP, planilhas) avisam onde foram salvos.
+function uniquePath(dir, name) {
+  const base = path.basename(String(name || "arquivo")).replace(/[\/:*?"<>|]+/g, "_") || "arquivo";
+  const ext = path.extname(base), stem = base.slice(0, base.length - ext.length);
+  let p = path.join(dir, base), i = 1;
+  while (fs.existsSync(p)) p = path.join(dir, `${stem} (${i++})${ext}`);
+  return p;
+}
+function installDownloadHandler(ses) {
+  ses.on("will-download", (_event, item) => {
+    try {
+      const target = uniquePath(app.getPath("downloads"), item.getFilename());
+      item.setSavePath(target);
+      item.once("done", (_e, state) => {
+        if (state !== "completed") { log.warn(`[download] nao concluiu: ${path.basename(target)} (${state})`); return; }
+        const isPdf = /\.pdf$/i.test(target) || /pdf/i.test(item.getMimeType() || "");
+        if (isPdf) { shell.openPath(target).then((err) => { if (err) { log.warn(`[download] nao abriu o PDF: ${err}`); shell.showItemInFolder(target); } }); return; }
+        if (Notification.isSupported()) {
+          const n = new Notification({ title: "Arquivo salvo", body: `${path.basename(target)} — em Downloads. Clique para abrir a pasta.` });
+          n.on("click", () => shell.showItemInFolder(target));
+          n.show();
+        }
+      });
+    } catch (e) { log.warn(`[download] falhou ao preparar: ${e && e.message}`); }
+  });
+}
+
 // ─── Lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   // Recupera vínculo/impressoras/fila do app antigo (a pasta de dados mudou com o novo nome) ANTES de ler qualquer config.
@@ -904,6 +934,7 @@ app.whenReady().then(() => {
   offlineDb.initDb(app);
   legacyMigration.afterDb({ app, offlineDb, log });
   // Guarda o site em disco para o PDV abrir mesmo sem internet (ver webcache.cjs).
+  installDownloadHandler(session.defaultSession);
   const siteCache = webcache.install(session.defaultSession, () => readConfig().server, app.getPath("userData"));
   // Depois que a tela carregou (e foi gravada no cache), completa o resto em segundo plano.
   setTimeout(() => siteCache.prefetchAssets().catch(() => {}), 15000);

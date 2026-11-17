@@ -487,6 +487,34 @@ export async function printThermalText(text: string, title: string): Promise<{ o
     const result = await window.boxsysDesktop.printReceipt(text);
     return result;
   }
-  printViaIframe(buildThermalHtml(text, title));
+  // Sem o app desktop não há comando de QR Code: mostra o endereço da consulta no lugar do marcador [[QR:...]]
+  printViaIframe(buildThermalHtml(text.replace(/\[\[QR:([^\]]+)\]\]/g, "Consulta: $1"), title));
   return { ok: true };
+}
+
+const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}` });
+
+/** Cupom fiscal (NFC-e) em texto para a térmica, com o QR Code como marcador. Só existe depois de a nota ser autorizada. */
+export async function fetchNfceCupomText(orderId: number, cols = 42): Promise<string> {
+  const res = await fetch(`/api/nfce/${orderId}/cupom-text?cols=${cols}`, { headers: authHeader() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || typeof data?.text !== "string") throw new Error(data?.error || "Não foi possível montar o cupom fiscal.");
+  return data.text;
+}
+
+/** Espera a SEFAZ responder (a emissão é assíncrona): devolve "authorized", "rejected"/"error" (com o motivo) ou "timeout". */
+export async function waitNfceResult(orderId: number, timeoutMs = 30000): Promise<{ status: string; reason?: string }> {
+  const limit = Date.now() + timeoutMs;
+  while (Date.now() < limit) {
+    try {
+      const res = await fetch(`/api/nfce/${orderId}`, { headers: authHeader() });
+      if (res.ok) {
+        const inv = await res.json();
+        if (inv?.status === "authorized") return { status: "authorized" };
+        if (inv?.status === "rejected" || inv?.status === "error") return { status: inv.status, reason: inv.rejection_reason || undefined };
+      }
+    } catch { /* sem rede por um instante: tenta de novo */ }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return { status: "timeout" };
 }

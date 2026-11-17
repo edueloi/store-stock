@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { downloadAuthenticatedFile } from "../../lib/downloadFile";
 import {
   Search, ShoppingCart, Plus, Minus, Trash2, User, CreditCard,
   Banknote, Percent, CheckCircle2, Package, X, QrCode, Tag,
@@ -4034,13 +4035,13 @@ export default function PDV() {
                           <p className="text-[11px] font-semibold text-emerald-700">NFC-e autorizada</p>
                           <p className="text-[11px] text-emerald-600 font-medium truncate">Protocolo {nfceInvoice.protocol}</p>
                         </div>
-                        <a
-                          href={`/api/nfce/${completedSale.orderId}/danfe`}
-                          target="_blank" rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => { downloadAuthenticatedFile(`/api/nfce/${completedSale.orderId}/danfe`, `danfe-${nfceInvoice?.access_key ?? completedSale.orderId}.pdf`).catch((e) => window.alert(e instanceof Error ? e.message : "Não foi possível abrir o DANFE.")); }}
                           className="shrink-0 h-9 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-all"
                         >
                           <FileText size={13} /> DANFE
-                        </a>
+                        </button>
                       </>
                     )}
                     {(nfceInvoice?.status === "rejected" || nfceInvoice?.status === "error") && (

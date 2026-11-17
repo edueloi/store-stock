@@ -11,7 +11,7 @@ import {
   fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession,
   type CashSessionInfo,
 } from "../lib/cashSession";
-import { buildCashCloseFullReceiptText, buildOrderReceiptText, printThermalText } from "../lib/thermalReceipt";
+import { buildCashCloseFullReceiptText, buildOrderReceiptText, printThermalText, fetchNfceCupomText, waitNfceResult } from "../lib/thermalReceipt";
 import { cancelHeldSale, createHeldSale, getOpenHeldSalesCount, listHeldSales, resumeHeldSale, type HeldSale } from "../lib/heldSales";
 import { ClassicCloseCash, ClassicLogin, ClassicOpenCash } from "../components/pdv/ClassicCash";
 import { ToastProvider } from "../components/ui/Toast";
@@ -60,6 +60,13 @@ interface PaymentEntry {
 
 interface Seller { id: number; name: string; user_id?: number | null }
 interface Customer { id: number; name: string; phone?: string; document?: string }
+
+/** Máscara de CPF (até 11 dígitos) ou CNPJ (até 14). */
+function maskDoc(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 14);
+  if (d.length <= 11) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, "$1.$2.$3-$4").replace(/-$/, "").replace(/\.{1,}$/, "");
+  return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, "$1.$2.$3/$4-$5").replace(/-$/, "").replace(/\/$/, "");
+}
 type Tenant = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 interface Completed {
@@ -207,6 +214,7 @@ function ClassicPDV() {
   const [surcharge, setSurcharge] = useState("");
   const [surchargeMode, setSurchargeMode] = useState<"R$" | "%">("R$");
   const [customerId, setCustomerId] = useState<number | null>(null);
+  const [customerDocument, setCustomerDocument] = useState(""); // CPF/CNPJ na nota sem cadastrar cliente
   const [sellerId, setSellerId] = useState<number | null>(null);
   const [printReceipt, setPrintReceipt] = useState(true);
   const [emitNfce, setEmitNfce] = useState(false);
@@ -583,7 +591,7 @@ function ClassicPDV() {
   // ── ações ──────────────────────────────────────────────────────────────────
   const newSale = useCallback(() => {
     setCart([]); setPayments([]); setScreen("sale"); setActiveHeldId(null);
-    setDiscount(""); setSurcharge(""); setCustomerId(null); setEmitNfce(false);
+    setDiscount(""); setSurcharge(""); setCustomerId(null); setCustomerDocument(""); setEmitNfce(false);
     setPayAmount(""); setPayMethod("money"); setPayInstallments(1);
     setSaleNumber((n) => n + 1);
     resetEntry();
@@ -740,6 +748,7 @@ function ClassicPDV() {
       services: [],
       customerName: customer?.name ?? "",
       customerId: customerId ?? undefined,
+      customerDocument: !customerId && customerDocument ? customerDocument : undefined,
       sellerId,
       totalAmount: total,
       paymentMethod: pmString,
@@ -778,15 +787,37 @@ function ClassicPDV() {
       const receiptText = buildReceipt(orderId);
       setLastReceipt(receiptText);
       let nfce: string | undefined;
+      let nfceSent = false;
       if (wasNfce && !offline) {
         try {
           const r = await fetch(`/api/nfce/${orderId}/emit`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
           const data = await r.json().catch(() => ({}));
+          nfceSent = r.ok;
           nfce = r.ok ? "NFC-e enviada para autorização." : (data?.error || "Não foi possível gerar a NFC-e.");
         } catch { nfce = "Não foi possível gerar a NFC-e."; }
       }
       if (printReceipt && window.boxsysDesktop?.printReceipt) {
-        printThermalText(receiptText, "Cupom").then((res) => { if (!res.ok) flash(res.error || "Falha ao imprimir o recibo."); });
+        const printRecibo = () => printThermalText(receiptText, "Cupom").then((res) => { if (!res.ok) flash(res.error || "Falha ao imprimir o recibo."); });
+        if (nfceSent) {
+          // Com NFC-e, o que sai no papel é o CUPOM FISCAL (com chave e QR Code), não o recibo: espera a SEFAZ autorizar e imprime.
+          // Se a nota não autorizar (rejeitada, erro ou demora), imprime o recibo e avisa, para o cliente nunca ficar sem papel.
+          void (async () => {
+            const result = await waitNfceResult(orderId);
+            if (result.status === "authorized") {
+              try {
+                const text = await fetchNfceCupomText(orderId);
+                setLastReceipt(text);
+                const res = await printThermalText(text, "Cupom fiscal");
+                if (!res.ok) flash(res.error || "Falha ao imprimir o cupom fiscal.");
+                return;
+              } catch (e) { flash(`${e instanceof Error ? e.message : "Cupom fiscal indisponível."} Imprimindo o recibo.`); }
+            } else if (result.status === "timeout") flash("A NFC-e ainda não foi autorizada. Imprimindo o recibo; o cupom fiscal sai pelas Notas Fiscais.", "err", 6000);
+            else flash(`NFC-e não autorizada${result.reason ? `: ${result.reason}` : ""}. Imprimindo o recibo.`, "err", 6000);
+            void printRecibo();
+          })();
+        } else {
+          void printRecibo();
+        }
       }
       if (autoReturn) {
         // volta ao caixa livre: o troco (e o aviso da NFC-e) ficam num aviso fixo por alguns segundos
@@ -865,6 +896,7 @@ function ClassicPDV() {
     F8: () => { if (screen === "payment") setEmitNfce((v) => !v); else if (screen === "sale") openAvulso(); },
     F9: () => { if (actions.current.hasCart) setModal("confirmCancel"); else if (screen === "payment") setScreen("sale"); },
     F10: () => { if (screen === "payment") { setLookup(""); setModal("seller"); } },
+    F11: () => { setLookup(""); setModal("customer"); },
     Alt1: () => pickPayMethod(PAY_ORDER[0]), Alt2: () => pickPayMethod(PAY_ORDER[1]), Alt3: () => pickPayMethod(PAY_ORDER[2]),
     Alt4: () => pickPayMethod(PAY_ORDER[3]), Alt5: () => pickPayMethod(PAY_ORDER[4]),
     Alt6: () => { if (PAY_ORDER[5]) pickPayMethod(PAY_ORDER[5]); },
@@ -898,7 +930,7 @@ function ClassicPDV() {
         const nonText = tag === "button" || tag === "body" || tag === "li" || tag === "div" || (tag === "input" && (el!.type === "checkbox" || el!.type === "radio"));
         if (nonText && el !== codeRef.current) codeRef.current?.focus();
       }
-      if (/^F(2|3|4|5|6|7|8|9|10)$/.test(e.key)) {
+      if (/^F(2|3|4|5|6|7|8|9|10|11)$/.test(e.key)) {
         e.preventDefault();
         if (m && m !== "confirmCancel") return;
         handlers.current[e.key]?.();
@@ -1000,7 +1032,7 @@ function ClassicPDV() {
               <b className="font-mono text-[#0a3d5c]">Pedido Nº {saleNumber}</b>
               <span className="hidden sm:inline">{new Date().toLocaleDateString("pt-BR")}</span>
               <span className="truncate">Operador: <b>{operatorName}</b></span>
-              <span className="truncate">Cliente: <b>{selectedCustomer?.name ?? "Balcão"}</b></span>
+              <span className="truncate">Cliente: <b>{selectedCustomer?.name ?? "Balcão"}</b>{!selectedCustomer && customerDocument ? <> · CPF/CNPJ na nota: <b className="font-mono">{customerDocument}</b></> : null}</span>
               {selectedSeller && <span className="truncate">Vendedor: <b>{selectedSeller.name}</b></span>}
             </span>
           )}
@@ -1286,14 +1318,15 @@ function ClassicPDV() {
                 <FKey k="F8" label="Avulso" onClick={openAvulso} />
                 <FKey k="F2" label="Leitor" active={scannerMode} onClick={() => handlers.current.F2?.()} />
                 <FKey k="F3" label="Operador" onClick={() => setModal("operator")} />
+                <FKey k="F11" label="Cliente / CPF" active={!!customerId || !!customerDocument} onClick={() => { setLookup(""); setModal("customer"); }} />
               </>
             ) : (
               <>
-                <FKey k="F2" label="Cliente" onClick={() => { setLookup(""); setModal("customer"); }} />
+                <FKey k="F2" label="Cliente / CPF" active={!!customerId || !!customerDocument} onClick={() => { setLookup(""); setModal("customer"); }} />
                 <FKey k="F4" label="Dividir" active={!!split} disabled={remaining <= 0.004} onClick={() => handlers.current.F4?.()} />
                 <FKey k="F10" label="Vendedor" onClick={() => { setLookup(""); setModal("seller"); }} />
                 <FKey k="F3" label="Desconto" onClick={() => setModal("discount")} />
-                <FKey k="F7" label="Recibo" active={printReceipt} onClick={() => setPrintReceipt((v) => !v)} />
+                <FKey k="F7" label="Imprimir" active={printReceipt} onClick={() => setPrintReceipt((v) => !v)} />
                 <FKey k="F8" label={isOnline ? "NFC-e" : "NFC-e (online)"} active={emitNfce} disabled={!isOnline} onClick={() => setEmitNfce((v) => !v)} />
               </>
             )}
@@ -1462,9 +1495,27 @@ function ClassicPDV() {
             ? customers.filter((c) => !lookupLower || norm(c.name).includes(lookupLower) || (c.document ?? "").includes(lookup) || (c.phone ?? "").includes(lookup)).slice(0, 40).map((c) => ({ id: c.id, name: c.name, extra: c.document || c.phone }))
             : sellers.filter((s) => !lookupLower || norm(s.name).includes(lookupLower)).map((s) => ({ id: s.id, name: s.name }))),
         ];
-        const choose = (id: number | null) => { if (isCustomer) setCustomerId(id); else setSellerId(id); setModal(null); };
+        const choose = (id: number | null) => { if (isCustomer) { setCustomerId(id); if (id !== null) setCustomerDocument(""); } else setSellerId(id); setModal(null); };
         return (
           <Overlay title={isCustomer ? "Referenciar cliente" : "Vendedor"} onClose={() => setModal(null)} width={460} hint="Digite para buscar · ↑ ↓ escolhem · Enter seleciona · Esc fecha">
+            {isCustomer && (() => {
+              const dl = customerDocument.replace(/\D/g, "").length;
+              const okDoc = dl === 11 || dl === 14;
+              return (
+                <div className="mb-2 rounded-sm border border-[#c5cfdf] bg-[#f4f7fb] p-2">
+                  <label className={labelCls}>CPF/CNPJ na nota <span className="text-slate-400">(sem cadastrar o cliente)</span></label>
+                  <div className="flex gap-2">
+                    <input
+                      className={cn(inputCls, "font-mono")} value={customerDocument} inputMode="numeric" placeholder="000.000.000-00"
+                      onChange={(e) => setCustomerDocument(maskDoc(e.target.value))}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); if (okDoc || dl === 0) { setCustomerId(null); setModal(null); } else flash("CPF com 11 dígitos ou CNPJ com 14."); } }}
+                    />
+                    <button className={cn(btn("blue"), "shrink-0 px-4")} onClick={() => { if (okDoc || dl === 0) { setCustomerId(null); setModal(null); } else flash("CPF com 11 dígitos ou CNPJ com 14."); }}>OK</button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">Sai na NFC-e. Quem tem cadastro: escolha o cliente abaixo e o documento do cadastro é usado.</p>
+                </div>
+              );
+            })()}
             <input
               className={inputCls} autoFocus placeholder="Buscar…" value={lookup}
               onChange={(e) => { setLookup(e.target.value); setPickActive(0); }}

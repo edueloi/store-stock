@@ -58,6 +58,41 @@ function encodeForThermalPrinter(text) {
   ]);
 }
 
+// ── QR Code no cupom fiscal (NFC-e) ───────────────────────────────────────────────
+// O texto do cupom traz o QR Code como o marcador [[QR:endereço]] (linha própria). Aqui o marcador vira o comando de QR Code do ESC/POS
+// (GS ( k, modelo 2, correção M), centralizado; o resto continua texto normal.
+const QR_MARK = /\[\[QR:([^\]]+)\]\]/g;
+function splitQr(text) {
+  const parts = [];
+  let last = 0, m;
+  QR_MARK.lastIndex = 0;
+  while ((m = QR_MARK.exec(text))) {
+    if (m.index > last) parts.push({ type: "text", value: text.slice(last, m.index) });
+    parts.push({ type: "qr", value: m[1] });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ type: "text", value: text.slice(last) });
+  return parts;
+}
+function qrBytes(data, size = 6) {
+  const d = Buffer.from(String(data), "latin1"); // endereço da consulta: só ASCII
+  const len = d.length + 3;
+  return Buffer.concat([
+    Buffer.from([0x1b, 0x61, 0x01]),                                           // centraliza
+    Buffer.from([0x1d, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]),       // modelo 2
+    Buffer.from([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, size]),             // tamanho do módulo
+    Buffer.from([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31]),             // correção de erro M
+    Buffer.from([0x1d, 0x28, 0x6b, len & 0xff, (len >> 8) & 0xff, 0x31, 0x50, 0x30]), d, // guarda os dados
+    Buffer.from([0x1d, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30]),             // imprime
+    Buffer.from([0x0a]),
+    Buffer.from([0x1b, 0x61, 0x00]),                                           // volta ao alinhamento à esquerda
+  ]);
+}
+/** Bytes ESC/POS do cupom (texto em CP860 + QR Code nos marcadores). */
+function buildReceiptBytes(text) {
+  return Buffer.concat(splitQr(String(text)).map((p) => (p.type === "qr" ? qrBytes(p.value) : encodeForThermalPrinter(p.value))));
+}
+
 // Impressora instalada como impressora comum do Windows (USB direto, a maioria das
 // térmicas modernas) — manda ESC/POS raw via spooler nativo via WritePrinter (Win32
 // winspool.drv, mesma API que qualquer driver de impressão usa por baixo), chamada
@@ -146,7 +181,7 @@ async function testUsbConnection(config) {
 
 async function printReceiptUsb(text, config) {
   try {
-    const encoded = encodeForThermalPrinter(text);
+    const encoded = buildReceiptBytes(text);
     // Avanço generoso antes do corte — sem isso a lâmina corta em cima da última
     // linha impressa em impressoras que não avançam papel sozinhas antes do GS V.
     const feed = Buffer.from("\n\n\n\n\n", "ascii");
@@ -184,7 +219,10 @@ async function printReceipt(text, config) {
     const printer = buildPrinter(config);
     // O texto já vem formatado em colunas fixas (centralização/alinhamento manual),
     // então não usamos os helpers de alinhamento do driver aqui.
-    printer.println(text);
+    for (const part of splitQr(String(text))) {
+      if (part.type === "qr") { printer.alignCenter(); printer.printQR(part.value, { cellSize: 6, correction: "M", model: 2 }); printer.alignLeft(); }
+      else printer.println(part.value);
+    }
     printer.cut();
     await printer.execute();
     return { ok: true };
@@ -219,4 +257,4 @@ function describeError(err) {
   return `Falha na impressora: ${message}`;
 }
 
-module.exports = { testConnection, printReceipt, openCashDrawer };
+module.exports = { testConnection, printReceipt, openCashDrawer, buildReceiptBytes, splitQr };
