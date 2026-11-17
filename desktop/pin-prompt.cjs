@@ -7,18 +7,18 @@ const { BrowserWindow } = require("electron");
 const PAGE = `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Certificado digital</title>
 <style>
   *{box-sizing:border-box;margin:0}
-  html,body{height:100%}
-  body{font:14px/1.45 "Segoe UI",system-ui,Arial,sans-serif;color:#0f172a;background:#f1f5f9;display:flex;align-items:center;justify-content:center;padding:14px}
-  .card{width:100%;background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(15,23,42,.12);overflow:hidden}
-  .top{display:flex;align-items:center;gap:14px;padding:20px 22px;background:linear-gradient(135deg,#1d4ed8,#2563eb 60%,#3b82f6);color:#fff}
+  html,body{height:100%;overflow:hidden}
+  body{font:14px/1.45 "Segoe UI",system-ui,Arial,sans-serif;color:#0f172a;background:#eef2f7;display:flex;align-items:stretch;padding:0;user-select:none;cursor:default}
+  .card{width:100%;display:flex;flex-direction:column;background:#fff}
+  .top{display:flex;align-items:center;gap:14px;padding:20px 22px;background:linear-gradient(135deg,#0b1220,#1e3a8a 55%,#2563eb);color:#fff}
   .ico{flex:none;width:46px;height:46px;border-radius:14px;background:rgba(255,255,255,.18);display:grid;place-items:center}
   h1{font-size:16px;font-weight:600;letter-spacing:.1px}
   .sub{font-size:12.5px;opacity:.9;margin-top:2px}
-  .body{padding:18px 22px 20px}
+  .body{flex:1;padding:20px 24px 18px;display:flex;flex-direction:column;justify-content:space-between}
   ol{list-style:none;padding:0;display:grid;gap:11px}
   li{display:flex;gap:11px;align-items:flex-start;font-size:13.5px;color:#1e293b}
   .n{flex:none;width:22px;height:22px;border-radius:50%;background:#dbeafe;color:#1d4ed8;font-size:12px;font-weight:700;display:grid;place-items:center;margin-top:1px}
-  .wait{display:flex;align-items:center;gap:10px;margin-top:16px;padding:10px 12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12.5px;color:#475569}
+  .wait{display:flex;align-items:center;gap:10px;margin-top:14px;padding:10px 12px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0;font-size:12.5px;color:#475569}
   .spin{flex:none;width:16px;height:16px;border-radius:50%;border:2.5px solid #bfdbfe;border-top-color:#2563eb;animation:r .8s linear infinite}
   @keyframes r{to{transform:rotate(360deg)}}
   .tip{margin-top:10px;font-size:11.5px;color:#64748b}
@@ -44,8 +44,8 @@ const PAGE = `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Cer
 function showWaiting() {
   try {
     const win = new BrowserWindow({
-      width: 460, height: 340, resizable: false, minimizable: false, maximizable: false, autoHideMenuBar: true, show: false,
-      alwaysOnTop: true, title: "Certificado digital", backgroundColor: "#f1f5f9", webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
+      width: 460, height: 330, useContentSize: true, resizable: false, minimizable: false, maximizable: false, autoHideMenuBar: true, show: false,
+      alwaysOnTop: true, title: "Certificado digital", backgroundColor: "#eef2f7", webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
     });
     win.setMenuBarVisibility(false);
     win.setAlwaysOnTop(true, "screen-saver");

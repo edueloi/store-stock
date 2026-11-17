@@ -14,6 +14,9 @@ const crypto = require("crypto");
 
 let logger = (m) => console.log(m);
 function setLogger(fn) { if (typeof fn === "function") logger = fn; }
+// Importante: NÃO usar windowsHide:true ao lançar o PowerShell. Ele inicia o processo "oculto" e a primeira janela que o driver do token abrir
+// (a do PIN) herda isso e nunca aparece. Com -WindowStyle Hidden só o console some e a janela do PIN aparece normalmente.
+const PS_ARGS = ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File"];
 const TIMEOUT_MS = 120_000; // inclui o tempo de a pessoa digitar o PIN do token
 
 const PS_COMMON = `
@@ -158,8 +161,8 @@ function runPowerShell(kind, input, timeoutMs = TIMEOUT_MS) {
     const inFile = path.join(dir, "in.json"), outFile = path.join(dir, "out.json"), psFile = path.join(dir, "run.ps1");
     fs.writeFileSync(psFile, BOM + SCRIPTS[kind], "utf8");
     fs.writeFileSync(inFile, JSON.stringify(input || {}), "utf8");
-    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", psFile], {
-      env: { ...process.env, FISCAL_IN: inFile, FISCAL_OUT: outFile }, windowsHide: true,
+    const child = spawn("powershell.exe", [...PS_ARGS, psFile], {
+      env: { ...process.env, FISCAL_IN: inFile, FISCAL_OUT: outFile }, windowsHide: false,
     });
     let stderr = "";
     child.stderr.on("data", (d) => { stderr += d.toString(); });
@@ -198,7 +201,7 @@ function startWorker() {
   const psFile = path.join(dir, "sessao.ps1");
   fs.writeFileSync(psFile, BOM + WORKER_PS, "utf8");
   for (const k of ["sign", "http"]) fs.writeFileSync(path.join(dir, `${k}.ps1`), BOM + SCRIPTS[k], "utf8");
-  const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", psFile], { windowsHide: true });
+  const child = spawn("powershell.exe", [...PS_ARGS, psFile], { windowsHide: false });
   const w = { child, dir, day: dayKey(), used: false, buf: "", err: "", cur: null };
   child.stdout.on("data", (d) => {
     w.buf += d.toString();
@@ -209,7 +212,7 @@ function startWorker() {
       if (m && w.cur && w.cur.id === m[1]) w.cur.done();
     }
   });
-  child.stderr.on("data", (d) => { w.err += d.toString(); });
+  child.stderr.on("data", (d) => { const t = d.toString(); w.err += t; logger(`[fiscal-agent] aviso do token: ${t.trim().slice(0, 300)}`); });
   child.on("close", () => { if (worker === w) worker = null; if (w.cur) w.cur.fail("A sessão do certificado foi encerrada."); try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* temp */ } });
   child.on("error", (e) => { if (worker === w) worker = null; if (w.cur) w.cur.fail(e.message); });
   logger("[fiscal-agent] sessao do certificado iniciada");
