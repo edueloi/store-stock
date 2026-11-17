@@ -11,6 +11,7 @@ let diagnostics = null;
 const printerModule = require("./printer.cjs");
 const offlineDb = require("./db.cjs");
 const fiscalAgent = require("./fiscal-agent.cjs");
+const pinPrompt = require("./pin-prompt.cjs");
 const remotePrint = require("./remote-print.cjs");
 const webcache = require("./webcache.cjs");
 const offlineSync = require("./offline-sync.cjs");
@@ -173,8 +174,16 @@ function startRemotePrint() {
       if (process.platform !== "win32") return { ok: false, error: "O certificado A3 só é suportado no Windows." };
       log.info(`[fiscal-agent] pedido: ${action}`);
       if (action === "list") return fiscalAgent.listCerts();
-      if (action === "sign") return fiscalAgent.signData(payload);
-      if (action === "http") return fiscalAgent.httpRequest(payload);
+      if (action === "sign" || action === "http") {
+        // O PIN do token é pedido por uma janela do próprio app (sempre à frente), não pela janela do driver, que costuma não aparecer.
+        const thumb = payload?.thumbprint;
+        const pin = await pinPrompt.getPin(thumb);
+        if (!pin) return { ok: false, error: "PIN do token não informado." };
+        const r = action === "sign" ? await fiscalAgent.signData({ ...payload, pin }) : await fiscalAgent.httpRequest({ ...payload, pin });
+        // Falhou: esquece o PIN guardado (se estiver errado, pede de novo e não insiste sozinho — evita bloquear o token)
+        if (r?.ok) pinPrompt.touchPin(thumb); else pinPrompt.forgetPin(thumb);
+        return r;
+      }
       return { ok: false, error: "Pedido desconhecido." };
     },
     onPrint: async (role, text, html, size) => {

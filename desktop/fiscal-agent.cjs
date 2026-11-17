@@ -26,6 +26,30 @@ function Find-Cert([string]$thumb) {
   }
   throw 'Certificado nao encontrado neste computador. Conecte o token e confira se ele aparece no Windows.'
 }
+# Abre a chave privada ja com o PIN informado pelo app (variavel FISCAL_PIN). Sem PIN, cai no comportamento antigo (janela do driver).
+function Get-KeyWithPin($cert) {
+  $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+  if (-not $rsa) { throw 'Este certificado nao tem chave RSA utilizavel para assinar.' }
+  $pin = $env:FISCAL_PIN
+  if (-not $pin) { return $rsa }
+  try {
+    if ($rsa -is [System.Security.Cryptography.RSACng]) {
+      $bytes = [System.Text.Encoding]::Unicode.GetBytes($pin + [string][char]0)
+      $prop = New-Object System.Security.Cryptography.CngProperty('SmartCardPin', $bytes, [System.Security.Cryptography.CngPropertyOptions]::None)
+      $rsa.Key.SetProperty($prop)
+    } elseif ($rsa -is [System.Security.Cryptography.RSACryptoServiceProvider]) {
+      $info = $rsa.CspKeyContainerInfo
+      $csp = New-Object System.Security.Cryptography.CspParameters($info.ProviderType, $info.ProviderName, $info.KeyContainerName)
+      $csp.KeyNumber = [int]$info.KeyNumber
+      $csp.Flags = [System.Security.Cryptography.CspProviderFlags]::UseExistingKey
+      $ss = New-Object System.Security.SecureString
+      foreach ($ch in $pin.ToCharArray()) { $ss.AppendChar($ch) }
+      $csp.KeyPassword = $ss
+      $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider($csp)
+    }
+  } catch { [Console]::Error.WriteLine('Nao consegui aplicar o PIN: ' + $_.Exception.Message) }
+  return $rsa
+}
 `;
 
 const SCRIPTS = {
@@ -48,8 +72,7 @@ foreach ($loc in 'CurrentUser','LocalMachine') {
   sign: `${PS_COMMON}
 $in = Get-Content -Raw -Encoding UTF8 $env:FISCAL_IN | ConvertFrom-Json
 $cert = Find-Cert $in.thumbprint
-$rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
-if (-not $rsa) { throw 'Este certificado nao tem chave RSA utilizavel para assinar.' }
+$rsa = Get-KeyWithPin $cert
 $name = [System.Security.Cryptography.HashAlgorithmName]::$($in.hash)
 $sig = $rsa.SignData([Convert]::FromBase64String($in.data), $name, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
 @{ ok = $true; signature = [Convert]::ToBase64String($sig) } | ConvertTo-Json -Compress | Set-Content -Encoding UTF8 $env:FISCAL_OUT
@@ -58,6 +81,7 @@ $sig = $rsa.SignData([Convert]::FromBase64String($in.data), $name, [System.Secur
   http: `${PS_COMMON}
 $in = Get-Content -Raw -Encoding UTF8 $env:FISCAL_IN | ConvertFrom-Json
 $cert = Find-Cert $in.thumbprint
+if ($env:FISCAL_PIN) { try { $k = Get-KeyWithPin $cert; [void]$k.SignData([byte[]](1,2,3), [System.Security.Cryptography.HashAlgorithmName]::SHA1, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1) } catch { [Console]::Error.WriteLine('PIN: ' + $_.Exception.Message) } }
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 Add-Type -ReferencedAssemblies System.Net.Http -TypeDefinition @"
 using System; using System.Net.Http; using System.Net.Security; using System.Security.Cryptography.X509Certificates; using System.Collections.Generic;
@@ -93,7 +117,7 @@ $text = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
 `,
 };
 
-function runPowerShell(kind, input, timeoutMs = TIMEOUT_MS) {
+function runPowerShell(kind, input, timeoutMs = TIMEOUT_MS, pin = "") {
   return new Promise((resolve) => {
     const id = crypto.randomBytes(8).toString("hex");
     const dir = path.join(os.tmpdir(), `boxsys-fiscal-${id}`);
@@ -103,7 +127,7 @@ function runPowerShell(kind, input, timeoutMs = TIMEOUT_MS) {
     fs.writeFileSync(psFile, "﻿" + SCRIPTS[kind], "utf8");
     fs.writeFileSync(inFile, JSON.stringify(input || {}), "utf8");
     const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", psFile], {
-      env: { ...process.env, FISCAL_IN: inFile, FISCAL_OUT: outFile }, windowsHide: true,
+      env: { ...process.env, FISCAL_IN: inFile, FISCAL_OUT: outFile, FISCAL_PIN: pin || "" }, windowsHide: true,
     });
     let stderr = "";
     child.stderr.on("data", (d) => { stderr += d.toString(); });
@@ -129,19 +153,19 @@ const HASHES = new Set(["SHA1", "SHA256"]);
 async function listCerts() { return runPowerShell("list", {}, 30_000); }
 
 /** Assina os bytes (base64) com a chave do certificado. hash: SHA1 (NF-e/NFC-e/NFS-e atual) ou SHA256. */
-async function signData({ thumbprint, dataBase64, hash = "SHA1" }) {
+async function signData({ thumbprint, dataBase64, hash = "SHA1", pin = "" }) {
   if (!thumbprint || !dataBase64 || !HASHES.has(hash)) return { ok: false, error: "Pedido de assinatura inválido." };
-  return runPowerShell("sign", { thumbprint, data: dataBase64, hash });
+  return runPowerShell("sign", { thumbprint, data: dataBase64, hash }, TIMEOUT_MS, pin);
 }
 
 /** Chamada HTTPS (SEFAZ / NFS-e) autenticada pelo certificado. Só aceita endereços fiscais conhecidos. */
 const ALLOWED_HOSTS = /\.gov\.br$/i; // só serviços do governo (SEFAZ, Sistema Nacional NFS-e)
-async function httpRequest({ thumbprint, url, method = "POST", headers = {}, body = "", contentType = "text/xml; charset=utf-8", caDers = [], timeoutSec = 60 }) {
+async function httpRequest({ thumbprint, url, method = "POST", headers = {}, body = "", contentType = "text/xml; charset=utf-8", caDers = [], timeoutSec = 60, pin = "" }) {
   let u;
   try { u = new URL(url); } catch { return { ok: false, error: "Endereço inválido." }; }
   if (u.protocol !== "https:" || !ALLOWED_HOSTS.test(u.hostname)) return { ok: false, error: `Endereço não permitido para nota fiscal: ${u.hostname}` };
   if (!thumbprint) return { ok: false, error: "Certificado não informado." };
-  return runPowerShell("http", { thumbprint, url, method, headers, body, contentType, caDers, timeoutSec: Math.min(120, Number(timeoutSec) || 60) });
+  return runPowerShell("http", { thumbprint, url, method, headers, body, contentType, caDers, timeoutSec: Math.min(120, Number(timeoutSec) || 60) }, TIMEOUT_MS, pin);
 }
 
 module.exports = { listCerts, signData, httpRequest };
