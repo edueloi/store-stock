@@ -85,13 +85,20 @@ export async function cancelarNfce(orderId: number, justificativa: string): Prom
       return { success: false, error: result.error || `Falha na comunicação com a SEFAZ (HTTP ${result.statusCode})` };
     }
 
-    const cStat = extractTag(result.rawResponse, "cStat");
-    const xMotivo = extractTag(result.rawResponse, "xMotivo");
-    const nProt = extractTag(result.rawResponse, "nProt");
+    // O retorno traz cStat em DOIS níveis: o do lote (retEnvEvento, ex. 128 "Lote de Evento
+    // Processado") e o do evento em si (retEvento/infEvento: 135/136/155 ou uma rejeição).
+    // extractTag() pega a primeira ocorrência (o lote) — por isso lemos o bloco do evento.
+    const infEvento = /<infEvento[^>]*>([\s\S]*?)<\/infEvento>/i.exec(result.rawResponse)?.[1] ?? "";
+    const loteStat = extractTag(result.rawResponse, "cStat");
+    const loteMotivo = extractTag(result.rawResponse, "xMotivo");
+    const cStat = infEvento ? extractTag(infEvento, "cStat") : loteStat;
+    const xMotivo = infEvento ? extractTag(infEvento, "xMotivo") : loteMotivo;
+    const nProt = infEvento ? extractTag(infEvento, "nProt") : extractTag(result.rawResponse, "nProt");
 
-    // cStat 135/136 = evento registrado e vinculado à NF-e
-    if (cStat !== "135" && cStat !== "136") {
-      return { success: false, error: xMotivo ?? `SEFAZ rejeitou o cancelamento (cStat ${cStat ?? "?"})` };
+    // 135/136 = evento registrado e vinculado à NF-e; 155 = cancelamento homologado fora de prazo
+    // 573 (duplicidade de evento) e 218 (já cancelada) = a SEFAZ já tem o cancelamento: só sincroniza o status
+    if (!["135", "136", "155", "573", "218"].includes(cStat ?? "")) {
+      return { success: false, error: `${xMotivo ?? "SEFAZ rejeitou o cancelamento"} (cStat ${cStat ?? "?"})` };
     }
 
     const monthDir = invoice.authorized_at
