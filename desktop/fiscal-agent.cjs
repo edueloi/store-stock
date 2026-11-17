@@ -10,6 +10,8 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 
+let logger = (m) => console.log(m);
+function setLogger(fn) { if (typeof fn === "function") logger = fn; }
 const TIMEOUT_MS = 120_000; // inclui o tempo de a pessoa digitar o PIN do token
 
 const PS_COMMON = `
@@ -120,6 +122,8 @@ $text = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
 function runPowerShell(kind, input, timeoutMs = TIMEOUT_MS, pin = "") {
   return new Promise((resolve) => {
     const id = crypto.randomBytes(8).toString("hex");
+    const t0 = Date.now();
+    logger(`[fiscal-agent] ${kind}: iniciando (PIN ${pin ? "informado" : "nao informado"})`);
     const dir = path.join(os.tmpdir(), `boxsys-fiscal-${id}`);
     fs.mkdirSync(dir, { recursive: true });
     const inFile = path.join(dir, "in.json"), outFile = path.join(dir, "out.json"), psFile = path.join(dir, "run.ps1");
@@ -132,14 +136,16 @@ function runPowerShell(kind, input, timeoutMs = TIMEOUT_MS, pin = "") {
     let stderr = "";
     child.stderr.on("data", (d) => { stderr += d.toString(); });
     const clean = () => { try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* temp */ } };
-    const timer = setTimeout(() => { try { child.kill(); } catch { /* já saiu */ } clean(); resolve({ ok: false, error: "O certificado não respondeu a tempo (PIN do token não informado?)." }); }, timeoutMs);
+    const timer = setTimeout(() => { try { child.kill(); } catch { /* já saiu */ } clean(); logger(`[fiscal-agent] ${kind}: SEM RESPOSTA em ${Math.round((Date.now() - t0) / 1000)}s. stderr: ${stderr.slice(0, 300) || "(vazio)"}`); resolve({ ok: false, error: kind === "sign" ? "A assinatura com o token não terminou a tempo. Se aparecer uma janela de PIN do driver do token, digite o PIN nela; feche outras janelas do token e tente de novo." : "O envio da nota com o certificado não terminou a tempo. Confira o token e a internet do computador do certificado." }); }, timeoutMs);
     child.on("close", () => {
       clearTimeout(timer);
+      logger(`[fiscal-agent] ${kind}: terminou em ${Math.round((Date.now() - t0) / 1000)}s`);
       try {
         const out = JSON.parse(fs.readFileSync(outFile, "utf8").replace(/^﻿/, ""));
         clean(); resolve(out);
       } catch {
         const msg = stderr.split(/\r?\n/).find((l) => l.trim()) || "Falha ao usar o certificado do Windows.";
+        logger(`[fiscal-agent] ${kind}: falhou: ${stderr.slice(0, 300)}`);
         clean(); resolve({ ok: false, error: msg.slice(0, 300) });
       }
     });
@@ -168,4 +174,4 @@ async function httpRequest({ thumbprint, url, method = "POST", headers = {}, bod
   return runPowerShell("http", { thumbprint, url, method, headers, body, contentType, caDers, timeoutSec: Math.min(120, Number(timeoutSec) || 60) }, TIMEOUT_MS, pin);
 }
 
-module.exports = { listCerts, signData, httpRequest };
+module.exports = { listCerts, signData, httpRequest, setLogger };

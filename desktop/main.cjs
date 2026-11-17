@@ -164,7 +164,12 @@ async function findPrinterForRole(role) {
 }
 
 // Mantém a conexão em segundo plano com o servidor para receber impressões remotas.
+// Pedidos fiscais um de cada vez: o token A3 atende uma operação por vez; vários 'Reemitir' juntos abriam várias janelas de PIN e travavam tudo.
+let fiscalChain = Promise.resolve();
+function serialFiscal(fn) { const p = fiscalChain.then(fn, fn); fiscalChain = p.catch(() => {}); return p; }
+
 function startRemotePrint() {
+  fiscalAgent.setLogger((m) => log.info(m));
   const { server, terminalUid, terminalToken } = readConfig();
   remotePrint.start({
     server,
@@ -172,7 +177,7 @@ function startRemotePrint() {
     token: terminalToken,
     log,
     // Certificado A3 (token/cartão) deste computador: lista, assina e fala com a SEFAZ a pedido do servidor
-    onFiscal: async (action, payload) => {
+    onFiscal: (action, payload) => serialFiscal(async () => {
       if (process.platform !== "win32") return { ok: false, error: "O certificado A3 só é suportado no Windows." };
       log.info(`[fiscal-agent] pedido: ${action}`);
       if (action === "list") return fiscalAgent.listCerts();
@@ -187,7 +192,7 @@ function startRemotePrint() {
         return r;
       }
       return { ok: false, error: "Pedido desconhecido." };
-    },
+    }),
     onPrint: async (role, text, html, size) => {
       const printer = await findPrinterForRole(role);
       if (!printer) return { ok: false, error: `Nenhuma impressora configurada para "${role}"` };
