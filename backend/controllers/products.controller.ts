@@ -274,6 +274,15 @@ function fmtHistoryVal(field: string, val: unknown): string {
   return String(val);
 }
 
+/** Ativa/inativa um produto sem reenviar o cadastro todo (usado na tela de duplicados). */
+export async function setProductActive(req: Request, res: Response) {
+  try {
+    const r = await prisma.product.updateMany({ where: { id: Number(req.params.id), tenant_id: getTenantId(req) }, data: { is_active: !!req.body?.is_active } });
+    if (!r.count) { res.status(404).json({ error: "Produto não encontrado." }); return; }
+    res.json({ ok: true, is_active: !!req.body?.is_active });
+  } catch (e) { console.error("setProductActive:", e); res.status(500).json({ error: "Falha ao alterar o produto." }); }
+}
+
 export async function updateProduct(req: Request, res: Response) {
   try {
     const id = Number(req.params.id);

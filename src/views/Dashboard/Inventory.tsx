@@ -3,7 +3,7 @@ import CameraScanButton from "../../components/CameraScanButton";
 import {
   Plus, Edit2, Trash2, Image as ImageIcon, Package,
   TrendingUp, LayoutGrid, List, Tag, AlertTriangle,
-  Star, FileUp, History, ArrowRight, Loader2, FileCode, HelpCircle, Download, FileSpreadsheet, FileText, ChevronDown,
+  Star, Copy, FileUp, History, ArrowRight, Loader2, FileCode, HelpCircle, Download, FileSpreadsheet, FileText, ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -15,6 +15,7 @@ import Drawer from "../../components/ui/Drawer";
 import { DropdownMenu } from "../../components/ui/Dropdown";
 import PdfImportModal from "../../components/ui/PdfImportModal";
 import XmlImportModal from "../../components/ui/XmlImportModal";
+import DuplicateProductsModal, { findDuplicateGroups } from "../../components/ui/DuplicateProductsModal";
 import SheetImportPreviewModal, { type SheetPreviewRow, type SheetRowEdit } from "../../components/ui/SheetImportPreviewModal";
 import {
   Button, IconButton, Select, Badge, PageWrapper, SectionTitle, GridTable, Pagination,
@@ -84,6 +85,8 @@ export default function Inventory() {
 
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isXmlModalOpen, setIsXmlModalOpen] = useState(false);
+  const [dupOpen, setDupOpen] = useState(false);
+  const dupCount = React.useMemo(() => findDuplicateGroups(products).length, [products]);
   // Só usado pelo tour guiado: quando definido, o XmlImportModal carrega e
   // processa este XML de exemplo automaticamente (ver prop autoLoadUrl).
   const [xmlAutoLoadUrl, setXmlAutoLoadUrl] = useState<string | undefined>(undefined);
@@ -725,6 +728,9 @@ export default function Inventory() {
                   { label: "CSV (.csv) — só produtos", icon: <FileText size={14} className="text-blue-600" />, onClick: () => handleExport("csv") },
                 ]}
               />
+              <Button variant="secondary" icon={<Copy size={14} />} onClick={() => setDupOpen(true)} title="Ver produtos com o mesmo nome, código ou código de barras">
+                Duplicados{dupCount > 0 ? ` (${dupCount})` : ""}
+              </Button>
               <Button data-tour="inventory-new-product-btn" icon={<Plus size={14} />} onClick={openNew}>
                 Novo Produto
               </Button>
@@ -981,6 +987,8 @@ export default function Inventory() {
         onClose={() => setIsPdfModalOpen(false)}
         onImported={() => { fetchInventory(); }}
       />
+
+      <DuplicateProductsModal open={dupOpen} products={products} onClose={() => setDupOpen(false)} onEdit={openEdit} onChanged={() => fetchInventory()} />
 
       <XmlImportModal
         open={isXmlModalOpen}

@@ -12,6 +12,7 @@ import {
   getProductHistory,
   listProductMovements,
   listProducts,
+  setProductActive,
   updateProduct,
 } from "../controllers/products.controller";
 import { getVariationPresets, saveVariationPresets } from "../controllers/variation-presets.controller";
@@ -41,6 +42,7 @@ router.get("/low-stock-count", getLowStockCount);
 router.get("/by-barcode/:code", getProductByBarcode);
 router.get("/:id/history", getProductHistory);
 router.get("/:id", getProduct);
+router.patch("/:id/active", setProductActive);
 router.put("/:id", updateProduct);
 router.delete("/:id", deleteProduct);
 
