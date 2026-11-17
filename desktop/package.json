@@ -1,7 +1,7 @@
 {
   "name": "boxsys-pdv",
   "productName": "Store BoxSys",
-  "version": "1.6.5",
+  "version": "1.6.6",
   "description": "Store BoxSys — aplicativo desktop de vendas e gestão",
   "main": "main.cjs",
   "author": "BoxSys",
@@ -30,6 +30,7 @@
       "printer.cjs",
       "remote-print.cjs",
       "fiscal-agent.cjs",
+      "pin-prompt.cjs",
       "webcache.cjs",
       "diagnostics.cjs",
       "offline-sync.cjs",
