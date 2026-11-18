@@ -102,7 +102,7 @@ export default function Stock() {
   // Caixa) — quando ligado, suprime cards/badges/filtros de "estoque crítico/
   // esgotado" porque a loja deliberadamente não controla estoque.
   const [sellWithoutStockControl, setSellWithoutStockControl] = useState(false);
-  const openInCatalog = (p: { name: string }) => navigate(`/admin/catalog?q=${encodeURIComponent(p.name)}`);
+  const openInCatalog = (p: { id: number }) => navigate(`/admin/catalog/${p.id}/editar`);
   const PAGE_SIZE = 20;
 
   const stockPageTourRef = useRef<StockPageTourHandle>(null);
@@ -301,7 +301,7 @@ export default function Stock() {
       headerClassName: "text-right",
       render: (p) => (
         <div className="flex items-center justify-end gap-1.5">
-          <IconButton variant="outline" size="sm" aria-label={`Ver ${p.name} no catálogo`} title="Ver no catálogo" onClick={() => openInCatalog(p)}>
+          <IconButton variant="outline" size="sm" aria-label={`Abrir ${p.name} no catálogo`} title="Abrir produto no catálogo" onClick={() => openInCatalog(p)}>
             <Store size={13} />
           </IconButton>
           <IconButton data-tour="stock-adjust-btn" variant="outline" size="sm" aria-label={`Ajustar estoque de ${p.name}`} title="Ajustar estoque" onClick={() => openAdjust(p)}>
