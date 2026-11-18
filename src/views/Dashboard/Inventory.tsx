@@ -3,9 +3,8 @@ import CameraScanButton from "../../components/CameraScanButton";
 import {
   Plus, Edit2, Trash2, Image as ImageIcon, Package,
   TrendingUp, LayoutGrid, List, Tag, AlertTriangle,
-  Star, Copy, FileUp, History, ArrowRight, Loader2, FileCode, HelpCircle, Download, FileSpreadsheet, FileText, ChevronDown, Store,
+  Star, Copy, FileUp, History, ArrowRight, Loader2, FileCode, HelpCircle, Download, FileSpreadsheet, FileText, ChevronDown,
 } from "lucide-react";
-import { useCatalogLink } from "../../lib/useCatalogLink";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
 import { Product, Category } from "../../types";
@@ -55,7 +54,6 @@ export default function Inventory() {
   // Caixa) — quando ligado, suprime cards/filtros de "Estoque Crítico" porque
   // a loja deliberadamente não controla estoque e não deveria ser incomodada.
   const [sellWithoutStockControl, setSellWithoutStockControl] = useState(false);
-  const { openInCatalog } = useCatalogLink();
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
@@ -65,7 +63,7 @@ export default function Inventory() {
   const [editingImages, setEditingImages] = useState<string[]>([]);
   // Muda a cada abertura do formulário para remontá-lo com o estado de UI zerado.
   const [formKey, setFormKey] = useState(0);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get("q") || "");
   const [viewMode, setViewMode] = useState<"table" | "grid">("table");
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -628,7 +626,6 @@ export default function Inventory() {
       render: (p) => (
         <DropdownMenu items={[
           { label: "Editar produto", icon: <Edit2 size={13} />, onClick: () => openEdit(p) },
-          { label: "Ver no catálogo", icon: <Store size={13} />, onClick: () => openInCatalog(p) },
           { label: "Histórico", icon: <History size={13} />, onClick: () => openHistory(p) },
           { label: "Excluir", icon: <Trash2 size={13} />, variant: "danger", onClick: () => setDeleteTarget(p) },
         ]} />
@@ -674,9 +671,6 @@ export default function Inventory() {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <IconButton variant="ghost" aria-label="Ver no catálogo" title="Ver no catálogo" onClick={() => openInCatalog(p)}>
-              <Store size={14} className="text-slate-500" />
-            </IconButton>
             <IconButton variant="ghost" aria-label="Editar produto" onClick={() => openEdit(p)}>
               <Edit2 size={14} className="text-blue-600" />
             </IconButton>
@@ -904,7 +898,6 @@ export default function Inventory() {
                         </span>
                       )}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                        <IconButton variant="secondary" aria-label="Ver no catálogo" title="Ver no catálogo" onClick={() => openInCatalog(p)}><Store size={14} className="text-slate-600" /></IconButton>
                         <IconButton variant="secondary" aria-label="Editar produto" onClick={() => openEdit(p)}><Edit2 size={14} className="text-blue-600" /></IconButton>
                         <IconButton variant="secondary" aria-label="Excluir produto" onClick={() => setDeleteTarget(p)}><Trash2 size={14} className="text-red-500" /></IconButton>
                       </div>

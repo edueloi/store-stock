@@ -13,7 +13,7 @@ import {
   HelpCircle,
   Store
 } from "lucide-react";
-import { useCatalogLink } from "../../lib/useCatalogLink";
+import { useNavigate } from "react-router-dom";
 import {
   Badge,
   Button,
@@ -84,6 +84,7 @@ const STOCK_VIEWS = [
 type StockView = typeof STOCK_VIEWS[number]['id'];
 
 export default function Stock() {
+  const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +102,7 @@ export default function Stock() {
   // Caixa) — quando ligado, suprime cards/badges/filtros de "estoque crítico/
   // esgotado" porque a loja deliberadamente não controla estoque.
   const [sellWithoutStockControl, setSellWithoutStockControl] = useState(false);
-  const { openInCatalog } = useCatalogLink();
+  const openInCatalog = (p: { name: string }) => navigate(`/admin/catalog?q=${encodeURIComponent(p.name)}`);
   const PAGE_SIZE = 20;
 
   const stockPageTourRef = useRef<StockPageTourHandle>(null);
