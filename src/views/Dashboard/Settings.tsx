@@ -74,6 +74,8 @@ import { sanitizeStorefrontHeadings } from "../../../shared/storefrontHeadings";
 import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import AsaasAccountSetup from "../../components/settings/AsaasAccountSetup";
+import ReceiptFooterSettings from "../../components/settings/ReceiptFooterSettings";
+import { readReceiptFooterConfig } from "../../../shared/receiptFooter";
 import {
   Alert,
   Badge,
@@ -333,6 +335,7 @@ const NAV = [
       },
       { id: "glass_cutting", icon: Ruler, label: "Vidraçaria (peças e corte)" },
       { id: "cash_session", icon: Wallet, label: "Controle de Caixa" },
+      { id: "receipts", icon: FileCheck, label: "Notinhas e Comprovantes" },
       { id: "preferences", icon: Settings2, label: "Preferências do Painel" },
       { id: "security", icon: Shield, label: "Segurança" },
       { id: "users", icon: Users, label: "Time & Acessos" },
@@ -369,6 +372,12 @@ const SETTING_META: Record<
   string,
   { description: string; icon: string; iconBg: string; border: string }
 > = {
+  receipts: {
+    description: "Avisos e mensagens no rodapé das vendas",
+    icon: "text-violet-600",
+    iconBg: "bg-violet-50",
+    border: "hover:border-violet-200",
+  },
   identity: {
     description: "Dados e apresentação da sua loja",
     icon: "text-[#ed670e]",
@@ -2299,6 +2308,27 @@ export default function Settings({
 
   const setPolicies = (patch: Partial<StorePolicies>) =>
     setT({ policies: { ...policies, ...patch } });
+
+  const handleSaveReceiptFooter = async () => {
+    const config = readReceiptFooterConfig(policies);
+    if (config.enabled && !config.message) {
+      toast.error("Preencha a mensagem antes de ativar o rodapé.");
+      return;
+    }
+    const nextPolicies = { ...policies, receipt_footer: config };
+    setSaving(true);
+    try {
+      const response = await fetch("/api/tenant", { method: "PUT", headers: API_HEADERS(), body: JSON.stringify({ policies: nextPolicies }) });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error || "Não foi possível salvar o rodapé das notinhas.");
+      }
+      setTenant(prev => prev?.policies === tenant?.policies ? { ...prev, policies: nextPolicies } : prev);
+      showSaved();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar o rodapé das notinhas.");
+    } finally { setSaving(false); }
+  };
 
   if (loading) {
     return (
@@ -5940,6 +5970,12 @@ export default function Settings({
                 />
               </div>
             )}
+
+            {active === "receipts" && <div className="space-y-6">
+              <SectionHeader title="Notinhas e Comprovantes" subtitle="Personalize o aviso que seus clientes recebem ao final da compra" />
+              <ReceiptFooterSettings value={policies.receipt_footer} onChange={receipt_footer => setPolicies({ receipt_footer })} />
+              <SaveButton onClick={handleSaveReceiptFooter} label={saving ? "Salvando..." : "Salvar configuração das notinhas"} />
+            </div>}
 
             {/* ── Controle de Caixa ──────────────────────────────────── */}
             {active === "cash_session" && (

@@ -1,3 +1,4 @@
+import { buildReceiptFooterText, buildReceiptFooterHtml } from "../../../shared/receiptFooter";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { downloadAuthenticatedFile } from "../../lib/downloadFile";
 import {
@@ -1342,7 +1343,7 @@ export default function PDV() {
       receipt += row(`Forma Pagamento: ${PM_LABEL[payment.method]}${installments}`, `R$ ${money(Number(payment.amount))}`) + "\n";
     });
     if (sale.change > 0) receipt += row("Troco R$", money(sale.change)) + "\n";
-    receipt += `${thin}\n${center("Obrigado pela preferência!")}\n${center("Volte sempre!")}\n\n\n`;
+    receipt += `${thin}\n${buildReceiptFooterText(tenant.policies)}${center("Obrigado pela preferência!")}\n${center("Volte sempre!")}\n\n\n`;
     return receipt;
   };
 
@@ -1483,6 +1484,7 @@ export default function PDV() {
     </div>
   </div>
   <div class="doc-footer">
+    ${buildReceiptFooterHtml(tenant.policies)}
     Este documento é um comprovante de venda e não possui valor fiscal.<br/>
     Gerado por BoxSys Store em ${now}
   </div>

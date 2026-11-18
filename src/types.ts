@@ -1,3 +1,5 @@
+import type { ReceiptFooterConfig } from "../shared/receiptFooter";
+
 export interface BusinessHours {
   [day: string]: { open: string; close: string; closed: boolean };
 }
@@ -17,6 +19,7 @@ export interface PaymentMethods {
 export type CardFees = Record<string, number[]>;
 
 export interface StorePolicies {
+  receipt_footer?: ReceiptFooterConfig;
   returns: string;
   shipping: string;
   exchange: string;

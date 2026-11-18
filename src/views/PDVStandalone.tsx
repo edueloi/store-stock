@@ -1,3 +1,4 @@
+import { buildReceiptFooterText, buildReceiptFooterHtml } from "../../shared/receiptFooter";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { downloadAuthenticatedFile } from "../lib/downloadFile";
 import { createPortal } from "react-dom";
@@ -1873,7 +1874,7 @@ export default function PDVStandalone() {
       const key = invoice.access_key;
       receipt += `${center(key.replace(/(\d{4})(?=\d)/g, "$1 "))}\n`;
     }
-    receipt += `${thin}\n${center("Obrigado pela preferência!")}\n${center("Volte sempre!")}\n\n\n`;
+    receipt += `${thin}\n${buildReceiptFooterText(warrantyPolicies)}${center("Obrigado pela preferência!")}\n${center("Volte sempre!")}\n\n\n`;
     return receipt;
   };
 
@@ -1947,6 +1948,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
 <div class="center" style="font-size:10px;margin-top:3px">Chave de acesso:</div>
 <div class="center" style="font-size:10px;word-break:break-all">${nfceInvoice.access_key.replace(/(\d{4})(?=\d)/g, "$1 ")}</div>` : ""}
 <hr class="divider-solid"/>
+${buildReceiptFooterHtml(warrantyPolicies)}
 <div class="center bold" style="font-size:12px;letter-spacing:1px;margin:6px 0">Obrigado pela preferência!</div>
 <div class="center" style="font-size:11px">Volte sempre!</div>
 <p class="small">Emitido em ${now}</p>
@@ -2068,6 +2070,7 @@ ${nfceInvoice.protocol ? `<div class="row"><span class="bold">Protocolo:</span><
     </div>
   </div>
   <div class="doc-footer">
+    ${buildReceiptFooterHtml(warrantyPolicies)}
     Este documento é um comprovante de venda e não possui valor fiscal.<br/>
     Gerado por BoxSys Store em ${now}
   </div>

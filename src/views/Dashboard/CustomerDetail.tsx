@@ -367,6 +367,7 @@ export default function CustomerDetail() {
         if (d?.name) setTenantName(d.name);
         if (d) setTenantInfo({
           name: d.name, document: d.document, phone: d.whatsapp,
+          policies: d.policies,
           address_street: d.address_street, address_number: d.address_number,
           address_district: d.address_district, address_city: d.address_city, address_state: d.address_state,
         });

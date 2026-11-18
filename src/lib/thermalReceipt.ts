@@ -3,6 +3,7 @@
 // caixa) em PDV.tsx/PDVStandalone.tsx, extraído aqui pra ser compartilhado sem
 // duplicar em mais um lugar (carnê de pagamento).
 import { parsePaymentSegments } from "../../shared/paymentSegments";
+import { buildReceiptFooterText } from "../../shared/receiptFooter";
 
 const W = 42;
 
@@ -50,6 +51,7 @@ export interface DebtPaymentReceipt {
 // o mecanismo de impressão do cupom de venda do PDV, mas deixa claro que se
 // trata de um recebimento de crediário — não de uma nova venda.
 export interface ReceiptTenantInfo {
+  policies?: unknown;
   name?: string | null;
   document?: string | null;
   phone?: string | null;
@@ -333,6 +335,7 @@ export function buildCashCloseReceiptFromDetail(
 }
 
 export interface OrderReceiptTenant {
+  policies?: unknown;
   name?: string | null;
   address_street?: string | null;
   address_number?: string | null;
@@ -431,7 +434,7 @@ export function buildOrderReceiptText(tenant: OrderReceiptTenant | null | undefi
   if (changeThermal > 0) {
     receipt += thermalRow("Troco R$", thermalMoney(changeThermal)) + "\n";
   }
-  receipt += `${thermalThin}\n${thermalCenter("Obrigado pela preferência!")}\n${thermalCenter("Volte sempre!")}\n\n\n`;
+  receipt += `${thermalThin}\n${buildReceiptFooterText(tenant?.policies)}${thermalCenter("Obrigado pela preferência!")}\n${thermalCenter("Volte sempre!")}\n\n\n`;
   return receipt;
 }
 

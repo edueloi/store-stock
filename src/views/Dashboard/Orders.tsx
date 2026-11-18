@@ -1,3 +1,4 @@
+import { buildReceiptFooterHtml } from "../../../shared/receiptFooter";
 import GlassProjectTable, { type ProjectPiece } from "../../components/GlassProjectTable";
 import { glassSpecFromOptions } from "../../lib/glassQuote";
 import { printCutSheet } from "../../lib/cutSheet";
@@ -1155,6 +1156,7 @@ ${
 }
 
 <div class="footer">
+  ${buildReceiptFooterHtml(tenant?.policies)}
   <span class="thanks">Obrigado pela preferência!</span>
   Emitido em ${new Date().toLocaleString("pt-BR")}<br>
   Este documento não tem valor fiscal.

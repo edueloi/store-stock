@@ -11,6 +11,7 @@ import { cancelarNfce } from "../services/nfce/cancelar";
 import { generateDanfeA4Pdf, generateDanfePdf, formatCpfCnpjDanfe, buildCupomText, type DanfeInput } from "../services/nfce/danfe";
 import { emitToTenant } from "../services/realtime.service";
 import { sendWhatsappDocument } from "../services/whatsapp.service";
+import { getReceiptFooter } from "../../shared/receiptFooter";
 
 const PAYMENT_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
 
@@ -60,6 +61,7 @@ async function buildDanfeInput(orderId: number, tenantId: number, invoice: Danfe
   }
 
   return {
+    receiptFooter: getReceiptFooter(tenant.policies),
     storeName: tenant.razao_social || tenant.name,
     storeDocument: `CNPJ: ${tenant.document ?? ""}`,
     storeStateRegistration: tenant.inscricao_estadual,
@@ -108,6 +110,14 @@ async function rebuildDanfePdf(orderId: number, tenantId: number, invoice: Danfe
   const input = await buildDanfeInput(orderId, tenantId, invoice);
   if (!input) return null;
   return (format === "cupom" ? generateDanfePdf : generateDanfeA4Pdf)(input);
+}
+
+/** Lojas que configuraram o rodapé recebem a versão atual também nas reimpressões.
+ * A configuração desativada continua exigindo reconstrução para remover avisos antigos. */
+async function hasReceiptFooterSettings(tenantId: number): Promise<boolean> {
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { policies: true } });
+  const policies = tenant?.policies as Record<string, unknown> | null | undefined;
+  return Boolean(policies && typeof policies === "object" && policies.receipt_footer && typeof policies.receipt_footer === "object");
 }
 
 function getTenantId(req: Request) {
@@ -408,7 +418,6 @@ export async function downloadNfceXmlBatch(req: Request, res: Response) {
     const archive = archiver("zip", { zlib: { level: 9 } });
     archive.on("error", (err) => { console.error("[downloadNfceXmlBatch] erro:", err); res.end(); });
     archive.pipe(res);
-
     for (const invoice of invoices) {
       if (invoice.xml_path && fs.existsSync(invoice.xml_path)) {
         archive.file(invoice.xml_path, { name: `nfce-${invoice.access_key ?? invoice.order_id}.xml` });
@@ -438,9 +447,13 @@ export async function downloadDanfeBatch(req: Request, res: Response) {
     const archive = archiver("zip", { zlib: { level: 9 } });
     archive.on("error", (err) => { console.error("[downloadDanfeBatch] erro:", err); res.end(); });
     archive.pipe(res);
+    const freshFooter = await hasReceiptFooterSettings(tenantId);
 
     for (const invoice of invoices) {
-      if (invoice.danfe_path && fs.existsSync(invoice.danfe_path)) {
+      if (freshFooter) {
+        const rebuilt = await rebuildDanfePdf(invoice.order_id, tenantId, invoice, "cupom");
+        if (rebuilt) archive.append(rebuilt, { name: `danfe-${invoice.access_key ?? invoice.order_id}.pdf` });
+      } else if (invoice.danfe_path && fs.existsSync(invoice.danfe_path)) {
         archive.file(invoice.danfe_path, { name: `danfe-${invoice.access_key ?? invoice.order_id}.pdf` });
       }
     }
@@ -485,7 +498,7 @@ export async function downloadCupom(req: Request, res: Response) {
       res.status(409).json({ error: `Cupom indisponível — a NFC-e deste pedido ainda não foi autorizada (status atual: ${invoice.status}).` });
       return;
     }
-    if (invoice.danfe_path && fs.existsSync(invoice.danfe_path)) {
+    if (invoice.danfe_path && fs.existsSync(invoice.danfe_path) && !(await hasReceiptFooterSettings(tenantId))) {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="cupom-${invoice.access_key ?? orderId}.pdf"`);
       fs.createReadStream(invoice.danfe_path).pipe(res);
@@ -519,7 +532,7 @@ export async function downloadDanfe(req: Request, res: Response) {
       res.status(409).json({ error: `DANFE indisponível — a NFC-e deste pedido ainda não foi autorizada (status atual: ${invoice.status}).` });
       return;
     }
-    if (invoice.danfe_a4_path && fs.existsSync(invoice.danfe_a4_path)) {
+    if (invoice.danfe_a4_path && fs.existsSync(invoice.danfe_a4_path) && !(await hasReceiptFooterSettings(tenantId))) {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="danfe-${invoice.access_key ?? orderId}.pdf"`);
       fs.createReadStream(invoice.danfe_a4_path).pipe(res);
@@ -574,7 +587,7 @@ export async function sendNfceWhatsapp(req: Request, res: Response) {
     }
 
     let pdfBuffer: Buffer;
-    if (invoice.danfe_a4_path && fs.existsSync(invoice.danfe_a4_path)) {
+    if (invoice.danfe_a4_path && fs.existsSync(invoice.danfe_a4_path) && !(await hasReceiptFooterSettings(tenantId))) {
       pdfBuffer = fs.readFileSync(invoice.danfe_a4_path);
     } else {
       const rebuilt = await rebuildDanfePdf(orderId, tenantId, invoice);
