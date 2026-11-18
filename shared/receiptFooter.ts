@@ -28,6 +28,11 @@ export function getReceiptFooter(policies: unknown): ReceiptFooterConfig | null 
   return config.enabled && config.message ? config : null;
 }
 
+/** "Exibir logo nas notinhas": a loja liga em Configurações → Notinhas e Comprovantes (policies.receipt_logo). */
+export function isReceiptLogoEnabled(policies: unknown): boolean {
+  return !!policies && typeof policies === "object" && !Array.isArray(policies) && (policies as Record<string, unknown>).receipt_logo === true;
+}
+
 export function wrapReceiptFooter(text: string, cols: number): string[] {
   const lines: string[] = [];
   for (const paragraph of text.split("\n")) {

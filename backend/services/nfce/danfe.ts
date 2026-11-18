@@ -30,6 +30,8 @@ export interface DanfeInput {
   // nfse/emitir.ts) — só usado pelo DANFE A4; o cupom 80mm não tem espaço
   // pra imagem.
   logoBuffer?: Buffer | null;
+  // Configuração "Exibir logo nas notinhas" (policies.receipt_logo): quando ligada, o cupom 80mm também leva o logo no topo.
+  receiptLogo?: boolean;
   chaveAcesso: string;
   numero: number;
   serie: number;
@@ -88,7 +90,15 @@ export async function generateDanfePdf(input: DanfeInput): Promise<Buffer> {
       doc.moveDown(0.3);
     }
 
-    doc.font("Courier-Bold").fontSize(11).text(input.storeName.toUpperCase(), { align: "center", width: contentWidth });
+    if (input.receiptLogo && input.logoBuffer) {
+      try {
+        const logoBox = { w: contentWidth * 0.55, h: 56 };
+        const logoY = doc.y;
+        doc.image(input.logoBuffer, 10 + (contentWidth - logoBox.w) / 2, logoY, { fit: [logoBox.w, logoBox.h], align: "center" });
+        doc.y = logoY + logoBox.h + 6;
+      } catch { /* imagem inválida: segue sem logo */ }
+    }
+    doc.font("Courier-Bold").fontSize(11).text(input.storeName.toUpperCase(), 10, doc.y, { align: "center", width: contentWidth });
     doc.font("Courier").fontSize(7);
     doc.text(input.storeAddress, { align: "center", width: contentWidth });
     doc.text(input.storeDocument, { align: "center", width: contentWidth });

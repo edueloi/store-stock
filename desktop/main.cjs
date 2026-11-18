@@ -605,6 +605,8 @@ async function resolveReceiptPrinterConfig() {
   return getPrinterConfig();
 }
 
+ipcMain.handle("printer:set-logo", (_e, marker) => { printerModule.setReceiptLogo(marker); return true; });
+
 ipcMain.handle("printer:print-receipt", async (_e, text) => {
   const config = await resolveReceiptPrinterConfig();
   if (!config) return { ok: false, error: "Nenhuma impressora térmica configurada" };

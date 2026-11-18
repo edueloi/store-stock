@@ -4,6 +4,7 @@
 // duplicar em mais um lugar (carnê de pagamento).
 import { parsePaymentSegments } from "../../shared/paymentSegments";
 import { buildReceiptFooterText } from "../../shared/receiptFooter";
+import { receiptLogoHtml } from "./receiptLogo";
 
 const W = 42;
 
@@ -491,7 +492,7 @@ export async function printThermalText(text: string, title: string): Promise<{ o
     return result;
   }
   // Sem o app desktop não há comando de QR Code: mostra o endereço da consulta no lugar do marcador [[QR:...]]
-  printViaIframe(buildThermalHtml(text.replace(/\[\[QR:([^\]]+)\]\]/g, "Consulta: $1"), title));
+  printViaIframe(buildThermalHtml((await receiptLogoHtml(text)) + text.replace(/\[\[QR:([^\]]+)\]\]/g, "Consulta: $1"), title));
   return { ok: true };
 }
 

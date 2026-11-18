@@ -13,7 +13,7 @@ import { loadPfx, assinarNfceAsync } from "./signer";
 import { callSefazSoap, extractProtTag } from "./soapClient";
 import { buildQrCodeUrl, buildUrlChave } from "./qrcode";
 import { generateDanfePdf, generateDanfeA4Pdf, formatCpfCnpjDanfe, type DanfeInput } from "./danfe";
-import { getReceiptFooter } from "../../../shared/receiptFooter";
+import { getReceiptFooter, isReceiptLogoEnabled } from "../../../shared/receiptFooter";
 
 // Traduz o "tPag" derivado do token de pagamento do PDV (ver sales.controller.ts)
 export function paymentsFromOrder(paymentMethod: string | null, totalAmount?: number, changeAmount = 0): PaymentSegment[] {
@@ -315,6 +315,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
       storeStateRegistration: tenant.inscricao_estadual,
       storeAddress: [tenant.address_street, tenant.address_number, tenant.address_city, tenant.address_state].filter(Boolean).join(", "),
       logoBuffer,
+      receiptLogo: isReceiptLogoEnabled(tenant.policies),
       chaveAcesso,
       numero,
       serie,

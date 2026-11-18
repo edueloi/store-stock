@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("boxsysDesktop", {
 
   // Impressora térmica
   printReceipt: (text) => ipcRenderer.invoke("printer:print-receipt", text),
+  setReceiptLogo: (marker) => ipcRenderer.invoke("printer:set-logo", marker),
   openCashDrawer: () => ipcRenderer.invoke("printer:open-drawer"),
   getPrinterConfig: () => ipcRenderer.invoke("printer:get-config"),
   savePrinterConfig: (cfg) => ipcRenderer.invoke("printer:save-config", cfg),

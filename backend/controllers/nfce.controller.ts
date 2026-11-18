@@ -11,7 +11,7 @@ import { cancelarNfce } from "../services/nfce/cancelar";
 import { generateDanfeA4Pdf, generateDanfePdf, formatCpfCnpjDanfe, buildCupomText, type DanfeInput } from "../services/nfce/danfe";
 import { emitToTenant } from "../services/realtime.service";
 import { sendWhatsappDocument } from "../services/whatsapp.service";
-import { getReceiptFooter } from "../../shared/receiptFooter";
+import { getReceiptFooter, isReceiptLogoEnabled } from "../../shared/receiptFooter";
 
 const PAYMENT_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
 
@@ -66,6 +66,7 @@ async function buildDanfeInput(orderId: number, tenantId: number, invoice: Danfe
     storeDocument: `CNPJ: ${tenant.document ?? ""}`,
     storeStateRegistration: tenant.inscricao_estadual,
     logoBuffer,
+    receiptLogo: isReceiptLogoEnabled(tenant.policies),
     storeAddress: [tenant.address_street, tenant.address_number, tenant.address_city, tenant.address_state].filter(Boolean).join(", "),
     chaveAcesso: invoice.access_key,
     numero: invoice.number,

@@ -20,6 +20,7 @@ export type CardFees = Record<string, number[]>;
 
 export interface StorePolicies {
   receipt_footer?: ReceiptFooterConfig;
+  receipt_logo?: boolean;
   returns: string;
   shipping: string;
   exchange: string;

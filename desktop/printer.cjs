@@ -61,14 +61,14 @@ function encodeForThermalPrinter(text) {
 // ── QR Code no cupom fiscal (NFC-e) ───────────────────────────────────────────────
 // O texto do cupom traz o QR Code como o marcador [[QR:endereço]] (linha própria). Aqui o marcador vira o comando de QR Code do ESC/POS
 // (GS ( k, modelo 2, correção M), centralizado; o resto continua texto normal.
-const QR_MARK = /\[\[QR:([^\]]+)\]\]/g;
+const QR_MARK = /\[\[(QR|IMG):([^\]]+)\]\]/g;
 function splitQr(text) {
   const parts = [];
   let last = 0, m;
   QR_MARK.lastIndex = 0;
   while ((m = QR_MARK.exec(text))) {
     if (m.index > last) parts.push({ type: "text", value: text.slice(last, m.index) });
-    parts.push({ type: "qr", value: m[1] });
+    parts.push({ type: m[1] === "IMG" ? "img" : "qr", value: m[2] });
     last = m.index + m[0].length;
   }
   if (last < text.length) parts.push({ type: "text", value: text.slice(last) });
@@ -88,9 +88,36 @@ function qrBytes(data, size = 6) {
     Buffer.from([0x1b, 0x61, 0x00]),                                           // volta ao alinhamento à esquerda
   ]);
 }
-/** Bytes ESC/POS do cupom (texto em CP860 + QR Code nos marcadores). */
+// Logo da loja: marcador [[IMG:largura,altura,base64]] (bitmap 1-bit, largura múltipla de 8) vira GS v 0, centralizado.
+function parseImg(value) {
+  const [w, h, b64] = String(value).split(",");
+  const width = Number(w), height = Number(h), data = Buffer.from(b64 || "", "base64");
+  if (!width || !height || width % 8 || data.length !== (width / 8) * height) return null;
+  return { width, height, data };
+}
+function imgBytes(value) {
+  const img = parseImg(value);
+  if (!img) return Buffer.alloc(0);
+  const xb = img.width / 8;
+  return Buffer.concat([
+    Buffer.from([0x1b, 0x61, 0x01]),
+    Buffer.from([0x1d, 0x76, 0x30, 0x00, xb & 0xff, (xb >> 8) & 0xff, img.height & 0xff, (img.height >> 8) & 0xff]), img.data,
+    Buffer.from([0x0a]),
+    Buffer.from([0x1b, 0x61, 0x00]),
+  ]);
+}
+// Logo configurado pelo painel web (Configurações → Notinhas): entra no topo de toda notinha, exceto relatórios.
+let receiptLogoMarker = "";
+const NO_LOGO = /FECHAMENTO|RELAT[ÓO]RIO|SANGRIA|SUPRIMENTO/i;
+function setReceiptLogo(marker) { receiptLogoMarker = typeof marker === "string" && marker.startsWith("[[IMG:") ? marker : ""; }
+function withLogo(text) {
+  const t = String(text);
+  if (!receiptLogoMarker || t.includes("[[IMG:") || NO_LOGO.test(t.slice(0, 600))) return t;
+  return `${receiptLogoMarker}\n${t.replace(/^\n+/, "")}`;
+}
+/** Bytes ESC/POS do cupom (texto em CP860 + QR Code/logo nos marcadores). */
 function buildReceiptBytes(text) {
-  return Buffer.concat(splitQr(String(text)).map((p) => (p.type === "qr" ? qrBytes(p.value) : encodeForThermalPrinter(p.value))));
+  return Buffer.concat(splitQr(withLogo(text)).map((p) => (p.type === "qr" ? qrBytes(p.value) : p.type === "img" ? imgBytes(p.value) : encodeForThermalPrinter(p.value))));
 }
 
 // Impressora instalada como impressora comum do Windows (USB direto, a maioria das
@@ -219,8 +246,9 @@ async function printReceipt(text, config) {
     const printer = buildPrinter(config);
     // O texto já vem formatado em colunas fixas (centralização/alinhamento manual),
     // então não usamos os helpers de alinhamento do driver aqui.
-    for (const part of splitQr(String(text))) {
-      if (part.type === "qr") { printer.alignCenter(); printer.printQR(part.value, { cellSize: 6, correction: "M", model: 2 }); printer.alignLeft(); }
+    for (const part of splitQr(withLogo(text))) {
+      if (part.type === "img") printer.raw(imgBytes(part.value));
+      else if (part.type === "qr") { printer.alignCenter(); printer.printQR(part.value, { cellSize: 6, correction: "M", model: 2 }); printer.alignLeft(); }
       else printer.println(part.value);
     }
     printer.cut();
@@ -257,4 +285,4 @@ function describeError(err) {
   return `Falha na impressora: ${message}`;
 }
 
-module.exports = { testConnection, printReceipt, openCashDrawer, buildReceiptBytes, splitQr };
+module.exports = { testConnection, printReceipt, openCashDrawer, buildReceiptBytes, splitQr, setReceiptLogo };

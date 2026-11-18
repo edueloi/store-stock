@@ -75,6 +75,8 @@ import { cn } from "../../lib/utils";
 import { useToast } from "../../components/ui/Toast";
 import AsaasAccountSetup from "../../components/settings/AsaasAccountSetup";
 import ReceiptFooterSettings from "../../components/settings/ReceiptFooterSettings";
+import { Switch as ReceiptLogoSwitch } from "../../components/ui/Switch";
+import { resetReceiptLogoCache, syncReceiptLogoToDesktop } from "../../lib/receiptLogo";
 import { readReceiptFooterConfig } from "../../../shared/receiptFooter";
 import {
   Alert,
@@ -2324,6 +2326,8 @@ export default function Settings({
         throw new Error(error?.error || "Não foi possível salvar o rodapé das notinhas.");
       }
       setTenant(prev => prev?.policies === tenant?.policies ? { ...prev, policies: nextPolicies } : prev);
+      resetReceiptLogoCache();
+      void syncReceiptLogoToDesktop();
       showSaved();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível salvar o rodapé das notinhas.");
@@ -5973,6 +5977,14 @@ export default function Settings({
 
             {active === "receipts" && <div className="space-y-6">
               <SectionHeader title="Notinhas e Comprovantes" subtitle="Personalize o aviso que seus clientes recebem ao final da compra" />
+              <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4 sm:p-5">
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-800">Logo da loja nas notinhas</h3>
+                  <p className="mt-1 text-[11px] leading-relaxed text-slate-500">Imprime o logo da loja (Configurações → Dados da loja) no topo da notinha de venda, da reimpressão de recibo e do cupom fiscal (NFC-e). Funciona na impressora térmica do app desktop e nos PDFs.</p>
+                </div>
+                <ReceiptLogoSwitch checked={policies.receipt_logo === true} onCheckedChange={receipt_logo => setPolicies({ receipt_logo })} label="Exibir logo nas notinhas" />
+                {policies.receipt_logo === true && !tenant?.logo_url && <p className="text-[11px] font-medium text-amber-700">A loja ainda não tem logo cadastrado — envie o logo em Dados da loja para ele aparecer.</p>}
+              </section>
               <ReceiptFooterSettings value={policies.receipt_footer} onChange={receipt_footer => setPolicies({ receipt_footer })} />
               <SaveButton onClick={handleSaveReceiptFooter} label={saving ? "Salvando..." : "Salvar configuração das notinhas"} />
             </div>}

@@ -65,7 +65,8 @@ export interface BoxsysDesktopApi {
   saveServer: (url: string) => Promise<{ ok: boolean; error?: string }>;
   retry: () => Promise<boolean>;
 
-  printReceipt: (text: string) => Promise<PrinterActionResult>;
+  setReceiptLogo?: (marker: string) => Promise<boolean>;
+    printReceipt: (text: string) => Promise<PrinterActionResult>;
   openCashDrawer: () => Promise<PrinterActionResult>;
   getPrinterConfig: () => Promise<PrinterConfig | null>;
   savePrinterConfig: (cfg: PrinterConfig) => Promise<{ ok: boolean }>;
