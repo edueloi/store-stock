@@ -49,6 +49,19 @@
       </div>
     </div>
     <div id="root"></div>
+    <script>
+      // Navegador antigo (ex.: Edge legado) não roda o app: troca o splash por um aviso.
+      (function () {
+        var ok = typeof window.ResizeObserver !== 'undefined' && typeof window.IntersectionObserver !== 'undefined' &&
+          typeof Promise !== 'undefined' && !!Promise.prototype.finally && !!(window.CSS && CSS.supports && CSS.supports('display', 'grid'));
+        if (ok) return;
+        var s = document.getElementById('app-splash');
+        if (!s) return;
+        s.innerHTML = '<div style="max-width:380px;padding:24px;text-align:center;font:600 16px/1.5 Arial,sans-serif;color:#fff">' +
+          'Seu navegador está desatualizado e não consegue abrir esta página.<br><br>' +
+          '<span style="font-weight:400;font-size:14px;color:#8aa5c7">Abra este link no Google Chrome ou no Microsoft Edge atualizado.</span></div>';
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

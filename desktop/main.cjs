@@ -309,7 +309,20 @@ function createWindow() {
   startedHidden = false;
 
   // External links open in the OS browser, not inside the PDV window
+  // Exceção: vitrine pública da própria loja (/s/<slug>/...) abre numa janela do
+  // próprio app (Chromium atual) — o navegador padrão do PC do cliente pode ser
+  // muito antigo (ex.: Edge legado) e não renderizar o catálogo.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    try {
+      const target = new URL(url);
+      const current = new URL(mainWindow.webContents.getURL());
+      if (target.origin === current.origin && /^\/s\//.test(target.pathname)) {
+        return {
+          action: "allow",
+          overrideBrowserWindowOptions: { width: 1280, height: 860, autoHideMenuBar: true, title: "Catálogo" },
+        };
+      }
+    } catch {}
     shell.openExternal(url);
     return { action: "deny" };
   });
