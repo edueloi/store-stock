@@ -92,8 +92,8 @@ export async function getLowStockCount(req: Request, res: Response) {
     });
     const products = active
       .filter((p) => p.sale_unit !== "unidade"
-        ? Number(p.measure_stock_quantity ?? 0) <= Number(p.measure_min_stock ?? 0)
-        : p.stock_quantity <= p.min_stock)
+        ? Number(p.measure_min_stock ?? 0) > 0 && Number(p.measure_stock_quantity ?? 0) <= Number(p.measure_min_stock ?? 0)
+        : p.min_stock > 0 && p.stock_quantity <= p.min_stock)
       .sort((a, b) => {
         const stockA = a.sale_unit !== "unidade" ? Number(a.measure_stock_quantity ?? 0) : a.stock_quantity;
         const stockB = b.sale_unit !== "unidade" ? Number(b.measure_stock_quantity ?? 0) : b.stock_quantity;

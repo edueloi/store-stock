@@ -410,10 +410,11 @@ export default function Inventory() {
 
   const isMeasuredProduct = (p: Product) => p.sale_unit === "m2" || p.sale_unit === "linear";
   const stockValue = (p: Product) => isMeasuredProduct(p) ? Number(p.measure_stock_quantity ?? 0) : p.stock_quantity;
-  const minStockValue = (p: Product) => isMeasuredProduct(p) ? Number(p.measure_min_stock ?? 0) : (p.min_stock ?? 5);
+  const minStockValue = (p: Product) => isMeasuredProduct(p) ? Number(p.measure_min_stock ?? 0) : (p.min_stock ?? 0);
   // Loja vende por encomenda/sem controle de estoque — nunca marca um produto como
   // "estoque crítico" nos badges/indicadores visuais da linha/card.
-  const isLowStock = (p: Product) => !sellWithoutStockControl && stockValue(p) <= minStockValue(p);
+  // Mínimo 0 = sem aviso (padrão): só alerta onde o lojista definiu um mínimo.
+  const isLowStock = (p: Product) => !sellWithoutStockControl && minStockValue(p) > 0 && stockValue(p) <= minStockValue(p);
   const stockUnit = (p: Product) => ({
     m: "m", cm: "cm", mm: "mm", km: "km", m2: "m²", cm2: "cm²", mm2: "mm²", km2: "km²",
   }[p.measure_unit ?? (p.sale_unit === "m2" ? "m2" : "m")] ?? "un");
@@ -486,7 +487,7 @@ export default function Inventory() {
       if (filterCategory && p.category_id !== filterCategory) return false;
       if (filterStatus === "active" && !p.is_active) return false;
       if (filterStatus === "inactive" && p.is_active) return false;
-      if (filterLowStock && !sellWithoutStockControl && stockValue(p) > minStockValue(p)) return false;
+      if (filterLowStock && !sellWithoutStockControl && !isLowStock(p)) return false;
       return true;
     })
     .sort((a, b) => {
@@ -513,7 +514,7 @@ export default function Inventory() {
   const saleProducts = products.filter(p => p.type === "sale");
   const totalCost = saleProducts.reduce((s, p) => s + Number(p.cost_price || 0) * stockValue(p), 0);
   const totalRevenue = saleProducts.reduce((s, p) => s + Number(p.price || 0) * stockValue(p), 0);
-  const lowStock = saleProducts.filter(p => stockValue(p) <= minStockValue(p) && p.is_active).length;
+  const lowStock = saleProducts.filter(p => minStockValue(p) > 0 && stockValue(p) <= minStockValue(p) && p.is_active).length;
   const featured = saleProducts.filter(p => p.is_featured).length;
 
   const displaySku = (p: Product) => p.sku || toSlug(p.name);

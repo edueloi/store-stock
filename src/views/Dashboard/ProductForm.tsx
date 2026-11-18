@@ -800,7 +800,7 @@ export default function ProductForm({
                         </div>
                         <Input label="Estoque Mínimo" type="number" min="0" className="font-mono"
                           hint="Abaixo disso, o produto entra no alerta de Estoque Crítico"
-                          value={editingProduct?.min_stock ?? 5}
+                          value={editingProduct?.min_stock ?? 0}
                           onChange={e => setEditingProduct(prev => ({ ...prev!, min_stock: Number(e.target.value) }))} />
                       </div>
                     )

@@ -128,7 +128,7 @@ async function collectReportData(tenantId: number, from: Date, to: Date, periodL
         where: { tenant_id: tenantId },
         select: { name: true, stock_quantity: true, min_stock: true },
       });
-  const lowStockItems = products.filter((p) => p.stock_quantity <= p.min_stock);
+  const lowStockItems = products.filter((p) => p.min_stock > 0 && p.stock_quantity <= p.min_stock);
 
   const lossMovements = await prisma.stockMovement.findMany({
     where: { tenant_id: tenantId, type: "loss", created_at: { gte: from, lte: toEnd } },

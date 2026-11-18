@@ -216,15 +216,17 @@ export default function Stock() {
   const isExpiringSoon = (p: Product) => !!p.expiry_date && new Date(p.expiry_date) <= expirySoonCutoff;
   // Loja vende por encomenda/sem controle de estoque — nunca marca um produto
   // como "estoque baixo" nos badges/indicadores visuais da linha/card.
-  const isLowStock = (p: Product) => !sellWithoutStockControl && p.track_stock !== false && p.stock_quantity <= lowStockThreshold;
+  // Mínimo é por produto; 0 = sem aviso (padrão das lojas novas — o lojista só define mínimo onde quiser ser avisado).
+  const minOf = (p: Product) => p.min_stock ?? lowStockThreshold;
+  const isLowStock = (p: Product) => !sellWithoutStockControl && p.track_stock !== false && minOf(p) > 0 && p.stock_quantity <= minOf(p);
 
   // Loja vende por encomenda/sem controle de estoque — zera os contadores de
   // "esgotado"/"baixo estoque" (ela deliberadamente não controla estoque, não
   // faz sentido alertar sobre isso).
   const outCount = sellWithoutStockControl ? 0 : searchedProducts.filter(p => p.track_stock !== false && p.stock_quantity === 0).length;
-  const lowOnlyCount = sellWithoutStockControl ? 0 : searchedProducts.filter(p => p.track_stock !== false && p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold).length;
+  const lowOnlyCount = sellWithoutStockControl ? 0 : searchedProducts.filter(p => p.track_stock !== false && p.stock_quantity > 0 && minOf(p) > 0 && p.stock_quantity <= minOf(p)).length;
   const expiringCount = searchedProducts.filter(isExpiringSoon).length;
-  const lowStockCount = outCount + lowOnlyCount;
+  const lowStockCount = searchedProducts.filter(isLowStock).length;
   const totalItems = searchedProducts.reduce((acc, p) => acc + p.stock_quantity, 0);
   const totalCost = searchedProducts.reduce((acc, p) => acc + (Number(p.cost_price || 0) * p.stock_quantity), 0);
 
@@ -239,7 +241,7 @@ export default function Stock() {
 
   const filteredProducts = searchedProducts.filter(p => {
     if (stockFilter === "out") return !sellWithoutStockControl && p.track_stock !== false && p.stock_quantity === 0;
-    if (stockFilter === "low") return !sellWithoutStockControl && p.track_stock !== false && p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold;
+    if (stockFilter === "low") return !sellWithoutStockControl && p.track_stock !== false && p.stock_quantity > 0 && minOf(p) > 0 && p.stock_quantity <= minOf(p);
     if (stockFilter === "expiring") return isExpiringSoon(p);
     return true;
   });

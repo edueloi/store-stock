@@ -65,7 +65,7 @@ export async function runPushNotificationsJob() {
         where: { tenant_id: tenant.id, is_active: true },
         select: { stock_quantity: true, min_stock: true },
       });
-      lowStockCount = activeProducts.filter((p) => p.stock_quantity <= p.min_stock).length;
+      lowStockCount = activeProducts.filter((p) => p.min_stock > 0 && p.stock_quantity <= p.min_stock).length;
     }
 
     if (dueSoonCount === 0 && lowStockCount === 0) continue;
