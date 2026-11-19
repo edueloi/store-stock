@@ -799,21 +799,21 @@ function ClassicPDV() {
       if (printReceipt && window.boxsysDesktop?.printReceipt) {
         const printRecibo = () => printThermalText(receiptText, "Cupom").then((res) => { if (!res.ok) flash(res.error || "Falha ao imprimir o recibo."); });
         if (nfceSent) {
-          // Com NFC-e, o que sai no papel é o CUPOM FISCAL (com chave e QR Code), não o recibo: espera a SEFAZ autorizar e imprime.
-          // Se a nota não autorizar (rejeitada, erro ou demora), imprime o recibo e avisa, para o cliente nunca ficar sem papel.
+          // Com NFC-e ligada, sai SÓ o CUPOM FISCAL (com chave e QR Code): espera a SEFAZ autorizar e imprime.
+          // O recibo não sai sozinho. Se a nota não autorizar, só avisa; o recibo fica disponível em "Reimprimir último cupom".
           void (async () => {
             const result = await waitNfceResult(orderId);
             if (result.status === "authorized") {
               try {
                 const text = await fetchNfceCupomText(orderId);
                 setLastReceipt(text);
+                setCompleted((c) => (c && c.orderId === orderId ? { ...c, receiptText: text } : c));
                 const res = await printThermalText(text, "Cupom fiscal");
                 if (!res.ok) flash(res.error || "Falha ao imprimir o cupom fiscal.");
                 return;
-              } catch (e) { flash(`${e instanceof Error ? e.message : "Cupom fiscal indisponível."} Imprimindo o recibo.`); }
-            } else if (result.status === "timeout") flash("A NFC-e ainda não foi autorizada. Imprimindo o recibo; o cupom fiscal sai pelas Notas Fiscais.", "err", 6000);
-            else flash(`NFC-e não autorizada${result.reason ? `: ${result.reason}` : ""}. Imprimindo o recibo.`, "err", 6000);
-            void printRecibo();
+              } catch (e) { flash(`${e instanceof Error ? e.message : "Cupom fiscal indisponível."} Reimprima em Notas Fiscais.`, "err", 7000); }
+            } else if (result.status === "timeout") flash("A NFC-e ainda não foi autorizada. O cupom fiscal sai pelas Notas Fiscais quando autorizar.", "err", 7000);
+            else flash(`NFC-e não autorizada${result.reason ? `: ${result.reason}` : ""}. Corrija em Notas Fiscais e reemita.`, "err", 8000);
           })();
         } else {
           void printRecibo();
@@ -1173,14 +1173,14 @@ function ClassicPDV() {
         </main>
       ) : (
         <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(340px,44%)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
-          <section className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
+          <section className="flex min-h-0 flex-col gap-2 lg:overflow-y-auto [scrollbar-width:thin]">
             <div className="rounded-sm border border-[#c5cfdf] bg-white p-3">
               <label className={labelCls}>Forma de pagamento <span className="text-slate-400">(Alt + número)</span></label>
-              <div className={cn("mb-3 grid gap-1.5", boletoEnabled ? "grid-cols-6" : "grid-cols-5")}>
+              <div className={cn("mb-2 grid gap-1.5", boletoEnabled ? "grid-cols-6" : "grid-cols-5")}>
                 {PAY_ORDER.map((m, idx) => (
                   <button
                     key={m} type="button" onClick={() => pickPayMethod(m)}
-                    className={cn("flex h-11 flex-col items-center justify-center rounded-sm border text-[11px] font-semibold leading-tight transition-colors",
+                    className={cn("flex h-10 flex-col items-center justify-center rounded-sm border text-[11px] font-semibold leading-tight transition-colors",
                       payMethod === m ? "border-[#0078d4] bg-[#0078d4] text-white" : "border-[#c5cfdf] bg-white text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]")}
                   >
                     <span className="font-mono text-[9px] font-medium opacity-70">Alt+{idx + 1}</span>
@@ -1188,7 +1188,7 @@ function ClassicPDV() {
                   </button>
                 ))}
               </div>
-              <div className="grid grid-cols-[0.7fr_1fr] gap-2">
+              <div className={cn("grid gap-2", payMethod === "debit" || payMethod === "credit" ? "grid-cols-[0.55fr_1fr_0.9fr]" : "grid-cols-[0.55fr_1fr]")}>
                 <div>
                   <label className={labelCls}>Parcelas</label>
                   <input
@@ -1205,6 +1205,14 @@ function ClassicPDV() {
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (remaining <= 0.004 && payments.length > 0) void finishSale(); else addPayment(); } }}
                   />
                 </div>
+                {(payMethod === "debit" || payMethod === "credit") && (
+                  <div>
+                    <label className={labelCls}>Bandeira</label>
+                    <select className={inputCls} value={payBrand} onChange={(e) => setPayBrand(e.target.value as CardBrand)}>
+                      {BRANDS.map((bd) => <option key={bd.key} value={bd.key}>{bd.label}</option>)}
+                    </select>
+                  </div>
+                )}
               </div>
               {payMethod === "money" && remaining > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -1217,28 +1225,20 @@ function ClassicPDV() {
                   ))}
                 </div>
               )}
-              {(payMethod === "debit" || payMethod === "credit") && (
-                <div className="mt-2 w-1/2 min-w-[150px]">
-                  <label className={labelCls}>Bandeira</label>
-                  <select className={inputCls} value={payBrand} onChange={(e) => setPayBrand(e.target.value as CardBrand)}>
-                    {BRANDS.map((b) => <option key={b.key} value={b.key}>{b.label}</option>)}
-                  </select>
-                </div>
-              )}
               {split && (
-                <div className="mt-3 flex items-center justify-between gap-2 rounded-sm border border-[#0078d4] bg-[#e1effb] px-3 py-1.5 text-[12px] text-[#005a9e]">
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-sm border border-[#0078d4] bg-[#e1effb] px-3 py-1 text-[12px] text-[#005a9e]">
                   <span>Dividindo em <b>{split.shares.length}</b> · pessoa <b>{split.idx + 1}</b> de {split.shares.length} · parte <b className="font-mono">R$ {money(split.shares[split.idx])}</b></span>
                   <button type="button" className="font-semibold underline" onClick={() => { setSplit(null); setPayAmount(remaining > 0 ? remaining.toFixed(2).replace(".", ",") : ""); }}>cancelar divisão</button>
                 </div>
               )}
-              <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="mt-2 flex items-center justify-between gap-3">
                 <p className="text-[13px]"><b>A pagar:</b> <span className="ml-1.5 font-mono text-[24px] font-semibold text-[#0a3d5c]">R$ {money(remaining)}</span></p>
                 <button onClick={addPayment} className={btn("blue")}>Adicionar (Enter)</button>
               </div>
-              <label className="mt-2 flex items-center gap-2 text-[12px] text-slate-600">
+              <label className="mt-2 flex items-center gap-2 text-[12px] text-slate-600" title="Pagamento dividido: digite um valor menor, tecle Enter e escolha outra forma (Alt+1…5) para o restante.">
                 <input type="checkbox" checked={autoReturn} onChange={toggleAutoReturn} /> Ao finalizar, voltar direto ao caixa livre
+                <span className="ml-auto text-[10px] text-slate-400">Dividir pagamento: valor menor + Enter</span>
               </label>
-              <p className="mt-1 text-[11px] text-slate-500">Pagamento dividido: digite um valor menor, tecle Enter e escolha outra forma (Alt+1…5) para o restante.</p>
             </div>
 
             {shownChange > 0 && (
@@ -1268,8 +1268,21 @@ function ClassicPDV() {
             )}
           </section>
 
-          <section className="flex min-h-[240px] flex-col gap-3 lg:min-h-0">
-            <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-[#c5cfdf] bg-white">
+          <section className="flex min-h-[240px] flex-col gap-2 lg:min-h-0">
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5 text-[11px]">
+              {[
+                { k: "Cliente", v: selectedCustomer?.name ?? "Balcão", on: !!selectedCustomer },
+                { k: "CPF/CNPJ", v: selectedCustomer?.document || customerDocument || "não informado", on: !!(selectedCustomer?.document || customerDocument) },
+                { k: "Vendedor", v: selectedSeller?.name ?? "—", on: !!selectedSeller },
+                { k: "NFC-e", v: emitNfce ? "LIGADA" : "desligada", on: emitNfce },
+                { k: "Imprimir", v: printReceipt ? (emitNfce ? "só cupom fiscal" : "recibo") : "desligado", on: printReceipt },
+              ].map((c) => (
+                <span key={c.k} className={cn("inline-flex items-center gap-1 rounded-sm border px-2 py-1", c.on ? "border-[#0078d4]/40 bg-[#e1effb] text-[#005a9e]" : "border-[#c5cfdf] bg-white text-slate-500")}>
+                  <b className="font-semibold">{c.k}:</b> <span className="max-w-[160px] truncate">{c.v}</span>
+                </span>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-[#c5cfdf] bg-white [scrollbar-width:thin]">
               <table className="w-full border-collapse text-[12px]">
                 <thead className="sticky top-0 bg-[#dfe7f2] text-[10px] uppercase tracking-wide text-slate-500">
                   <tr><th className="px-3 py-1.5 text-left">Qtde.</th><th className="px-2 text-left">Produto ({cart.length})</th><th className="hidden px-2 text-right sm:table-cell">Unitário</th><th className="px-3 text-right">Total</th></tr>
@@ -1695,7 +1708,7 @@ function ClassicPDV() {
               {completed.nfce && <p className="mt-2 text-[11px] text-slate-600">{completed.nfce}</p>}
               <div className="mt-3 flex gap-2">
                 {window.boxsysDesktop?.printReceipt && (
-                  <button className={cn(btn("navy"), "flex-1")} onClick={() => printThermalText(completed.receiptText, "Cupom")}>Imprimir (P)</button>
+                  <button className={cn(btn("navy"), "flex-1")} onClick={() => printThermalText(completed.receiptText, completed.nfce ? "Cupom fiscal" : "Cupom")}>{completed.nfce ? "Reimprimir (P)" : "Imprimir (P)"}</button>
                 )}
                 <button className={cn(btn("green"), "flex-1")} autoFocus onClick={closeCompleted}>Nova venda (Enter)</button>
               </div>
