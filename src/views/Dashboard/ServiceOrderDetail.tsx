@@ -44,7 +44,8 @@ import Combobox from "../../components/ui/Combobox";
 import { useToast } from "../../components/ui/Toast";
 import NfceOrderPanel from "../../components/fiscal/NfceOrderPanel";
 import DepositModal from "../../components/DepositModal";
-import { computeMeasuredPrice } from "../../utils/measurePricing";
+import { computeMeasuredPrice, measureUnitAbbr, sideUnitOf, defaultMeasureUnit, toProductMeasure } from "../../utils/measurePricing";
+import MeasureUnitPicker from "../../components/MeasureUnitPicker";
 import { onRealtimeAny } from "../../lib/realtime";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
 import { depositMethodLabel,
@@ -511,6 +512,11 @@ export default function ServiceOrderDetail() {
     return Math.max(0, Math.round((amount - discountAmt) * 100) / 100);
   };
 
+  const [measureInputUnit, setMeasureInputUnit] = useState<string | null>(null); // unidade em que a medida é digitada (null = a do produto)
+  useEffect(() => { setMeasureInputUnit(null); }, [partSelectedProduct?.id]);
+  const measureTypedAbbr = partSelectedProduct
+    ? measureUnitAbbr(measureInputUnit ?? sideUnitOf((partSelectedProduct.measure_unit || defaultMeasureUnit((partSelectedProduct.sale_unit as "m2" | "linear") ?? "m2")).toLowerCase()), (partSelectedProduct.sale_unit as "m2" | "linear") ?? "m2")
+    : "m";
   const measurePreview = isMeasuredProduct && partSelectedProduct
     ? computeMeasuredPrice(
         (partSelectedProduct.sale_unit as "m2" | "linear") ?? "m2",
@@ -518,6 +524,9 @@ export default function ServiceOrderDetail() {
         partSelectedProduct.min_billable_quantity ?? null,
         Number(measureHeight) || 0,
         Number(measureWidth) || 0,
+        partSelectedProduct.measure_unit,
+        undefined,
+        measureInputUnit,
       )
     : isMeasuredService && partSelectedService
     ? computeMeasuredPrice(
@@ -570,8 +579,9 @@ export default function ServiceOrderDetail() {
     } else if (isMeasuredProduct && partSelectedProduct) {
       body = {
         product_id: partSelectedProduct.id,
-        height: Number(measureHeight) || 0,
-        width: Number(measureWidth) || 0,
+        // o servidor recalcula o preço: manda a medida já na unidade do produto
+        height: toProductMeasure(Number(measureHeight) || 0, measureInputUnit, (partSelectedProduct.sale_unit as "m2" | "linear") ?? "m2", partSelectedProduct.measure_unit),
+        width: toProductMeasure(Number(measureWidth) || 0, measureInputUnit, (partSelectedProduct.sale_unit as "m2" | "linear") ?? "m2", partSelectedProduct.measure_unit),
         no_charge: partNoCharge,
         ...commonDiscount,
       };
@@ -1894,22 +1904,22 @@ export default function ServiceOrderDetail() {
               partSelectedService.sale_unit === "m2" ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Altura (m)</label>
-                    <Input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                    <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Altura ({measureTypedAbbr})</label>
+                    <Input type="number" min="0" step="any" autoFocus value={measureHeight}
                       onChange={(e) => setMeasureHeight(e.target.value)}
                       placeholder="0,00" className="font-mono text-center" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Largura (m)</label>
-                    <Input type="number" min="0" step="0.01" value={measureWidth}
+                    <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Largura ({measureTypedAbbr})</label>
+                    <Input type="number" min="0" step="any" value={measureWidth}
                       onChange={(e) => setMeasureWidth(e.target.value)}
                       placeholder="0,00" className="font-mono text-center" />
                   </div>
                 </div>
               ) : (
                 <div>
-                  <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Comprimento (m)</label>
-                  <Input type="number" min="0" step="0.01" autoFocus value={measureHeight}
+                  <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">{partSelectedProduct.sale_unit === "linear" ? "Comprimento" : "Quantidade"} ({measureTypedAbbr})</label>
+                  <Input type="number" min="0" step="any" autoFocus value={measureHeight}
                     onChange={(e) => setMeasureHeight(e.target.value)}
                     placeholder="0,00" className="font-mono text-center" />
                 </div>
@@ -1980,6 +1990,10 @@ export default function ServiceOrderDetail() {
                 <span className="min-w-0 truncate text-xs font-medium text-blue-700">Variação: {partOptions.label}</span>
                 <button type="button" className="shrink-0 text-xs font-semibold text-blue-700 underline" onClick={() => setVariationPending(partSelectedProduct)}>Trocar</button>
               </div>
+            )}
+
+            {partSelectedProduct && isMeasuredProduct && (
+              <MeasureUnitPicker saleUnit={(partSelectedProduct.sale_unit ?? "linear") as "m2" | "linear" | "peso" | "volume"} productUnit={partSelectedProduct.measure_unit} value={measureInputUnit} onChange={setMeasureInputUnit} />
             )}
 
             {partSelectedProduct && isMeasuredProduct && (

@@ -51,7 +51,8 @@ import Combobox from "../../components/ui/Combobox";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { useToast } from "../../components/ui/Toast";
 import { cn } from "../../lib/utils";
-import { computeMeasuredPrice } from "../../utils/measurePricing";
+import { computeMeasuredPrice, measureUnitAbbr, sideUnitOf, defaultMeasureUnit } from "../../utils/measurePricing";
+import MeasureUnitPicker from "../../components/MeasureUnitPicker";
 import { generateQuotePDF, getIncludeDrawingPref, quoteHasGlassPieces, setIncludeDrawingPref } from "../../lib/quotePdf";
 import { getHideValuesPref, setHideValuesPref } from "../../lib/documentPrefs";
 import { getStoredUser } from "../../lib/session";
@@ -587,13 +588,21 @@ export default function QuoteDetail() {
     setProductSearch("");
   };
 
+  const [measureInputUnit, setMeasureInputUnit] = useState<string | null>(null); // unidade em que a medida é digitada (null = a do produto)
+  useEffect(() => { setMeasureInputUnit(null); }, [measureProduct?.id]);
+  const measureTypedAbbr = measureProduct
+    ? measureUnitAbbr(measureInputUnit ?? sideUnitOf((measureProduct.measure_unit || defaultMeasureUnit((measureProduct.sale_unit as "m2" | "linear") ?? "m2")).toLowerCase()), (measureProduct.sale_unit as "m2" | "linear") ?? "m2")
+    : "m";
   const measurePreview = measureProduct
     ? computeMeasuredPrice(
         (measureProduct.sale_unit as "m2" | "linear") ?? "m2",
         Number(measureProduct.price_per_measure) || 0,
         measureProduct.min_billable_quantity,
-        Number(measureHeight) || 0,
-        Number(measureWidth) || 0,
+        Number(measureHeight.replace(",", ".")) || 0,
+        Number(measureWidth.replace(",", ".")) || 0,
+        measureProduct.measure_unit,
+        undefined,
+        measureInputUnit,
       )
     : null;
 
@@ -1692,13 +1701,14 @@ export default function QuoteDetail() {
       >
         {measureProduct && (
           <div className="space-y-3">
+            <MeasureUnitPicker saleUnit={(measureProduct.sale_unit ?? "linear") as "m2" | "linear" | "peso" | "volume"} productUnit={measureProduct.measure_unit} value={measureInputUnit} onChange={setMeasureInputUnit} />
             {measureProduct.sale_unit === "m2" ? (
               <div className="grid grid-cols-2 gap-3">
-                <Input label="Altura (m)" type="number" min="0" step="0.01" autoFocus value={measureHeight} onChange={(e) => setMeasureHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
-                <Input label="Largura (m)" type="number" min="0" step="0.01" value={measureWidth} onChange={(e) => setMeasureWidth(e.target.value)} placeholder="0,00" className="text-center font-mono" />
+                <Input label={`Altura (${measureTypedAbbr})`} type="number" min="0" step="any" autoFocus value={measureHeight} onChange={(e) => setMeasureHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
+                <Input label={`Largura (${measureTypedAbbr})`} type="number" min="0" step="any" value={measureWidth} onChange={(e) => setMeasureWidth(e.target.value)} placeholder="0,00" className="text-center font-mono" />
               </div>
             ) : (
-              <Input label="Comprimento (m)" type="number" min="0" step="0.01" autoFocus value={measureHeight} onChange={(e) => setMeasureHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
+              <Input label={`${measureProduct.sale_unit === "linear" ? "Comprimento" : "Quantidade"} (${measureTypedAbbr})`} type="number" min="0" step="any" autoFocus value={measureHeight} onChange={(e) => setMeasureHeight(e.target.value)} placeholder="0,00" className="text-center font-mono" />
             )}
             {measurePreview && measurePreview.rawQuantity > 0 && (
               <div className="space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">

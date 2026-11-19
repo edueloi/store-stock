@@ -21,7 +21,8 @@ import { Badge } from "../../components/ui/Badge";
 import { Tabs } from "../../components/ui/Tabs";
 import { Alert } from "../../components/ui/Alert";
 import { SERVICE_UNITS, getCategoryIcon, UNCATEGORIZED_SERVICE_CATEGORY } from "./Services";
-import { computeMeasuredPrice, measureUnitAbbr, measureUnitLabel, parseMeasureInput } from "../../utils/measurePricing";
+import { computeMeasuredPrice, measureUnitAbbr, measureUnitLabel, parseMeasureInput, sideUnitOf, defaultMeasureUnit } from "../../utils/measurePricing";
+import MeasureUnitPicker from "../../components/MeasureUnitPicker";
 import { productHasStock } from "../../utils/productStock";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../../lib/cashSession";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
@@ -735,6 +736,11 @@ export default function PDV() {
     setSelectedOptions({});
   };
 
+  const [measureInputUnit, setMeasureInputUnit] = useState<string | null>(null); // unidade em que a medida é digitada (null = a do produto)
+  useEffect(() => { setMeasureInputUnit(null); }, [measureProduct?.id]);
+  const measureTypedAbbr = measureProduct
+    ? measureUnitAbbr(measureInputUnit ?? sideUnitOf((measureProduct.measure_unit || defaultMeasureUnit((measureProduct.sale_unit as "m2" | "linear") ?? "m2")).toLowerCase()), measureProduct.sale_unit ?? "linear")
+    : "";
   const measurePreview = measureProduct
     ? computeMeasuredPrice(
         (measureProduct.sale_unit as "m2" | "linear") ?? "m2",
@@ -743,6 +749,8 @@ export default function PDV() {
         parseMeasureInput(measureHeight),
         parseMeasureInput(measureWidth),
         measureProduct.measure_unit,
+        undefined,
+        measureInputUnit,
       )
     : null;
 
@@ -2904,17 +2912,18 @@ export default function PDV() {
       >
         {measureProduct && (
           <div className="space-y-3">
+            <MeasureUnitPicker saleUnit={(measureProduct.sale_unit ?? "linear") as "m2" | "linear" | "peso" | "volume"} productUnit={measureProduct.measure_unit} value={measureInputUnit} onChange={setMeasureInputUnit} />
             {measureProduct.sale_unit === "m2" ? (
               <div className="grid grid-cols-2 gap-3">
-              <Input size="lg" label={`Altura (${measureUnitAbbr(measureProduct.measure_unit, "m2")})`} type="text" inputMode="decimal" autoFocus value={measureHeight}
+              <Input size="lg" label={`Altura (${measureTypedAbbr})`} type="text" inputMode="decimal" autoFocus value={measureHeight}
                   onChange={(e) => setMeasureHeight(e.target.value)}
                   placeholder="0,00" className="text-center font-mono font-semibold" />
-                <Input size="lg" label={`Largura (${measureUnitAbbr(measureProduct.measure_unit, "m2")})`} type="text" inputMode="decimal" value={measureWidth}
+                <Input size="lg" label={`Largura (${measureTypedAbbr})`} type="text" inputMode="decimal" value={measureWidth}
                   onChange={(e) => setMeasureWidth(e.target.value)}
                   placeholder="0,00" className="text-center font-mono font-semibold" />
               </div>
             ) : (
-              <Input size="lg" label={`Quantidade (${measureUnitAbbr(measureProduct.measure_unit, measureProduct.sale_unit ?? "linear")})`} type="text" inputMode="decimal" autoFocus value={measureHeight}
+              <Input size="lg" label={`Quantidade (${measureTypedAbbr})`} type="text" inputMode="decimal" autoFocus value={measureHeight}
                 onChange={(e) => setMeasureHeight(e.target.value)}
                 placeholder="0,00" className="text-center font-mono font-semibold" />
             )}
