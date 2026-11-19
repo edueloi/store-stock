@@ -2473,7 +2473,7 @@ ${buildReceiptFooterHtml(warrantyPolicies)}
   };
 
   const filteredProducts = useMemo(() => products.filter((p) => {
-    if (!productHasStock(p)) return false;
+    if (!sellWithoutStockControl && !productHasStock(p)) return false;
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       // Placeholder promete "nome, código ou código de barras" — sku/barcode
@@ -2485,7 +2485,7 @@ ${buildReceiptFooterHtml(warrantyPolicies)}
     }
     if (selectedCategory && p.category_id !== selectedCategory) return false;
     return true;
-  }), [products, searchTerm, selectedCategory]);
+  }), [products, searchTerm, selectedCategory, sellWithoutStockControl]);
 
   // Renderiza o catálogo em lotes: com milhares de produtos, desenhar todos os cards (e
   // fotos) de uma vez travava o PDV. "Mostrar mais" libera o próximo lote.
@@ -5014,7 +5014,7 @@ ${buildReceiptFooterHtml(warrantyPolicies)}
                 {(() => {
                   const q = addProductSearch.trim().toLowerCase();
                   const filtered = products
-                    .filter((p) => productHasStock(p))
+                    .filter((p) => sellWithoutStockControl || productHasStock(p))
                     .filter((p) => !q
                       || p.name.toLowerCase().includes(q)
                       || (p.sku ?? "").toLowerCase().includes(q)

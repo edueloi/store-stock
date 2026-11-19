@@ -1945,9 +1945,9 @@ export default function PDV() {
         || (p.barcode ?? "").toLowerCase().includes(q);
       if (!matches) return false;
     }
-    if (!productHasStock(p)) return false;
+    if (!sellWithoutStockControl && !productHasStock(p)) return false;
     return true;
-  }), [products, searchTerm, selectedCategory]);
+  }), [products, searchTerm, selectedCategory, sellWithoutStockControl]);
 
   // Renderiza o catálogo em lotes: com milhares de produtos, desenhar todos os cards (e
   // fotos) de uma vez travava o PDV. "Mostrar mais" libera o próximo lote.
@@ -4643,7 +4643,7 @@ export default function PDV() {
                 {(() => {
                   const q = addProductSearch.trim().toLowerCase();
                   const filtered = products
-                    .filter((p) => productHasStock(p))
+                    .filter((p) => sellWithoutStockControl || productHasStock(p))
                     .filter((p) => !q
                       || p.name.toLowerCase().includes(q)
                       || (p.sku ?? "").toLowerCase().includes(q)
