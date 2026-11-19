@@ -5,6 +5,7 @@ import {
   FileCheck, Search, Download, RefreshCw, FileText, AlertTriangle,
   CheckCircle2, Loader2, Clock, XCircle, Ban, Archive, Calendar, Trash2, Plus,
   MessageCircle,
+  Printer,
   Mail,
   Info,
 } from "lucide-react";
@@ -14,6 +15,8 @@ import { cn } from "../../lib/utils";
 import { Modal, ModalFooter, Button, IconButton, Input, Textarea, Select, Tabs, FilterLineSearch, FilterLineSegmented } from "../../components/ui";
 import { useToast } from "../../components/ui/Toast";
 import { onRealtime } from "../../lib/realtime";
+import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
+import { fetchNfceCupomText, printThermalText } from "../../lib/thermalReceipt";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
 
 const PRAZO_CANCELAMENTO_MINUTOS = 30;
@@ -154,6 +157,39 @@ function NfceTabContent() {
   const [whatsappNumberInput, setWhatsappNumberInput] = useState("");
   const [errorDetailTarget, setErrorDetailTarget] = useState<NfceInvoice | null>(null);
   const notify = useToast();
+
+  // Imprimir o cupom fiscal na térmica: neste aparelho ou em outro terminal vinculado.
+  const [printTarget, setPrintTarget] = useState<NfceInvoice | null>(null);
+  const [printTerminals, setPrintTerminals] = useState<RemotePrintTerminal[]>([]);
+  const [printingTo, setPrintingTo] = useState<number | "local" | null>(null);
+  useEffect(() => {
+    fetchRemotePrintTerminals(localStorage.getItem("token") || "")
+      .then((t) => setPrintTerminals(t.filter((rt) => rt.printers.some((pr) => pr.role === "receipt"))))
+      .catch(() => {});
+  }, []);
+  const printCupomTo = async (inv: NfceInvoice, terminal: RemotePrintTerminal | null) => {
+    setPrintingTo(terminal ? terminal.id : "local");
+    try {
+      const text = await fetchNfceCupomText(inv.order_id);
+      if (!terminal) {
+        const r = await printThermalText(text, "Cupom fiscal");
+        if (!r.ok) throw new Error(r.error || "Não foi possível imprimir. Verifique a impressora em Configurações.");
+      } else {
+        const r = await requestRemotePrint(localStorage.getItem("token") || "", terminal.id, "receipt", text);
+        if (!r.ok) throw new Error(r.error || "Falha ao pedir impressão remota.");
+        notify.success(`Enviado para ${terminal.name}.`);
+      }
+      setPrintTarget(null);
+    } catch (e) {
+      notify.error(e instanceof Error ? e.message : "Não foi possível imprimir o cupom fiscal.");
+    } finally {
+      setPrintingTo(null);
+    }
+  };
+  const handlePrintCupom = (inv: NfceInvoice) => {
+    if (printTerminals.length === 0) void printCupomTo(inv, null);
+    else setPrintTarget(inv);
+  };
 
   // Date filter — default: first → last day of current month
   const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -598,6 +634,9 @@ function NfceTabContent() {
                             <Button variant="outline" size="sm" onClick={() => handleDownloadCupom(inv)} title="Cupom fiscal no formato de impressora térmica (80 mm)">
                               <FileText size={12} /> Cupom
                             </Button>
+                            <Button variant="outline" size="sm" onClick={() => handlePrintCupom(inv)} title="Imprimir o cupom fiscal na impressora térmica">
+                              <Printer size={12} /> Imprimir
+                            </Button>
                             <Button variant="outline" size="sm" onClick={() => handleDownloadXml(inv)}>
                               <FileCheck size={12} /> XML
                             </Button>
@@ -711,6 +750,9 @@ function NfceTabContent() {
                         <Button variant="outline" size="sm" onClick={() => handleDownloadCupom(inv)} title="Cupom fiscal no formato de impressora térmica (80 mm)">
                           <FileText size={12} /> Cupom
                         </Button>
+                        <Button variant="outline" size="sm" onClick={() => handlePrintCupom(inv)} title="Imprimir o cupom fiscal na impressora térmica">
+                          <Printer size={12} /> Imprimir
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => handleDownloadXml(inv)}>
                           <FileCheck size={12} /> XML
                         </Button>
@@ -733,6 +775,25 @@ function NfceTabContent() {
           })}
         </div>
       </div>
+
+      <Modal
+        open={!!printTarget}
+        onClose={() => { if (printingTo === null) setPrintTarget(null); }}
+        title="Imprimir cupom fiscal"
+        subtitle={printTarget ? `Nota nº ${printTarget.number} · escolha onde imprimir` : undefined}
+        size="sm"
+      >
+        <div className="space-y-2">
+          <Button variant="outline" size="md" className="w-full justify-start" disabled={printingTo !== null} loading={printingTo === "local"} onClick={() => printTarget && printCupomTo(printTarget, null)}>
+            <Printer size={13} /> Neste aparelho
+          </Button>
+          {printTerminals.map((rt) => (
+            <Button key={rt.id} variant="outline" size="md" className="w-full justify-start" disabled={printingTo !== null} loading={printingTo === rt.id} onClick={() => printTarget && printCupomTo(printTarget, rt)}>
+              <Printer size={13} /> {rt.name}
+            </Button>
+          ))}
+        </div>
+      </Modal>
 
       <Modal
         open={!!cancelTarget}

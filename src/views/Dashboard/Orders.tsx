@@ -1647,19 +1647,20 @@ ${
                           title="Tentar novamente">
                           {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />} Reemitir
                         </button>
-                      ) : order.customer_document && order.customer_document.trim() ? (
-                        <button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
+                      ) : (
+<div className="inline-flex items-center gap-1">
+<button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-slate-900 text-white hover:bg-slate-700 transition-colors disabled:opacity-50">
                           {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />} Gerar NF
                         </button>
-                      ) : (
-                        <button
+{!(order.customer_document && order.customer_document.trim()) && <button
                           onClick={(e) => { e.stopPropagation(); setDocumentTarget(order); setDocumentInput(""); }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] text-slate-400 hover:text-blue-600 hover:bg-blue-50 font-semibold transition-colors"
                           title="Informar CPF/CNPJ para gerar a nota fiscal"
                         >
-                          <Plus size={10} /> Sem CPF/CNPJ
-                        </button>
+                          <Plus size={10} /> CPF/CNPJ
+                        </button>}
+</div>
                       )}
                     </td>
                     {/* ações — sempre visíveis */}
@@ -1869,18 +1870,19 @@ ${
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-red-50 text-red-500 border border-red-100 disabled:opacity-50">
                       {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />} Reemitir Nota
                     </button>
-                  ) : order.customer_document && order.customer_document.trim() ? (
-                    <button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
+                  ) : (
+<div className="flex items-center gap-2">
+<button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-slate-900 text-white disabled:opacity-50">
                       {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />} Gerar Nota Fiscal
                     </button>
-                  ) : (
-                    <button
+{!(order.customer_document && order.customer_document.trim()) && <button
                       onClick={() => { setDocumentTarget(order); setDocumentInput(""); }}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] text-slate-400 hover:text-blue-600 hover:bg-blue-50 font-semibold transition-colors"
                     >
-                      <Plus size={10} /> Sem CPF/CNPJ — informar
-                    </button>
+                      <Plus size={10} /> CPF/CNPJ
+                    </button>}
+</div>
                   )}
                 </div>
               )}
