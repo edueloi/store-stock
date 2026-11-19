@@ -1513,8 +1513,8 @@ ${
                     Pedido {sortField === "id" ? (sortDir === "asc" ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={10} className="opacity-30" />}
                   </Button>
                 </th>
-                <th className="px-3 py-2.5 text-[10px] font-semibold text-slate-400">Cliente</th>
-                <th className="px-3 py-2.5 text-[10px] font-semibold text-slate-400">Pagamento</th>
+                <th className="px-3 py-2.5 text-[10px] font-semibold text-slate-400 w-[28%]">Cliente</th>
+                <th className="px-3 py-2.5 text-[10px] font-semibold text-slate-400 w-[18%]">Pagamento</th>
                 <th className="px-3 py-2.5 w-28">
                   <Button variant="ghost" size="sm" onClick={() => toggleSort("date")}>
                     Data {sortField === "date" ? (sortDir === "asc" ? <ArrowUp size={10} /> : <ArrowDown size={10} />) : <ArrowUpDown size={10} className="opacity-30" />}
@@ -1526,8 +1526,8 @@ ${
                   </Button>
                 </th>
                 <th className="px-3 py-2.5 text-[10px] font-semibold text-slate-400 text-center w-28">Status</th>
-                <th className="px-3 py-2.5 text-[10px] font-semibold text-slate-400 text-center w-32">Nota Fiscal</th>
-                <th className="px-3 py-2.5 w-20 text-[10px] font-semibold text-slate-400 text-center">Ações</th>
+                <th className="px-3 py-2.5 text-[10px] font-semibold text-slate-400 text-center w-40">Nota Fiscal</th>
+                <th className="px-3 py-2.5 w-24 text-[10px] font-semibold text-slate-400 text-center">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -1633,29 +1633,29 @@ ${
                         <span className="text-[11px] text-slate-300">—</span>
                       ) : order.nfce_invoice?.status === "authorized" ? (
                         <button onClick={() => handleDownloadDanfe(order.id, order.nfce_invoice?.access_key)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 transition-colors"
+                          className="inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 transition-colors"
                           title="Baixar DANFE">
                           <FileText size={10} /> Emitida
                         </button>
                       ) : order.nfce_invoice?.status === "processing" || order.nfce_invoice?.status === "pending" ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-100">
+                        <span className="inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-100">
                           <Loader2 size={10} className="animate-spin" /> Processando
                         </span>
                       ) : order.nfce_invoice?.status === "rejected" || order.nfce_invoice?.status === "error" ? (
                         <button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-red-50 text-red-500 border border-red-100 hover:bg-red-100 transition-colors disabled:opacity-50"
+                          className="inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] font-semibold bg-red-50 text-red-500 border border-red-100 hover:bg-red-100 transition-colors disabled:opacity-50"
                           title="Tentar novamente">
                           {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />} Reemitir
                         </button>
                       ) : (
-<div className="inline-flex items-center gap-1">
+<div className="flex flex-col items-center gap-1">
 <button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-slate-900 text-white hover:bg-slate-700 transition-colors disabled:opacity-50">
+                          className="inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] font-semibold bg-slate-900 text-white hover:bg-slate-700 transition-colors disabled:opacity-50">
                           {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />} Gerar NF
                         </button>
 {!(order.customer_document && order.customer_document.trim()) && <button
                           onClick={(e) => { e.stopPropagation(); setDocumentTarget(order); setDocumentInput(""); }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] text-slate-400 hover:text-blue-600 hover:bg-blue-50 font-semibold transition-colors"
+                          className="inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] text-slate-400 hover:text-blue-600 hover:bg-blue-50 font-semibold transition-colors"
                           title="Informar CPF/CNPJ para gerar a nota fiscal"
                         >
                           <Plus size={10} /> CPF/CNPJ
@@ -1871,7 +1871,7 @@ ${
                       {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />} Reemitir Nota
                     </button>
                   ) : (
-<div className="flex items-center gap-2">
+<div className="flex flex-wrap items-center gap-2">
 <button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-slate-900 text-white disabled:opacity-50">
                       {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />} Gerar Nota Fiscal
