@@ -190,6 +190,7 @@ export async function searchOrders(req: Request, res: Response) {
             ? [{ id: asNumber }]
             : []),
           { customer_name: { contains: q } },
+          { order_label: { contains: q } },
           { items: { some: { name: { contains: q } } } },
           { items: { some: { product: { name: { contains: q } } } } },
         ],

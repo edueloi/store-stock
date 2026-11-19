@@ -1573,6 +1573,11 @@ ${
                       <p className="max-w-[200px] truncate text-[12px] font-semibold text-slate-800 leading-tight" title={order.customer_name || "Balcão"}>
                         {order.customer_name || "Balcão"}
                       </p>
+                      {order.order_label && (
+                        <p className="max-w-[200px] truncate text-[11px] font-semibold text-blue-600 leading-tight mt-0.5" title={order.order_label}>
+                          Obra: {order.order_label}
+                        </p>
+                      )}
                       {order.seller_name && (
                         <p className="max-w-[200px] truncate text-[11px] text-slate-400 leading-tight mt-0.5">
                           Vendedor: {order.seller_name}
@@ -1792,6 +1797,7 @@ ${
                     <h4 className="truncate text-xs font-semibold text-slate-900">
                       {order.customer_name || "Cliente Balcão"}
                     </h4>
+                    {order.order_label && <p className="truncate text-[11px] font-semibold text-blue-600">Obra: {order.order_label}</p>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -2073,6 +2079,9 @@ ${
                     <p className="text-[13px] font-semibold text-slate-900 leading-tight">
                       {selectedOrder.customer_name || "Consumidor Final"}
                     </p>
+                    {selectedOrder.order_label && (
+                      <p className="text-[11px] font-semibold text-blue-600 mt-0.5">Obra: {selectedOrder.order_label}</p>
+                    )}
                     {selectedOrder.customer_phone && (
                       <p className="text-[11px] font-mono text-slate-500 mt-0.5">{selectedOrder.customer_phone}</p>
                     )}

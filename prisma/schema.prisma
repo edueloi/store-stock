@@ -640,6 +640,8 @@ model Order {
   seller_name       String?
   customer_id       Int?
   customer_name     String?
+  // Identificação livre do pedido (ex.: nome da obra / do cliente final) — sai na lista, no recibo e na etiqueta.
+  order_label       String?  @db.VarChar(120)
   customer_phone    String?
   customer_address  String? @db.Text
   customer_email    String?

@@ -362,6 +362,7 @@ export interface Order {
   customer_email?: string | null;
   customer_address?: string;
   customer_document?: string | null;
+  order_label?: string | null;
   total_amount: number;
   gross_amount?: number | null;
   discount_amount?: number | null;

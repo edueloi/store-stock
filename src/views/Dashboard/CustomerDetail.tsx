@@ -423,6 +423,46 @@ export default function CustomerDetail() {
     setPayDebtsError(null);
   }
 
+  // Baixa em lote: marca/desmarca dívidas para receber várias de uma vez (cada uma entra com o saldo inteiro;
+  // o valor recebido é distribuído em ordem pelas dívidas selecionadas).
+  function toggleDebtSelect(debtId: number, remaining: number) {
+    setSelectedDebtIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(debtId)) next.delete(debtId);
+      else next.add(debtId);
+      return next;
+    });
+    setPayAmounts((prev) => ({ ...prev, [debtId]: remaining.toFixed(2) }));
+    if (selectedDebtIds.size === 0) {
+      setPaySegments([newPaymentSegment()]);
+      setDebtDiscount("");
+      setDebtPaymentDate(todayInputDate());
+      setPayDebtsError(null);
+    }
+  }
+
+  function selectAllOpenDebts() {
+    if (!detail) return;
+    const open = detail.debts.filter((d) => Number(d.amount) - Number(d.amount_paid ?? 0) > 0.005);
+    setSelectedDebtIds(new Set(open.map((d) => d.id)));
+    setPayAmounts(Object.fromEntries(open.map((d) => [d.id, (Number(d.amount) - Number(d.amount_paid ?? 0)).toFixed(2)])));
+    setPaySegments([newPaymentSegment()]);
+    setDebtDiscount("");
+    setDebtPaymentDate(todayInputDate());
+    setPayDebtsError(null);
+  }
+
+  function selectedDebtsInfo() {
+    const list = (detail?.debts ?? []).filter((d) => selectedDebtIds.has(d.id));
+    const remaining = list.reduce((sum, d) => sum + (Number(d.amount) - Number(d.amount_paid ?? 0)), 0);
+    return {
+      count: list.length,
+      remaining,
+      firstId: list[0]?.id ?? 0,
+      description: list.length > 1 ? `${list.length} dívidas selecionadas` : (list[0]?.description ?? "Dívida selecionada"),
+    };
+  }
+
   function handleDebtDiscountChange(val: string, _debtId: number, _remaining: number) {
     // Desconto é uma concessão explícita, não um recebimento adicional.
     // Alterá-lo nunca preenche automaticamente o dinheiro recebido.
@@ -1235,6 +1275,14 @@ export default function CustomerDetail() {
               </PanelCard>
             )}
 
+            {detail.debts.filter((d) => Number(d.amount) - Number(d.amount_paid ?? 0) > 0.005).length > 1 && (
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] text-slate-500">Marque as dívidas na caixinha para dar baixa em várias de uma vez.</p>
+                <Button variant="outline" size="xs" onClick={selectedDebtIds.size > 1 ? cancelDebtPayment : selectAllOpenDebts}>
+                  {selectedDebtIds.size > 1 ? "Limpar seleção" : "Selecionar todas em aberto"}
+                </Button>
+              </div>
+            )}
             {detail.debts.length === 0 ? (
               <EmptyState icon={DollarSign} title="Nenhum fiado/crediário registrado" />
             ) : (
@@ -1254,6 +1302,11 @@ export default function CustomerDetail() {
                       selectedDebtIds.has(d.id) && "border-violet-300 ring-2 ring-violet-400"
                     )}>
                       <div className="flex items-start gap-3 p-3">
+                        {d.status !== "paid" && remaining > 0.005 && (
+                          <input type="checkbox" checked={selectedDebtIds.has(d.id)} onChange={() => toggleDebtSelect(d.id, remaining)}
+                            aria-label="Selecionar para receber em lote" title="Selecionar para receber várias de uma vez"
+                            className="mt-2.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-violet-600" />
+                        )}
                         <div className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", d.status === "paid" ? "bg-emerald-100" : "bg-red-100")}>
                           {d.status === "paid" ? <CheckCircle2 size={15} className="text-emerald-600" /> : <Clock size={15} className="text-red-500" />}
                         </div>
@@ -1616,9 +1669,7 @@ export default function CustomerDetail() {
             {selectedDebtIds.size > 0 && (
               <ContentCard className="sticky bottom-0 space-y-3 border-violet-200">
                 {(() => {
-                  const debtId = Array.from(selectedDebtIds)[0];
-                  const debt = detail.debts.find((item) => item.id === debtId);
-                  const remaining = debt ? Number(debt.amount) - Number(debt.amount_paid ?? 0) : 0;
+                  const sel = selectedDebtsInfo(); const debtId = sel.firstId; const remaining = sel.remaining;
                   const receiving = paySegments.reduce((sum, segment) => sum + (Number(segment.amount) || 0), 0);
                   const discountNum = Math.max(0, Number(debtDiscount) || 0);
                   const afterPayment = Math.max(0, remaining - receiving - discountNum);
@@ -1626,7 +1677,7 @@ export default function CustomerDetail() {
                     <div className="flex items-start justify-between gap-3 rounded-lg border border-violet-100 bg-violet-50 px-3 py-2.5">
                       <div className="min-w-0">
                         <p className="text-[11px] font-medium text-violet-500">Receber pagamento</p>
-                        <p className="mt-0.5 truncate text-xs font-semibold text-slate-800">{debt?.description ?? "Dívida selecionada"}</p>
+                        <p className="mt-0.5 truncate text-xs font-semibold text-slate-800">{sel.description}</p>
                         <p className="mt-0.5 text-[11px] text-slate-500">
                           Em aberto: {fmt(remaining)} · Recebendo: {fmt(receiving)}{discountNum > 0 ? ` · Desconto: ${fmt(discountNum)}` : ""} · Após esta baixa: {fmt(afterPayment)}
                         </p>
@@ -1648,9 +1699,7 @@ export default function CustomerDetail() {
                   </div>
                   <div>
                     {(() => {
-                      const debtId = Array.from(selectedDebtIds)[0];
-                      const debt = detail.debts.find((item) => item.id === debtId);
-                      const remaining = debt ? Number(debt.amount) - Number(debt.amount_paid ?? 0) : 0;
+                      const sel = selectedDebtsInfo(); const debtId = sel.firstId; const remaining = sel.remaining;
                       return (
                         <>
                           <Input
@@ -1674,9 +1723,7 @@ export default function CustomerDetail() {
                   </div>
                 </div>
                 {(() => {
-                  const debtId = Array.from(selectedDebtIds)[0];
-                  const debt = detail.debts.find((item) => item.id === debtId);
-                  const remaining = debt ? Number(debt.amount) - Number(debt.amount_paid ?? 0) : 0;
+                  const sel = selectedDebtsInfo(); const debtId = sel.firstId; const remaining = sel.remaining;
                   const discountNum = Math.max(0, Number(debtDiscount) || 0);
                   const toPay = Math.max(0, remaining - discountNum);
                   return (

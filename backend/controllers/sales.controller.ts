@@ -62,6 +62,7 @@ interface FinalizeSaleParams {
   // CPF/CNPJ avulso informado no PDV (sem cliente cadastrado), para identificar o
   // destinatário na NFC-e — ex.: cliente pede "nota fiscal paulista" (crédito de ICMS/IPVA).
   customerDocument?: string;
+  orderLabel?: string;
   totalAmount: number;
   paymentMethod?: string;
   discount?: number;
@@ -99,7 +100,7 @@ interface FinalizeSaleParams {
 // garantir que ambos os caminhos produzam exatamente o mesmo resultado.
 export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ orderId: number }> {
   const {
-    tenantId, items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod,
+    tenantId, items, services, customerName, customerId, customerDocument, orderLabel, totalAmount, paymentMethod,
     discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
     soldAtDate, decrementStock, descriptionPrefix,
     crediarioInstallments, crediarioFirstDueDate, boletoInstallments, boletoFirstDueDate,
@@ -326,6 +327,7 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
         customer_name:   resolvedCustomerName,
         customer_id:     customerId ?? null,
         customer_document: customerDocument ? customerDocument.replace(/\D/g, "") : null,
+        order_label:     orderLabel?.trim() ? orderLabel.trim().slice(0, 120) : null,
         total_amount:    totalAmount,
         gross_amount:    grossAmount,
         discount_amount:  discountVal > 0 ? discountVal : null,
@@ -565,7 +567,7 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
 
 export async function createSale(req: Request, res: Response) {
   const {
-    items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod, discount, surcharge,
+    items, services, customerName, customerId, customerDocument, orderLabel, totalAmount, paymentMethod, discount, surcharge,
     sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId, soldAtDate,
     crediarioInstallments, crediarioFirstDueDate, boletoInstallments, boletoFirstDueDate,
     cashSessionId, isOfflineSync, heldSaleId, changeAmount,
@@ -575,6 +577,7 @@ export async function createSale(req: Request, res: Response) {
     customerName?: string;
     customerId?: number;
     customerDocument?: string;
+    orderLabel?: string;
     totalAmount: number;
     paymentMethod?: string;
     discount?: number;
@@ -600,7 +603,7 @@ export async function createSale(req: Request, res: Response) {
 
     const result = await finalizeSaleOrder({
       issuerId: await issuerForNew(req, tenantId),
-      tenantId, items, services, customerName, customerId, customerDocument, totalAmount, paymentMethod,
+      tenantId, items, services, customerName, customerId, customerDocument, orderLabel, totalAmount, paymentMethod,
       discount, surcharge, sellerId, passFeeToCustomer, passFeeByMethod, clientSaleId,
       soldAtDate, decrementStock: true,
       crediarioInstallments, crediarioFirstDueDate, boletoInstallments, boletoFirstDueDate,

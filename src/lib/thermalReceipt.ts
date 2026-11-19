@@ -357,6 +357,7 @@ export interface OrderReceiptOrder {
   id: number;
   created_at: string;
   customer_name?: string | null;
+  order_label?: string | null;
   seller_name?: string | null;
   items: OrderReceiptItem[];
   payment_method?: string | null;
@@ -405,6 +406,7 @@ export function buildOrderReceiptText(tenant: OrderReceiptTenant | null | undefi
   });
   receipt += `${thermalThin}\n`;
   receipt += thermalRow("Cliente", order.customer_name || "Consumidor final") + "\n";
+  if (order.order_label) receipt += thermalRow("Obra/Ref.", order.order_label) + "\n";
   if (order.seller_name) receipt += thermalRow("Vendedor", order.seller_name) + "\n";
   receipt += thermalRow("Qtde. Total Itens", String(order.items.reduce((sum, i) => sum + i.quantity, 0))) + "\n";
   const grossAmount = order.gross_amount != null ? Number(order.gross_amount) : Number(order.total_amount);

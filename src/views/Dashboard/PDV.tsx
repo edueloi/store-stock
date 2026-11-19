@@ -98,6 +98,7 @@ interface CompletedSale {
   orderId: number;
   customerId?: number | null;
   customerName: string;
+  orderLabel?: string;
   payments: PaymentEntry[];
   items: { name: string; quantity: number; price: number; image_url?: string; dimensionsLabel?: string; code?: string }[];
   subtotal: number;
@@ -303,6 +304,7 @@ export default function PDV() {
   const [customers, setCustomers]                   = useState<CustomerOption[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [customerName, setCustomerName]             = useState("");
+  const [orderLabel, setOrderLabel]                 = useState(""); // nome da obra / cliente final deste pedido
   const [customerDocument, setCustomerDocument]     = useState("");
   // Gateways da loja prontos para cobrar — habilita "Gerar link" só com Asaas ou Mercado Pago conectado.
   const [gatewayState, setGatewayState]               = useState<{ asaas: boolean; mercadopago: boolean }>({ asaas: false, mercadopago: false });
@@ -1095,6 +1097,7 @@ export default function PDV() {
     setPayments([newPayment()]);
     setSelectedCustomerId(null);
     setCustomerName("");
+    setOrderLabel("");
     setDiscount("");
     setSurcharge("");
     setAppliedReward(null);
@@ -1333,6 +1336,7 @@ export default function PDV() {
     });
     receipt += `${thin}\n`;
     receipt += row("Cliente", sale.customerName || "Consumidor final") + "\n";
+    if (sale.orderLabel) receipt += row("Obra/Ref.", sale.orderLabel) + "\n";
     receipt += row("Qtde. Total Itens", String(sale.items.reduce((sum, item) => sum + item.quantity, 0))) + "\n";
     if (sale.discountValue > 0 || sale.surchargeValue > 0) receipt += row("Subtotal", `R$ ${money(sale.subtotal)}`) + "\n";
     if (sale.discountValue > 0) receipt += row("Desconto", `- R$ ${money(sale.discountValue)}`) + "\n";
@@ -1747,6 +1751,7 @@ export default function PDV() {
           customerName,
           customerId: selectedCustomerId ?? undefined,
           customerDocument: !selectedCustomerId && customerDocument ? customerDocument : undefined,
+          orderLabel: orderLabel.trim() || undefined,
           totalAmount: total,
           paymentMethod: pmString,
           discount: discountValue,
@@ -1795,6 +1800,7 @@ export default function PDV() {
           orderId: data.orderId,
           customerId: selectedCustomerId,
           customerName,
+          orderLabel: orderLabel.trim() || undefined,
           payments: payments.map((p) => ({ ...p })),
           items: [
             ...cart.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, image_url: i.image_url, dimensionsLabel: i.dimensionsLabel, code: i.isAvulso ? undefined : (i.barcode || i.sku) })),
@@ -1830,7 +1836,7 @@ export default function PDV() {
         }
         setNfceInvoice(null);
         setNfceRequested(false); setNfceEmitting(false); setNfceEmitError(null);
-        setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null);
+        setCart([]); setCartServices([]); setCustomerName(""); setSelectedCustomerId(null); setOrderLabel("");
         setCustomerPoints(0); setAppliedReward(null); setDiscount(""); setSurcharge("");
         setPayments([newPayment()]); setSelectedSellerId(null);
         setShowCheckout(false);
@@ -2340,7 +2346,10 @@ export default function PDV() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-1.5">
                   {filteredProducts.slice(0, visibleCount).map((product) => {
                     const qtyInCart   = cartQtyById.get(product.id) ?? 0;
-                    const atLimit     = !sellWithoutStockControl && product.track_stock !== false && qtyInCart >= product.stock_quantity;
+                    const isMeasured  = !!product.sale_unit && product.sale_unit !== "unidade";
+                    // Produto por medida (m², metro, kg, L) usa o saldo em medida — o estoque por unidade fica 0 e não pode bloquear a venda.
+                    const atLimit     = !sellWithoutStockControl && product.track_stock !== false && (isMeasured ? Number(product.measure_stock_quantity ?? 0) <= 0 : qtyInCart >= product.stock_quantity);
+                    const stockBadge  = isMeasured ? `${Number(product.measure_stock_quantity ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${measureUnitAbbr(product.measure_unit, product.sale_unit ?? "linear")}` : String(product.stock_quantity);
                     const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0);
                     return (
@@ -2376,7 +2385,7 @@ export default function PDV() {
 
                         {/* Estoque */}
                         <div className="shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-slate-50 border border-slate-200 text-slate-500">
-                          {product.stock_quantity}
+                          {stockBadge}
                         </div>
 
                         {/* Preço */}
@@ -2412,7 +2421,10 @@ export default function PDV() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2.5">
                   {filteredProducts.slice(0, visibleCount).map((product) => {
                     const qtyInCart   = cartQtyById.get(product.id) ?? 0;
-                    const atLimit     = !sellWithoutStockControl && product.track_stock !== false && qtyInCart >= product.stock_quantity;
+                    const isMeasured  = !!product.sale_unit && product.sale_unit !== "unidade";
+                    // Produto por medida (m², metro, kg, L) usa o saldo em medida — o estoque por unidade fica 0 e não pode bloquear a venda.
+                    const atLimit     = !sellWithoutStockControl && product.track_stock !== false && (isMeasured ? Number(product.measure_stock_quantity ?? 0) <= 0 : qtyInCart >= product.stock_quantity);
+                    const stockBadge  = isMeasured ? `${Number(product.measure_stock_quantity ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${measureUnitAbbr(product.measure_unit, product.sale_unit ?? "linear")}` : String(product.stock_quantity);
                     const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0);
                     return (
@@ -2435,7 +2447,7 @@ export default function PDV() {
                             : <div className="w-full h-full flex items-center justify-center"><Package size={24} className="text-slate-300" /></div>}
                           {/* Badge estoque */}
                           <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-white/90 border border-slate-200 text-slate-500 shadow-sm">
-                            {product.stock_quantity}
+                            {stockBadge}
                           </div>
                           {/* Badge carrinho */}
                           {qtyInCart > 0 && (
@@ -3277,6 +3289,16 @@ export default function PDV() {
                           className="w-full h-9 px-3 rounded-lg border border-slate-200 text-[12px] font-mono focus:outline-none focus:border-blue-400" />
                       </div>
                     )}
+
+                    {/* Nome da obra / cliente final — sai na lista de pedidos, no recibo e na etiqueta */}
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">
+                        Nome da obra / cliente final (opcional)
+                      </label>
+                      <input value={orderLabel} onChange={(e) => setOrderLabel(e.target.value.slice(0, 120))}
+                        placeholder="Ex.: Obra Jardim das Flores"
+                        className="w-full h-9 px-3 rounded-lg border border-slate-200 text-[12px] focus:outline-none focus:border-blue-400" />
+                    </div>
 
                     {/* Vendedor */}
                     <div>
