@@ -178,6 +178,10 @@ export async function importProducts(req: Request, res: Response) {
         const ncm = get(r, "ncm").replace(/\D/g, "").slice(0, 8);
         const cest = get(r, "codigo cest", "cest").replace(/\D/g, "").slice(0, 7);
         const unit = get(r, "unidade", "un") ? cleanUnit(get(r, "unidade", "un")) : "";
+        // Unidade M2 / MT (metro) na planilha = produto vendido por medida: o preço da planilha vira o preço
+        // por m² / por metro e o orçamento, a O.S. e o PDV passam a pedir a metragem e calcular.
+        const rawUn = get(r, "unidade", "un").toUpperCase().replace(/²/g, "2");
+        const measureKind: "m2" | "linear" | null = rawUn === "M2" ? "m2" : ["MT", "M", "ML", "MTS"].includes(rawUn) ? "linear" : null;
         const unitTrib = get(r, "unidade tributavel") ? cleanUnit(get(r, "unidade tributavel")) : "";
         const brand = get(r, "marca");
         const obs = get(r, "observacoes", "obs");
@@ -198,6 +202,14 @@ export async function importProducts(req: Request, res: Response) {
           ...(cest ? { cest } : {}),
           ...(origem != null && origem >= 0 && origem <= 8 ? { origem: Math.round(origem) } : {}),
           ...(unit ? { unidade_comercial: unit } : {}),
+          ...(measureKind && price != null && price > 0
+            ? {
+                sale_unit: measureKind,
+                price_per_measure: price,
+                measure_unit: measureKind === "m2" ? "m2" : "m",
+                ...(stock != null ? { measure_stock_quantity: Math.max(0, stock) } : {}),
+              }
+            : {}),
           ...(unitTrib ? { unidade_tributavel: unitTrib } : {}),
           ...(icms ? { icms_aliquota: icms } : {}),
           ...(pis ? { pis_aliquota: pis } : {}),
