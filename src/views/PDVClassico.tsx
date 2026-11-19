@@ -120,27 +120,27 @@ const isMeasured = (p: Product) => !!p.sale_unit && !["unidade", "peso", "volume
 function Overlay({ title, onClose, children, width = 480, hint }: { title: string; onClose: () => void; children: React.ReactNode; width?: number; hint?: string }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/55 p-3" onMouseDown={onClose}>
-      <div className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-sm border border-[#0a3d5c] bg-white shadow-2xl" style={{ maxWidth: width }} onMouseDown={(e) => e.stopPropagation()}>
-        <div className="flex h-9 shrink-0 items-center justify-between bg-[#0a3d5c] px-3 text-white">
+      <div className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-sm border border-[#2f3640] bg-white shadow-2xl" style={{ maxWidth: width }} onMouseDown={(e) => e.stopPropagation()}>
+        <div className="flex h-9 shrink-0 items-center justify-between bg-[#2f3640] px-3 text-white">
           <h2 className="truncate text-[13px] font-semibold uppercase tracking-wide">{title}</h2>
           <button onClick={onClose} className="rounded-[3px] bg-white/15 px-1.5 py-0.5 font-mono text-[10px] font-bold hover:bg-white/25">ESC</button>
         </div>
         <div className="min-h-0 flex-1 overflow-auto p-3">{children}</div>
-        {hint && <div className="shrink-0 border-t border-[#d5deec] bg-[#eef2f9] px-3 py-1 text-[10px] text-slate-500">{hint}</div>}
+        {hint && <div className="shrink-0 border-t border-[#d9dde2] bg-[#f1f3f5] px-3 py-1 text-[10px] text-slate-500">{hint}</div>}
       </div>
     </div>
   );
 }
 
-const inputCls = "h-9 w-full rounded-sm border border-[#c5cfdf] bg-white px-2.5 text-[14px] text-slate-800 outline-none focus:border-[#0078d4] focus:ring-2 focus:ring-[#0078d4]/20 disabled:bg-slate-100 disabled:text-slate-400 read-only:bg-slate-100";
+const inputCls = "h-9 w-full rounded-sm border border-[#cbd0d6] bg-white px-2.5 text-[14px] text-slate-800 outline-none focus:border-[#4b5563] focus:ring-2 focus:ring-[#4b5563]/20 disabled:bg-slate-100 disabled:text-slate-400 read-only:bg-slate-100";
 const labelCls = "mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500";
 const btn = (tone: "blue" | "green" | "red" | "navy" | "gray") =>
   cn(
     "h-9 whitespace-nowrap rounded-sm px-4 text-[12px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-    tone === "blue" && "bg-[#0078d4] hover:bg-[#006abd]",
+    tone === "blue" && "bg-[#4b5563] hover:bg-[#374151]",
     tone === "green" && "bg-[#1b7e0e] hover:bg-[#166a0b]",
     tone === "red" && "bg-[#c00000] hover:bg-[#a00000]",
-    tone === "navy" && "bg-[#44519c] hover:bg-[#394585]",
+    tone === "navy" && "bg-[#4b5563] hover:bg-[#374151]",
     tone === "gray" && "bg-slate-500 hover:bg-slate-600",
   );
 
@@ -154,7 +154,7 @@ function FKey({ k, label, onClick, tone = "gray", strong, active, disabled, badg
       className={cn(
         "flex h-9 items-center gap-2 whitespace-nowrap rounded-sm border px-2.5 text-[12px] font-semibold shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-45",
         strong && "px-4",
-        tone === "gray" && (active ? "border-[#0078d4] bg-[#e1effb] text-[#005a9e]" : "border-[#b4c1d6] bg-white text-slate-700 hover:border-[#0078d4] hover:text-[#0078d4]"),
+        tone === "gray" && (active ? "border-[#4b5563] bg-[#eceff1] text-[#374151]" : "border-[#c4c9cf] bg-white text-slate-700 hover:border-[#4b5563] hover:text-[#4b5563]"),
         tone === "red" && "border-[#a40000] bg-[#c00000] text-white hover:bg-[#a00000]",
         tone === "green" && "border-[#14630a] bg-[#1b7e0e] text-white hover:bg-[#166a0b]",
       )}
@@ -985,9 +985,9 @@ function ClassicPDV() {
   const heldBadge = heldCount > 0 ? heldCount : null;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#e6ebf3] font-sans text-[13px] text-slate-800 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
+    <div className="flex h-screen flex-col overflow-hidden bg-[#eceff1] font-sans text-[13px] text-slate-800 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed">
       {/* topo */}
-      <header className="flex h-11 shrink-0 items-center justify-between gap-3 bg-[#0a3d5c] px-3 text-white">
+      <header className="flex h-11 shrink-0 items-center justify-between gap-3 bg-[#2f3640] px-3 text-white">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-white/15 text-[14px] font-bold">B</div>
           <div className="min-w-0 leading-tight">
@@ -1023,13 +1023,13 @@ function ClassicPDV() {
       </header>
 
       {/* faixa do pedido */}
-      <div className="flex shrink-0 items-center gap-x-4 gap-y-0.5 overflow-hidden border-b border-[#c9d3e3] bg-white px-3 py-1.5 text-[12px]">
-        <span className={cn("shrink-0 rounded-sm px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white", screen === "sale" ? "bg-[#0078d4]" : "bg-[#1b7e0e]")}>{screen === "sale" ? "Venda" : "Pagamento"}</span>
+      <div className="flex shrink-0 items-center gap-x-4 gap-y-0.5 overflow-hidden border-b border-[#d3d7dc] bg-white px-3 py-1.5 text-[12px]">
+        <span className={cn("shrink-0 rounded-sm px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white", screen === "sale" ? "bg-[#4b5563]" : "bg-[#1b7e0e]")}>{screen === "sale" ? "Venda" : "Pagamento"}</span>
         {cart.length === 0 && screen === "sale"
           ? <span className="truncate text-slate-500">Caixa livre — inclua um produto ou retome uma venda em aberto (F4).</span>
           : (
             <span className="flex min-w-0 flex-wrap items-center gap-x-4 text-slate-600">
-              <b className="font-mono text-[#0a3d5c]">Pedido Nº {saleNumber}</b>
+              <b className="font-mono text-[#2f3640]">Pedido Nº {saleNumber}</b>
               <span className="hidden sm:inline">{new Date().toLocaleDateString("pt-BR")}</span>
               <span className="truncate">Operador: <b>{operatorName}</b></span>
               <span className="truncate">Cliente: <b>{selectedCustomer?.name ?? "Balcão"}</b>{!selectedCustomer && customerDocument ? <> · CPF/CNPJ na nota: <b className="font-mono">{customerDocument}</b></> : null}</span>
@@ -1048,7 +1048,7 @@ function ClassicPDV() {
       {screen === "sale" ? (
         <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(320px,35%)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
           <section className="relative flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
-            <div className="relative rounded-sm border border-[#c5cfdf] bg-white p-3">
+            <div className="relative rounded-sm border border-[#cbd0d6] bg-white p-3">
               <div className="mb-1 flex items-center justify-between gap-2">
                 <label className={labelCls}>Cód. / Produto <span className="text-slate-400">(Ctrl+P)</span></label>
                 <label className="flex items-center gap-1.5 text-[11px] text-slate-500">
@@ -1084,13 +1084,13 @@ function ClassicPDV() {
                 }}
               />
               {suggestions.length > 0 && (
-                <ul className="absolute left-3 right-3 z-20 mt-1 max-h-72 overflow-y-auto rounded-sm border border-[#c5cfdf] bg-white shadow-lg">
+                <ul className="absolute left-3 right-3 z-20 mt-1 max-h-72 overflow-y-auto rounded-sm border border-[#cbd0d6] bg-white shadow-lg">
                   {suggestions.map((p, i) => (
                     <li
                       key={p.id}
                       onMouseEnter={() => setActiveSuggestion(i)}
                       onMouseDown={(e) => { e.preventDefault(); setPicked(p); setCode(p.name); window.setTimeout(() => document.getElementById("classic-qty")?.focus(), 0); }}
-                      className={cn("flex cursor-pointer items-center justify-between px-3 py-1.5 text-[12px]", i === activeSuggestion ? "bg-[#0078d4] text-white" : "hover:bg-slate-50")}
+                      className={cn("flex cursor-pointer items-center justify-between px-3 py-1.5 text-[12px]", i === activeSuggestion ? "bg-[#4b5563] text-white" : "hover:bg-slate-50")}
                     >
                       <span className="truncate">{p.sku ? `${p.sku} · ` : ""}{p.name}</span>
                       <span className="ml-3 shrink-0 font-mono font-semibold">R$ {money(Number(p.discount_price || p.price))}</span>
@@ -1127,14 +1127,14 @@ function ClassicPDV() {
           </section>
 
           <section className="flex min-h-[260px] flex-col gap-3 lg:min-h-0">
-            <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-[#c5cfdf] bg-white">
+            <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-[#cbd0d6] bg-white">
               {cart.length === 0 ? (
                 <div className="flex h-full min-h-[160px] items-center justify-center px-4 text-center text-[clamp(16px,2vw,22px)] text-slate-400">
-                  {loading ? "Carregando produtos…" : <>Caixa <b className="mx-1.5 text-[#0078d4]">livre</b></>}
+                  {loading ? "Carregando produtos…" : <>Caixa <b className="mx-1.5 text-[#4b5563]">livre</b></>}
                 </div>
               ) : (
                 <table className="w-full border-collapse text-[12px]">
-                  <thead className="sticky top-0 z-10 bg-[#dfe7f2] text-[10px] uppercase tracking-wide text-slate-500">
+                  <thead className="sticky top-0 z-10 bg-[#e5e7eb] text-[10px] uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="w-9 px-2 py-1.5 text-left">#</th><th className="hidden px-2 text-left sm:table-cell">Cód.</th><th className="px-2 text-left">Produto ({cart.length})</th>
                       <th className="px-2 text-right">Qtde.</th><th className="hidden px-2 text-right sm:table-cell">Unitário</th><th className="px-2 text-right">Total</th><th className="w-16" />
@@ -1144,7 +1144,7 @@ function ClassicPDV() {
                     {cart.map((i, idx) => (
                       <tr
                         key={i.cartItemId} onClick={() => setSelectedId(i.cartItemId)}
-                        className={cn("cursor-pointer border-b border-slate-200", i.cartItemId === selectedId ? "bg-[#cfe4f8] shadow-[inset_3px_0_0_#0078d4]" : idx % 2 ? "bg-[#f6f8fc] hover:bg-[#eaf1fa]" : "hover:bg-[#eaf1fa]")}
+                        className={cn("cursor-pointer border-b border-slate-200", i.cartItemId === selectedId ? "bg-[#e3e7eb] shadow-[inset_3px_0_0_#4b5563]" : idx % 2 ? "bg-[#f8f9fa] hover:bg-[#f1f3f5]" : "hover:bg-[#f1f3f5]")}
                       >
                         <td className="px-2 py-1.5 font-mono text-[11px] text-slate-400">{String(idx + 1).padStart(2, "0")}</td>
                         <td className="hidden px-2 font-mono text-[11px] text-slate-500 sm:table-cell">{i.sku ?? ""}</td>
@@ -1153,7 +1153,7 @@ function ClassicPDV() {
                         <td className="hidden px-2 text-right font-mono sm:table-cell">{money(i.price)}</td>
                         <td className="px-2 text-right font-mono font-semibold">{money(i.price * i.quantity)}</td>
                         <td className="px-2 text-right">
-                          <button title="Alterar quantidade" className="mr-2 text-[#0078d4]" onClick={(e) => { e.stopPropagation(); setEditingItem(i); setEditQty(String(i.quantity)); setModal("qty"); }}>✎</button>
+                          <button title="Alterar quantidade" className="mr-2 text-[#4b5563]" onClick={(e) => { e.stopPropagation(); setEditingItem(i); setEditQty(String(i.quantity)); setModal("qty"); }}>✎</button>
                           <button title="Remover" className="text-rose-600" onClick={(e) => { e.stopPropagation(); setCart((prev) => prev.filter((x) => x.cartItemId !== i.cartItemId)); }}>✕</button>
                         </td>
                       </tr>
@@ -1162,26 +1162,26 @@ function ClassicPDV() {
                 </table>
               )}
             </div>
-            <div className="flex shrink-0 items-center justify-between gap-3 rounded-sm bg-[#0b2234] px-4 py-2 text-white">
+            <div className="flex shrink-0 items-center justify-between gap-3 rounded-sm bg-[#1f2933] px-4 py-2 text-white">
               <div className="leading-tight">
-                <p className="text-[10px] font-bold uppercase tracking-[.2em] text-sky-300/80">Subtotal</p>
+                <p className="text-[10px] font-bold uppercase tracking-[.2em] text-slate-300/80">Subtotal</p>
                 <p className="font-mono text-[11px] text-white/60">{cart.length} {cart.length === 1 ? "item" : "itens"} · {cart.reduce((a, i) => a + i.quantity, 0)} un.</p>
               </div>
-              <span className="font-mono text-[clamp(28px,4.2vw,46px)] font-semibold leading-none tabular-nums text-[#7dff9b]">R$ {money(subtotal)}</span>
+              <span className="font-mono text-[clamp(28px,4.2vw,46px)] font-semibold leading-none tabular-nums text-[#86efac]">R$ {money(subtotal)}</span>
             </div>
           </section>
         </main>
       ) : (
         <main className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(340px,44%)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
           <section className="flex min-h-0 flex-col gap-2 lg:overflow-y-auto [scrollbar-width:thin]">
-            <div className="rounded-sm border border-[#c5cfdf] bg-white p-3">
+            <div className="rounded-sm border border-[#cbd0d6] bg-white p-3">
               <label className={labelCls}>Forma de pagamento <span className="text-slate-400">(Alt + número)</span></label>
               <div className={cn("mb-2 grid gap-1.5", boletoEnabled ? "grid-cols-6" : "grid-cols-5")}>
                 {PAY_ORDER.map((m, idx) => (
                   <button
                     key={m} type="button" onClick={() => pickPayMethod(m)}
                     className={cn("flex h-10 flex-col items-center justify-center rounded-sm border text-[11px] font-semibold leading-tight transition-colors",
-                      payMethod === m ? "border-[#0078d4] bg-[#0078d4] text-white" : "border-[#c5cfdf] bg-white text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]")}
+                      payMethod === m ? "border-[#4b5563] bg-[#4b5563] text-white" : "border-[#cbd0d6] bg-white text-slate-600 hover:border-[#4b5563] hover:text-[#4b5563]")}
                   >
                     <span className="font-mono text-[9px] font-medium opacity-70">Alt+{idx + 1}</span>
                     {PM_SHORT[m]}
@@ -1218,21 +1218,21 @@ function ClassicPDV() {
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   <span className="text-[11px] font-medium text-slate-500">Rápido:</span>
                   <button type="button" onClick={() => { setPayAmount(remaining.toFixed(2).replace(".", ",")); payRef.current?.focus(); }}
-                    className="h-7 rounded-sm border border-[#c5cfdf] bg-white px-2.5 text-[11px] font-semibold text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]">Exato</button>
+                    className="h-7 rounded-sm border border-[#cbd0d6] bg-white px-2.5 text-[11px] font-semibold text-slate-600 hover:border-[#4b5563] hover:text-[#4b5563]">Exato</button>
                   {[10, 20, 50, 100, 200].map((v) => (
                     <button key={v} type="button" onClick={() => { setPayAmount(v.toFixed(2).replace(".", ",")); payRef.current?.focus(); }}
-                      className="h-7 rounded-sm border border-[#c5cfdf] bg-white px-2.5 font-mono text-[11px] font-semibold text-slate-600 hover:border-[#0078d4] hover:text-[#0078d4]">{v}</button>
+                      className="h-7 rounded-sm border border-[#cbd0d6] bg-white px-2.5 font-mono text-[11px] font-semibold text-slate-600 hover:border-[#4b5563] hover:text-[#4b5563]">{v}</button>
                   ))}
                 </div>
               )}
               {split && (
-                <div className="mt-2 flex items-center justify-between gap-2 rounded-sm border border-[#0078d4] bg-[#e1effb] px-3 py-1 text-[12px] text-[#005a9e]">
+                <div className="mt-2 flex items-center justify-between gap-2 rounded-sm border border-[#4b5563] bg-[#eceff1] px-3 py-1 text-[12px] text-[#374151]">
                   <span>Dividindo em <b>{split.shares.length}</b> · pessoa <b>{split.idx + 1}</b> de {split.shares.length} · parte <b className="font-mono">R$ {money(split.shares[split.idx])}</b></span>
                   <button type="button" className="font-semibold underline" onClick={() => { setSplit(null); setPayAmount(remaining > 0 ? remaining.toFixed(2).replace(".", ",") : ""); }}>cancelar divisão</button>
                 </div>
               )}
               <div className="mt-2 flex items-center justify-between gap-3">
-                <p className="text-[13px]"><b>A pagar:</b> <span className="ml-1.5 font-mono text-[24px] font-semibold text-[#0a3d5c]">R$ {money(remaining)}</span></p>
+                <p className="text-[13px]"><b>A pagar:</b> <span className="ml-1.5 font-mono text-[24px] font-semibold text-[#2f3640]">R$ {money(remaining)}</span></p>
                 <button onClick={addPayment} className={btn("blue")}>Adicionar (Enter)</button>
               </div>
               <label className="mt-2 flex items-center gap-2 text-[12px] text-slate-600" title="Pagamento dividido: digite um valor menor, tecle Enter e escolha outra forma (Alt+1…5) para o restante.">
@@ -1249,7 +1249,7 @@ function ClassicPDV() {
             )}
 
             {payments.length > 0 && (
-              <ul className="divide-y divide-slate-200 rounded-sm border border-[#c5cfdf] bg-white">
+              <ul className="divide-y divide-slate-200 rounded-sm border border-[#cbd0d6] bg-white">
                 {payments.map((p) => (
                   <li key={p.id} className="flex items-center justify-between px-3 py-2 text-[12px]">
                     <span className="font-medium">
@@ -1277,19 +1277,19 @@ function ClassicPDV() {
                 { k: "NFC-e", v: emitNfce ? "LIGADA" : "desligada", on: emitNfce },
                 { k: "Imprimir", v: printReceipt ? (emitNfce ? "só cupom fiscal" : "recibo") : "desligado", on: printReceipt },
               ].map((c) => (
-                <span key={c.k} className={cn("inline-flex items-center gap-1 rounded-sm border px-2 py-1", c.on ? "border-[#0078d4]/40 bg-[#e1effb] text-[#005a9e]" : "border-[#c5cfdf] bg-white text-slate-500")}>
+                <span key={c.k} className={cn("inline-flex items-center gap-1 rounded-sm border px-2 py-1", c.on ? "border-[#4b5563]/40 bg-[#eceff1] text-[#374151]" : "border-[#cbd0d6] bg-white text-slate-500")}>
                   <b className="font-semibold">{c.k}:</b> <span className="max-w-[160px] truncate">{c.v}</span>
                 </span>
               ))}
             </div>
-            <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-[#c5cfdf] bg-white [scrollbar-width:thin]">
+            <div className="min-h-0 flex-1 overflow-auto rounded-sm border border-[#cbd0d6] bg-white [scrollbar-width:thin]">
               <table className="w-full border-collapse text-[12px]">
-                <thead className="sticky top-0 bg-[#dfe7f2] text-[10px] uppercase tracking-wide text-slate-500">
+                <thead className="sticky top-0 bg-[#e5e7eb] text-[10px] uppercase tracking-wide text-slate-500">
                   <tr><th className="px-3 py-1.5 text-left">Qtde.</th><th className="px-2 text-left">Produto ({cart.length})</th><th className="hidden px-2 text-right sm:table-cell">Unitário</th><th className="px-3 text-right">Total</th></tr>
                 </thead>
                 <tbody>
                   {cart.map((i, idx) => (
-                    <tr key={i.cartItemId} className={cn("border-b border-slate-200", idx % 2 && "bg-[#f6f8fc]")}>
+                    <tr key={i.cartItemId} className={cn("border-b border-slate-200", idx % 2 && "bg-[#f8f9fa]")}>
                       <td className="px-3 py-1.5 font-mono">{i.quantity}</td>
                       <td className="px-2 font-medium">{i.name}{i.variationLabel && <span className="block text-[10px] font-normal text-slate-500">{i.variationLabel}</span>}</td>
                       <td className="hidden px-2 text-right font-mono sm:table-cell">{money(i.price)}</td>
@@ -1299,7 +1299,7 @@ function ClassicPDV() {
                 </tbody>
               </table>
             </div>
-            <div className="shrink-0 rounded-sm bg-[#0b2234] px-4 py-2 text-white">
+            <div className="shrink-0 rounded-sm bg-[#1f2933] px-4 py-2 text-white">
               <div className="space-y-0.5 font-mono text-[11px] text-white/65">
                 <div className="flex justify-between"><span>Subtotal</span><span>R$ {money(subtotal)}</span></div>
                 {discountValue > 0 && <div className="flex justify-between text-rose-300"><span>Desconto{discountExceeds && " (limitado ao máximo)"}</span><span>- R$ {money(discountValue)}</span></div>}
@@ -1307,8 +1307,8 @@ function ClassicPDV() {
                 {passedFee > 0 && <div className="flex justify-between"><span>Taxa da maquininha</span><span>+ R$ {money(passedFee)}</span></div>}
               </div>
               <div className="mt-1 flex items-end justify-between gap-3 border-t border-white/15 pt-1.5">
-                <p className="text-[10px] font-bold uppercase tracking-[.2em] text-sky-300/80">Total a pagar</p>
-                <span className="font-mono text-[clamp(26px,3.6vw,40px)] font-semibold leading-none tabular-nums text-[#7dff9b]">R$ {money(total)}</span>
+                <p className="text-[10px] font-bold uppercase tracking-[.2em] text-slate-300/80">Total a pagar</p>
+                <span className="font-mono text-[clamp(26px,3.6vw,40px)] font-semibold leading-none tabular-nums text-[#86efac]">R$ {money(total)}</span>
               </div>
               <div className="mt-1.5 grid grid-cols-3 gap-2 border-t border-white/15 pt-1.5 font-mono text-[11px]">
                 <div><p className="text-[9px] uppercase tracking-wider text-white/50">Pago</p><p className="text-[13px] font-semibold">R$ {money(paid)}</p></div>
@@ -1321,7 +1321,7 @@ function ClassicPDV() {
       )}
 
       {/* barra de comandos (teclas de função) */}
-      <footer className="shrink-0 border-t border-[#b9c6da] bg-[#d9e2ef] px-3 py-1.5">
+      <footer className="shrink-0 border-t border-[#c4c9cf] bg-[#e4e7eb] px-3 py-1.5">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
           <div className="flex flex-wrap items-center gap-1.5">
             {screen === "sale" ? (
@@ -1360,12 +1360,17 @@ function ClassicPDV() {
             )}
           </div>
         </div>
-        <p className="mt-1 hidden text-[10px] text-slate-500 lg:block">
-          {screen === "sale"
-            ? <>Ctrl+P produto · <b>3*código</b> quantidade · ↑ ↓ Del itens · Operador: <b>{operatorName}</b></>
-            : <>Alt+1…5 forma de pagamento · Enter adiciona · Esc volta · Operador: <b>{operatorName}</b></>}
-        </p>
-      </footer>
+</footer>
+      {/* barra de status, como nos sistemas desktop */}
+      <div className="flex shrink-0 items-center gap-3 border-t border-[#c4c9cf] bg-[#e4e7eb] px-3 py-0.5 text-[11px] text-slate-600">
+        <span className="flex items-center gap-1.5 font-medium"><i className={cn("h-2 w-2 rounded-full", isOnline ? "bg-emerald-500" : "bg-amber-500")} />{isOnline ? "Online" : "Offline"}</span>
+        <span className="border-l border-[#c4c9cf] pl-3">{tenantName}</span>
+        <span className="border-l border-[#c4c9cf] pl-3">Operador: <b>{operatorName}</b></span>
+        <span className="ml-auto hidden text-slate-500 lg:block">
+          {screen === "sale" ? <>Ctrl+P produto · <b>3*código</b> quantidade · ↑ ↓ Del itens</> : <>Alt+1…5 forma de pagamento · Enter adiciona · Esc volta</>}
+        </span>
+      </div>
+
 
       {/* ── modais ── */}
       {modal === "variation" && variationProduct && (
@@ -1382,7 +1387,7 @@ function ClassicPDV() {
                     <button
                       key={val}
                       onClick={() => setVariationOptions((o) => ({ ...o, [group.name]: val }))}
-                      className={cn("h-8 rounded-sm border px-3 text-[12px] font-medium", variationOptions[group.name] === val ? "border-[#0078d4] bg-[#0078d4] text-white" : "border-[#c5cfdf] bg-white hover:bg-slate-50")}
+                      className={cn("h-8 rounded-sm border px-3 text-[12px] font-medium", variationOptions[group.name] === val ? "border-[#4b5563] bg-[#4b5563] text-white" : "border-[#cbd0d6] bg-white hover:bg-slate-50")}
                     >{val}</button>
                   ))}
                 </div>
@@ -1417,9 +1422,9 @@ function ClassicPDV() {
               else if (e.key === "Enter" && priceResults[pickActive]) { e.preventDefault(); if (addItem(priceResults[pickActive], 1)) { setModal(null); resetEntry(); } }
             }}
           />
-          <div className="mt-2 max-h-[52vh] overflow-auto rounded-sm border border-[#c5cfdf]">
+          <div className="mt-2 max-h-[52vh] overflow-auto rounded-sm border border-[#cbd0d6]">
             {priceResults.length > 0 && (
-              <div className="sticky top-0 grid grid-cols-[1fr_72px_96px] gap-2 bg-[#dfe7f2] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+              <div className="sticky top-0 grid grid-cols-[1fr_72px_96px] gap-2 bg-[#e5e7eb] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 <span>Produto</span><span className="text-right">Estoque</span><span className="text-right">Preço</span>
               </div>
             )}
@@ -1427,14 +1432,14 @@ function ClassicPDV() {
               <div
                 key={x.id} onMouseEnter={() => setPickActive(i)}
                 onClick={() => { if (addItem(x, 1)) { setModal(null); resetEntry(); } }}
-                className={cn("grid cursor-pointer grid-cols-[1fr_72px_96px] items-center gap-2 border-b border-slate-100 px-3 py-1.5", i === pickActive ? "bg-[#cfe4f8] shadow-[inset_3px_0_0_#0078d4]" : "hover:bg-slate-50")}
+                className={cn("grid cursor-pointer grid-cols-[1fr_72px_96px] items-center gap-2 border-b border-slate-100 px-3 py-1.5", i === pickActive ? "bg-[#e3e7eb] shadow-[inset_3px_0_0_#4b5563]" : "hover:bg-slate-50")}
               >
                 <div className="min-w-0">
                   <p className="truncate text-[13px] font-medium text-slate-800">{x.name}</p>
                   <p className="truncate font-mono text-[10px] text-slate-500">{x.sku ?? "sem código"}{x.barcode ? ` · ${x.barcode}` : ""}</p>
                 </div>
                 <span className="text-right font-mono text-[12px] text-slate-600">{x.track_stock === false ? "enc." : x.stock_quantity}</span>
-                <b className="text-right font-mono text-[15px] font-semibold text-[#0a3d5c]">{money(Number(x.discount_price || x.price))}</b>
+                <b className="text-right font-mono text-[15px] font-semibold text-[#2f3640]">{money(Number(x.discount_price || x.price))}</b>
               </div>
             ))}
             {priceQuery.trim() && priceResults.length === 0 && <p className="py-5 text-center text-[12px] text-slate-400">Nenhum produto encontrado.</p>}
@@ -1446,7 +1451,7 @@ function ClassicPDV() {
       {modal === "operator" && (
         <Overlay title="Operador" onClose={() => setModal(null)} width={360} hint="Esc volta">
           <p className="mb-2 text-[12px] text-slate-600">Logado como <b>{operatorName}</b></p>
-          <div className="divide-y divide-slate-200 rounded-sm border border-[#c5cfdf]">
+          <div className="divide-y divide-slate-200 rounded-sm border border-[#cbd0d6]">
             {lastReceipt && window.boxsysDesktop?.printReceipt && (
               <button className="flex h-10 w-full items-center px-3 text-left text-[13px] font-medium hover:bg-slate-50" onClick={() => { void printThermalText(lastReceipt, "Cupom").then((r) => { if (!r.ok) flash(r.error || "Falha ao imprimir."); }); setModal(null); }}>Reimprimir último cupom</button>
             )}
@@ -1459,8 +1464,8 @@ function ClassicPDV() {
       {modal === "held" && (
         <Overlay title="Vendas em aberto" onClose={() => setModal(null)} width={620} hint="Retome uma venda guardada com F7 (Aguardar)">
           {heldList.length === 0 ? <p className="py-4 text-center text-[12px] text-slate-500">Nenhuma venda em aberto.</p> : (
-            <div className="overflow-hidden rounded-sm border border-[#c5cfdf]">
-              <div className="grid grid-cols-[56px_1fr_64px_120px_84px] gap-2 bg-[#dfe7f2] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+            <div className="overflow-hidden rounded-sm border border-[#cbd0d6]">
+              <div className="grid grid-cols-[56px_1fr_64px_120px_84px] gap-2 bg-[#e5e7eb] px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
                 <span>Nº</span><span>Cliente</span><span className="text-right">Itens</span><span>Data</span><span />
               </div>
               {heldList.map((h) => (
@@ -1515,7 +1520,7 @@ function ClassicPDV() {
               const dl = customerDocument.replace(/\D/g, "").length;
               const okDoc = dl === 11 || dl === 14;
               return (
-                <div className="mb-2 rounded-sm border border-[#c5cfdf] bg-[#f4f7fb] p-2">
+                <div className="mb-2 rounded-sm border border-[#cbd0d6] bg-[#f4f5f7] p-2">
                   <label className={labelCls}>CPF/CNPJ na nota <span className="text-slate-400">(sem cadastrar o cliente)</span></label>
                   <div className="flex gap-2">
                     <input
@@ -1538,11 +1543,11 @@ function ClassicPDV() {
                 else if (e.key === "Enter" && rows[pickActive]) { e.preventDefault(); choose(rows[pickActive].id); }
               }}
             />
-            <div className="mt-2 max-h-[50vh] overflow-auto rounded-sm border border-[#c5cfdf]">
+            <div className="mt-2 max-h-[50vh] overflow-auto rounded-sm border border-[#cbd0d6]">
               {rows.map((row, i) => (
                 <button
                   key={row.id ?? "none"} onMouseEnter={() => setPickActive(i)} onClick={() => choose(row.id)}
-                  className={cn("flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-1.5 text-left text-[13px] last:border-b-0", i === pickActive ? "bg-[#cfe4f8] shadow-[inset_3px_0_0_#0078d4]" : "hover:bg-slate-50", row.id === null && "text-slate-500")}
+                  className={cn("flex w-full items-center justify-between gap-3 border-b border-slate-100 px-3 py-1.5 text-left text-[13px] last:border-b-0", i === pickActive ? "bg-[#e3e7eb] shadow-[inset_3px_0_0_#4b5563]" : "hover:bg-slate-50", row.id === null && "text-slate-500")}
                 >
                   <span className="truncate">{row.name}</span>
                   {row.extra && <span className="shrink-0 font-mono text-[11px] text-slate-500">{row.extra}</span>}
@@ -1563,7 +1568,7 @@ function ClassicPDV() {
             </button>
           </div>
           {pendingList.length > 0 && (
-            <div className="max-h-[52vh] overflow-auto rounded-sm border border-[#c5cfdf]">
+            <div className="max-h-[52vh] overflow-auto rounded-sm border border-[#cbd0d6]">
               {pendingList.map((it) => {
                 const err = it.lastError ?? "";
                 // erros que não se resolvem sozinhos: o servidor recusa sempre, tentar de novo não adianta
@@ -1602,7 +1607,7 @@ function ClassicPDV() {
           <div className="grid grid-cols-[1fr_96px] items-end gap-3">
             <div>
               <label className={labelCls}>Valor a dividir</label>
-              <p className="flex h-9 items-center rounded-sm bg-[#0b2234] px-3 font-mono text-[16px] font-semibold text-[#7dff9b]">R$ {money(remaining)}</p>
+              <p className="flex h-9 items-center rounded-sm bg-[#1f2933] px-3 font-mono text-[16px] font-semibold text-[#86efac]">R$ {money(remaining)}</p>
             </div>
             <div>
               <label className={labelCls}>Pessoas</label>
@@ -1618,9 +1623,9 @@ function ClassicPDV() {
             if (!(n >= 2 && n <= 20)) return <p className="mt-3 text-[11px] text-slate-500">Informe de 2 a 20 pessoas.</p>;
             const shares = splitShares(remaining, n);
             return (
-              <div className="mt-3 max-h-44 overflow-y-auto rounded-sm border border-[#c5cfdf] text-[12px]">
+              <div className="mt-3 max-h-44 overflow-y-auto rounded-sm border border-[#cbd0d6] text-[12px]">
                 {shares.map((v, i) => (
-                  <div key={i} className={cn("flex items-center justify-between border-b border-slate-100 px-3 py-1 last:border-b-0", i % 2 && "bg-[#f6f8fc]")}>
+                  <div key={i} className={cn("flex items-center justify-between border-b border-slate-100 px-3 py-1 last:border-b-0", i % 2 && "bg-[#f8f9fa]")}>
                     <span>Pessoa {i + 1}</span>
                     <b className="font-mono">R$ {money(v)}</b>
                   </div>
@@ -1689,15 +1694,15 @@ function ClassicPDV() {
 
       {completed && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/55 p-3">
-          <div className="w-full max-w-sm overflow-hidden rounded-sm border border-[#0a3d5c] bg-white shadow-2xl">
+          <div className="w-full max-w-sm overflow-hidden rounded-sm border border-[#2f3640] bg-white shadow-2xl">
             <div className="flex h-9 items-center justify-between bg-[#1b7e0e] px-3 text-white">
               <h2 className="text-[13px] font-semibold uppercase tracking-wide">{completed.offline ? "Venda salva (offline)" : "Venda confirmada"}</h2>
               <span className="font-mono text-[11px]">{completed.offline ? "sincroniza depois" : `#${String(completed.orderId).padStart(5, "0")}`}</span>
             </div>
             <div className="p-3">
-              <div className="rounded-sm bg-[#0b2234] px-4 py-2 text-white">
-                <p className="text-[10px] font-bold uppercase tracking-[.2em] text-sky-300/80">Total</p>
-                <p className="font-mono text-[34px] font-semibold leading-tight tabular-nums text-[#7dff9b]">R$ {money(completed.total)}</p>
+              <div className="rounded-sm bg-[#1f2933] px-4 py-2 text-white">
+                <p className="text-[10px] font-bold uppercase tracking-[.2em] text-slate-300/80">Total</p>
+                <p className="font-mono text-[34px] font-semibold leading-tight tabular-nums text-[#86efac]">R$ {money(completed.total)}</p>
               </div>
               {completed.change > 0 && (
                 <div className="mt-2 flex items-center justify-between rounded-sm border border-emerald-300 bg-emerald-50 px-3 py-1.5">

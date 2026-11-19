@@ -11,13 +11,13 @@ const cn = (...parts: Array<string | false | null | undefined>) => parts.filter(
 const money = (v: number | string) => Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const centsToNumber = (cents: string) => (cents ? Number(cents) / 100 : 0);
 
-const inputCls = "h-11 w-full rounded-sm border border-[#c5cfdf] bg-white px-3 text-[15px] text-slate-800 outline-none focus:border-[#0078d4] focus:ring-2 focus:ring-[#0078d4]/20 disabled:bg-slate-100";
+const inputCls = "h-11 w-full rounded-sm border border-[#cbd0d6] bg-white px-3 text-[15px] text-slate-800 outline-none focus:border-[#4b5563] focus:ring-2 focus:ring-[#4b5563]/20 disabled:bg-slate-100";
 const labelCls = "mb-1 block text-[12px] font-medium text-slate-500";
 const btn = (tone: "green" | "navy" | "red" | "gray") =>
   cn(
     "h-12 w-full rounded-sm px-5 text-[13px] font-semibold uppercase tracking-wide text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50",
     tone === "green" && "bg-[#1b7e0e] hover:bg-[#166a0b]",
-    tone === "navy" && "bg-[#0b527a] hover:bg-[#09425f]",
+    tone === "navy" && "bg-[#4b5563] hover:bg-[#374151]",
     tone === "red" && "bg-[#c00000] hover:bg-[#a00000]",
     tone === "gray" && "bg-slate-500 hover:bg-slate-600",
   );
@@ -38,8 +38,8 @@ function useOnline() {
 export function ClassicBackdrop({ children, width = 440 }: { children: React.ReactNode; width?: number }) {
   const online = useOnline();
   return (
-    <div className="relative flex h-screen flex-col overflow-hidden bg-[#eef2f9] font-sans text-slate-800">
-      <header className="flex h-[68px] shrink-0 items-center justify-between bg-[#0b527a] px-5 text-white">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-[#f1f3f5] font-sans text-slate-800">
+      <header className="flex h-[68px] shrink-0 items-center justify-between bg-[#4b5563] px-5 text-white">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-white/15 text-lg font-bold">B</div>
           <div className="leading-tight">
@@ -57,18 +57,18 @@ export function ClassicBackdrop({ children, width = 440 }: { children: React.Rea
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(380px,40%)_1fr] gap-6 p-5 opacity-60" aria-hidden>
         <section>
           <p className={labelCls}>Cód. / Produto (Ctrl+P)</p>
-          <div className="h-11 rounded-sm border border-[#c5cfdf] bg-white" />
+          <div className="h-11 rounded-sm border border-[#cbd0d6] bg-white" />
           <div className="mt-5 grid grid-cols-3 gap-3">
             {["Quantidade", "Valor Unitário", "Valor Total"].map((l) => (
-              <div key={l}><p className={labelCls}>{l}</p><div className="h-11 rounded-sm border border-[#c5cfdf] bg-white" /></div>
+              <div key={l}><p className={labelCls}>{l}</p><div className="h-11 rounded-sm border border-[#cbd0d6] bg-white" /></div>
             ))}
           </div>
-          <div className="mt-5 h-12 rounded-sm bg-[#0078d4]" />
+          <div className="mt-5 h-12 rounded-sm bg-[#4b5563]" />
         </section>
         <section>
-          <div className="mb-3 rounded-sm border border-[#c5cfdf] bg-white px-4 py-3 text-[13px] text-slate-500">Aguardando abertura de pedido.</div>
-          <div className="flex h-[300px] items-center justify-center rounded-sm border border-[#c5cfdf] bg-white text-[20px] text-slate-400">
-            Seu caixa está <b className="mx-1 text-[#0078d4]">livre</b> no momento!
+          <div className="mb-3 rounded-sm border border-[#cbd0d6] bg-white px-4 py-3 text-[13px] text-slate-500">Aguardando abertura de pedido.</div>
+          <div className="flex h-[300px] items-center justify-center rounded-sm border border-[#cbd0d6] bg-white text-[20px] text-slate-400">
+            Seu caixa está <b className="mx-1 text-[#4b5563]">livre</b> no momento!
           </div>
         </section>
       </main>
@@ -138,7 +138,7 @@ export function ClassicLogin({ onLogin }: { onLogin: (token: string) => void }) 
   return (
     <ClassicBackdrop>
       <form onSubmit={submit}>
-        <h2 className="text-[22px] font-semibold text-[#0b527a]">Entrar no PDV</h2>
+        <h2 className="text-[22px] font-semibold text-[#4b5563]">Entrar no PDV</h2>
         <p className="mt-1 text-[13px] text-slate-500">Informe seu usuário e senha para abrir o caixa.</p>
 
         <div className="mt-6">
@@ -149,7 +149,7 @@ export function ClassicLogin({ onLogin }: { onLogin: (token: string) => void }) 
           <label className={labelCls}>Senha</label>
           <div className="relative">
             <input className={cn(inputCls, "pr-20")} type={show ? "text" : "password"} value={password} autoComplete="current-password" onChange={(e) => setPassword(e.target.value)} />
-            <button type="button" tabIndex={-1} onClick={() => setShow((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-semibold text-[#0078d4] hover:underline">
+            <button type="button" tabIndex={-1} onClick={() => setShow((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-semibold text-[#4b5563] hover:underline">
               {show ? "Ocultar" : "Mostrar"}
             </button>
           </div>
@@ -169,12 +169,12 @@ export function ClassicLogin({ onLogin }: { onLogin: (token: string) => void }) 
 // ─── Abertura de caixa ───────────────────────────────────────────────────────
 function Denominations({ counts, onChange }: { counts: Record<number, string>; onChange: (next: Record<number, string>) => void }) {
   return (
-    <div className="grid grid-cols-3 gap-x-3 gap-y-2 rounded-sm border border-[#c5cfdf] bg-slate-50 p-3">
+    <div className="grid grid-cols-3 gap-x-3 gap-y-2 rounded-sm border border-[#cbd0d6] bg-slate-50 p-3">
       {CASH_DENOMINATIONS.map((d) => (
         <label key={d.value} className="flex items-center justify-between gap-2 text-[12px] text-slate-600">
           <span className="font-medium">{d.label}</span>
           <input
-            className="h-8 w-14 rounded-sm border border-[#c5cfdf] bg-white px-2 text-center text-[13px] outline-none focus:border-[#0078d4]"
+            className="h-8 w-14 rounded-sm border border-[#cbd0d6] bg-white px-2 text-center text-[13px] outline-none focus:border-[#4b5563]"
             inputMode="numeric" value={counts[d.value] ?? ""} placeholder="0"
             onChange={(e) => onChange({ ...counts, [d.value]: e.target.value.replace(/\D/g, "") })}
           />
@@ -216,7 +216,7 @@ export function ClassicOpenCash({ operatorName, onOpen, onLogout }: {
   return (
     <ClassicBackdrop width={460}>
       <div onKeyDown={(e) => { if (e.key === "Enter" && !(e.target instanceof HTMLTextAreaElement)) { e.preventDefault(); void submit(); } }}>
-        <h2 className="text-[22px] font-semibold text-[#0b527a]">Abrir Caixa</h2>
+        <h2 className="text-[22px] font-semibold text-[#4b5563]">Abrir Caixa</h2>
         <p className="mt-1 text-[13px] text-slate-500">
           Informe o dinheiro que está na gaveta para começar a vender.{operatorName ? <> Operador: <b className="text-slate-700">{operatorName}</b>.</> : null}
         </p>
@@ -224,14 +224,14 @@ export function ClassicOpenCash({ operatorName, onOpen, onLogout }: {
         <div className="mt-6">
           <div className="mb-1 flex items-center justify-between">
             <label className="text-[12px] font-medium text-slate-500">Valor inicial em dinheiro (troco)</label>
-            <button type="button" onClick={() => setCounting((v) => !v)} className="text-[12px] font-semibold text-[#0078d4] hover:underline">
+            <button type="button" onClick={() => setCounting((v) => !v)} className="text-[12px] font-semibold text-[#4b5563] hover:underline">
               {counting ? "Digitar o valor" : "Contar cédulas"}
             </button>
           </div>
           {counting ? (
             <>
               <Denominations counts={counts} onChange={setCounts} />
-              <p className="mt-2 text-right text-[13px] text-slate-600">Total contado: <b className="text-[#0b527a]">R$ {money(amount)}</b></p>
+              <p className="mt-2 text-right text-[13px] text-slate-600">Total contado: <b className="text-[#4b5563]">R$ {money(amount)}</b></p>
             </>
           ) : (
             <div className="relative">
@@ -247,7 +247,7 @@ export function ClassicOpenCash({ operatorName, onOpen, onLogout }: {
 
         <div className="mt-4">
           <label className={labelCls}>Observação <span className="text-slate-400">(opcional)</span></label>
-          <textarea className="min-h-[64px] w-full rounded-sm border border-[#c5cfdf] bg-white px-3 py-2 text-[14px] outline-none focus:border-[#0078d4] focus:ring-2 focus:ring-[#0078d4]/20" value={note} onChange={(e) => setNote(e.target.value)} />
+          <textarea className="min-h-[64px] w-full rounded-sm border border-[#cbd0d6] bg-white px-3 py-2 text-[14px] outline-none focus:border-[#4b5563] focus:ring-2 focus:ring-[#4b5563]/20" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
 
         {error && <p className="mt-4 rounded-sm border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
@@ -314,20 +314,20 @@ export function ClassicCloseCash({ onCancel, onConfirm, onFinish }: {
       <div className="max-h-full w-full overflow-y-auto rounded-sm bg-white p-7 shadow-2xl" style={{ maxWidth: step === "result" ? 560 : 460 }}>
         {step === "count" ? (
           <>
-            <h2 className="text-[22px] font-semibold text-[#0b527a]">Fechar Caixa</h2>
+            <h2 className="text-[22px] font-semibold text-[#4b5563]">Fechar Caixa</h2>
             <p className="mt-1 text-[13px] text-slate-500">Informe o dinheiro contado na gaveta. O valor esperado só aparece depois de confirmar, e a ação não pode ser desfeita.</p>
 
             <div className="mt-6">
               <div className="mb-1 flex items-center justify-between">
                 <label className="text-[12px] font-medium text-slate-500">Dinheiro contado</label>
-                <button type="button" onClick={() => setCounting((v) => !v)} className="text-[12px] font-semibold text-[#0078d4] hover:underline">
+                <button type="button" onClick={() => setCounting((v) => !v)} className="text-[12px] font-semibold text-[#4b5563] hover:underline">
                   {counting ? "Digitar o valor" : "Contar cédulas"}
                 </button>
               </div>
               {counting ? (
                 <>
                   <Denominations counts={counts} onChange={setCounts} />
-                  <p className="mt-2 text-right text-[13px] text-slate-600">Total contado: <b className="text-[#0b527a]">R$ {money(counted)}</b></p>
+                  <p className="mt-2 text-right text-[13px] text-slate-600">Total contado: <b className="text-[#4b5563]">R$ {money(counted)}</b></p>
                 </>
               ) : (
                 <div className="relative">
@@ -339,7 +339,7 @@ export function ClassicCloseCash({ onCancel, onConfirm, onFinish }: {
 
             <div className="mt-4">
               <label className={labelCls}>Observação <span className="text-slate-400">(opcional)</span></label>
-              <textarea className="min-h-[64px] w-full rounded-sm border border-[#c5cfdf] bg-white px-3 py-2 text-[14px] outline-none focus:border-[#0078d4] focus:ring-2 focus:ring-[#0078d4]/20" value={note} onChange={(e) => setNote(e.target.value)} />
+              <textarea className="min-h-[64px] w-full rounded-sm border border-[#cbd0d6] bg-white px-3 py-2 text-[14px] outline-none focus:border-[#4b5563] focus:ring-2 focus:ring-[#4b5563]/20" value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
 
             {error && <p className="mt-4 rounded-sm border border-rose-200 bg-rose-50 px-3 py-2 text-[13px] text-rose-700">{error}</p>}
@@ -351,14 +351,14 @@ export function ClassicCloseCash({ onCancel, onConfirm, onFinish }: {
           </>
         ) : (
           <>
-            <h2 className="text-[22px] font-semibold text-[#0b527a]">Caixa fechado</h2>
+            <h2 className="text-[22px] font-semibold text-[#4b5563]">Caixa fechado</h2>
             {result?.pendingSync ? (
               <p className="mt-3 rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-800">
                 Fechamento salvo neste computador (sem internet). O esperado por forma de pagamento e a diferença serão calculados assim que sincronizar.
               </p>
             ) : (
               <>
-                <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 rounded-sm bg-[#eef2f9] p-4 text-[14px]">
+                <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 rounded-sm bg-[#f1f3f5] p-4 text-[14px]">
                   <div><dt className="text-[12px] text-slate-500">Valor inicial</dt><dd className="font-mono font-semibold">R$ {money(result?.opening_amount ?? 0)}</dd></div>
                   <div><dt className="text-[12px] text-slate-500">Esperado em dinheiro</dt><dd className="font-mono font-semibold">R$ {money(result?.expected_amount ?? 0)}</dd></div>
                   <div><dt className="text-[12px] text-slate-500">Contado</dt><dd className="font-mono font-semibold">R$ {money(result?.counted_amount ?? 0)}</dd></div>
