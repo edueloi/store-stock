@@ -102,7 +102,7 @@ export async function importProducts(req: Request, res: Response) {
       }
       return "";
     };
-    if (col["nome do produto"] == null && col["nome"] == null && col["produto"] == null) {
+    if (col["nome do produto"] == null && col["nome"] == null && col["produto"] == null && col["descricao"] == null) {
       return res.status(422).json({ error: 'Não achei a coluna "Nome do Produto" no cabeçalho do arquivo.' });
     }
 
@@ -159,17 +159,17 @@ export async function importProducts(req: Request, res: Response) {
       try {
         if (skip.has(i + 1)) continue;
         const ed = edits[String(i + 1)] ?? {};
-        const name = (ed.name ?? get(r, "nome do produto", "nome", "produto")).trim();
+        const name = (ed.name ?? get(r, "nome do produto", "nome", "produto", "descricao")).trim();
         if (!name || /^[.\-\s]+$/.test(name)) {
           errors.push({ row: i + 1, message: "Sem nome — linha ignorada" });
           continue;
         }
-        const sku = get(r, "codigo do produto", "codigo", "sku");
-        const barcode = get(r, "codigo de barras gtin 8 12 13 14", "codigo de barras", "gtin").replace(/\D/g, "");
-        const price = ed.price ?? brNumber(get(r, "valor venda tabela padrao", "valor venda", "preco"));
-        const cost = ed.cost ?? brNumber(get(r, "valor custo", "custo"));
-        const stock = ed.stock ?? brNumber(get(r, "estoque atual", "estoque"));
-        const minStock = brNumber(get(r, "estoque minimo"));
+        const sku = get(r, "codigo do produto", "codigo", "sku", "ref");
+        const barcode = get(r, "codigo de barras gtin 8 12 13 14", "codigo de barras", "gtin", "codbarra", "codbarras").replace(/\D/g, "");
+        const price = ed.price ?? brNumber(get(r, "valor venda tabela padrao", "valor venda", "preco", "venda"));
+        const cost = ed.cost ?? brNumber(get(r, "valor custo", "custo", "compra"));
+        const stock = ed.stock ?? brNumber(get(r, "estoque atual", "estoque", "atual"));
+        const minStock = brNumber(get(r, "estoque minimo", "minimo"));
         const weightKg = brNumber(get(r, "peso"));
         const icms = brNumber(get(r, "icms"));
         const pis = brNumber(get(r, "pis"));
@@ -177,11 +177,11 @@ export async function importProducts(req: Request, res: Response) {
         const origem = brNumber(get(r, "origem"));
         const ncm = get(r, "ncm").replace(/\D/g, "").slice(0, 8);
         const cest = get(r, "codigo cest", "cest").replace(/\D/g, "").slice(0, 7);
-        const unit = get(r, "unidade") ? cleanUnit(get(r, "unidade")) : "";
+        const unit = get(r, "unidade", "un") ? cleanUnit(get(r, "unidade", "un")) : "";
         const unitTrib = get(r, "unidade tributavel") ? cleanUnit(get(r, "unidade tributavel")) : "";
         const brand = get(r, "marca");
-        const obs = get(r, "observacoes");
-        const place = groupLabel(get(r, "id categoria")) || get(r, "localizacao no estoque");
+        const obs = get(r, "observacoes", "obs");
+        const place = groupLabel(get(r, "id categoria")) || get(r, "localizacao no estoque") || get(r, "grupo");
         const status = get(r, "situacao", "situacao ativo inativo").toLowerCase();
 
         const base = {
