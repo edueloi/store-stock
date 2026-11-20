@@ -1,3 +1,4 @@
+import { PDV_METHODS, setPdvDisabled } from "../../lib/pdvPayments";
 import GlassDefaultsSettings from "../../components/GlassDefaultsSettings";
 import IssuersCard from "./IssuersCard";
 import GlassOptionsSettings from "../../components/GlassOptionsSettings";
@@ -1612,6 +1613,7 @@ export default function Settings({
         body: JSON.stringify(nextTenant),
       });
       if (res.ok) {
+        setPdvDisabled((nextTenant.payment_methods as { pdv_disabled?: string[] } | null | undefined)?.pdv_disabled);
         setTenant(prev => prev?.policies === tenant?.policies ? { ...prev, policies: nextTenant.policies } : prev);
         showSaved();
       }
@@ -3894,6 +3896,36 @@ export default function Settings({
                   title="Pagamentos & Políticas"
                   subtitle="Métodos aceitos e textos de política exibidos no checkout"
                 />
+
+                {/* formas de pagamento do PDV (balcão) — todas ligadas por padrão */}
+                <div className="space-y-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-emerald-500 pl-3">
+                    Formas de pagamento no PDV
+                  </p>
+                  <p className="text-[11px] text-slate-400 font-medium -mt-1">
+                    Todas aparecem no PDV por padrão. Desligue as que a loja não aceita (por exemplo, Crediário) e salve.
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    {PDV_METHODS.map(({ key, label }) => {
+                      const offList = (((payments as unknown as { pdv_disabled?: string[] }).pdv_disabled) ?? []) as string[];
+                      const on = !offList.includes(key);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setT({ payment_methods: { ...payments, pdv_disabled: on ? [...offList, key] : offList.filter((x) => x !== key) } as PaymentMethods })}
+                          className={cn(
+                            "flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border transition-all",
+                            on ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-white text-slate-400 hover:border-slate-300",
+                          )}
+                        >
+                          <span className="text-[11px] font-semibold">{label}</span>
+                          <span className="text-[10px] font-medium">{on ? "Aceita" : "Desligada"}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 {/* payment methods */}
                 <div className="space-y-3">

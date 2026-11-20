@@ -12,6 +12,8 @@ export interface PaymentMethods {
   boleto: boolean;
   /** Boleto (à vista ou parcelado) como forma de pagamento do PDV/OS/orçamento: registra a venda como Boleto e lança a dívida do cliente como crediário. Desligado por padrão. */
   boleto_avista?: boolean;
+  /** Formas de pagamento DESLIGADAS no PDV (money, pix, debit, credit, crediario). Vazio/ausente = todas ligadas. */
+  pdv_disabled?: string[];
 }
 
 // card_fees[brand][installmentIndex] = rate%

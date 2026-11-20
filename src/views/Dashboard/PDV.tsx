@@ -24,6 +24,7 @@ import { SERVICE_UNITS, getCategoryIcon, UNCATEGORIZED_SERVICE_CATEGORY } from "
 import { computeMeasuredPrice, measureUnitAbbr, measureUnitLabel, parseMeasureInput, sideUnitOf, defaultMeasureUnit } from "../../utils/measurePricing";
 import MeasureUnitPicker from "../../components/MeasureUnitPicker";
 import { productHasStock } from "../../utils/productStock";
+import { usePdvPayments, defaultPdvMethod } from "../../lib/pdvPayments";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../../lib/cashSession";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../../components/PaymentSegmentsEditor";
 import { buildInstallmentBookletText, printThermalText, buildCashCloseFullReceiptText } from "../../lib/thermalReceipt";
@@ -167,7 +168,7 @@ function defaultCrediarioFirstDueDate(): string {
 
 function newPayment(): PaymentEntry {
   return {
-    id: Math.random().toString(36).slice(2), method: "money", cardBrand: "visa", installments: 1, amount: "",
+    id: Math.random().toString(36).slice(2), method: defaultPdvMethod(), cardBrand: "visa", installments: 1, amount: "",
     crediarioInstallments: 1, crediarioFirstDueDate: defaultCrediarioFirstDueDate(),
   };
 }
@@ -341,6 +342,14 @@ export default function PDV() {
   const [surchargeMode, setSurchargeMode] = useState<"R$" | "%">("R$");
   const [surcharge, setSurcharge]       = useState("");
   const [payments, setPayments]         = useState<PaymentEntry[]>([newPayment()]);
+
+  const pdvPay = usePdvPayments();
+  // forma de pagamento desligada em Configurações: troca por a primeira ligada
+  useEffect(() => {
+    setPayments((prev) => prev.some((p) => p.method !== "boleto" && !pdvPay.isEnabled(p.method))
+      ? prev.map((p) => (p.method !== "boleto" && !pdvPay.isEnabled(p.method) ? { ...p, method: defaultPdvMethod() } : p))
+      : prev);
+  }, [pdvPay.disabled.join("|")]);
 
   // receipt modal
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null);
@@ -3461,8 +3470,9 @@ export default function PDV() {
                             )}
                             <div className="grid grid-cols-4 gap-1.5 flex-1">
                               {/* Cartão (Crédito/Débito agrupados) */}
-                              <button
-                                onClick={() => handleMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
+                              {pdvPay.cardEnabled && (
+<button
+                                onClick={() => handleMethodChange(p.id, p.method === "debit" || !pdvPay.isEnabled("credit") ? "debit" : "credit")}
                                 className={cn("h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5",
                                   (p.method === "credit" || p.method === "debit")
                                     ? "bg-emerald-600 border-emerald-500 text-white shadow-sm"
@@ -3470,20 +3480,25 @@ export default function PDV() {
                                 <CreditCard size={13} />
                                 Cartão
                               </button>
-                              <button onClick={() => handleMethodChange(p.id, "pix")}
+)}
+                              {pdvPay.isEnabled("pix") && (
+<button onClick={() => handleMethodChange(p.id, "pix")}
                                 className={cn("h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5",
                                   p.method === "pix" ? "bg-blue-600 border-blue-500 text-white shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
                                 <QrCode size={13} />
                                 {PM_LABEL.pix}
                               </button>
-                              <button onClick={() => handleMethodChange(p.id, "money")}
+)}
+                              {pdvPay.isEnabled("money") && (
+<button onClick={() => handleMethodChange(p.id, "money")}
                                 className={cn("h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5",
                                   p.method === "money" ? "bg-blue-600 border-blue-500 text-white shadow-sm" : "bg-white border-slate-200 text-slate-500 hover:border-slate-400")}>
                                 <Banknote size={13} />
                                 {PM_LABEL.money}
                               </button>
+)}
                               {/* "Mais" — crediário e métodos futuros */}
-                              <div className="relative">
+                              <div className={cn("relative", !pdvPay.isEnabled("crediario") && !boletoEnabled && "hidden")}>
                                 <button onClick={(e) => { e.stopPropagation(); setMorePaymentMenuFor(morePaymentMenuFor === p.id ? null : p.id); }}
                                   className={cn("h-10 w-full rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5",
                                     p.method === "crediario" ? "bg-amber-600 border-amber-500 text-white shadow-sm"
@@ -3494,7 +3509,8 @@ export default function PDV() {
                                 </button>
                                 {morePaymentMenuFor === p.id && (
                                   <div className="absolute z-20 top-full mt-1 right-0 w-40 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-                                    <button
+                                    {pdvPay.isEnabled("crediario") && (
+<button
                                       onClick={() => {
                                         if (!selectedCustomerId) { setSaleError("Selecione um cliente para vender no crediário"); setMorePaymentMenuFor(null); return; }
                                         handleMethodChange(p.id, "crediario");
@@ -3503,6 +3519,7 @@ export default function PDV() {
                                       className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-amber-50 transition-colors">
                                       <Clock size={13} className="text-amber-600" /> Crediário
                                     </button>
+)}
                                     {boletoEnabled && (
                                       <button
                                         onClick={() => {
@@ -3530,14 +3547,18 @@ export default function PDV() {
                           {/* toggle crédito/débito dentro de "Cartão" */}
                           {(p.method === "debit" || p.method === "credit") && (
                             <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 w-fit">
-                              <button onClick={() => handleMethodChange(p.id, "credit")}
+                              {pdvPay.isEnabled("credit") && (
+<button onClick={() => handleMethodChange(p.id, "credit")}
                                 className={cn("h-7 px-3 rounded-lg text-[10px] font-semibold transition-all", p.method === "credit" ? "bg-emerald-600 text-white" : "text-slate-500")}>
                                 Crédito
                               </button>
-                              <button onClick={() => handleMethodChange(p.id, "debit")}
+)}
+                              {pdvPay.isEnabled("debit") && (
+<button onClick={() => handleMethodChange(p.id, "debit")}
                                 className={cn("h-7 px-3 rounded-lg text-[10px] font-semibold transition-all", p.method === "debit" ? "bg-emerald-600 text-white" : "text-slate-500")}>
                                 Débito
                               </button>
+)}
                             </div>
                           )}
 

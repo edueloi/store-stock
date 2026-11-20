@@ -1,3 +1,4 @@
+import { usePdvPayments, defaultPdvMethod } from "../lib/pdvPayments";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Product } from "../types";
 import { cn } from "../lib/utils";
@@ -267,7 +268,11 @@ function ClassicPDV() {
   const maxInstallments = Number(tenant.max_installments) || 12;
   // "Boleto à vista" só aparece se a loja ligou em Configurações > Pagamentos.
   const boletoEnabled = (tenant.payment_methods as Record<string, unknown> | null | undefined)?.boleto_avista === true;
-  const PAY_ORDER: PaymentMethod[] = boletoEnabled ? [...PAY_ORDER_BASE, "boleto"] : PAY_ORDER_BASE;
+  const pdvPay = usePdvPayments();
+  // formas desligadas em Configurações somem da lista (as ligadas mantêm a ordem; Alt+número acompanha)
+  const enabledBase = PAY_ORDER_BASE.filter((m) => pdvPay.isEnabled(m));
+  const PAY_ORDER: PaymentMethod[] = boletoEnabled ? [...enabledBase, "boleto"] : enabledBase;
+  useEffect(() => { if (payMethod !== "boleto" && !pdvPay.isEnabled(payMethod)) setPayMethod(defaultPdvMethod()); }, [pdvPay.disabled.join("|")]);
 
   // ── dados (com cópia local para uso offline) ───────────────────────────────
   const refreshPending = useCallback(() => {
@@ -1176,7 +1181,7 @@ function ClassicPDV() {
           <section className="flex min-h-0 flex-col gap-2 lg:overflow-y-auto [scrollbar-width:thin]">
             <div className="rounded-sm border border-[#cbd0d6] bg-white p-3">
               <label className={labelCls}>Forma de pagamento <span className="text-slate-400">(Alt + número)</span></label>
-              <div className={cn("mb-2 grid gap-1.5", boletoEnabled ? "grid-cols-6" : "grid-cols-5")}>
+              <div className="mb-2 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, PAY_ORDER.length)}, minmax(0, 1fr))` }}>
                 {PAY_ORDER.map((m, idx) => (
                   <button
                     key={m} type="button" onClick={() => pickPayMethod(m)}

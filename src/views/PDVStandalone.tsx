@@ -27,6 +27,7 @@ import { forgetLogin, rememberLogin, renewLogin, verifyOfflineLogin } from "../l
 import { computeMeasuredPrice, measureUnitAbbr, measureUnitLabel, parseMeasureInput, sideUnitOf, defaultMeasureUnit } from "../utils/measurePricing";
 import MeasureUnitPicker from "../components/MeasureUnitPicker";
 import { productHasStock } from "../utils/productStock";
+import { usePdvPayments, defaultPdvMethod } from "../lib/pdvPayments";
 import { fetchCurrentCashSession, openCashSession as apiOpenCashSession, closeCashSession as apiCloseCashSession, CashSessionInfo, ClosedCashSession } from "../lib/cashSession";
 import PaymentSegmentsEditor, { PaymentSegment, newPaymentSegment } from "../components/PaymentSegmentsEditor";
 import { buildInstallmentBookletText, printThermalText, buildCashCloseFullReceiptText } from "../lib/thermalReceipt";
@@ -153,7 +154,7 @@ function defaultCrediarioFirstDueDate(): string {
 
 function newPayment(): PaymentEntry {
   return {
-    id: Math.random().toString(36).slice(2), method: "money", cardBrand: "visa", installments: 1, amount: "",
+    id: Math.random().toString(36).slice(2), method: defaultPdvMethod(), cardBrand: "visa", installments: 1, amount: "",
     crediarioInstallments: 1, crediarioFirstDueDate: defaultCrediarioFirstDueDate(),
   };
 }
@@ -492,6 +493,14 @@ export default function PDVStandalone() {
   const [surcharge, setSurcharge]         = useState("");
   const [surchargeMode, setSurchargeMode] = useState<"R$" | "%">("R$");
   const [payments, setPayments]           = useState<PaymentEntry[]>([newPayment()]);
+
+  const pdvPay = usePdvPayments();
+  // forma de pagamento desligada em Configurações: troca por a primeira ligada
+  useEffect(() => {
+    setPayments((prev) => prev.some((p) => p.method !== "boleto" && !pdvPay.isEnabled(p.method))
+      ? prev.map((p) => (p.method !== "boleto" && !pdvPay.isEnabled(p.method) ? { ...p, method: defaultPdvMethod() } : p))
+      : prev);
+  }, [pdvPay.disabled.join("|")]);
   const [tenantLogo, setTenantLogo]       = useState("");
   const [tenantColor, setTenantColor]     = useState("#2563eb");
   const [tenantWhatsapp, setTenantWhatsapp] = useState("");
@@ -5162,6 +5171,7 @@ const PaymentRow = React.memo(function PaymentRow({
   morePaymentMenuFor: string | null;
   onToggleMoreMenu: (id: string) => void;
 }) {
+  const pdvPay = usePdvPayments();
   const passFeeToCustomer = !!(passFeeByMethod[p.method]);
   const feeRate = p.method === "credit" ? (cardFees[p.cardBrand]?.[p.installments - 1] ?? 0)
                : p.method === "debit"  ? (cardFees[`debit_${p.cardBrand}`]?.[0] ?? 0)
@@ -5182,7 +5192,8 @@ const PaymentRow = React.memo(function PaymentRow({
           <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 bg-slate-100 text-slate-400 border border-slate-200">{idx + 1}</span>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
-          <button onClick={() => onMethodChange(p.id, p.method === "debit" ? "debit" : "credit")}
+          {pdvPay.cardEnabled && (
+<button onClick={() => onMethodChange(p.id, p.method === "debit" || !pdvPay.isEnabled("credit") ? "debit" : "credit")}
             title={!isOnline ? "Registro manual — cobrar na maquininha física (sem integração enquanto offline)" : undefined}
             className="relative h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5"
             style={(p.method === "credit" || p.method === "debit")
@@ -5192,7 +5203,9 @@ const PaymentRow = React.memo(function PaymentRow({
             <CreditCard size={13} />
             <span>Cartão</span>
           </button>
-          <button onClick={() => onMethodChange(p.id, "pix")}
+)}
+          {pdvPay.isEnabled("pix") && (
+<button onClick={() => onMethodChange(p.id, "pix")}
             title={!isOnline ? "Registro manual — cliente já pagou via PIX (chave/QR fora do sistema)" : undefined}
             className="relative h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5"
             style={p.method === "pix"
@@ -5202,7 +5215,9 @@ const PaymentRow = React.memo(function PaymentRow({
             <QrCode size={13} />
             <span>{PM_LABEL.pix}</span>
           </button>
-          <button onClick={() => onMethodChange(p.id, "money")}
+)}
+          {pdvPay.isEnabled("money") && (
+<button onClick={() => onMethodChange(p.id, "money")}
             className="relative h-10 rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5"
             style={p.method === "money"
               ? { background: "#2563eb", border: "1px solid #2563eb", color: "white", boxShadow: "0 3px 10px rgba(37,99,235,0.22)" }
@@ -5211,7 +5226,8 @@ const PaymentRow = React.memo(function PaymentRow({
             <Banknote size={13} />
             <span>{PM_LABEL.money}</span>
           </button>
-          <div className="relative">
+)}
+          <div className={cn("relative", !pdvPay.isEnabled("crediario") && !boletoEnabled && "hidden")}>
             <button onClick={(e) => { e.stopPropagation(); onToggleMoreMenu(p.id); }}
               className="relative h-10 w-full rounded-lg border text-[10px] font-semibold transition-all flex flex-col items-center justify-center gap-0.5"
               style={p.method === "crediario"
@@ -5225,7 +5241,8 @@ const PaymentRow = React.memo(function PaymentRow({
             </button>
             {morePaymentMenuFor === p.id && (
               <div className="absolute z-20 top-full mt-1 right-0 w-40 bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-                <button
+                {pdvPay.isEnabled("crediario") && (
+<button
                   onClick={() => {
                     if (!crediarioEnabled) { onCrediarioBlocked(); return; }
                     onMethodChange(p.id, "crediario");
@@ -5233,6 +5250,7 @@ const PaymentRow = React.memo(function PaymentRow({
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:bg-amber-50 transition-colors">
                   <Clock size={13} className="text-amber-600" /> Crediário
                 </button>
+)}
                 {boletoEnabled && (
                   <button
                     onClick={() => {
@@ -5289,16 +5307,20 @@ const PaymentRow = React.memo(function PaymentRow({
       {/* toggle crédito/débito dentro de "Cartão" */}
       {(p.method === "debit" || p.method === "credit") && (
         <div className="flex bg-slate-100 border border-slate-200 rounded-lg p-0.5 gap-0.5 w-fit">
-          <button onClick={() => onMethodChange(p.id, "credit")}
+          {pdvPay.isEnabled("credit") && (
+<button onClick={() => onMethodChange(p.id, "credit")}
             className="h-7 px-3 rounded-lg text-[10px] font-semibold transition-all"
             style={p.method === "credit" ? { background: "#059669", color: "white" } : { color: "#94a3b8" }}>
             Crédito
           </button>
-          <button onClick={() => onMethodChange(p.id, "debit")}
+)}
+          {pdvPay.isEnabled("debit") && (
+<button onClick={() => onMethodChange(p.id, "debit")}
             className="h-7 px-3 rounded-lg text-[10px] font-semibold transition-all"
             style={p.method === "debit" ? { background: "#059669", color: "white" } : { color: "#94a3b8" }}>
             Débito
           </button>
+)}
         </div>
       )}
 
