@@ -155,10 +155,38 @@ export async function openCashSession(req: Request, res: Response) {
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    const issuerId = await issuerForNew(req, tenantId);
+
+    // Um caixa por dia: se este operador já abriu e fechou o caixa HOJE, reabre a mesma sessão em vez de criar
+    // outra — vendas, sangrias e recebimentos do dia ficam todos numa sessão só, e o histórico não duplica.
+    // O fechamento recalcula esperado/diferença sobre TODOS os pedidos da sessão. O fundo inicial original é mantido.
+    const todayYmd = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(new Date());
+    const startOfToday = new Date(`${todayYmd}T00:00:00-03:00`);
+    const sameDay = await prisma.cashSession.findFirst({
+      where: { tenant_id: tenantId, opened_by_id: userId, status: "closed", issuer_id: issuerId ?? null, opened_at: { gte: startOfToday } },
+      orderBy: { opened_at: "asc" },
+    });
+    if (sameDay) {
+      const hhmm = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }).format(new Date());
+      const reopened = await prisma.cashSession.update({
+        where: { id: sameDay.id },
+        data: {
+          status: "open",
+          closed_at: null, closed_by_id: null, closed_by_name: null,
+          counted_amount: null, expected_amount: null, difference_amount: null,
+          closing_note: null,
+          opening_note: [sameDay.opening_note, `Caixa reaberto às ${hhmm} (mesmo dia)`].filter(Boolean).join(" · "),
+        },
+      });
+      await prisma.$executeRaw`UPDATE cash_sessions SET payment_breakdown = NULL WHERE id = ${sameDay.id}`;
+      emitToTenant(tenantId, "cash-session:changed", { cashSessionId: reopened.id });
+      res.status(200).json({ session: { ...reopened, payment_breakdown: null }, reopened: true });
+      return;
+    }
 
     const session = await prisma.cashSession.create({
       data: {
-        tenant_id: tenantId, issuer_id: await issuerForNew(req, tenantId),
+        tenant_id: tenantId, issuer_id: issuerId,
         opened_by_id: userId,
         opened_by_name: user?.name ?? "Operador",
         opening_amount: Number(openingAmount) || 0,
