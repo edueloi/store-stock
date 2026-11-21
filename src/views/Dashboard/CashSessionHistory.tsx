@@ -430,8 +430,14 @@ export default function CashSessionHistory() {
   }), [sessions]);
 
   const goToReportForSession = (session: CashSessionDetail) => {
-    const from = session.opened_at.substring(0, 10);
-    const to = (session.closed_at ?? new Date().toISOString()).substring(0, 10);
+    // Datas LOCAIS (não UTC): às 21h no Brasil o ISO já é o dia seguinte e o período saía deslocado em 1 dia.
+    const localYmd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const opened = new Date(session.opened_at);
+    const closed = session.closed_at ? new Date(session.closed_at) : new Date();
+    const from = localYmd(opened);
+    let to = localYmd(closed);
+    // Fechou de madrugada (até 6h) do dia seguinte: ainda é o turno do dia da abertura.
+    if (to !== from && closed.getHours() < 6 && closed.getTime() - opened.getTime() < 24 * 3600 * 1000) to = from;
     setDateFrom(from);
     setDateTo(to);
     setPeriodPreset("custom");
