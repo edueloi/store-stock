@@ -51,6 +51,127 @@ function publicDetails(value: any) {
 // travar o cadastro (pode ter um motivo legítimo pra registrar assim mesmo).
 // Não valida a combinação fina CFOP×CSOSN (exigiria uma tabela de regras
 // fiscais completa), só o erro estrutural mais provável.
+// NCM/CEST/CFOP têm limite no banco (8/7/4 dígitos): "8517.62.99" estourava a coluna e o cadastro falhava com erro genérico.
+function cleanFiscalDigits(rest: Record<string, any>) {
+  for (const [field, max] of [["ncm", 8], ["cest", 7], ["cfop", 4]] as const) {
+    if (typeof rest[field] === "string") {
+      const digits = rest[field].replace(/D/g, "").slice(0, max);
+      rest[field] = digits === "" ? null : digits;
+    }
+  }
+}
+
+
+// ── Normalização do payload de produto ────────────────────────────────────────────────────────
+// O corpo da requisição ia direto para o Prisma: qualquer campo desconhecido, número como texto/decimal num campo
+// inteiro, "" em número/data, valor grande demais para a coluna, categoria inexistente ou preço ausente (produto
+// por medida) derrubava o cadastro com um erro genérico. Aqui tudo vira valor válido ou uma mensagem clara (400).
+class ProductInputError extends Error {}
+const PRODUCT_FIELDS = new Set<string>(Object.values(Prisma.ProductScalarFieldEnum));
+const INT_FIELDS = ["stock_quantity", "min_stock", "weight_grams", "origem"];
+// campo → limite (valor absoluto máximo, exclusivo) conforme a precisão da coluna Decimal
+const DECIMAL_FIELDS: Record<string, number> = {
+  price: 1e8, cost_price: 1e8, discount_price: 1e8, price_per_measure: 1e8, min_billable_quantity: 1e8,
+  max_discount_pct: 1e3, icms_aliquota: 1e3, pis_aliquota: 1e3, cofins_aliquota: 1e3,
+  package_length_cm: 1e6, package_width_cm: 1e6, package_height_cm: 1e6,
+  measure_stock_quantity: 1e9, measure_min_stock: 1e9,
+};
+const NOT_NULL_DEFAULTED = ["type", "sale_unit", "unidade_comercial", "unidade_tributavel", "origem", "stock_quantity", "min_stock", "cost_price", "is_active", "is_featured", "track_stock", "hide_price_on_site"];
+const FIELD_LABELS: Record<string, string> = {
+  price: "Preço", cost_price: "Custo", discount_price: "Preço promocional", price_per_measure: "Preço por medida",
+  min_billable_quantity: "Mínimo faturável", max_discount_pct: "Desconto máximo", stock_quantity: "Estoque", min_stock: "Estoque mínimo",
+  weight_grams: "Peso", measure_stock_quantity: "Estoque por medida", measure_min_stock: "Estoque mínimo por medida",
+  package_length_cm: "Comprimento da embalagem", package_width_cm: "Largura da embalagem", package_height_cm: "Altura da embalagem",
+  icms_aliquota: "Alíquota ICMS", pis_aliquota: "Alíquota PIS", cofins_aliquota: "Alíquota COFINS", origem: "Origem",
+};
+
+// "1.234,56" → 1234.56 ; "12,5" → 12.5 ; 12.5 → 12.5
+function parseProductNumber(v: unknown): number {
+  if (typeof v === "number") return v;
+  const t = String(v).trim();
+  return Number(t.includes(",") ? t.replace(/\./g, "").replace(",", ".") : t);
+}
+
+async function normalizeProductInput(rest: Record<string, any>, tenantId: number, mode: "create" | "update") {
+  // 1) só campos que existem no produto
+  for (const key of Object.keys(rest)) if (!PRODUCT_FIELDS.has(key)) delete rest[key];
+
+  // 2) texto
+  if ("name" in rest) {
+    const name = typeof rest.name === "string" ? rest.name.trim() : "";
+    if (!name) throw new ProductInputError("Preencha o nome do produto.");
+    rest.name = name.slice(0, 191);
+  } else if (mode === "create") throw new ProductInputError("Preencha o nome do produto.");
+  for (const [field, max] of [["sku", 191], ["barcode", 64], ["measure_unit", 10]] as const) {
+    if (field in rest) {
+      const v = rest[field] == null ? "" : String(rest[field]).trim();
+      rest[field] = v === "" ? null : v.slice(0, max);
+    }
+  }
+  if ("description" in rest && rest.description != null) rest.description = String(rest.description);
+
+  // 3) números
+  for (const field of INT_FIELDS) {
+    if (!(field in rest)) continue;
+    if (rest[field] === "" || rest[field] == null) { if (NOT_NULL_DEFAULTED.includes(field)) delete rest[field]; else rest[field] = null; continue; }
+    const n = parseProductNumber(rest[field]);
+    if (!Number.isFinite(n)) throw new ProductInputError(`${FIELD_LABELS[field]}: valor inválido.`);
+    if (Math.abs(n) > 2147483647) throw new ProductInputError(`${FIELD_LABELS[field]}: valor grande demais.`);
+    rest[field] = Math.round(n);
+  }
+  for (const [field, limit] of Object.entries(DECIMAL_FIELDS)) {
+    if (!(field in rest)) continue;
+    if (rest[field] === "" || rest[field] == null) { if (NOT_NULL_DEFAULTED.includes(field)) delete rest[field]; else rest[field] = null; continue; }
+    const n = parseProductNumber(rest[field]);
+    if (!Number.isFinite(n)) throw new ProductInputError(`${FIELD_LABELS[field]}: valor inválido.`);
+    if (Math.abs(n) >= limit) throw new ProductInputError(`${FIELD_LABELS[field]}: valor grande demais.`);
+    rest[field] = n;
+  }
+
+  // 4) preço é obrigatório no banco: produto por medida pode vir sem "price" — usa o preço por medida (ou 0)
+  if (mode === "create" && (rest.price === undefined || rest.price === null)) {
+    rest.price = Number(rest.price_per_measure) > 0 ? rest.price_per_measure : 0;
+  }
+  if (mode === "update" && "price" in rest && rest.price == null) delete rest.price;
+
+  // 5) data de validade
+  if ("expiry_date" in rest) {
+    if (!rest.expiry_date) rest.expiry_date = null;
+    else {
+      const d = new Date(rest.expiry_date);
+      if (Number.isNaN(d.getTime())) throw new ProductInputError("Data de validade inválida.");
+      rest.expiry_date = d;
+    }
+  }
+
+  // 6) campos que não aceitam null no banco: null/"" vira o padrão
+  for (const field of NOT_NULL_DEFAULTED) if (field in rest && (rest[field] === null || rest[field] === "")) delete rest[field];
+  for (const field of ["is_active", "is_featured", "track_stock", "hide_price_on_site"]) if (field in rest) rest[field] = Boolean(rest[field]);
+
+  // 7) categoria precisa existir nesta loja (senão a chave estrangeira falha)
+  if ("category_id" in rest) {
+    const id = Number(rest.category_id);
+    if (!rest.category_id || !Number.isInteger(id) || id <= 0) rest.category_id = null;
+    else {
+      const cat = await prisma.category.findFirst({ where: { id, tenant_id: tenantId }, select: { id: true } });
+      if (!cat) throw new ProductInputError("Categoria inválida ou removida. Escolha a categoria de novo.");
+      rest.category_id = id;
+    }
+  }
+}
+
+// Erros do banco (Prisma) → mensagem clara em português.
+function productDbErrorMessage(e: unknown, fallback: string): string {
+  if (e instanceof ProductInputError) return e.message;
+  const code = (e as { code?: string })?.code;
+  if (code === "P2000") return "Algum campo está com texto grande demais. Confira NCM (8 dígitos), CEST (7), CFOP (4) e a unidade de medida.";
+  if (code === "P2002") return "Já existe um produto com esse código (SKU/código de barras).";
+  if (code === "P2003") return "Categoria ou vínculo inválido. Escolha a categoria de novo.";
+  if (code === "P2025") return "Produto não encontrado.";
+  if (e instanceof Prisma.PrismaClientValidationError) return "Algum campo do produto está com valor inválido. Confira preços, estoque e datas.";
+  return fallback;
+}
+
 function validateCfop(cfop: unknown): string | null {
   if (cfop === undefined || cfop === null || cfop === "") return null;
   const value = String(cfop);
@@ -216,6 +337,8 @@ export async function createProduct(req: Request, res: Response) {
       ...rest
     } = req.body;
 
+    cleanFiscalDigits(rest);
+    await normalizeProductInput(rest, getTenantId(req), "create");
     const cfopWarning = validateCfop(rest.cfop);
 
     const product = await prisma.product.create({
@@ -237,8 +360,9 @@ export async function createProduct(req: Request, res: Response) {
     emitToTenant(getTenantId(req), "product:changed", { productId: product.id });
 
     res.json({ id: product.id, ...(cfopWarning ? { warning: cfopWarning } : {}) });
-  } catch {
-    res.status(500).json({ error: "Failed to create product" });
+  } catch (e) {
+    if (!(e instanceof ProductInputError)) console.error("[createProduct] tenant=" + getTenantId(req) + ":", e instanceof Error ? e.message.slice(-600) : e);
+    res.status(e instanceof ProductInputError ? 400 : 500).json({ error: productDbErrorMessage(e, "Não foi possível cadastrar o produto. Tente novamente; se continuar, avise o suporte.") });
   }
 }
 
@@ -320,6 +444,8 @@ export async function updateProduct(req: Request, res: Response) {
       ...rest
     } = req.body;
 
+    cleanFiscalDigits(rest);
+    await normalizeProductInput(rest, tenantId, "update");
     const cfopWarning = validateCfop(rest.cfop);
 
     await prisma.product.updateMany({
@@ -367,8 +493,9 @@ export async function updateProduct(req: Request, res: Response) {
     emitToTenant(tenantId, "stock:changed", { productId: id });
 
     res.json({ success: true, ...(cfopWarning ? { warning: cfopWarning } : {}) });
-  } catch {
-    res.status(500).json({ error: "Failed to update product" });
+  } catch (e) {
+    if (!(e instanceof ProductInputError)) console.error("[updateProduct] tenant=" + getTenantId(req) + ":", e instanceof Error ? e.message.slice(-600) : e);
+    res.status(e instanceof ProductInputError ? 400 : 500).json({ error: productDbErrorMessage(e, "Não foi possível salvar o produto. Tente novamente; se continuar, avise o suporte.") });
   }
 }
 
