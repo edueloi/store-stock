@@ -61,7 +61,7 @@ export async function searchNcmCodes(req: Request, res: Response) {
   }
   try {
     const response = await fetch(`https://brasilapi.com.br/api/ncm/v1?search=${encodeURIComponent(search)}`, {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "User-Agent": "BoxSys/1.0 (+https://store.boxsys.com.br)" },
       signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) throw new Error(`NCM ${response.status}`);
@@ -98,7 +98,7 @@ export async function getNfseIssuerActivity(req: Request, res: Response) {
     if (document.length === 14) {
       try {
         const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${document}`, {
-          headers: { Accept: "application/json" }, signal: AbortSignal.timeout(7_000),
+          headers: { Accept: "application/json", "User-Agent": "BoxSys/1.0 (+https://store.boxsys.com.br)" }, signal: AbortSignal.timeout(7_000),
         });
         if (response.ok) {
           const company = await response.json() as Record<string, unknown>;
@@ -139,7 +139,7 @@ export async function lookupCnpj(req: Request, res: Response) {
   }
   try {
     const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
-      headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8_000),
+      headers: { Accept: "application/json", "User-Agent": "BoxSys/1.0 (+https://store.boxsys.com.br)" }, signal: AbortSignal.timeout(8_000),
     });
     if (response.status === 404) { res.status(404).json({ error: "CNPJ não encontrado na Receita Federal." }); return; }
     if (!response.ok) { res.status(502).json({ error: "A consulta de CNPJ está indisponível agora. Preencha manualmente." }); return; }

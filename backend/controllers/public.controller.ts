@@ -256,7 +256,7 @@ export async function lookupPublicCompany(req: Request, res: Response) {
   try {
     const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
       signal: AbortSignal.timeout(8_000),
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "User-Agent": "BoxSys/1.0 (+https://store.boxsys.com.br)" },
     });
     if (!response.ok) {
       res.status(response.status === 404 ? 404 : 502).json({ error: "Não foi possível localizar este CNPJ agora." });
@@ -599,7 +599,7 @@ const cepCache = new Map<string, { at: number; info: CepInfo | null }>();
 
 async function getJsonTimeout(url: string, headers?: Record<string, string>): Promise<any | null> {
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json", ...(headers || {}) } });
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json", "User-Agent": "BoxSys/1.0 (+https://store.boxsys.com.br)", ...(headers || {}) } });
     return r.ok ? await r.json() : null;
   } catch {
     return null;

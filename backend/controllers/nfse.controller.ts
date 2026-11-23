@@ -582,7 +582,7 @@ const semAcento = (v: string) => v.normalize("NFD").replace(/[\u0300-\u036f]/g, 
 
 async function getJson(url: string): Promise<any | null> {
   try {
-    const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json" } });
+    const r = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json", "User-Agent": "BoxSys/1.0 (+https://store.boxsys.com.br)" } });
     return r.ok ? await r.json() : null;
   } catch {
     return null;
