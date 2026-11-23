@@ -46,7 +46,7 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
 
     const serviceOrder = await prisma.serviceOrder.findFirst({
       where: { id: serviceOrderId, tenant_id: tenantId },
-      select: { id: true, status: true, service_value: true, equipment_type: true, equipment_category: true, service_description: true },
+      select: { id: true, status: true, service_value: true, equipment_type: true, equipment_category: true, service_description: true, issuer_id: true },
     });
     if (!serviceOrder) { res.status(404).json({ error: "Ordem de serviço não encontrada" }); return; }
     // NFS-e ANTECIPADA: há lojas que emitem a nota antes de receber (e antes de finalizar). Libera da aprovação em diante;
@@ -87,7 +87,7 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
     const retryData = { codigo_tributacao_nacional, descricao_servico: descricao, valor_servico: valorServico };
 
     if (!invoice) {
-      const issuerPick = await issuerForNote(req, tenantId); // várias empresas: pergunta de qual CNPJ emitir
+      const issuerPick = await issuerForNote(req, tenantId, serviceOrder.issuer_id); // o CNPJ da O.S.; sem ele, o do topo; sem nenhum, pergunta
       if (issuerPick.needChoice) { res.status(409).json({ error: "Escolha de qual CNPJ emitir a nota.", needIssuer: true, issuers: issuerPick.needChoice }); return; }
       const tenant = await fiscalTenant(tenantId, issuerPick.id);
       if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }

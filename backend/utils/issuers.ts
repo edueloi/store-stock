@@ -57,12 +57,16 @@ export async function bumpNextNumber(db: Db, tenantId: number, issuerId: number 
 }
 
 /** CNPJ da nota: o escolhido na hora (cabeçalho x-issuer-id); o ativo se a loja tem um só. Com vários e sem escolha: pergunta (needChoice). */
-export async function issuerForNote(req: { headers: Record<string, unknown>; body?: any }, tenantId: number): Promise<{ id: number | null; needChoice?: { id: number; label: string; document: string }[] }> {
+export async function issuerForNote(req: { headers: Record<string, unknown>; body?: any }, tenantId: number, recordIssuerId?: number | null): Promise<{ id: number | null; needChoice?: { id: number; label: string; document: string }[] }> {
   const rows = await prisma.tenantIssuer.findMany({ where: { tenant_id: tenantId }, orderBy: { id: "asc" }, select: { id: true, label: true, document: true, is_active: true, snapshot: true } });
   if (rows.length < 2) return { id: rows[0]?.id ?? null };
   const asked = Number(req.headers["x-issuer-id"] ?? req.body?.issuer_id);
   const picked = rows.find((r) => r.id === asked);
   if (picked) return { id: picked.id };
+  // CNPJ do próprio pedido/O.S.: a venda pertence a ele, então a nota sai por ele (antes seguia o seletor do topo e mandava
+  // por outro CNPJ pedidos de uma empresa diferente da escolhida no topo)
+  const own = recordIssuerId ? rows.find((r) => r.id === Number(recordIssuerId)) : undefined;
+  if (own) return { id: own.id };
   // CNPJ escolhido no seletor do topo do painel: emite por ele, sem perguntar de novo
   const viewId = await issuerView(req, tenantId);
   const viewRow = viewId ? rows.find((r) => r.id === viewId) : undefined;

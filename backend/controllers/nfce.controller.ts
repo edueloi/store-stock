@@ -178,7 +178,7 @@ export async function emitNfceForOrder(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const order = await prisma.order.findFirst({
       where: { id: orderId, tenant_id: tenantId },
-      select: { id: true, customer_id: true, customer_document: true },
+      select: { id: true, customer_id: true, customer_document: true, issuer_id: true },
     });
     if (!order) { res.status(404).json({ error: "Venda não encontrada" }); return; }
 
@@ -189,7 +189,7 @@ export async function emitNfceForOrder(req: Request, res: Response) {
     if (invoice?.status === "authorized") { res.status(409).json({ error: "NFC-e já autorizada" }); return; }
 
     if (!invoice) {
-      const issuerPick = await issuerForNote(req, tenantId); // várias empresas: pergunta de qual CNPJ emitir
+      const issuerPick = await issuerForNote(req, tenantId, order.issuer_id); // várias empresas: o CNPJ do pedido; sem ele, o do topo; sem nenhum, pergunta
       if (issuerPick.needChoice) { res.status(409).json({ error: "Escolha de qual CNPJ emitir a nota.", needIssuer: true, issuers: issuerPick.needChoice }); return; }
       const tenant = await fiscalTenant(tenantId, issuerPick.id);
       if (!tenant) { res.status(404).json({ error: "Loja não encontrada" }); return; }
