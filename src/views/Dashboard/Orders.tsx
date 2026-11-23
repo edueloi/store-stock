@@ -50,6 +50,7 @@ import OrderReturnModal, { type OrderReturnResult } from "./OrderReturnModal";
 import OrderShippingLabel from "../../components/orders/OrderShippingLabel";
 import OrdersPageTour, { type OrdersPageTourHandle } from "../../components/onboarding/OrdersPageTour";
 import NfeEmitModal from "../../components/fiscal/NfeEmitModal";
+import { useFiscalDocs } from "../../lib/fiscalDocuments";
 import {
   Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Alert, Badge, Tabs,
   SectionTitle, StatGrid, StatCard, ContentCard, PanelCard,
@@ -520,6 +521,7 @@ export default function Orders() {
   const [savingDocument, setSavingDocument] = useState(false);
 
   const ordersPageTourRef = useRef<OrdersPageTourHandle>(null);
+  const fiscalDocs = useFiscalDocs(); // NFC-e / NF-e / NFS-e que a loja usa (Configurações → Dados Fiscais)
 
   const handleSaveDocument = async (emitAfter: boolean) => {
     if (!documentTarget) return;
@@ -1637,7 +1639,7 @@ ${
                     </td>
                     {/* nota fiscal */}
                     <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                      {order.status === "cancelled" ? (
+                      {!fiscalDocs.nfce && !order.nfce_invoice ? null : order.status === "cancelled" ? (
                         <span className="text-[11px] text-slate-300">—</span>
                       ) : order.nfce_invoice?.status === "authorized" ? (
                         <button onClick={() => handleDownloadDanfe(order.id, order.nfce_invoice?.access_key)}
@@ -1659,7 +1661,7 @@ ${
 <div className="flex flex-col items-center gap-1">
 <button onClick={() => handleEmitNfce(order.id)} disabled={emittingNfceId === order.id}
                           className="inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-full text-[10px] font-semibold bg-slate-900 text-white hover:bg-slate-700 transition-colors disabled:opacity-50">
-                          {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />} Gerar NF
+                          {emittingNfceId === order.id ? <Loader2 size={10} className="animate-spin" /> : <FileText size={10} />} {fiscalDocs.nfe ? "Gerar NFC-e" : "Gerar NF"}
                         </button>
 {!(order.customer_document && order.customer_document.trim()) && <button
                           onClick={(e) => { e.stopPropagation(); setDocumentTarget(order); setDocumentInput(""); }}
@@ -1670,7 +1672,7 @@ ${
                         </button>}
 </div>
                       )}
-                      {order.status !== "cancelled" && (
+                      {(fiscalDocs.nfe || order.nfe_invoice) && order.status !== "cancelled" && (
                         <div className="mt-1 flex justify-center">
                           {order.nfe_invoice?.status === "authorized" ? (
                             <button onClick={() => downloadAuthenticated(`/api/nfe/${order.id}/danfe`, token(), `danfe-nfe-${order.nfe_invoice?.access_key ?? order.id}.pdf`).catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o DANFE da NF-e."))}
@@ -1690,9 +1692,11 @@ ${
                             </button>
                           ) : (
                             <button onClick={() => setNfeOrderId(order.id)}
-                              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                              className={fiscalDocs.nfce
+                                ? "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700 hover:bg-blue-100"
+                                : "inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-slate-900 px-2.5 py-1 text-[10px] font-semibold text-white transition hover:bg-slate-700"}
                               title="Emitir NF-e (nota de mercadoria com destinatário identificado)">
-                              <FileText size={10} /> NF-e
+                              <FileText size={10} /> {fiscalDocs.nfce ? "Gerar NF-e" : "Gerar NF-e"}
                             </button>
                           )}
                         </div>

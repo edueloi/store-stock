@@ -1,5 +1,6 @@
 import { PDV_METHODS, setPdvDisabled } from "../../lib/pdvPayments";
 import { useCnpjLookup } from "../../lib/cnpjLookup";
+import { fiscalDocsFromPolicies, refreshFiscalDocs, type FiscalDocs } from "../../lib/fiscalDocuments";
 import CnpjStatusNotice from "../../components/CnpjStatusNotice";
 import GlassDefaultsSettings from "../../components/GlassDefaultsSettings";
 import IssuersCard from "./IssuersCard";
@@ -1611,6 +1612,7 @@ export default function Settings({
   const policies = (tenant?.policies ?? DEFAULT_POLICIES) as StorePolicies;
 
   const showSaved = () => {
+    refreshFiscalDocs(); // telas abertas (Pedidos, Notas Fiscais, O.S.) passam a refletir os documentos escolhidos
     setSaved(true);
     toast.success("Configurações salvas com sucesso!");
     setTimeout(() => setSaved(false), 2500);
@@ -2789,6 +2791,42 @@ export default function Settings({
                   title="Dados Fiscais"
                   subtitle="Informações usadas na emissão de NFC-e junto à SEFAZ-SP. Preencha com atenção — erros aqui geram rejeição das notas."
                 />
+
+                {/* documentos fiscais que a loja emite — as telas só mostram o que está ligado */}
+                <div className="space-y-3">
+                  <p className="text-[11px] font-semibold text-slate-700 border-l-4 border-blue-500 pl-3">Documentos fiscais que esta loja emite</p>
+                  <p className="text-[11px] text-slate-400 font-medium -mt-1">
+                    Ligue só o que a loja usa. O que estiver desligado some das telas de Pedidos, Notas Fiscais e Ordens de Serviço. Salve para valer.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {([
+                      { key: "nfce", label: "NFC-e", hint: "Nota de balcão, para consumidor final (PDV)." },
+                      { key: "nfe", label: "NF-e", hint: "Nota de mercadoria para empresa ou pessoa identificada (B2B)." },
+                      { key: "nfse", label: "NFS-e", hint: "Nota de serviço, emitida pela prefeitura." },
+                    ] as { key: keyof FiscalDocs; label: string; hint: string }[]).map(({ key, label, hint }) => {
+                      const docs = fiscalDocsFromPolicies(policies);
+                      const on = docs[key];
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => setT({ policies: { ...policies, fiscal_documents: { ...docs, [key]: !on } } as unknown as StorePolicies })}
+                          className={cn(
+                            "flex flex-col items-start gap-1 p-3 rounded-lg border text-left transition-all",
+                            on ? "border-blue-500 bg-blue-50 text-blue-900" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300",
+                          )}
+                        >
+                          <span className="flex w-full items-center justify-between">
+                            <span className="text-[13px] font-semibold">{label}</span>
+                            <span className={cn("text-[10px] font-semibold rounded-full px-2 py-0.5", on ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}>{on ? "Ligado" : "Desligado"}</span>
+                          </span>
+                          <span className="text-[11px] leading-snug font-medium opacity-80">{hint}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <IssuersCard />
 

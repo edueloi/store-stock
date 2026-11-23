@@ -19,6 +19,7 @@ import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal
 import { fetchNfceCupomText, printThermalText } from "../../lib/thermalReceipt";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
 import NfeInvoicesTab from "../../components/fiscal/NfeInvoicesTab";
+import { useFiscalDocs } from "../../lib/fiscalDocuments";
 
 const PRAZO_CANCELAMENTO_MINUTOS = 30;
 
@@ -1863,7 +1864,12 @@ const NOTA_TABS = [
 export default function NfceInvoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const tab: "nfce" | "nfse" | "nfe" = tabParam === "nfse" ? "nfse" : tabParam === "nfe" ? "nfe" : "nfce";
+  const fiscalDocs = useFiscalDocs();
+  // só as abas dos documentos que a loja usa (se tudo estiver desligado, mostra todas para não ficar sem tela)
+  const enabledTabs = NOTA_TABS.filter((t) => fiscalDocs[t.id]);
+  const visibleTabs = enabledTabs.length ? enabledTabs : NOTA_TABS;
+  const wanted: "nfce" | "nfse" | "nfe" = tabParam === "nfse" ? "nfse" : tabParam === "nfe" ? "nfe" : "nfce";
+  const tab: "nfce" | "nfse" | "nfe" = visibleTabs.some((t) => t.id === wanted) ? wanted : visibleTabs[0].id;
   const setTab = (next: "nfce" | "nfse" | "nfe") => {
     setSearchParams(next === "nfce" ? {} : { tab: next }, { replace: true });
   };
@@ -1876,7 +1882,7 @@ export default function NfceInvoices() {
         subtitle="NFC-e, NF-e e NFS-e emitidas junto à SEFAZ/prefeitura · exporte o relatório para o contador"
       />
 
-      <Tabs<"nfce" | "nfse" | "nfe"> items={NOTA_TABS} value={tab} onChange={setTab} label="Tipo de nota fiscal">
+      <Tabs<"nfce" | "nfse" | "nfe"> items={visibleTabs} value={tab} onChange={setTab} label="Tipo de nota fiscal">
         {tab === "nfce" ? <NfceTabContent /> : tab === "nfe" ? <NfeInvoicesTab /> : <NfseTabContent />}
       </Tabs>
     </div>

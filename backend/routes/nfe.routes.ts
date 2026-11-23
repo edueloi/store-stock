@@ -10,6 +10,7 @@ import {
   listNfe,
   lookupIbge,
   previewNfe,
+  recipientFromCustomer,
   retryNfe,
 } from "../controllers/nfe.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
@@ -20,6 +21,7 @@ router.use(authenticateToken);
 
 router.get("/", listNfe);
 router.get("/ibge", lookupIbge);
+router.get("/recipient/:customerId", recipientFromCustomer);
 router.get("/:orderId/preview", previewNfe);
 router.get("/:orderId", getNfeByOrder);
 router.post("/:orderId/emit", emitNfe);

@@ -1,6 +1,7 @@
 import { getHideValuesPref, setHideValuesPref } from "../../lib/documentPrefs";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useTenantForDocuments } from "../../lib/issuerIdentity";
+import { useFiscalDocs } from "../../lib/fiscalDocuments";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -125,6 +126,7 @@ export default function ServiceOrderDetail() {
   const [tenantRaw, setTenant] = useState<Tenant | null>(null);
   // dados da loja já com o CNPJ certo no cabeçalho dos documentos (o CNPJ do próprio registro)
   const tenant = useTenantForDocuments(tenantRaw, selected?.issuer_id);
+  const fiscalDocs = useFiscalDocs(); // documentos fiscais que a loja usa
 
   const [savingField, setSavingField] = useState<string | null>(null);
   const [savedPulse, setSavedPulse] = useState(false);
@@ -1592,10 +1594,10 @@ export default function ServiceOrderDetail() {
             </div>
           </ContentCard>
 
-          {selected.invoiced_order_id && <NfceOrderPanel orderId={selected.invoiced_order_id} autoEmit={autoEmitNfce} confirmFiscal />}
+          {selected.invoiced_order_id && fiscalDocs.nfce && <NfceOrderPanel orderId={selected.invoiced_order_id} autoEmit={autoEmitNfce} confirmFiscal />}
 
           {/* NFS-e — emitida sobre a mão de obra (peças já geram NFC-e na venda) */}
-          {Number(selected.service_value) > 0 && (
+          {fiscalDocs.nfse && Number(selected.service_value) > 0 && (
             <ContentCard padding="md" className="space-y-3">
               <p className="text-[10px] font-semibold text-slate-400">NFS-e (Serviço)</p>
               {!nfseInvoice && CAN_INVOICE_STATUSES.includes(selected.status) && <p className="text-[11px] leading-snug text-slate-500">Pode ser emitida a qualquer momento depois da aprovação, inclusive antes de receber e antes de finalizar.</p>}
@@ -2264,10 +2266,12 @@ export default function ServiceOrderDetail() {
             sellers={sellers}
             hasCustomer={!!selected.customer_id}
           />
+          {fiscalDocs.nfce && (
           <label className="flex items-start gap-2 rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-xs text-slate-700">
             <input type="checkbox" className="mt-0.5" checked={emitNfceAfter} onChange={(e) => setEmitNfceAfter(e.target.checked)} />
-            <span><b>Emitir NFC-e das peças</b> assim que confirmar. A mão de obra sai pela NFS-e.</span>
+            <span><b>Emitir NFC-e das peças</b> assim que confirmar.{fiscalDocs.nfse ? " A mão de obra sai pela NFS-e." : ""}</span>
           </label>
+          )}
         </div>
       </Modal>
 

@@ -89,6 +89,20 @@ function normalizeFreight(f: Partial<NfeFreight> | undefined): NfeFreight {
   };
 }
 
+/** GET /api/nfe/recipient/:customerId — monta o destinatário a partir de um cliente cadastrado (documento, IE, endereço e código do município). */
+export async function recipientFromCustomer(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.customerId);
+    const customer = await prisma.customer.findFirst({ where: { id, tenant_id: getTenantId(req) }, select: { id: true } });
+    if (!customer) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+    const recipient = await suggestRecipient({ customer_id: id, customer_name: null, customer_document: null, customer_email: null, customer_phone: null });
+    res.json({ recipient, problems: recipientProblems(recipient) });
+  } catch (e) {
+    console.error("[recipientFromCustomer]", e);
+    res.status(500).json({ error: "Não foi possível carregar o cliente." });
+  }
+}
+
 /** GET /api/nfe/:orderId/preview — o que o modal "Emitir NF-e" precisa para abrir já preenchido. */
 export async function previewNfe(req: Request, res: Response) {
   try {

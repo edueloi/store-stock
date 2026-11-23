@@ -28,6 +28,7 @@ export type RealtimeEvent =
   | "service-category:changed" // categoria de serviço criada, editada ou removida
   | "consignment:changed"    // consignação criada, editada ou liquidada
   | "nfce:changed"           // NFC-e emitida, autorizada, rejeitada ou cancelada
+  | "nfe:changed"            // NF-e (modelo 55) emitida, autorizada, rejeitada ou cancelada
   | "nfse:changed"           // NFS-e emitida, autorizada, rejeitada ou cancelada
   | "fiscal:requested"      // pedido ao app desktop do certificado A3 (assinar / falar com a SEFAZ)
   | "print:requested";       // pedido de impressão remota pra um terminal desktop específico
