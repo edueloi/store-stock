@@ -76,7 +76,7 @@ const DECIMAL_FIELDS: Record<string, number> = {
   package_length_cm: 1e6, package_width_cm: 1e6, package_height_cm: 1e6,
   measure_stock_quantity: 1e9, measure_min_stock: 1e9,
 };
-const NOT_NULL_DEFAULTED = ["type", "sale_unit", "unidade_comercial", "unidade_tributavel", "origem", "stock_quantity", "min_stock", "cost_price", "is_active", "is_featured", "track_stock", "hide_price_on_site"];
+const NOT_NULL_DEFAULTED = ["allow_fraction", "type", "sale_unit", "unidade_comercial", "unidade_tributavel", "origem", "stock_quantity", "min_stock", "cost_price", "is_active", "is_featured", "track_stock", "hide_price_on_site"];
 const FIELD_LABELS: Record<string, string> = {
   price: "Preço", cost_price: "Custo", discount_price: "Preço promocional", price_per_measure: "Preço por medida",
   min_billable_quantity: "Mínimo faturável", max_discount_pct: "Desconto máximo", stock_quantity: "Estoque", min_stock: "Estoque mínimo",
@@ -146,7 +146,8 @@ async function normalizeProductInput(rest: Record<string, any>, tenantId: number
 
   // 6) campos que não aceitam null no banco: null/"" vira o padrão
   for (const field of NOT_NULL_DEFAULTED) if (field in rest && (rest[field] === null || rest[field] === "")) delete rest[field];
-  for (const field of ["is_active", "is_featured", "track_stock", "hide_price_on_site"]) if (field in rest) rest[field] = Boolean(rest[field]);
+  for (const field of ["is_active", "is_featured", "track_stock", "hide_price_on_site", "allow_fraction"]) if (field in rest) rest[field] = Boolean(rest[field]);
+  delete rest.fraction_leftover; // sobra de frações é controlada só pelo estoque (vendas/devoluções), nunca pelo formulário
 
   // 7) categoria precisa existir nesta loja (senão a chave estrangeira falha)
   if ("category_id" in rest) {

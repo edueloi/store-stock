@@ -461,6 +461,10 @@ model Product {
   // false = produto sob encomenda/feito na hora: vende mesmo sem estoque, não baixa saldo e não
   // entra nos alertas de esgotado. Vale só para este produto (existe também a opção da loja inteira).
   track_stock    Boolean   @default(true)
+  // true = permite vender FRAÇÃO da unidade (ex.: meia barra). O estoque segue em unidades inteiras; a sobra de unidades
+  // "abertas" (a outra metade) fica em fraction_leftover (0 a <1) e é consumida antes de abrir outra unidade.
+  allow_fraction    Boolean @default(false)
+  fraction_leftover Decimal @default(0) @db.Decimal(7, 4)
   // true = o preço aparece no catálogo, PDV e relatórios, mas não é enviado à vitrine (orçamento).
   hide_price_on_site Boolean @default(false)
   // Conteúdo específico da vitrine e configuração das medidas por produto.
@@ -1064,6 +1068,8 @@ model OrderItem {
   quantity          Int
   unit_price        Decimal @db.Decimal(10, 2)
   dimensions_label  String? @db.Text
+  // Fração da unidade vendida por porção (ex.: 0.5 = meia barra). unit_price já é o preço da porção; consumo = fraction × quantity.
+  fraction          Decimal? @db.Decimal(7, 4)
   selected_options  Json?
   // Quantidade física consumida para itens por medida (m ou m²). `quantity`
   // permanece inteira para preservar relatórios e vendas por unidade.

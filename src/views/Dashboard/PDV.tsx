@@ -8,7 +8,7 @@ import {
   Printer, FileText, MessageCircle, Phone, Clock, Receipt,
   ChevronDown, PlusCircle, Users, Barcode, Wrench, ChevronUp,
   Star, Gift, UserPlus, Store, Terminal, Ruler,
-  LayoutGrid, List, ShoppingBag, Wallet, MoreVertical, Pencil,
+  LayoutGrid, List, ShoppingBag, Wallet, MoreVertical, Pencil, Scissors,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Product, Category, NfceInvoice } from "../../types";
@@ -75,6 +75,8 @@ interface CartItem extends Product {
   variationLabel: string;
   selectedOptions?: Record<string, string>;
   dimensionsLabel?: string;
+  /** Fração da unidade vendida (ex.: 0.5 = meia barra) — `price` já é o preço da porção; vale só para produto com allow_fraction. */
+  fraction?: number;
   /** Medida física baixada do estoque (m ou m²). */
   measuredQuantity?: number;
   // id da HeldSaleItem de origem, quando esta linha veio de uma venda em espera retomada —
@@ -811,6 +813,46 @@ export default function PDV() {
     setMeasureServiceWidth("");
   };
 
+  // ── Fracionar (meia barra etc.) ─────────────────────────────────────────────────
+  const cartQtyByIdRef = useRef<Map<number, number>>(new Map()); // espelho de cartQtyById (que é declarado mais abaixo)
+  const [fractionItem, setFractionItem] = useState<CartItem | null>(null);
+  const [fracParts, setFracParts] = useState(2);   // dividir a unidade em N partes
+  const [fracTake, setFracTake] = useState(1);     // levar K partes
+  const [fracRound, setFracRound] = useState<"down" | "up">("down");
+  const openFraction = (item: CartItem) => { setFractionItem(item); setFracParts(2); setFracTake(1); setFracRound("down"); };
+  const fracExact = fractionItem ? (fractionItem.price * fracTake) / fracParts : 0;
+  const fracDown = Math.floor(fracExact * 100 + 1e-7) / 100;
+  const fracUp = Math.ceil(fracExact * 100 - 1e-7) / 100;
+  const fracIsExact = Math.abs(fracUp - fracDown) < 0.0049; // já cai em centavos exatos
+  const fracPrice = fracIsExact ? fracUp : (fracRound === "down" ? fracDown : fracUp);
+  // quanto este valor foge do proporcional exato (+ acrescenta / − desconta), sobre a porção
+  const fracDiff = Math.round((fracPrice - fracExact) * 10000) / 10000;
+  const fracStockLeft = fractionItem
+    ? Number(fractionItem.stock_quantity ?? 0) + Number(fractionItem.fraction_leftover ?? 0) - (cartQtyByIdRef.current.get(fractionItem.id) ?? 0)
+    : 0;
+  const confirmFraction = () => {
+    if (!fractionItem || fracTake < 1 || fracTake >= fracParts) return;
+    const base = fractionItem;
+    const fraction = Math.round((fracTake / fracParts) * 10000) / 10000;
+    const label = `${fracTake}/${fracParts} da unidade`;
+    setCart((prev) => {
+      const next = prev
+        .map((i) => (i.cartItemId === base.cartItemId ? { ...i, quantity: i.quantity - 1 } : i))
+        .filter((i) => i.quantity > 0);
+      next.push({ ...base, cartItemId: `${base.id}-f${Date.now()}`, price: fracPrice, quantity: 1, fraction, dimensionsLabel: label });
+      return next;
+    });
+    setFractionItem(null);
+  };
+  // volta uma linha fracionada para 1 unidade inteira (preço de tabela)
+  const undoFraction = (item: CartItem) => {
+    // o item do carrinho já carrega o preço da fração em `price` — o preço de tabela vem do cadastro do produto
+    const original = products.find((p) => p.id === item.id);
+    if (!original) { setSaleError("Não foi possível voltar para unidade inteira. Remova o item e adicione de novo."); return; }
+    setCart((prev) => prev.filter((i) => i.cartItemId !== item.cartItemId));
+    addToCartDirect(original);
+  };
+
   const updateQuantity = (cartItemId: string, delta: number) => {
     setCart(cart.map((item) => {
       if (item.cartItemId !== cartItemId) return item;
@@ -1144,6 +1186,7 @@ export default function PDV() {
 
   const holdSale = async () => {
     if (holdingSale || (cart.length === 0 && cartServices.length === 0)) return;
+    if (cart.some((i) => i.fraction)) { setSaleError("Venda com item fracionado (meia barra etc.) não pode ficar em espera. Finalize a venda ou volte o item para unidade inteira."); return; }
     setHoldingSale(true);
     try {
       await createHeldSale(token!, {
@@ -1759,6 +1802,7 @@ export default function PDV() {
             selectedOptions: i.selectedOptions ?? null,
             dimensionsLabel: i.dimensionsLabel ?? null,
             measuredQuantity: i.measuredQuantity ?? null,
+            fraction: i.fraction ?? null,
             heldSaleItemId: i.heldSaleItemId ?? undefined,
             isAvulso: i.isAvulso ?? undefined,
             name: i.isAvulso ? i.name : undefined,
@@ -1966,9 +2010,10 @@ export default function PDV() {
   // Quantidade de cada produto no carrinho, calculada uma vez (antes era um cart.filter por card).
   const cartQtyById = useMemo(() => {
     const m = new Map<number, number>();
-    for (const i of cart) m.set(i.id, (m.get(i.id) ?? 0) + i.quantity);
+    for (const i of cart) m.set(i.id, (m.get(i.id) ?? 0) + i.quantity * (i.fraction ?? 1));
     return m;
   }, [cart]);
+  cartQtyByIdRef.current = cartQtyById;
 
   const pmLabel = (pm: string) => {
     const map: Record<string, string> = { money: "Dinheiro", pix: "PIX", debito: "Débito", credito: "Crédito" };
@@ -2365,7 +2410,7 @@ export default function PDV() {
                     const qtyInCart   = cartQtyById.get(product.id) ?? 0;
                     const isMeasured  = !!product.sale_unit && product.sale_unit !== "unidade";
                     // Produto por medida (m², metro, kg, L) usa o saldo em medida — o estoque por unidade fica 0 e não pode bloquear a venda.
-                    const atLimit     = !sellWithoutStockControl && product.track_stock !== false && (isMeasured ? Number(product.measure_stock_quantity ?? 0) <= 0 : qtyInCart >= product.stock_quantity);
+                    const atLimit     = !sellWithoutStockControl && product.track_stock !== false && (isMeasured ? Number(product.measure_stock_quantity ?? 0) <= 0 : qtyInCart + 0.0001 >= Number(product.stock_quantity) + Number(product.fraction_leftover ?? 0));
                     const stockBadge  = isMeasured ? `${Number(product.measure_stock_quantity ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${measureUnitAbbr(product.measure_unit, product.sale_unit ?? "linear")}` : String(product.stock_quantity);
                     const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0);
@@ -2440,7 +2485,7 @@ export default function PDV() {
                     const qtyInCart   = cartQtyById.get(product.id) ?? 0;
                     const isMeasured  = !!product.sale_unit && product.sale_unit !== "unidade";
                     // Produto por medida (m², metro, kg, L) usa o saldo em medida — o estoque por unidade fica 0 e não pode bloquear a venda.
-                    const atLimit     = !sellWithoutStockControl && product.track_stock !== false && (isMeasured ? Number(product.measure_stock_quantity ?? 0) <= 0 : qtyInCart >= product.stock_quantity);
+                    const atLimit     = !sellWithoutStockControl && product.track_stock !== false && (isMeasured ? Number(product.measure_stock_quantity ?? 0) <= 0 : qtyInCart + 0.0001 >= Number(product.stock_quantity) + Number(product.fraction_leftover ?? 0));
                     const stockBadge  = isMeasured ? `${Number(product.measure_stock_quantity ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${measureUnitAbbr(product.measure_unit, product.sale_unit ?? "linear")}` : String(product.stock_quantity);
                     const hasVariations = (Array.isArray(product.attributes) && product.attributes.length > 0) ||
                       (Array.isArray(product.variations) && product.variations.length > 0);
@@ -2554,8 +2599,9 @@ export default function PDV() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-slate-700 leading-snug line-clamp-2 break-words" title={item.name}>{item.name}</p>
-                        {(item.isAvulso || item.variationLabel) && (
+                        {(item.isAvulso || item.variationLabel || item.fraction) && (
                           <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {item.fraction && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">{item.dimensionsLabel}</span>}
                             {item.isAvulso && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">Avulso</span>}
                             {item.variationLabel && <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600">{item.variationLabel}</span>}
                           </div>
@@ -2566,6 +2612,10 @@ export default function PDV() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-2">
+                      {item.fraction ? (
+                        <button type="button" onClick={() => undoFraction(item)} className="text-[11px] font-semibold text-slate-500 hover:text-blue-600 underline underline-offset-2">Voltar para unidade inteira</button>
+                      ) : (
+                      <div className="flex items-center gap-1.5">
                       <div className="flex items-center bg-slate-50 border border-slate-200 rounded-lg">
                         <IconButton variant="ghost" size="sm" onClick={() => updateQuantity(item.cartItemId, -1)} aria-label="Diminuir quantidade" className="border-transparent"><Minus size={12} /></IconButton>
                         <input
@@ -2581,6 +2631,14 @@ export default function PDV() {
                         />
                         <IconButton variant="ghost" size="sm" onClick={() => updateQuantity(item.cartItemId, 1)} disabled={!sellWithoutStockControl && item.track_stock !== false && !item.isAvulso && item.quantity >= item.stock_quantity} aria-label="Aumentar quantidade" className="border-transparent"><Plus size={12} /></IconButton>
                       </div>
+                      {item.allow_fraction && !item.isAvulso && (
+                        <button type="button" onClick={() => openFraction(item)} title="Vender só uma parte (meia barra etc.)"
+                          className="inline-flex h-8 items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 text-[11px] font-semibold text-amber-700 hover:bg-amber-100">
+                          <Scissors size={12} /> Fracionar
+                        </button>
+                      )}
+                      </div>
+                      )}
                       <div className="flex flex-col items-end leading-tight min-w-0">
                         <span className="text-[10px] font-mono text-slate-400 whitespace-nowrap">R$ {item.price.toFixed(2)} × {item.quantity}</span>
                         <span className="text-sm font-mono font-semibold text-slate-800 whitespace-nowrap">R$ {(item.price * item.quantity).toFixed(2)}</span>
@@ -2897,6 +2955,87 @@ export default function PDV() {
                   })}
                 </div>
               </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── FRAÇÃO (meia barra etc.) MODAL ─────────────────────────────────── */}
+      <Modal
+        open={!!fractionItem}
+        onClose={() => setFractionItem(null)}
+        title={fractionItem?.name}
+        subtitle="Vender só uma parte da unidade"
+        size="sm"
+        footer={fractionItem ? (
+          <ModalFooter>
+            <Button variant="outline" size="lg" onClick={() => setFractionItem(null)}>Cancelar</Button>
+            <Button variant="primary" size="lg" iconLeft={<Scissors size={16} />} onClick={confirmFraction} disabled={fracTake < 1 || fracTake >= fracParts}>
+              Vender {fracTake}/{fracParts} por R$ {fracPrice.toFixed(2).replace(".", ",")}
+            </Button>
+          </ModalFooter>
+        ) : undefined}
+      >
+        {fractionItem && (
+          <div className="space-y-4">
+            <div>
+              <p className="mb-1.5 text-[11px] font-semibold text-slate-500">Dividir a unidade em</p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {[2, 3, 4, 5, 6, 8, 10].map((n) => (
+                  <button key={n} type="button" onClick={() => { setFracParts(n); setFracTake((t) => Math.min(t, n - 1)); }}
+                    className={cn("h-9 min-w-[44px] rounded-lg border px-2 text-sm font-semibold", fracParts === n ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700 hover:border-blue-300")}>
+                    {n === 2 ? "Meia" : n}
+                  </button>
+                ))}
+                <input type="number" min={2} max={100} value={fracParts}
+                  onChange={(e) => { const n = Math.max(2, Math.min(100, parseInt(e.target.value) || 2)); setFracParts(n); setFracTake((t) => Math.min(t, n - 1)); }}
+                  className="h-9 w-16 rounded-lg border border-slate-200 px-2 text-center font-mono text-sm" aria-label="Número de partes" />
+                <span className="text-[11px] text-slate-400">partes</span>
+              </div>
+            </div>
+            <div>
+              <p className="mb-1.5 text-[11px] font-semibold text-slate-500">O cliente leva</p>
+              <div className="flex items-center gap-2">
+                <IconButton variant="outline" size="sm" onClick={() => setFracTake((t) => Math.max(1, t - 1))} aria-label="Menos uma parte"><Minus size={12} /></IconButton>
+                <span className="min-w-[88px] text-center text-sm font-semibold text-slate-800">{fracTake} de {fracParts} {fracTake === 1 ? "parte" : "partes"}</span>
+                <IconButton variant="outline" size="sm" onClick={() => setFracTake((t) => Math.min(fracParts - 1, t + 1))} aria-label="Mais uma parte"><Plus size={12} /></IconButton>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 rounded-lg bg-slate-900 p-4">
+              <div className="flex justify-between text-[11px] font-semibold text-slate-400"><span>Preço da unidade inteira</span><span className="font-mono text-slate-200">R$ {fractionItem.price.toFixed(2).replace(".", ",")}</span></div>
+              <div className="flex justify-between text-[11px] font-semibold text-slate-400"><span>Proporcional ({fracTake}/{fracParts})</span><span className="font-mono text-slate-200">R$ {fracExact.toFixed(4).replace(".", ",")}</span></div>
+              <div className="flex justify-between border-t border-slate-700 pt-1.5 text-[15px] font-semibold text-white"><span>Cobrar</span><span className="font-mono">R$ {fracPrice.toFixed(2).replace(".", ",")}</span></div>
+            </div>
+
+            {fracIsExact ? (
+              <p className="text-[11px] font-medium text-emerald-600">Divisão exata: sem diferença de centavos.</p>
+            ) : (
+              <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-[12px] font-semibold text-amber-800">
+                  Essa divisão não fecha em centavos exatos (R$ {fracExact.toFixed(4).replace(".", ",")}). Como acertar a diferença?
+                </p>
+                <div className="grid gap-2">
+                  <button type="button" onClick={() => setFracRound("down")}
+                    className={cn("rounded-lg border px-3 py-2 text-left text-[12px]", fracRound === "down" ? "border-blue-600 bg-white ring-1 ring-blue-600" : "border-amber-200 bg-white hover:border-blue-300")}>
+                    <b>Descontar a diferença</b> — cobrar R$ {fracDown.toFixed(2).replace(".", ",")}
+                    <span className="block text-[11px] text-slate-500">desconta R$ {(fracExact - fracDown).toFixed(4).replace(".", ",")} do cliente</span>
+                  </button>
+                  <button type="button" onClick={() => setFracRound("up")}
+                    className={cn("rounded-lg border px-3 py-2 text-left text-[12px]", fracRound === "up" ? "border-blue-600 bg-white ring-1 ring-blue-600" : "border-amber-200 bg-white hover:border-blue-300")}>
+                    <b>Colocar a diferença</b> — cobrar R$ {fracUp.toFixed(2).replace(".", ",")}
+                    <span className="block text-[11px] text-slate-500">acrescenta R$ {(fracUp - fracExact).toFixed(4).replace(".", ",")} ao cliente</span>
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">Diferença aplicada nesta venda: {fracDiff >= 0 ? "+" : "−"} R$ {Math.abs(fracDiff).toFixed(4).replace(".", ",")}</p>
+              </div>
+            )}
+
+            {!sellWithoutStockControl && fractionItem.track_stock !== false && (
+              <p className="text-[11px] font-medium text-slate-500">
+                Estoque disponível: <span className="font-mono font-semibold">{(Math.round(Math.max(0, fracStockLeft) * 100) / 100).toString().replace(".", ",")} un.</span>
+                {Number(fractionItem.fraction_leftover ?? 0) > 0 && <> (inclui sobra de {Number(fractionItem.fraction_leftover).toString().replace(".", ",")} de unidade já aberta)</>}
+              </p>
             )}
           </div>
         )}

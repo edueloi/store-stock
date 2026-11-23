@@ -283,6 +283,10 @@ export interface Product {
   sold_count?: number;
   /** false = sob encomenda: vende sem estoque, não baixa saldo e não gera alerta de esgotado. */
   track_stock?: boolean;
+  /** true = permite vender fração da unidade (ex.: meia barra). Estoque em unidades inteiras + sobra de unidades abertas. */
+  allow_fraction?: boolean;
+  /** Sobra (0 a <1) de unidade aberta, resultado de vendas fracionadas. Controlada só pelo estoque. */
+  fraction_leftover?: number | string;
   /** true = preço visível no catálogo/PDV, mas escondido na vitrine (venda por orçamento). */
   hide_price_on_site?: boolean;
   /** Só vem da API pública: o preço deste produto não é divulgado (price = -1). */

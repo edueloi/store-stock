@@ -626,6 +626,13 @@ export default function ProductForm({
                         </p>
                       </div>
                       <div className="space-y-1">
+                        <Switch label="Permite vender fração (ex.: meia barra)" checked={editingProduct?.allow_fraction ?? false}
+                          onChange={v => setEditingProduct(prev => ({ ...prev!, allow_fraction: v }))} accent="blue" />
+                        <p className="text-[11px] leading-snug text-slate-500">
+                          No PDV aparece o botão "Fracionar" nesse produto: o cliente leva 1/2, 1/3, 1/4… e o sistema calcula o preço, avisa a diferença de arredondamento e guarda a sobra no estoque (ex.: "meia barra").
+                        </p>
+                      </div>
+                      <div className="space-y-1">
                         <Switch label="Ocultar preço no site" checked={editingProduct?.hide_price_on_site ?? false}
                           onChange={v => setEditingProduct(prev => ({ ...prev!, hide_price_on_site: v }))} accent="amber" />
                         <p className="text-[11px] leading-snug text-slate-500">

@@ -1,4 +1,5 @@
 import { issuerForNew } from "../utils/issuers";
+import { consumeFractionStock, fractionAvailable, normalizeFraction } from "../utils/fraction-stock";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -38,6 +39,8 @@ interface SaleItemInput {
   // Quantidade física em metros ou m² para item vendido por medida. O campo
   // `quantity` continua inteiro por compatibilidade com OrderItem.
   measuredQuantity?: number | null;
+  // Fração da unidade por porção (ex.: 0.5 = meia barra) — só produto com allow_fraction. `price` já é o preço da porção.
+  fraction?: number | null;
   // id da HeldSaleItem de origem, quando esta linha veio de uma venda em espera
   // retomada — usado para não debitar de novo um estoque já reservado no hold.
   heldSaleItemId?: number | null;
@@ -246,8 +249,31 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
     if (productIds.length > 0) {
       const existingProducts = await prisma.product.findMany({
         where: { id: { in: productIds }, tenant_id: tenantId },
-        select: { id: true, name: true, sale_unit: true, measure_stock_quantity: true },
+        select: { id: true, name: true, sale_unit: true, measure_stock_quantity: true, allow_fraction: true, track_stock: true },
       });
+      // Fração de unidade (meia barra): normaliza e só aceita em produto que permite fracionar.
+      const fractionAllowed = new Map(existingProducts.map((p) => [p.id, p]));
+      for (const item of items) {
+        if (item.isAvulso) { item.fraction = null; continue; }
+        item.fraction = normalizeFraction(item.fraction);
+        if (item.fraction === null) continue;
+        const prod = fractionAllowed.get(item.id as number);
+        if (!prod?.allow_fraction) throw new SaleError(422, `"${prod?.name ?? "Produto"}" não permite venda fracionada. Ative em Catálogo → produto → "Permite vender fração".`);
+        if (!Number.isInteger(item.quantity) || item.quantity < 1) throw new SaleError(422, `Quantidade inválida para "${prod.name}".`);
+      }
+      // Saldo para as frações (inteiras + sobra), somando as linhas do mesmo produto — antes de criar o pedido.
+      if (decrementStock && !tenantData?.sell_without_stock_control) {
+        const need = new Map<number, number>();
+        for (const item of items) if (item.fraction) need.set(item.id as number, (need.get(item.id as number) ?? 0) + item.fraction * item.quantity);
+        for (const [pid, units] of need) {
+          const prod = fractionAllowed.get(pid);
+          if (!prod || prod.track_stock === false) continue;
+          const available = await fractionAvailable(pid, tenantId);
+          if (units > available + 0.0005) {
+            throw new SaleError(409, `Estoque insuficiente para "${prod.name}". Disponível: ${(Math.round(available * 100) / 100).toString().replace(".", ",")} un.`);
+          }
+        }
+      }
       const foundIds = existingProducts.map(p => p.id);
       const missingIds = productIds.filter(id => !foundIds.includes(id));
       if (missingIds.length > 0) {
@@ -357,6 +383,7 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
               unit_price: item.price,
               dimensions_label: item.dimensionsLabel ?? null,
               measured_quantity: item.measuredQuantity ?? null,
+              fraction: item.fraction ?? null,
             }),
         },
         ...(services && services.length > 0 ? {
@@ -392,6 +419,23 @@ export async function finalizeSaleOrder(params: FinalizeSaleParams): Promise<{ o
         });
         // produto sob encomenda: a venda é registrada, mas nunca baixa saldo
         if (productForStock?.track_stock === false) continue;
+        // Fração de unidade (meia barra): consome primeiro a sobra de unidades abertas, depois abre uma nova.
+        if (item.fraction) {
+          const units = item.fraction * item.quantity;
+          const ok = await consumeFractionStock(item.id as number, tenantId, units);
+          if (!ok) throw new SaleError(409, `Estoque insuficiente para "${productForStock?.name ?? "produto"}".`);
+          await prisma.stockMovement.create({
+            data: {
+              tenant_id: tenantId,
+              product_id: item.id as number,
+              quantity: 0,
+              measured_quantity: -Math.round(units * 1000) / 1000,
+              type: "sale",
+              reason: `Venda #${order.id} (fração ${item.fraction})`,
+            },
+          });
+          continue;
+        }
         if (productForStock?.sale_unit && productForStock.sale_unit !== "unidade") {
           const consumed = Math.round(Number(item.measuredQuantity) * 1000) / 1000;
           const updated = await prisma.product.updateMany({

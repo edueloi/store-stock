@@ -8,6 +8,7 @@ import { emitToTenant } from "../services/realtime.service";
 import { recalculateCashSessionSummary } from "./cash-sessions.controller";
 import { adjustStoreCheckoutStock } from "../services/store-checkout-stock";
 import { finalizeSaleOrder, SaleError } from "./sales.controller";
+import { restoreFractionStock } from "../utils/fraction-stock";
 
 function getTenantId(req: Request) {
   return (req as AuthenticatedRequest).user.tenantId;
@@ -47,11 +48,18 @@ async function revertStock(
     product_id: number | null;
     quantity: number;
     selected_options?: any;
+    fraction?: any;
   }[],
+  tenantId?: number,
 ) {
   for (const item of items) {
     // Item avulso (sem produto no catálogo) nunca debitou estoque — nada a reverter.
     if (!item.product_id) continue;
+    // Venda de fração (meia barra): devolve a fração à sobra / ao estoque inteiro.
+    if (item.fraction && Number(item.fraction) > 0 && tenantId) {
+      await restoreFractionStock(item.product_id, tenantId, Number(item.fraction) * item.quantity);
+      continue;
+    }
     await prisma.product.update({
       where: { id: item.product_id },
       data: { stock_quantity: { increment: item.quantity } },
@@ -619,8 +627,9 @@ export async function cancelOrder(req: Request, res: Response) {
       product_id: item.product_id,
       quantity: item.quantity,
       selected_options: (item as any).selected_options ?? null,
+      fraction: (item as any).fraction ?? null,
     }));
-    if ((order.storefront_details as any)?.stock_tracked !== false) await revertStock(itemsWithOptions);
+    if ((order.storefront_details as any)?.stock_tracked !== false) await revertStock(itemsWithOptions, tenantId);
 
     // Build stock revert summary for the log
     const stockNote = order.items
@@ -893,7 +902,19 @@ export async function createOrderReturn(req: Request, res: Response) {
         // Item avulso (product_id null) nunca debitou estoque — nunca reverte,
         // mesma regra de revertStock (linha 38). Descarte (restock false) também
         // não reverte: produto com defeito não deve voltar a ser vendável.
-        if (line.restock && oi.product_id) {
+        if (line.restock && oi.product_id && oi.fraction && Number(oi.fraction) > 0) {
+          await restoreFractionStock(oi.product_id, tenantId, Number(oi.fraction) * line.quantity, tx);
+          await tx.stockMovement.create({
+            data: {
+              tenant_id: tenantId,
+              product_id: oi.product_id,
+              quantity: 0,
+              measured_quantity: Number(oi.fraction) * line.quantity,
+              type: "order_return",
+              reason: `Devolução do pedido #${orderId} (fração)`,
+            },
+          });
+        } else if (line.restock && oi.product_id) {
           await tx.product.update({
             where: { id: oi.product_id },
             data:
@@ -1107,8 +1128,9 @@ export async function deleteOrder(req: Request, res: Response) {
           product_id: item.product_id,
           quantity: item.quantity,
           selected_options: (item as any).selected_options ?? null,
+      fraction: (item as any).fraction ?? null,
         }));
-        await revertStock(itemsWithOptions);
+        await revertStock(itemsWithOptions, tenantId);
       }
 
       if (shouldRevertFinance) {
@@ -1193,8 +1215,9 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
             product_id: item.product_id,
             quantity: item.quantity,
             selected_options: (item as any).selected_options ?? null,
+      fraction: (item as any).fraction ?? null,
           }));
-          await revertStock(itemsWithOptions);
+          await revertStock(itemsWithOptions, tenantId);
         }
 
         if (shouldRevertFinance) {
