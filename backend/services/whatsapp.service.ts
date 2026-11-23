@@ -1063,7 +1063,8 @@ function baileysHeaders() {
 async function sendBaileysRequest(tenantId: number, endpoint: string, body: Record<string, unknown>) {
   const response = await axios.post(`${env.baileysServiceUrl}${endpoint}`, body, {
     headers: baileysHeaders(),
-    timeout: 15_000,
+    // o serviço espera até ~12 s pela reconexão (e mais 12 s numa segunda tentativa) antes de responder
+    timeout: endpoint.endsWith("/send") ? 40_000 : 15_000,
   });
 
   return response.data as Record<string, unknown>;

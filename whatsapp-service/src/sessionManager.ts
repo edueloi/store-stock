@@ -261,7 +261,19 @@ export async function sendMessage(
   messageType: "text" | "buttons" | "list" | "document",
   payload: Record<string, unknown>,
 ) {
-  const entry = sessions.get(tenantId);
+  // A conexão cai e volta em ~2 s de tempos em tempos (código 428/503): em vez de falhar na hora,
+  // espera até 12 s pela reconexão automática antes de desistir.
+  const waitConnected = async (maxMs: number) => {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      const e = sessions.get(tenantId);
+      if (e && e.connected) return e;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    return sessions.get(tenantId);
+  };
+  let entry = sessions.get(tenantId);
+  if (!entry || !entry.connected) entry = await waitConnected(12_000);
   if (!entry || !entry.connected) {
     throw new Error("WhatsApp não está conectado para este tenant.");
   }
@@ -311,7 +323,17 @@ export async function sendMessage(
     content = { text: `${payload.title ?? ""}\n${payload.description ?? ""}\n\n${lines}`.trim() };
   }
 
-  const result = await sendWithTyping(entry.sock, jid, payload.delay, () => entry.sock.sendMessage(jid, content as never));
+  const attemptSend = (e: NonNullable<typeof entry>) => sendWithTyping(e.sock, jid, payload.delay, () => e.sock.sendMessage(jid, content as never));
+  let result: Awaited<ReturnType<typeof attemptSend>>;
+  try {
+    result = await attemptSend(entry);
+  } catch (err) {
+    // queda no meio do envio: espera reconectar e tenta mais uma vez com a conexão nova
+    logger.warn({ tenantId, err }, "send failed, waiting for reconnection to retry once");
+    const again = await waitConnected(12_000);
+    if (!again || !again.connected) throw err;
+    result = await attemptSend(again);
+  }
   return { key: result?.key ?? {} };
 }
 
