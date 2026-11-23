@@ -1,4 +1,5 @@
 import fs from "fs";
+import { emitToTenant } from "../realtime.service";
 import { withIssuerAddress, fiscalTenant, bumpNextNumber } from "../../utils/issuers";
 import path from "path";
 
@@ -72,7 +73,22 @@ function isDestinatarioRejection(xMotivo: string | null | undefined): boolean {
   return !!xMotivo && /destinat[aá]rio/i.test(xMotivo);
 }
 
+/**
+ * Emite a NFC-e do pedido e, ao TERMINAR (autorizada, rejeitada ou com erro), avisa as telas abertas (evento "nfce:changed").
+ * Antes o servidor só avisava quando a emissão COMEÇAVA: a tela ficava em "Processando" até recarregar a página.
+ */
 export async function emitirNfce(orderId: number): Promise<void> {
+  try {
+    await emitirNfceCore(orderId);
+  } finally {
+    try {
+      const o = await prisma.order.findUnique({ where: { id: orderId }, select: { tenant_id: true } });
+      if (o) emitToTenant(o.tenant_id, "nfce:changed", { orderId });
+    } catch { /* aviso é opcional: nunca derruba a emissão */ }
+  }
+}
+
+async function emitirNfceCore(orderId: number): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: { include: { product: true } } },
