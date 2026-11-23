@@ -49,6 +49,7 @@ import { Printer } from "lucide-react";
 import OrderReturnModal, { type OrderReturnResult } from "./OrderReturnModal";
 import OrderShippingLabel from "../../components/orders/OrderShippingLabel";
 import OrdersPageTour, { type OrdersPageTourHandle } from "../../components/onboarding/OrdersPageTour";
+import NfeEmitModal from "../../components/fiscal/NfeEmitModal";
 import {
   Button, IconButton, Input, Textarea, Select, Modal, ModalFooter, Alert, Badge, Tabs,
   SectionTitle, StatGrid, StatCard, ContentCard, PanelCard,
@@ -511,6 +512,7 @@ export default function Orders() {
 
   // ── NFC-e por pedido ─────────────────────────────────────────────────────
   const [emittingNfceId, setEmittingNfceId] = useState<number | null>(null);
+  const [nfeOrderId, setNfeOrderId] = useState<number | null>(null); // pedido aberto no modal "Emitir NF-e"
   // Informar CPF/CNPJ depois da venda — necessário pra habilitar "Gerar NF" em
   // pedidos de balcão feitos sem documento, sem precisar refazer a venda.
   const [documentTarget, setDocumentTarget] = useState<Order | OrderDetail | null>(null);
@@ -610,7 +612,7 @@ export default function Orders() {
 
   // Reflete na hora pedidos criados/cancelados/excluídos em outro terminal/tela.
   useEffect(() => onRealtimeAny(
-    ["order:created", "order:updated", "order:cancelled", "order:deleted", "order:returned", "nfce:changed"],
+    ["order:created", "order:updated", "order:cancelled", "order:deleted", "order:returned", "nfce:changed", "nfe:changed"],
     (payload) => {
       fetchOrders();
       // A emissão de NFC-e roda em background (autorização/rejeição chega depois via
@@ -1381,6 +1383,7 @@ ${
       />
 
       <OrdersPageTour ref={ordersPageTourRef} />
+      <NfeEmitModal orderId={nfeOrderId} onClose={() => setNfeOrderId(null)} onDone={() => fetchOrders()} />
 
       <StatGrid cols={4}>
         <StatCard title="Total" value={filteredOrders.length} icon={Receipt} color="info" />
@@ -1666,6 +1669,33 @@ ${
                           <Plus size={10} /> CPF/CNPJ
                         </button>}
 </div>
+                      )}
+                      {order.status !== "cancelled" && (
+                        <div className="mt-1 flex justify-center">
+                          {order.nfe_invoice?.status === "authorized" ? (
+                            <button onClick={() => downloadAuthenticated(`/api/nfe/${order.id}/danfe`, token(), `danfe-nfe-${order.nfe_invoice?.access_key ?? order.id}.pdf`).catch((e) => notify.error(e instanceof Error ? e.message : "Não foi possível baixar o DANFE da NF-e."))}
+                              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-emerald-100 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 hover:bg-emerald-100"
+                              title="Baixar o DANFE da NF-e">
+                              <FileText size={10} /> NF-e emitida
+                            </button>
+                          ) : order.nfe_invoice?.status === "processing" || order.nfe_invoice?.status === "pending" ? (
+                            <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+                              <Loader2 size={10} className="animate-spin" /> NF-e…
+                            </span>
+                          ) : order.nfe_invoice?.status === "rejected" || order.nfe_invoice?.status === "error" ? (
+                            <button onClick={() => setNfeOrderId(order.id)}
+                              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-red-100 bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-500 hover:bg-red-100"
+                              title="A NF-e foi recusada. Corrija e reemita.">
+                              <AlertTriangle size={10} /> NF-e: reemitir
+                            </button>
+                          ) : (
+                            <button onClick={() => setNfeOrderId(order.id)}
+                              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                              title="Emitir NF-e (nota de mercadoria com destinatário identificado)">
+                              <FileText size={10} /> NF-e
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
                     {/* ações — sempre visíveis */}

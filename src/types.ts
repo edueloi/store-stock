@@ -382,6 +382,7 @@ export interface Order {
   cancelled_at?: string | null;
   created_at: string;
   nfce_invoice?: { status: string; access_key?: string | null } | null;
+  nfe_invoice?: { status: string; access_key?: string | null } | null;
 }
 
 export interface FinanceEntry {

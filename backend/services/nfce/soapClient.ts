@@ -25,6 +25,24 @@ const URLS = {
   },
 } as const;
 
+// NF-e (modelo 55) usa hosts próprios da SEFAZ-SP (nfe.fazenda.sp.gov.br), com as mesmas operações da NFC-e.
+const URLS_NFE = {
+  homologacao: {
+    autorizacao: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx",
+    retAutorizacao: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nferetautorizacao4.asmx",
+    consultaProtocolo: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx",
+    statusServico: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nfestatusservico4.asmx",
+    recepcaoEvento: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nferecepcaoevento4.asmx",
+  },
+  producao: {
+    autorizacao: "https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx",
+    retAutorizacao: "https://nfe.fazenda.sp.gov.br/ws/nferetautorizacao4.asmx",
+    consultaProtocolo: "https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx",
+    statusServico: "https://nfe.fazenda.sp.gov.br/ws/nfestatusservico4.asmx",
+    recepcaoEvento: "https://nfe.fazenda.sp.gov.br/ws/nferecepcaoevento4.asmx",
+  },
+} as const;
+
 export type NfceEnvironment = "homologacao" | "producao";
 export type NfceService = keyof (typeof URLS)["homologacao"];
 
@@ -37,6 +55,8 @@ const SOAP_ACTIONS: Record<NfceService, string> = {
 };
 
 export interface SoapCallInput {
+  /** "nfce" (padrão) ou "nfe" — escolhe o conjunto de endereços da SEFAZ-SP */
+  model?: "nfce" | "nfe";
   environment: NfceEnvironment;
   service: NfceService;
   soapBody: string; // conteúdo interno já pronto (ex: <nfeDadosMsg>...</nfeDadosMsg>)
@@ -63,7 +83,7 @@ function buildEnvelope(soapBody: string): string {
 
 export async function callSefazSoap(input: SoapCallInput): Promise<SoapCallResult> {
   const { environment, service, soapBody, pfxPath, pfxPassword, timeoutMs } = input;
-  const url = URLS[environment][service];
+  const url = (input.model === "nfe" ? URLS_NFE : URLS)[environment][service];
   const envelope = buildEnvelope(soapBody);
 
   // Certificado A3: a conexão com a SEFAZ sai do computador do token (a chave não existe no servidor)

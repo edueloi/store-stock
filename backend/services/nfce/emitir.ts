@@ -29,7 +29,7 @@ export function paymentsFromOrder(paymentMethod: string | null, totalAmount?: nu
   });
 }
 
-function ensureDir(dir: string) {
+export function ensureDir(dir: string) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
@@ -43,7 +43,7 @@ function isGtinPrefixRejection(xMotivo: string | null): boolean {
 }
 
 // CPF/CNPJ com dígitos verificadores corretos? Documento inválido nem deve ir para a SEFAZ.
-function isValidCpfCnpj(raw: string | undefined | null): boolean {
+export function isValidCpfCnpj(raw: string | undefined | null): boolean {
   const d = (raw ?? "").replace(/\D/g, "");
   if (!/^\d+$/.test(d) || /^(\d)+$/.test(d)) return false;
   const check = (digits: number[], weights: number[]) => {

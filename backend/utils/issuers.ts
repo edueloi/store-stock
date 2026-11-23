@@ -6,7 +6,7 @@ import { prisma } from "../config/prisma";
 // Trocar o ativo troca SÓ o conjunto fiscal abaixo (nada de clientes, produtos, orçamentos ou vendas).
 export const FISCAL_KEYS = [
   "document", "razao_social", "inscricao_estadual", "inscricao_municipal", "cnae_fiscal", "tax_regime", "crt",
-  "nfce_environment", "nfce_series", "nfce_next_number", "nfce_csc_id", "nfce_csc_token", "nfce_csc_id_homologacao", "nfce_csc_token_homologacao",
+  "nfce_environment", "nfce_series", "nfce_next_number", "nfe_series", "nfe_next_number", "nfce_csc_id", "nfce_csc_token", "nfce_csc_id_homologacao", "nfce_csc_token_homologacao",
   "nfce_csc_id_producao", "nfce_csc_token_producao", "nfce_cert_path", "nfce_cert_password",
   "nfse_environment", "nfse_codigo_municipio", "nfse_inscricao_municipal", "nfse_serie", "nfse_next_number",
 ] as const;
@@ -14,7 +14,7 @@ export const FISCAL_KEYS = [
 /** Conjunto fiscal de um CNPJ recém-cadastrado (ambiente de teste, séries e numeração do zero). */
 export const BLANK_FISCAL: Record<(typeof FISCAL_KEYS)[number], unknown> = {
   document: null, razao_social: null, inscricao_estadual: null, inscricao_municipal: null, cnae_fiscal: null, tax_regime: "simples_nacional", crt: 1,
-  nfce_environment: "homologacao", nfce_series: 1, nfce_next_number: 1, nfce_csc_id: null, nfce_csc_token: null, nfce_csc_id_homologacao: null, nfce_csc_token_homologacao: null,
+  nfce_environment: "homologacao", nfce_series: 1, nfce_next_number: 1, nfe_series: 1, nfe_next_number: 1, nfce_csc_id: null, nfce_csc_token: null, nfce_csc_id_homologacao: null, nfce_csc_token_homologacao: null,
   nfce_csc_id_producao: null, nfce_csc_token_producao: null, nfce_cert_path: null, nfce_cert_password: null,
   nfse_environment: "homologacao", nfse_codigo_municipio: null, nfse_inscricao_municipal: null, nfse_serie: 1, nfse_next_number: 1,
 };
@@ -48,7 +48,7 @@ export async function fiscalTenant(tenantId: number, issuerId?: number | null) {
 
 type Db = Pick<typeof prisma, "tenant" | "tenantIssuer">;
 /** Soma 1 na numeração da NFC-e/NFS-e do CNPJ certo (a coluna da loja, se for o ativo; senão o conjunto guardado do CNPJ). */
-export async function bumpNextNumber(db: Db, tenantId: number, issuerId: number | null | undefined, field: "nfce_next_number" | "nfse_next_number") {
+export async function bumpNextNumber(db: Db, tenantId: number, issuerId: number | null | undefined, field: "nfce_next_number" | "nfse_next_number" | "nfe_next_number") {
   const issuer = issuerId ? await db.tenantIssuer.findFirst({ where: { id: issuerId, tenant_id: tenantId } }) : null;
   if (!issuer || issuer.is_active) { await db.tenant.update({ where: { id: tenantId }, data: { [field]: { increment: 1 } } }); return; }
   const snap = { ...BLANK_FISCAL, ...((issuer.snapshot as Record<string, unknown>) ?? {}) } as Record<string, unknown>;

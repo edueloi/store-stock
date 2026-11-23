@@ -24,7 +24,7 @@ export interface BuildNfceResult {
   xml: string; // XML não assinado, pronto para assinatura
 }
 
-function onlyDigits(v: string | null | undefined): string {
+export function onlyDigits(v: string | null | undefined): string {
   return (v ?? "").replace(/\D/g, "");
 }
 
@@ -35,7 +35,7 @@ function onlyDigits(v: string | null | undefined): string {
 // quebra esse padrão e a SEFAZ rejeita com "Falha no Schema XML do lote de NFe" (cStat
 // 225) — um erro genérico que não aponta o campo culpado, difícil de diagnosticar sem
 // validar contra o XSD real.
-function trimText(v: string | null | undefined): string {
+export function trimText(v: string | null | undefined): string {
   return (v ?? "").trim();
 }
 
@@ -48,7 +48,7 @@ function trimText(v: string | null | undefined): string {
 // aquele produto, a rejeição seguinte (se houver) vem como erro de NEGÓCIO
 // (NCM inexistente/incompatível), bem mais fácil de diagnosticar do que esse
 // erro de schema genérico.
-function normalizeNcm(v: string | null | undefined): string {
+export function normalizeNcm(v: string | null | undefined): string {
   const digits = onlyDigits(v);
   if (!digits) return "00000000";
   return digits.length >= 8 ? digits.slice(0, 8) : digits.padEnd(8, "0");
@@ -59,7 +59,7 @@ function normalizeNcm(v: string | null | undefined): string {
 // um código interno/errado cadastrado no produto (ex: menos dígitos, prefixo fora da
 // faixa GS1) é rejeitado com "GTIN (cEAN) com prefixo inválido". Mandar "SEM GTIN"
 // nesses casos é o valor aceito pela SEFAZ para "produto sem código de barras".
-function validGtinOrFallback(v: string | null | undefined): string {
+export function validGtinOrFallback(v: string | null | undefined): string {
   const digits = onlyDigits(v);
   if (![8, 12, 13, 14].includes(digits.length)) return "SEM GTIN";
   const nums = digits.split("").map(Number);
@@ -72,7 +72,7 @@ function validGtinOrFallback(v: string | null | undefined): string {
 
 // Mapeia o token interno de forma de pagamento (usado em sales.controller.ts)
 // para o código tPag exigido pelo layout da NFC-e.
-const TPAG_MAP: Record<string, string> = {
+export const TPAG_MAP: Record<string, string> = {
   money: "01",
   pix: "17",
   debit: "04",
@@ -81,7 +81,7 @@ const TPAG_MAP: Record<string, string> = {
   boleto: "15", // Boleto Bancário
 };
 
-const TPAG_LABEL: Record<string, string> = {
+export const TPAG_LABEL: Record<string, string> = {
   crediario: "Crediário",
 };
 

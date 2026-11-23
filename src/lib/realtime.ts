@@ -20,6 +20,7 @@ export type RealtimeEvent =
   | "service-category:changed"
   | "consignment:changed"
   | "nfce:changed"
+  | "nfe:changed"
   | "nfse:changed"
   | "print:requested";
 

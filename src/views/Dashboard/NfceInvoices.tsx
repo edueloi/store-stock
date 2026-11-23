@@ -18,6 +18,7 @@ import { onRealtime } from "../../lib/realtime";
 import { fetchRemotePrintTerminals, requestRemotePrint, type RemotePrintTerminal } from "../../lib/remotePrint";
 import { fetchNfceCupomText, printThermalText } from "../../lib/thermalReceipt";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
+import NfeInvoicesTab from "../../components/fiscal/NfeInvoicesTab";
 
 const PRAZO_CANCELAMENTO_MINUTOS = 30;
 
@@ -1855,14 +1856,15 @@ function NfseTabContent() {
 
 const NOTA_TABS = [
   { id: "nfce", label: "NFC-e (Produtos)", icon: FileText },
+  { id: "nfe", label: "NF-e (Mercadorias)", icon: FileText },
   { id: "nfse", label: "NFS-e (Serviços)", icon: FileCheck },
 ] as const;
 
 export default function NfceInvoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const tab: "nfce" | "nfse" = tabParam === "nfse" ? "nfse" : "nfce";
-  const setTab = (next: "nfce" | "nfse") => {
+  const tab: "nfce" | "nfse" | "nfe" = tabParam === "nfse" ? "nfse" : tabParam === "nfe" ? "nfe" : "nfce";
+  const setTab = (next: "nfce" | "nfse" | "nfe") => {
     setSearchParams(next === "nfce" ? {} : { tab: next }, { replace: true });
   };
 
@@ -1871,11 +1873,11 @@ export default function NfceInvoices() {
       <PageHeader
         title="Notas Fiscais"
         className="[&>div>h2]:text-lg [&>div>h2]:tracking-normal sm:[&>div>h2]:text-xl [&>div>p]:"
-        subtitle="NFC-e e NFS-e emitidas junto à SEFAZ/prefeitura · exporte o relatório para o contador"
+        subtitle="NFC-e, NF-e e NFS-e emitidas junto à SEFAZ/prefeitura · exporte o relatório para o contador"
       />
 
-      <Tabs<"nfce" | "nfse"> items={NOTA_TABS} value={tab} onChange={setTab} label="Tipo de nota fiscal">
-        {tab === "nfce" ? <NfceTabContent /> : <NfseTabContent />}
+      <Tabs<"nfce" | "nfse" | "nfe"> items={NOTA_TABS} value={tab} onChange={setTab} label="Tipo de nota fiscal">
+        {tab === "nfce" ? <NfceTabContent /> : tab === "nfe" ? <NfeInvoicesTab /> : <NfseTabContent />}
       </Tabs>
     </div>
   );

@@ -4,6 +4,7 @@ import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
 import { localDateString } from "../utils/date";
 import { cancelarNfce } from "../services/nfce/cancelar";
+import { cancelarNfe } from "../services/nfe/emitir";
 import { emitToTenant } from "../services/realtime.service";
 import { recalculateCashSessionSummary } from "./cash-sessions.controller";
 import { adjustStoreCheckoutStock } from "../services/store-checkout-stock";
@@ -124,6 +125,7 @@ export async function listOrders(req: Request, res: Response) {
         },
         services: true,
         nfce_invoice: { select: { status: true, access_key: true } },
+        nfe_invoice: { select: { status: true, access_key: true } },
       },
     });
 
@@ -690,11 +692,22 @@ export async function cancelOrder(req: Request, res: Response) {
       emitToTenant(tenantId, "nfce:changed", { orderId });
     }
 
+    // NF-e autorizada do pedido: tenta cancelar o evento fiscal (mesma regra da NFC-e; o prazo da NF-e é de 24 h).
+    let nfeCancel: { attempted: boolean; success?: boolean; error?: string } = { attempted: false };
+    const nfeInvoice = await prisma.nfeInvoice.findUnique({ where: { order_id: orderId } });
+    if (nfeInvoice && nfeInvoice.status === "authorized") {
+      nfeCancel.attempted = true;
+      const r = await cancelarNfe(orderId, cancel_reason || "Cancelamento do pedido pelo operador");
+      nfeCancel.success = r.success;
+      if (!r.success) nfeCancel.error = r.error;
+      emitToTenant(tenantId, "nfe:changed", { orderId });
+    }
+
     emitToTenant(tenantId, "order:cancelled", { orderId });
     emitToTenant(tenantId, "stock:changed", { orderId });
     emitToTenant(tenantId, "finance:changed", { orderId });
 
-    res.json({ success: true, nfce: nfceCancel });
+    res.json({ success: true, nfce: nfceCancel, nfe: nfeCancel });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Falha ao cancelar pedido" });
@@ -1100,7 +1113,7 @@ export async function deleteOrder(req: Request, res: Response) {
 
     const order = await prisma.order.findFirst({
       where: { id: orderId, tenant_id: tenantId },
-      include: { items: true, nfce_invoice: true },
+      include: { items: true, nfce_invoice: true, nfe_invoice: true },
     });
 
     if (!order) {
@@ -1111,6 +1124,10 @@ export async function deleteOrder(req: Request, res: Response) {
     // Uma NFC-e autorizada é um documento fiscal válido perante a SEFAZ — não dá
     // pra simplesmente apagar o pedido por baixo dela. É preciso cancelar a nota
     // primeiro (via "Cancelar pedido", que já faz esse evento fiscal).
+    if (order.nfe_invoice && order.nfe_invoice.status === "authorized") {
+      res.status(409).json({ error: "Este pedido tem uma NF-e autorizada. Cancele o pedido (o que também cancela a NF-e) antes de excluí-lo." });
+      return;
+    }
     if (order.nfce_invoice && order.nfce_invoice.status === "authorized") {
       res.status(409).json({
         error:
@@ -1154,6 +1171,9 @@ export async function deleteOrder(req: Request, res: Response) {
     if (order.nfce_invoice) {
       await prisma.nfceInvoice.delete({ where: { id: order.nfce_invoice.id } });
     }
+    if (order.nfe_invoice) {
+      await prisma.nfeInvoice.delete({ where: { id: order.nfe_invoice.id } });
+    }
 
     await prisma.orderItem.deleteMany({ where: { order_id: orderId } });
     await prisma.orderService.deleteMany({ where: { order_id: orderId } });
@@ -1192,7 +1212,7 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
 
     const orders = await prisma.order.findMany({
       where: { id: { in: ids }, tenant_id: tenantId },
-      include: { items: true, nfce_invoice: true },
+      include: { items: true, nfce_invoice: true, nfe_invoice: true },
     });
 
     if (orders.length === 0) {
@@ -1203,7 +1223,7 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
     // Pedidos com NFC-e autorizada são documentos fiscais válidos — não entram no
     // hard-delete. Precisam ser cancelados primeiro (o que cancela a nota também).
     const blocked = orders.filter(
-      (o) => o.nfce_invoice && o.nfce_invoice.status === "authorized",
+      (o) => (o.nfce_invoice && o.nfce_invoice.status === "authorized") || (o.nfe_invoice && o.nfe_invoice.status === "authorized"),
     );
     const deletable = orders.filter((o) => !blocked.includes(o));
     const validIds = deletable.map((o) => o.id);
@@ -1242,6 +1262,9 @@ export async function bulkDeleteOrders(req: Request, res: Response) {
         await prisma.nfceInvoice.delete({
           where: { id: order.nfce_invoice.id },
         });
+      }
+      if (order.nfe_invoice) {
+        await prisma.nfeInvoice.delete({ where: { id: order.nfe_invoice.id } });
       }
     }
 

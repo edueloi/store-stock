@@ -33,6 +33,7 @@ export interface ChaveAcessoInput {
   numero: number;
   tpEmis?: number; // 1 = normal, 9 = contingência offline
   cNF?: number; // código numérico aleatório 0-99999999 (usado se não informado)
+  mod?: "55" | "65"; // 55 = NF-e, 65 = NFC-e (padrão)
 }
 
 export function gerarChaveAcesso(input: ChaveAcessoInput): string {
@@ -41,7 +42,7 @@ export function gerarChaveAcesso(input: ChaveAcessoInput): string {
 
   const aamm = `${String(input.emissaoAno).slice(-2)}${String(input.emissaoMes).padStart(2, "0")}`;
   const cnpj = onlyDigits(input.cnpj).padStart(14, "0");
-  const mod = "65"; // modelo NFC-e
+  const mod = input.mod ?? "65"; // modelo: NFC-e (65) por padrão
   const serie = String(input.serie).padStart(3, "0");
   const nNF = String(input.numero).padStart(9, "0");
   const tpEmis = String(input.tpEmis ?? 1);
