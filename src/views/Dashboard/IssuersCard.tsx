@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Building2, CheckCircle2, Loader2, Plus, Trash2, MapPin, ShieldCheck, ArrowRightLeft } from "lucide-react";
 import { Alert, Badge, Button } from "../../components/ui";
+import { useCnpjLookup } from "../../lib/cnpjLookup";
+import CnpjStatusNotice from "../../components/CnpjStatusNotice";
 
 interface Issuer {
   id: number;
@@ -36,6 +38,10 @@ export default function IssuersCard() {
   const [form, setForm] = useState({ label: "", document: "", copy: false });
   const [editAddr, setEditAddr] = useState<number | null>(null);
   const [addr, setAddr] = useState({ street: "", number: "", complement: "", district: "", city: "", state: "", zip: "" });
+  // Ao digitar um CNPJ novo, consulta a Receita: sugere o nome (se vazio) e mostra a situação cadastral. Inativo só avisa.
+  const cnpjLookup = useCnpjLookup((d) => {
+    setForm((prev) => ({ ...prev, label: prev.label.trim() ? prev.label : (d.trade_name || d.legal_name) }));
+  });
 
   const load = useCallback(async () => {
     try {
@@ -89,11 +95,12 @@ export default function IssuersCard() {
       {adding && (
         <div className="grid gap-2 rounded-lg border border-blue-100 bg-blue-50/50 p-3 sm:grid-cols-[1fr_1fr_auto]">
           <input className={inputCls} placeholder="Nome (ex.: Filial Tatuí)" value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} aria-label="Nome do CNPJ" />
-          <input className={inputCls} placeholder="CNPJ ou CPF" value={form.document} onChange={(e) => setForm({ ...form, document: maskDoc(e.target.value) })} aria-label="CNPJ" inputMode="numeric" />
+          <input className={inputCls} placeholder="CNPJ ou CPF" value={form.document} onChange={(e) => { const v = maskDoc(e.target.value); setForm({ ...form, document: v }); void cnpjLookup.run(v); }} aria-label="CNPJ" inputMode="numeric" />
           <div className="flex gap-2">
             <Button size="sm" loading={busy === "new"} onClick={add}>Salvar</Button>
             <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setError(""); }}>Cancelar</Button>
           </div>
+          <div className="sm:col-span-3 empty:hidden"><CnpjStatusNotice loading={cnpjLookup.loading} info={cnpjLookup.info} error={cnpjLookup.error} /></div>
           <label className="flex items-start gap-2 text-[11px] text-slate-600 sm:col-span-3"><input type="checkbox" className="mt-0.5" checked={form.copy} onChange={(e) => setForm({ ...form, copy: e.target.checked })} /><span>Começar com os dados fiscais do CNPJ ativo (certificado, CSC, inscrições e regime). Marque só se a empresa for a mesma; se for outra empresa, deixe desmarcado e preencha tudo do zero.</span></label>
           <p className="text-[11px] text-slate-500 sm:col-span-3">Outro CNPJ é outra empresa: certificado, CSC, inscrições, série e numeração são só dele. Ao salvar, você já pode torná-lo ativo e preencher os dados fiscais logo abaixo.</p>
         </div>

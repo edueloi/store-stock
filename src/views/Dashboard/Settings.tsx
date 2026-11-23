@@ -1,4 +1,6 @@
 import { PDV_METHODS, setPdvDisabled } from "../../lib/pdvPayments";
+import { useCnpjLookup } from "../../lib/cnpjLookup";
+import CnpjStatusNotice from "../../components/CnpjStatusNotice";
 import GlassDefaultsSettings from "../../components/GlassDefaultsSettings";
 import IssuersCard from "./IssuersCard";
 import GlassOptionsSettings from "../../components/GlassOptionsSettings";
@@ -1592,6 +1594,17 @@ export default function Settings({
     [],
   );
 
+  // Ao digitar um CNPJ (14 dígitos) consulta a Receita: traz razão social, CNAE e regime (Simples/MEI) e mostra a
+  // situação cadastral. Empresa inativa só avisa — nada é bloqueado. A inscrição estadual não vem da Receita.
+  const tenantCnpj = useCnpjLookup((d) => {
+    const c = d.cnae_code.replace(/\D/g, "");
+    setT({
+      ...(d.legal_name ? { razao_social: d.legal_name } : {}),
+      ...(c.length === 7 ? { cnae_fiscal: `${c.slice(0, 4)}-${c[4]}/${c.slice(5)}` } : {}),
+      ...(d.suggested_tax_regime ? { tax_regime: d.suggested_tax_regime as Tenant["tax_regime"], crt: 1 } : {}),
+    });
+  });
+
   const hours = (tenant?.business_hours ?? DEFAULT_HOURS) as BusinessHours;
   const payments = (tenant?.payment_methods ??
     DEFAULT_PAYMENTS) as PaymentMethods;
@@ -2590,10 +2603,11 @@ export default function Settings({
                     >
                       <TextInput
                         value={tenant?.document ?? ""}
-                        onChange={(v) => setT({ document: maskDocument(v) })}
+                        onChange={(v) => { const m = maskDocument(v); setT({ document: m }); void tenantCnpj.run(m); }}
                         placeholder="00.000.000/0001-00"
                         mono
                       />
+                      <div className="mt-2"><CnpjStatusNotice loading={tenantCnpj.loading} info={tenantCnpj.info} error={tenantCnpj.error} /></div>
                     </Field>
                     <Field
                       label="WhatsApp de Vendas"
@@ -2790,10 +2804,11 @@ export default function Settings({
                     >
                       <TextInput
                         value={tenant?.document ?? ""}
-                        onChange={(v) => setT({ document: maskDocument(v) })}
+                        onChange={(v) => { const m = maskDocument(v); setT({ document: m }); void tenantCnpj.run(m); }}
                         placeholder="00.000.000/0001-00"
                         mono
                       />
+                      <div className="mt-2"><CnpjStatusNotice loading={tenantCnpj.loading} info={tenantCnpj.info} error={tenantCnpj.error} /></div>
                     </Field>
                     <Field
                       label="Razão Social"

@@ -13,6 +13,8 @@ import {
 } from "../../components/ui";
 import { EmptyState, LoadingState } from "../../components/layout/EmptyState";
 import { Supplier } from "../../types";
+import { useCnpjLookup, type CnpjInfo } from "../../lib/cnpjLookup";
+import CnpjStatusNotice from "../../components/CnpjStatusNotice";
 import SuppliersPageTour, { SUPPLIERS_PAGE_TOUR_EVENTS, type SuppliersPageTourHandle } from "../../components/onboarding/SuppliersPageTour";
 
 const EMPTY: Partial<Supplier> = {
@@ -476,6 +478,20 @@ export default function Suppliers() {
   const set = (field: keyof Supplier, value: string) =>
     setEditing((prev) => ({ ...prev, [field]: value }));
 
+  // Consulta o CNPJ na Receita ao digitar os 14 dígitos: completa só o que está vazio (não sobrescreve o que o usuário
+  // já escreveu). Fornecedor inativo apenas avisa, não bloqueia.
+  const cnpjLookup = useCnpjLookup((d: CnpjInfo) => {
+    setEditing((prev) => ({
+      ...prev,
+      name: prev.name?.trim() ? prev.name : (d.trade_name || d.legal_name),
+      email: prev.email?.trim() ? prev.email : d.email,
+      phone: prev.phone?.trim() ? prev.phone : d.phone,
+      address: prev.address?.trim() ? prev.address : [d.address.street, d.address.number, d.address.district].filter(Boolean).join(", "),
+      city: prev.city?.trim() ? prev.city : d.address.city,
+      state: prev.state?.trim() ? prev.state : d.address.state,
+    }));
+  });
+
   // ── Canal de comunicação do TOUR DE PÁGINA (SuppliersPageTour) ────────────
   // Suppliers.tsx não tinha nenhum canal de tour antes; este é o primeiro.
   // Abre/preenche/fecha o modal de verdade via openNew/openEdit/set/
@@ -759,9 +775,10 @@ export default function Suppliers() {
                     label="CNPJ"
                     placeholder="00.000.000/0000-00"
                     value={editing.cnpj || ""}
-                    onChange={(e) => set("cnpj", formatCNPJ(e.target.value))}
+                    onChange={(e) => { const v = formatCNPJ(e.target.value); set("cnpj", v); void cnpjLookup.run(v); }}
                   />
                 </div>
+                <CnpjStatusNotice loading={cnpjLookup.loading} info={cnpjLookup.info} error={cnpjLookup.error} />
                 <Select
                   label="Prazo de Pagamento"
                   value={editing.payment_terms || ""}

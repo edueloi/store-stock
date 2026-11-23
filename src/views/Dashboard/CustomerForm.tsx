@@ -3,6 +3,8 @@ import {
   Users, MapPin, Search, AlertTriangle, WalletCards, FileText, StickyNote, ArrowLeft, Save,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { useCnpjLookup, type CnpjInfo } from "../../lib/cnpjLookup";
+import CnpjStatusNotice from "../../components/CnpjStatusNotice";
 import { Button, IconButton, Input, Textarea, Select, Alert, ContentCard, PanelCard, DetailField, SectionTitle, Tabs, useToast } from "../../components/ui";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -121,8 +123,6 @@ export default function CustomerForm({ initialData, sellers, onSave, onCancel }:
   const [fZip, setFZip]           = useState(c?.address_zip ?? "");
   const [fCountry, setFCountry]   = useState(c?.address_country ?? "Brasil");
   const [cepLoading, setCepLoading] = useState(false);
-  const [cnpjLoading, setCnpjLoading] = useState(false);
-  const [cnpjError, setCnpjError] = useState<string | null>(null);
   const [fLegalName, setFLegalName] = useState(c?.legal_name ?? "");
   const [fTradeName, setFTradeName] = useState(c?.trade_name ?? "");
   const [fCnaeCode, setFCnaeCode] = useState(c?.cnae_code ?? "");
@@ -184,40 +184,28 @@ export default function CustomerForm({ initialData, sellers, onSave, onCancel }:
     }
   }
 
-  async function handleLookupCNPJ() {
-    const raw = fDoc.replace(/\D/g, "");
-    if (raw.length !== 14) return;
-    setCnpjLoading(true);
-    setCnpjError(null);
-    try {
-      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${raw}`);
-      if (!res.ok) { setCnpjError("CNPJ não encontrado."); return; }
-      const d = await res.json();
-      // Nunca sobrescreve o campo "Nome" — ele é o apelido/nome usado no dia a
-      // dia (cupom, listagens) e o usuário pode já tê-lo definido diferente da
-      // razão social/fantasia oficial. A busca só completa os demais dados.
-      if (d.email) setFEmail(d.email);
-      if (d.ddd_telefone_1) setFPhone(maskPhone(d.ddd_telefone_1));
-      if (d.cep) setFZip(String(d.cep).replace(/\D/g, ""));
-      if (d.logradouro) setFStreet(d.logradouro);
-      if (d.numero) setFNumber(d.numero);
-      if (d.complemento) setFComplement(d.complemento);
-      if (d.bairro) setFDistrict(d.bairro);
-      if (d.municipio) setFCity(d.municipio);
-      if (d.uf) setFState(d.uf);
-      setFLegalName(d.razao_social?.trim() ?? "");
-      setFTradeName(d.nome_fantasia?.trim() ?? "");
-      setFCnaeCode(d.cnae_fiscal ? String(d.cnae_fiscal) : "");
-      setFCnaeDescription(d.cnae_fiscal_descricao ?? "");
-      setFLegalNature(d.natureza_juridica ?? "");
-      setFRegistrationStatus(d.descricao_situacao_cadastral ?? "");
-      setFRegistrationStatusDate(d.data_situacao_cadastral ?? "");
-    } catch {
-      setCnpjError("Falha ao consultar CNPJ. Tente novamente.");
-    } finally {
-      setCnpjLoading(false);
-    }
+  // Preenche o cadastro com os dados da Receita Federal. Nunca sobrescreve o campo "Nome" — ele é o apelido/nome
+  // usado no dia a dia (cupom, listagens) e pode já ter sido definido diferente da razão social/fantasia oficial.
+  function applyCnpjInfo(d: CnpjInfo) {
+    if (d.email) setFEmail(d.email);
+    if (d.phone) setFPhone(maskPhone(d.phone));
+    if (d.address.zip) setFZip(d.address.zip);
+    if (d.address.street) setFStreet(d.address.street);
+    if (d.address.number) setFNumber(d.address.number);
+    if (d.address.complement) setFComplement(d.address.complement);
+    if (d.address.district) setFDistrict(d.address.district);
+    if (d.address.city) setFCity(d.address.city);
+    if (d.address.state) setFState(d.address.state);
+    setFLegalName(d.legal_name);
+    setFTradeName(d.trade_name);
+    setFCnaeCode(d.cnae_code);
+    setFCnaeDescription(d.cnae_description);
+    setFLegalNature(d.legal_nature);
+    setFRegistrationStatus(d.status);
+    setFRegistrationStatusDate(d.status_date);
   }
+  // Consulta sozinha ao completar os 14 dígitos; empresa inativa só mostra aviso (não bloqueia salvar).
+  const cnpjLookup = useCnpjLookup(applyCnpjInfo);
 
   async function handleSave(e?: React.FormEvent) {
     e?.preventDefault();
@@ -324,16 +312,16 @@ export default function CustomerForm({ initialData, sellers, onSave, onCancel }:
                     wrapperClassName="flex-1"
                     label="CPF/CNPJ"
                     value={fDoc}
-                    onChange={(e) => { setFDoc(maskDoc(e.target.value)); setCnpjError(null); }}
+                    onChange={(e) => { const v = maskDoc(e.target.value); setFDoc(v); void cnpjLookup.run(v); }}
                     placeholder="000.000.000-00"
                     inputMode="numeric"
                   />
                   {fDoc.replace(/\D/g, "").length === 14 && (
                     <IconButton
                       variant="outline"
-                      onClick={handleLookupCNPJ}
-                      disabled={cnpjLoading}
-                      loading={cnpjLoading}
+                      onClick={() => void cnpjLookup.run(fDoc, true)}
+                      disabled={cnpjLookup.loading}
+                      loading={cnpjLookup.loading}
                       title="Buscar dados do CNPJ na Receita Federal"
                       aria-label="Buscar dados do CNPJ"
                     >
@@ -342,7 +330,7 @@ export default function CustomerForm({ initialData, sellers, onSave, onCancel }:
                   )}
                 </div>
               </div>
-              {cnpjError && <Alert variant="error">{cnpjError}</Alert>}
+              <CnpjStatusNotice loading={cnpjLookup.loading} info={cnpjLookup.info} error={cnpjLookup.error} />
               {fDoc.replace(/\D/g, "").length === 14 && (fLegalName || fCnaeDescription || fRegistrationStatus) && (
                 <PanelCard title="Dados Fiscais (Receita Federal)">
                   <div className="space-y-3">

@@ -116,3 +116,64 @@ export async function getNfseIssuerActivity(req: Request, res: Response) {
     res.status(500).json({ error: "Não foi possível consultar a atividade do CNPJ." });
   }
 }
+
+// ── Consulta de CNPJ (Receita Federal via BrasilAPI) ─────────────────────────────────────────────
+// Devolve os dados cadastrais/fiscais para pré-preencher cadastros e a SITUAÇÃO CADASTRAL. Empresa inativa
+// (baixada, inapta, suspensa, nula) NÃO bloqueia nada: o front só avisa.
+function cnpjIsValid(cnpj: string): boolean {
+  if (!/^\d{14}$/.test(cnpj) || /^(\d)\1{13}$/.test(cnpj)) return false;
+  const calc = (len: number) => {
+    let sum = 0, pos = len - 7;
+    for (let i = len; i >= 1; i--) { sum += Number(cnpj[len - i]) * pos--; if (pos < 2) pos = 9; }
+    const r = sum % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  return calc(12) === Number(cnpj[12]) && calc(13) === Number(cnpj[13]);
+}
+
+export async function lookupCnpj(req: Request, res: Response) {
+  const cnpj = String(req.params.cnpj ?? "").replace(/\D/g, "");
+  if (!cnpjIsValid(cnpj)) {
+    res.status(422).json({ error: "CNPJ inválido. Confira os 14 dígitos." });
+    return;
+  }
+  try {
+    const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, {
+      headers: { Accept: "application/json" }, signal: AbortSignal.timeout(8_000),
+    });
+    if (response.status === 404) { res.status(404).json({ error: "CNPJ não encontrado na Receita Federal." }); return; }
+    if (!response.ok) { res.status(502).json({ error: "A consulta de CNPJ está indisponível agora. Preencha manualmente." }); return; }
+    const c = await response.json() as Record<string, any>;
+    const text = (v: unknown) => (v == null ? "" : String(v).trim());
+    const status = text(c.descricao_situacao_cadastral);
+    const simples = c.opcao_pelo_simples === true;
+    const mei = c.opcao_pelo_mei === true;
+    res.json({
+      cnpj,
+      legal_name: text(c.razao_social),
+      trade_name: text(c.nome_fantasia),
+      status,                                            // ATIVA | BAIXADA | INAPTA | SUSPENSA | NULA
+      active: status.toUpperCase() === "ATIVA",
+      status_date: text(c.data_situacao_cadastral),
+      status_reason: text(c.descricao_motivo_situacao_cadastral),
+      opening_date: text(c.data_inicio_atividade),
+      cnae_code: text(c.cnae_fiscal),
+      cnae_description: text(c.cnae_fiscal_descricao),
+      legal_nature: text(c.natureza_juridica),
+      size: text(c.porte),
+      simples, mei,
+      // sugestão de regime para a loja: optante do Simples/MEI → simples_nacional; senão deixa o usuário escolher
+      suggested_tax_regime: simples || mei ? "simples_nacional" : null,
+      email: text(c.email).toLowerCase(),
+      phone: text(c.ddd_telefone_1).replace(/\D/g, ""),
+      address: {
+        zip: text(c.cep).replace(/\D/g, ""),
+        street: [text(c.descricao_tipo_de_logradouro), text(c.logradouro)].filter(Boolean).join(" "),
+        number: text(c.numero), complement: text(c.complemento), district: text(c.bairro),
+        city: text(c.municipio), state: text(c.uf),
+      },
+    });
+  } catch {
+    res.status(502).json({ error: "A consulta de CNPJ está indisponível agora. Preencha manualmente." });
+  }
+}
