@@ -362,6 +362,9 @@ export async function hydrateFromDisk() {
     } catch (err) {
       logger.error({ err, tenantId }, "failed to rehydrate session from disk");
     }
+    // Uma sessão por vez, com pausa: subir todas juntas faz o WhatsApp devolver 408 (tempo esgotado)
+    // para a maioria e elas ficam presas em "connecting" depois de um reinício do serviço.
+    await new Promise((r) => setTimeout(r, 3000));
   }
 }
 
