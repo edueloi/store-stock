@@ -49,8 +49,12 @@ export async function emitNfseForServiceOrder(req: Request, res: Response) {
       select: { id: true, status: true, service_value: true, equipment_type: true, equipment_category: true, service_description: true },
     });
     if (!serviceOrder) { res.status(404).json({ error: "Ordem de serviço não encontrada" }); return; }
-    if (serviceOrder.status !== "finalizado" && serviceOrder.status !== "nota_emitida") {
-      res.status(400).json({ error: "Só é possível emitir a NFS-e de uma ordem de serviço finalizada" });
+    // NFS-e ANTECIPADA: há lojas que emitem a nota antes de receber (e antes de finalizar). Libera da aprovação em diante;
+    // rascunho, orçamento ainda sem aprovação e O.S. cancelada continuam bloqueados. Emitir cedo não pula etapas: o avanço
+    // automático para "nota_emitida" só acontece se a O.S. estiver finalizada (stage-permissions).
+    const NFSE_ALLOWED = ["aprovado", "aguardando_arte", "arte_finalizada", "em_producao", "finalizado", "nota_emitida", "entregue"];
+    if (!NFSE_ALLOWED.includes(serviceOrder.status)) {
+      res.status(400).json({ error: "A NFS-e pode ser emitida depois que a ordem de serviço for aprovada (rascunho, orçamento sem aprovação e O.S. cancelada não emitem)." });
       return;
     }
 

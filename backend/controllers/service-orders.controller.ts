@@ -531,10 +531,16 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
       include: { parts: true },
     });
     if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
-    // Faturada só pode seguir para "entregue" ou ser cancelada (o que cancela o
-    // pedido/nota gerados) — qualquer outra mudança depois de faturar é bloqueada.
-    if (order.invoiced_order_id && status !== "entregue" && status !== "cancelada") {
-      return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
+    // Faturada: pode ser cancelada (o que cancela o pedido/nota gerados) ou AVANÇAR no fluxo, uma etapa por vez
+    // (necessário porque agora dá para faturar antes de finalizar). Voltar etapa ou pular continua bloqueado.
+    if (order.invoiced_order_id && status !== "cancelada") {
+      const f = stagesForTenant.indexOf(order.status);
+      const t = stagesForTenant.indexOf(status);
+      const nextStep = f !== -1 && t === f + 1;
+      const finalizadoToEntregue = order.status === "finalizado" && status === "entregue";
+      if (!nextStep && !finalizadoToEntregue) {
+        return res.status(400).json({ error: "Ordem de serviço já foi faturada: só pode avançar para a próxima etapa ou ser cancelada." });
+      }
     }
 
     // Fluxo guiado: só avança uma etapa por vez (stepper na UI), exceto o
@@ -603,6 +609,12 @@ export async function updateServiceOrderStatus(req: Request, res: Response) {
     res.status(500).json({ error: "Falha ao atualizar status" });
   }
 }
+
+/** Observação interna do item (até 500 caracteres); vazio = sem observação. */
+const partInternalNote = (req: Request): string | null => {
+  const v = String((req.body as { internal_note?: unknown })?.internal_note ?? "").trim().slice(0, 500);
+  return v || null;
+};
 
 export async function addServiceOrderPart(req: Request, res: Response) {
   try {
@@ -690,6 +702,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       await prisma.serviceOrderPart.create({
         data: {
           service_order_id: id,
+          internal_note: partInternalNote(req),
           service_id: service.id,
           name: service.name,
           quantity: qty,
@@ -735,6 +748,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       await prisma.serviceOrderPart.create({
         data: {
           service_order_id: id,
+          internal_note: partInternalNote(req),
           product_id: null,
           name: freeName.trim(),
           ncm: String(freeNcm ?? "").replace(/\D/g, "").slice(0, 8) || null,
@@ -825,6 +839,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     const part = await prisma.serviceOrderPart.create({
       data: {
         service_order_id: id,
+        internal_note: partInternalNote(req),
         product_id: product.id,
         name: product.name,
         quantity: qty,
@@ -873,6 +888,25 @@ export async function addServiceOrderPart(req: Request, res: Response) {
 
 // Edita o desconto de uma peça já adicionada — os demais dados do item (produto,
 // quantidade, medida) não mudam aqui; para isso remove-se e adiciona-se de novo.
+/** PUT /:id/parts/:partId/note — altera só a observação interna do item (não mexe em valores nem trava depois de faturar). */
+export async function updateServiceOrderPartNote(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const id = Number(req.params.id);
+    const partId = Number(req.params.partId);
+    const order = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId }, select: { id: true } });
+    if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
+    const part = await prisma.serviceOrderPart.findFirst({ where: { id: partId, service_order_id: id }, select: { id: true } });
+    if (!part) return res.status(404).json({ error: "Item não encontrado" });
+    await prisma.serviceOrderPart.update({ where: { id: partId }, data: { internal_note: partInternalNote(req) } });
+    const updated = await prisma.serviceOrder.findFirst({ where: { id, tenant_id: tenantId }, include: SERVICE_ORDER_INCLUDE });
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Falha ao salvar a observação do item" });
+  }
+}
+
 export async function updateServiceOrderPart(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
@@ -1184,8 +1218,11 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
     if (!order) return res.status(404).json({ error: "Ordem de serviço não encontrada" });
     if (order.invoiced_order_id) return res.status(400).json({ error: "Ordem de serviço já foi faturada" });
     if (order.status === "cancelada") return res.status(400).json({ error: "Ordem de serviço está cancelada" });
-    if (order.status !== "finalizado" && order.status !== "nota_emitida" && order.status !== "entregue") {
-      return res.status(400).json({ error: "Só é possível faturar uma ordem de serviço finalizada ou entregue" });
+    // FATURAMENTO ANTECIPADO: a loja pode faturar (e emitir a nota) antes de finalizar e antes de receber, usando
+    // crediário/boleto para receber depois. Libera da aprovação em diante; rascunho/orçamento sem aprovação não faturam.
+    const INVOICE_ALLOWED = ["aprovado", "aguardando_arte", "arte_finalizada", "em_producao", "finalizado", "nota_emitida", "entregue"];
+    if (!INVOICE_ALLOWED.includes(order.status)) {
+      return res.status(400).json({ error: "Só é possível faturar uma ordem de serviço já aprovada (rascunho e orçamento sem aprovação não faturam)." });
     }
 
     const body = req.body as {

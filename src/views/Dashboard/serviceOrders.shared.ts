@@ -44,6 +44,8 @@ export interface ServiceOrderPart {
   total: number;
   no_charge: boolean;
   dimensions_label?: string | null;
+  /** Observação INTERNA do item (ex.: medida real do kit). Só sai na impressão interna, nunca no PDF do cliente. */
+  internal_note?: string | null;
   /** Peça de vidro sob medida lançada na OS (vão, sangria, margem...). */
   piece_spec?: import("../../lib/glassPieces").PieceSpec | null;
 }
@@ -311,7 +313,10 @@ export function getStatusOrderForTenant(graficaEnabled: boolean | undefined): SO
 
 // ─── PDF template ─────────────────────────────────────────────────────────────
 
-export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null, opts?: { hideValues?: boolean }): string {
+export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | null, opts?: { hideValues?: boolean; internal?: boolean }): string {
+  // internal = via interna (produção/balcão): inclui as observações internas dos itens. O PDF do cliente nunca as inclui.
+  const internal = !!opts?.internal;
+  const escHtml = (v: string) => v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   // "Sem valores": itens e medidas continuam, mas sem preços, totais nem mão de obra.
   const hideValues = opts?.hideValues ?? getHideValuesPref("service_order");
   const brandColor = tenant?.primary_color ?? "#2563eb";
@@ -359,7 +364,7 @@ export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | n
               p.no_charge ? "—" : fmtMoney(p.total),
             ]),
           ],
-          sub: p.dimensions_label ?? undefined,
+          sub: [p.dimensions_label, internal && p.internal_note ? `OBS. INTERNA: ${escHtml(p.internal_note)}` : null].filter(Boolean).join(" · ") || undefined,
         })),
       )
     : "";
@@ -407,6 +412,8 @@ export function buildServiceOrderIntakeHtml(so: ServiceOrder, tenant: Tenant | n
 <body>
 
 ${header}
+
+${internal ? '<div style="margin:0 0 10px;padding:6px 10px;border:1px dashed #b45309;background:#fffbeb;color:#92400e;font-size:11px;font-weight:700;text-align:center;letter-spacing:.04em">VIA INTERNA — USO DA EMPRESA · NÃO ENTREGAR AO CLIENTE</div>' : ""}
 
 <div class="doc-section">
   <div class="doc-section-label">Dados do Cliente</div>
@@ -497,7 +504,7 @@ ${so.observations ? `
 </html>`;
 }
 
-export async function downloadServiceOrderPdf(so: ServiceOrder, tenant: Tenant | null, opts?: { hideValues?: boolean }) {
+export async function downloadServiceOrderPdf(so: ServiceOrder, tenant: Tenant | null, opts?: { hideValues?: boolean; internal?: boolean }) {
   const html = buildServiceOrderIntakeHtml(so, tenant, opts);
-  await downloadHtmlAsPdf(html, `ordem-servico-${String(so.number).padStart(6, "0")}.pdf`);
+  await downloadHtmlAsPdf(html, `ordem-servico-${String(so.number).padStart(6, "0")}${opts?.internal ? "-interna" : ""}.pdf`);
 }

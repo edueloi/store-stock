@@ -37,6 +37,7 @@ import {
   Wrench,
   Camera as CameraIcon,
   History as HistoryIcon,
+  Pencil,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "../../lib/utils";
@@ -102,7 +103,8 @@ const OS_TABS = [
 type OsTabId = typeof OS_TABS[number]["id"];
 
 // OS que já foi entregue e ainda não foi faturada também pode ser faturada.
-const CAN_INVOICE_STATUSES = ["finalizado", "nota_emitida", "entregue"];
+// Faturar liberado da aprovação em diante (faturamento antecipado: nota antes de finalizar/receber).
+const CAN_INVOICE_STATUSES = ["aprovado", "aguardando_arte", "arte_finalizada", "em_producao", "finalizado", "nota_emitida", "entregue"];
 
 export default function ServiceOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -203,6 +205,10 @@ export default function ServiceOrderDetail() {
   const [freePartUnit, setFreePartUnit] = useState("UN");
   const [freePartPrice, setFreePartPrice] = useState("");
   const [freePartNcm, setFreePartNcm] = useState(""); // NCM do item avulso (preenchido = produto: entra na NFC-e)
+  const [partInternalNote, setPartInternalNote] = useState(""); // observação interna do item (não sai no PDF do cliente)
+  const [noteEditPart, setNoteEditPart] = useState<{ id: number; name: string } | null>(null);
+  const [noteEditText, setNoteEditText] = useState("");
+  const [savingPartNote, setSavingPartNote] = useState(false);
 
   // Edição de desconto de um item já existente
   const [editingDiscountPartId, setEditingDiscountPartId] = useState<number | null>(null);
@@ -506,6 +512,7 @@ export default function ServiceOrderDetail() {
     setFreePartUnit("UN");
     setFreePartPrice("");
     setFreePartNcm("");
+    setPartInternalNote("");
     setShowAddPartModal(true);
   };
 
@@ -556,7 +563,11 @@ export default function ServiceOrderDetail() {
 
   const handleAddPartSubmit = async () => {
     if (!selected) return;
-    const commonDiscount = { discount_type: partDiscountType, discount_value: Math.max(0, Number(partDiscountValue) || 0) };
+    const commonDiscount = {
+      discount_type: partDiscountType,
+      discount_value: Math.max(0, Number(partDiscountValue) || 0),
+      ...(partInternalNote.trim() ? { internal_note: partInternalNote.trim().slice(0, 500) } : {}),
+    };
 
     let body: Record<string, unknown>;
     if (addPartTab === "free") {
@@ -644,6 +655,19 @@ export default function ServiceOrderDetail() {
     }
   };
 
+  const handleSavePartNote = async () => {
+    if (!selected || !noteEditPart) return;
+    setSavingPartNote(true);
+    try {
+      const res = await fetch(`/api/service-orders/${selected.id}/parts/${noteEditPart.id}/note`, {
+        method: "PUT", headers: authHeader(), body: JSON.stringify({ internal_note: noteEditText }),
+      });
+      if (!res.ok) { toast.error((await res.json().catch(() => ({})))?.error || "Não foi possível salvar a observação."); return; }
+      setNoteEditPart(null);
+      await fetchOrder(true);
+    } finally { setSavingPartNote(false); }
+  };
+
   const handleRemovePart = async (partId: number) => {
     if (!selected) return;
     await fetch(`/api/service-orders/${selected.id}/parts/${partId}`, {
@@ -688,11 +712,11 @@ export default function ServiceOrderDetail() {
   };
 
   // ── PDF ─────────────────────────────────────────────────────────────────
-  const handleGeneratePdf = async () => {
+  const handleGeneratePdf = async (internal = false) => {
     if (!selected) return;
     setGeneratingPdf(true);
     try {
-      await downloadServiceOrderPdf(selected, tenant, { hideValues });
+      await downloadServiceOrderPdf(selected, tenant, { hideValues: internal ? false : hideValues, internal });
     } finally {
       setGeneratingPdf(false);
     }
@@ -1258,6 +1282,9 @@ export default function ServiceOrderDetail() {
                         ) : (
                           <p className="text-[11px] text-slate-400">{part.quantity} {part.unit} × {fmt(part.unit_price)}</p>
                         )}
+                        {part.internal_note && (
+                          <p className="mt-0.5 text-[11px] font-medium text-amber-700" title="Observação interna — não sai no PDF do cliente">🔒 {part.internal_note}</p>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {part.no_charge ? (
@@ -1270,6 +1297,9 @@ export default function ServiceOrderDetail() {
                         ) : (
                           <span className="text-[12px] font-mono font-semibold text-slate-700">{fmt(part.total)}</span>
                         )}
+                        <IconButton variant="ghost" size="sm" onClick={() => { setNoteEditPart({ id: part.id, name: part.name }); setNoteEditText(part.internal_note ?? ""); }} title="Observação interna (não sai no PDF do cliente)" aria-label="Observação interna">
+                          <Pencil size={13} />
+                        </IconButton>
                         {!selected.invoiced_order_id && (
                           <>
                             <IconButton variant="ghost" size="sm" onClick={() => openEditDiscount(part)} title="Desconto" aria-label="Desconto">
@@ -1568,6 +1598,7 @@ export default function ServiceOrderDetail() {
           {Number(selected.service_value) > 0 && (
             <ContentCard padding="md" className="space-y-3">
               <p className="text-[10px] font-semibold text-slate-400">NFS-e (Serviço)</p>
+              {!nfseInvoice && CAN_INVOICE_STATUSES.includes(selected.status) && <p className="text-[11px] leading-snug text-slate-500">Pode ser emitida a qualquer momento depois da aprovação, inclusive antes de receber e antes de finalizar.</p>}
               {nfseInvoice?.status === "authorized" ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 rounded-lg px-3 py-2.5">
@@ -1580,8 +1611,8 @@ export default function ServiceOrderDetail() {
                     Ver PDF da NFS-e
                   </Button>
                 </div>
-              ) : selected.status !== "finalizado" && selected.status !== "nota_emitida" ? (
-                <p className="text-[11px] font-semibold text-slate-400">Disponível quando a ordem estiver finalizada.</p>
+              ) : !CAN_INVOICE_STATUSES.includes(selected.status) ? (
+                <p className="text-[11px] font-semibold text-slate-400">Disponível depois que a ordem for aprovada.</p>
               ) : (
                 <>
                   {nfseInvoice && (nfseInvoice.status === "pending" || nfseInvoice.status === "processing") && (
@@ -1659,9 +1690,14 @@ export default function ServiceOrderDetail() {
             Não incluir valores no PDF
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <Button variant="outline" size="md" onClick={handleGeneratePdf} disabled={generatingPdf} className="justify-center">
+            <Button variant="outline" size="md" onClick={() => handleGeneratePdf(false)} disabled={generatingPdf} className="justify-center">
               {generatingPdf ? <Loader2 size={14} className="animate-spin" /> : <FileDown size={14} />} Gerar PDF
             </Button>
+            {(selected.parts ?? []).some((p) => p.internal_note) && (
+              <Button variant="outline" size="md" onClick={() => handleGeneratePdf(true)} disabled={generatingPdf} className="justify-center sm:col-span-2" title="Inclui as observações internas dos itens. Não entregue ao cliente.">
+                <FileDown size={14} /> Via interna (com observações dos itens)
+              </Button>
+            )}
             {customerEmail ? (
               <Button variant="primary" size="md" onClick={handleSendServiceOrderEmail} loading={sendingEmail} iconLeft={emailDelivery?.sent ? <Send size={14} /> : <Mail size={14} />} className="justify-center">
                 {emailDelivery?.sent ? "Reenviar por E-mail" : "Enviar por E-mail"}
@@ -1820,6 +1856,23 @@ export default function ServiceOrderDetail() {
           </div>
           <p className="text-[11px] text-slate-400 mt-2">Você pode adicionar ou ajustar itens depois em Configurações → Checklists de OS.</p>
         </div>
+      </Modal>
+
+      <Modal
+        open={!!noteEditPart}
+        onClose={() => { if (!savingPartNote) setNoteEditPart(null); }}
+        size="sm"
+        title="Observação interna do item"
+        subtitle={noteEditPart?.name}
+        footer={
+          <>
+            <Button variant="outline" size="md" onClick={() => setNoteEditPart(null)} disabled={savingPartNote} className="flex-1">Cancelar</Button>
+            <Button variant="primary" size="md" onClick={handleSavePartNote} loading={savingPartNote} className="flex-1 justify-center">Salvar</Button>
+          </>
+        }
+      >
+        <Textarea value={noteEditText} onChange={(e) => setNoteEditText(e.target.value.slice(0, 500))} rows={4} autoFocus placeholder="Ex.: medida real do kit 2030 x 998 mm" />
+        <p className="mt-2 text-[11px] leading-snug text-slate-500">🔒 Só a equipe vê. Não aparece no PDF do cliente nem no e-mail: sai apenas na "Via interna" da O.S. Pode ser editada mesmo depois de faturar.</p>
       </Modal>
 
       <ProductVariationModal
@@ -2112,6 +2165,13 @@ export default function ServiceOrderDetail() {
                 </div>
               </div>
             )}
+
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">Observação interna do item (opcional)</label>
+              <Textarea value={partInternalNote} onChange={(e) => setPartInternalNote(e.target.value.slice(0, 500))} rows={2}
+                placeholder="Ex.: medida real do kit 2030 x 998 mm" />
+              <p className="mt-1 text-[10px] leading-snug text-slate-400">🔒 Não aparece no PDF do cliente. Sai só na "Via interna" e na lista de itens da O.S.</p>
+            </div>
 
             {/* Preview do valor final */}
             <div className="bg-slate-900 rounded-lg p-4 space-y-1.5">

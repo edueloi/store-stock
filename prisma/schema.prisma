@@ -1685,6 +1685,8 @@ model ServiceOrderPart {
   total                 Decimal  @db.Decimal(10, 2) // total_before_discount - desconto do item
   no_charge             Boolean  @default(false)
   dimensions_label      String?
+  // Observação INTERNA do item (ex.: medida real do kit): aparece na impressão interna da O.S., nunca no PDF do cliente.
+  internal_note         String?  @db.VarChar(500)
   // NCM do item avulso (digitado na hora, sem produto do catálogo). Preenchido = é produto: entra na NFC-e ao faturar.
   ncm                   String?  @db.VarChar(8)
   // Variação escolhida da peça (ex.: {"Cor":"Azul"}) — baixa/devolve o estoque da variação certa
