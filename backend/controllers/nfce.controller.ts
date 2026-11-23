@@ -217,6 +217,28 @@ export async function emitNfceForOrder(req: Request, res: Response) {
   }
 }
 
+/**
+ * Antes de reemitir uma nota que NÃO foi autorizada, alinha ela ao CNPJ do pedido: se a primeira tentativa saiu por outro CNPJ
+ * (ex.: escolhido no seletor do topo na hora), a nota passa para o CNPJ do pedido, com a série, a numeração e o ambiente dele.
+ * Notas autorizadas nunca mudam.
+ */
+async function realignInvoiceToOrderIssuer(tenantId: number, invoice: { id: number; order_id: number; issuer_id: number | null; status: string }) {
+  if (invoice.status === "authorized") return;
+  const order = await prisma.order.findFirst({ where: { id: invoice.order_id, tenant_id: tenantId }, select: { issuer_id: true } });
+  const target = order?.issuer_id ?? null;
+  if (!target || target === invoice.issuer_id) return;
+  if (!(await prisma.tenantIssuer.count({ where: { id: target, tenant_id: tenantId } }))) return;
+  const t = await fiscalTenant(tenantId, target);
+  if (!t) return;
+  await prisma.$transaction(async (tx) => {
+    await tx.nfceInvoice.update({
+      where: { id: invoice.id },
+      data: { issuer_id: target, environment: t.nfce_environment, series: t.nfce_series, number: t.nfce_next_number },
+    });
+    await bumpNextNumber(tx as any, tenantId, target, "nfce_next_number");
+  });
+}
+
 export async function retryNfce(req: Request, res: Response) {
   try {
     const orderId = Number(req.params.orderId);
@@ -233,6 +255,7 @@ export async function retryNfce(req: Request, res: Response) {
       return;
     }
 
+    await realignInvoiceToOrderIssuer(tenantId, invoice);
     await prisma.nfceInvoice.update({
       where: { id: invoice.id },
       data: { status: "pending" },
@@ -390,6 +413,7 @@ export async function retryNfceBatch(req: Request, res: Response) {
       where: { order_id: { in: orderIds }, tenant_id: tenantId, status: { not: "authorized" } },
     });
 
+    for (const invoice of invoices) await realignInvoiceToOrderIssuer(tenantId, invoice);
     await prisma.nfceInvoice.updateMany({
       where: { id: { in: invoices.map((i) => i.id) } },
       data: { status: "pending" },
