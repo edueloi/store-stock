@@ -26,6 +26,112 @@ function isGtinPrefixRejection(xMotivo: string | null): boolean {
   return !!xMotivo && /gtin.*prefixo|cean.*prefixo/i.test(xMotivo);
 }
 
+type OrderWithItems = NonNullable<Awaited<ReturnType<typeof loadOrder>>>;
+const loadOrder = (orderId: number) => prisma.order.findUnique({ where: { id: orderId }, include: { items: { include: { product: true } } } });
+
+/** Itens com produto de reserva quando o item é avulso (sem cadastro) — o mesmo critério do XML. */
+function itemsWithProduct(order: OrderWithItems, forceNoGtin = false) {
+  return order.items.map((item) => ({
+    ...item,
+    product: item.product
+      ? (forceNoGtin ? { ...item.product, barcode: null } : item.product)
+      : ({
+        name: item.name || "Item avulso", sku: null, barcode: null, ncm: item.ncm || "00000000", cest: null, cfop: "5102",
+        unidade_comercial: "UN", unidade_tributavel: "UN", origem: 0, csosn: "102", cst_icms: "00", icms_aliquota: null, pis_cst: "07", cofins_cst: "07",
+      } as Product),
+  }));
+}
+
+/** Logo da loja: logo_url é um path relativo tipo "/uploads/logos/<tenant>/<arquivo>" dentro de public/. */
+function readLogo(logoUrl: string | null | undefined): Buffer | null {
+  if (!logoUrl?.startsWith("/uploads/")) return null;
+  try { return fs.readFileSync(path.join(process.cwd(), "public", logoUrl)); } catch { return null; }
+}
+
+interface DanfeArgs {
+  order: OrderWithItems;
+  invoice: { number: number; series: number; nature: string | null; additional_info: string | null };
+  tenant: NonNullable<Awaited<ReturnType<typeof fiscalTenant>>>;
+  recipient: NfeRecipient;
+  freight: NfeFreight;
+  itemsForXml: ReturnType<typeof itemsWithProduct>;
+  payments: ReturnType<typeof paymentsFromOrder>;
+  totalNota: number;
+  environment: "producao" | "homologacao";
+  chaveAcesso: string;
+  nProt: string | null;
+  emittedAt: Date;
+}
+
+function buildDanfeInput(x: DanfeArgs): NfeDanfeInput {
+  const { order, invoice, tenant: t, recipient, freight, itemsForXml, payments } = x;
+  const a = recipient.address;
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const products = itemsForXml.reduce((s, it) => s + round(Number(it.unit_price) * it.quantity), 0);
+  return {
+    environment: x.environment,
+    chaveAcesso: x.chaveAcesso, numero: invoice.number, serie: invoice.series,
+    natureza: invoice.nature || "Venda de mercadoria", protocolo: x.nProt, emittedAt: x.emittedAt,
+    emit: {
+      name: t.razao_social || t.name, document: t.document ?? "", ie: t.inscricao_estadual,
+      address: [t.address_street, t.address_number, t.address_district, t.address_city && t.address_state ? `${t.address_city}/${t.address_state}` : "", t.address_zip ? `CEP ${t.address_zip}` : ""].filter(Boolean).join(" - "),
+      phone: t.whatsapp,
+    },
+    dest: {
+      name: recipient.name, document: recipient.document, ie: recipient.ie_indicator === "1" ? (recipient.ie ?? null) : null,
+      address: [a.street, a.number, a.complement, a.district, `${a.city}/${a.state}`, a.zip ? `CEP ${a.zip}` : ""].filter(Boolean).join(" - "),
+      email: recipient.email, phone: recipient.phone,
+    },
+    items: itemsForXml.map((it) => ({
+      code: it.product.sku || String(it.product.id || it.id), name: it.product.name, ncm: String(it.product.ncm ?? "").replace(/\D/g, "").padEnd(8, "0").slice(0, 8),
+      cfop: cfopForDestination(it.product.cfop, a.state.toUpperCase() === (t.address_state || "SP").toUpperCase() ? 1 : 2),
+      unit: it.product.unidade_comercial, quantity: it.quantity, unitPrice: Number(it.unit_price), total: round(Number(it.unit_price) * it.quantity),
+    })),
+    totals: {
+      products,
+      freight: Number(freight.value) || 0, discount: Number(order.discount_amount ?? 0),
+      other: Math.max(0, round(Number(order.total_amount) - (products - Number(order.discount_amount ?? 0)))),
+      total: x.totalNota,
+    },
+    freightLabel: FREIGHT_LABELS[freight.mode] ?? freight.mode,
+    carrierLabel: freight.carrier?.name ?? null,
+    paymentSummary: payments.map((p) => `${({ money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto" } as Record<string, string>)[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + "),
+    additionalInfo: invoice.additional_info,
+    logoBuffer: readLogo((t as { logo_url?: string | null }).logo_url),
+  };
+}
+
+/** Refaz o PDF do DANFE de uma NF-e JÁ autorizada/cancelada a partir dos dados salvos (não fala com a SEFAZ). Serve para aplicar o logo/layout novo em notas antigas. */
+export async function regenerarDanfeNfe(orderId: number): Promise<{ ok: boolean; error?: string }> {
+  const invoice = await prisma.nfeInvoice.findUnique({ where: { order_id: orderId } });
+  if (!invoice) return { ok: false, error: "NF-e não encontrada" };
+  if (invoice.status !== "authorized" && invoice.status !== "cancelled") return { ok: false, error: "A NF-e ainda não foi autorizada" };
+  if (!invoice.access_key || !invoice.danfe_path) return { ok: false, error: "Nota sem chave de acesso ou arquivo de DANFE" };
+  const order = await loadOrder(orderId);
+  if (!order) return { ok: false, error: "Pedido não encontrado" };
+  const tenantRaw = await fiscalTenant(order.tenant_id, invoice.issuer_id);
+  const tenant = tenantRaw ? await withIssuerAddress(tenantRaw, invoice.issuer_id) : tenantRaw;
+  if (!tenant) return { ok: false, error: "Loja não encontrada" };
+  const recipient = invoice.recipient as unknown as NfeRecipient | null;
+  if (!recipient?.address) return { ok: false, error: "Nota sem dados do destinatário" };
+  const freight = (invoice.freight as unknown as NfeFreight | null) ?? { mode: "9", value: 0 };
+
+  // total da nota: o vNF do XML autorizado (fonte da verdade)
+  let totalNota = Number(order.total_amount);
+  if (invoice.xml_path && fs.existsSync(invoice.xml_path)) {
+    const v = /<vNF>([\d.]+)<\/vNF>/.exec(fs.readFileSync(invoice.xml_path, "utf-8"))?.[1];
+    if (v) totalNota = Number(v);
+  }
+  const input = buildDanfeInput({
+    order, invoice, tenant, recipient, freight, itemsForXml: itemsWithProduct(order),
+    payments: paymentsFromOrder(order.payment_method, Number(order.total_amount), Number(order.change_amount) || 0), totalNota,
+    environment: invoice.environment === "producao" ? "producao" : "homologacao",
+    chaveAcesso: invoice.access_key, nProt: invoice.protocol, emittedAt: invoice.authorized_at ?? new Date(),
+  });
+  fs.writeFileSync(invoice.danfe_path, await generateNfeDanfePdf(input));
+  return { ok: true };
+}
+
 /** Emite a NF-e do pedido e, ao TERMINAR (autorizada, rejeitada ou erro), avisa as telas abertas ("nfe:changed"). */
 export async function emitirNfe(orderId: number): Promise<void> {
   try {
@@ -65,15 +171,7 @@ async function emitirNfeCore(orderId: number): Promise<void> {
       throw new Error("Certificado digital A1 não configurado para este CNPJ (Configurações > Dados Fiscais).");
     }
     const payments = paymentsFromOrder(order!.payment_method, Number(order!.total_amount), Number(order!.change_amount) || 0);
-    const itemsForXml = order!.items.map((item) => ({
-      ...item,
-      product: item.product
-        ? (forceNoGtin ? { ...item.product, barcode: null } : item.product)
-        : ({
-          name: item.name || "Item avulso", sku: null, barcode: null, ncm: item.ncm || "00000000", cest: null, cfop: "5102",
-          unidade_comercial: "UN", unidade_tributavel: "UN", origem: 0, csosn: "102", cst_icms: "00", icms_aliquota: null, pis_cst: "07", cofins_cst: "07",
-        } as Product),
-    }));
+    const itemsForXml = itemsWithProduct(order!, forceNoGtin);
 
     const { chaveAcesso, xml, totalNota } = buildNfeXml({
       tenant: tenant!, order: order!, items: itemsForXml, payments, numero: invoice!.number, serie: invoice!.series,
@@ -129,45 +227,11 @@ async function emitirNfeCore(orderId: number): Promise<void> {
     const xmlPath = path.join(dir, `${chaveAcesso}-nfe.xml`);
     fs.writeFileSync(xmlPath, nfeProc, "utf-8");
 
-    const a = recipient.address;
-    const t = tenant!;
     const emittedAt = new Date();
-    // logo_url é um path relativo tipo "/uploads/logos/<tenant>/<arquivo>" dentro de public/
-    let logoBuffer: Buffer | null = null;
-    if (t.logo_url?.startsWith("/uploads/")) {
-      try { logoBuffer = fs.readFileSync(path.join(process.cwd(), "public", t.logo_url)); } catch { /* sem logo */ }
-    }
-    const danfeInput: NfeDanfeInput = {
-      environment: environment === "producao" ? "producao" : "homologacao",
-      chaveAcesso, numero: invoice!.number, serie: invoice!.series,
-      natureza: invoice!.nature || "Venda de mercadoria", protocolo: nProt, emittedAt,
-      emit: {
-        name: t.razao_social || t.name, document: t.document ?? "", ie: t.inscricao_estadual,
-        address: [t.address_street, t.address_number, t.address_district, t.address_city && t.address_state ? `${t.address_city}/${t.address_state}` : "", t.address_zip ? `CEP ${t.address_zip}` : ""].filter(Boolean).join(" - "),
-        phone: t.whatsapp,
-      },
-      dest: {
-        name: recipient.name, document: recipient.document, ie: recipient.ie_indicator === "1" ? (recipient.ie ?? null) : null,
-        address: [a.street, a.number, a.complement, a.district, `${a.city}/${a.state}`, a.zip ? `CEP ${a.zip}` : ""].filter(Boolean).join(" - "),
-        email: recipient.email, phone: recipient.phone,
-      },
-      items: itemsForXml.map((it) => ({
-        code: it.product.sku || String(it.product.id || it.id), name: it.product.name, ncm: String(it.product.ncm ?? "").replace(/\D/g, "").padEnd(8, "0").slice(0, 8),
-        cfop: cfopForDestination(it.product.cfop, a.state.toUpperCase() === (t.address_state || "SP").toUpperCase() ? 1 : 2),
-        unit: it.product.unidade_comercial, quantity: it.quantity, unitPrice: Number(it.unit_price), total: Math.round(Number(it.unit_price) * it.quantity * 100) / 100,
-      })),
-      totals: {
-        products: itemsForXml.reduce((s, it) => s + Math.round(Number(it.unit_price) * it.quantity * 100) / 100, 0),
-        freight: Number(freight.value) || 0, discount: Number(order!.discount_amount ?? 0),
-        other: Math.max(0, Math.round((Number(order!.total_amount) - (itemsForXml.reduce((s, it) => s + Math.round(Number(it.unit_price) * it.quantity * 100) / 100, 0) - Number(order!.discount_amount ?? 0))) * 100) / 100),
-        total: totalNota,
-      },
-      freightLabel: FREIGHT_LABELS[freight.mode] ?? freight.mode,
-      carrierLabel: freight.carrier?.name ?? null,
-      paymentSummary: payments.map((p) => `${({ money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto" } as Record<string, string>)[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + "),
-      additionalInfo: invoice!.additional_info,
-      logoBuffer,
-    };
+    const danfeInput = buildDanfeInput({
+      order: order!, invoice: invoice!, tenant: tenant!, recipient, freight, itemsForXml, payments, totalNota,
+      environment: environment === "producao" ? "producao" : "homologacao", chaveAcesso, nProt, emittedAt,
+    });
     const danfePath = path.join(dir, `${chaveAcesso}-danfe.pdf`);
     fs.writeFileSync(danfePath, await generateNfeDanfePdf(danfeInput));
 
@@ -177,7 +241,6 @@ async function emitirNfeCore(orderId: number): Promise<void> {
     });
     return null;
   }
-
   try {
     const xMotivo = await attempt(false);
     if (xMotivo && isGtinPrefixRejection(xMotivo)) {
