@@ -81,13 +81,13 @@ export async function generateNfeDanfePdf(input: NfeDanfeInput): Promise<Buffer>
     let textW = width * 0.38 - 12;
     if (input.logoBuffer) {
       try {
-        const size = h1 - 16;
-        doc.image(input.logoBuffer, left + 6, y + 8, { fit: [size, size], align: "center", valign: "center" });
-        textX = left + 6 + size + 6;
-        textW = width * 0.38 - 12 - size - 6;
+        const size = 44;
+        doc.image(input.logoBuffer, left + 6, y + (h1 - size) / 2, { fit: [size, size], align: "center", valign: "center" });
+        textX = left + 6 + size + 5;
+        textW = width * 0.38 - 12 - size - 5;
       } catch { /* formato não suportado pelo pdfkit (ex.: webp): segue sem logo */ }
     }
-    doc.font("Helvetica-Bold").fontSize(textW < 120 ? 8.5 : 10).fillColor(ink).text(input.emit.name, textX, y + 8, { width: textW, height: 24, ellipsis: true });
+    doc.font("Helvetica-Bold").fontSize(textW < 150 ? 8 : 10).fillColor(ink).text(input.emit.name, textX, y + 8, { width: textW, height: 24, ellipsis: true });
     doc.font("Helvetica").fontSize(textW < 120 ? 6.5 : 7.5).fillColor(muted).text(input.emit.address, textX, doc.y + 3, { width: textW, height: 36, ellipsis: true });
     if (input.emit.phone) doc.text(`Fone: ${input.emit.phone}`, textX, doc.y + 2, { width: textW });
 
