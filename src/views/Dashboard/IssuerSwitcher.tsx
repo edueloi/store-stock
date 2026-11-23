@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Building2, Check, ChevronDown, Settings2 } from "lucide-react";
 import { getIssuerView, setIssuerView } from "../../lib/issuerView";
 
@@ -20,6 +21,10 @@ export default function IssuerSwitcher() {
   const [open, setOpen] = useState(false);
   const [view, setView] = useState(getIssuerView());
   const box = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  // O menu é desenhado num portal no <body>: dentro do cabeçalho ele ficava preso à camada (z-index) do cabeçalho e
+  // os cards da página (ícones, gráficos) apareciam POR CIMA dele. Posição fixa calculada a partir do botão.
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -37,11 +42,21 @@ export default function IssuerSwitcher() {
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
+    const place = () => {
+      const r = box.current?.getBoundingClientRect();
+      if (r) setPos({ top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (!box.current?.contains(t) && !menu.current?.contains(t)) setOpen(false);
+    };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
   }, [open]);
 
   if (items.length < 2) return null;
@@ -62,8 +77,8 @@ export default function IssuerSwitcher() {
         <span className="hidden truncate sm:inline">{current ? current.label : "Todos os CNPJs"}</span>
         <ChevronDown size={13} className="shrink-0 text-slate-400" />
       </button>
-      {open && (
-        <div role="listbox" aria-label="Empresa que o painel mostra" className="absolute right-0 top-full z-50 mt-1.5 w-80 max-w-[92vw] rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
+      {open && pos && createPortal(
+        <div ref={menu} role="listbox" aria-label="Empresa que o painel mostra" style={{ position: "fixed", top: pos.top, right: pos.right }} className="z-[1000] w-80 max-w-[92vw] rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
           <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Mostrar vendas, caixa e financeiro de</p>
           <button type="button" role="option" aria-selected={view === "all"} onClick={() => choose("all")}
             className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition ${view === "all" ? "bg-blue-50 text-blue-800" : "text-slate-700 hover:bg-slate-50"}`}>
@@ -83,7 +98,8 @@ export default function IssuerSwitcher() {
           <div className="mt-1 border-t border-slate-100 px-2.5 py-2 text-[11px] leading-relaxed text-slate-500">
             Ao emitir uma nota, o sistema pergunta de qual CNPJ. Dados fiscais de cada empresa em <span className="inline-flex items-center gap-0.5 font-medium text-slate-600"><Settings2 size={11} /> Configurações → Dados Fiscais</span>.
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

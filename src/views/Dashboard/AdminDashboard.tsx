@@ -1220,7 +1220,7 @@ export default function AdminDashboard() {
 
         {/* Header */}
         {/* No iPhone (tela cheia/PWA) o conteúdo vai até a borda: reserva o espaço do entalhe e da barra de status. */}
-        <header className="z-10 flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-4"
+        <header className="z-30 flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-4"
           style={{ paddingTop: "env(safe-area-inset-top, 0px)", height: "calc(3rem + env(safe-area-inset-top, 0px))" }}>
           <div className="flex min-w-0 items-center gap-3">
             {/* Toggle sidebar desktop */}
