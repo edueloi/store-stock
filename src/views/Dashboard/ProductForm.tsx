@@ -311,6 +311,27 @@ function InlineEdit({ value, onCommit, onCancel, className }: { value: string; o
   );
 }
 
+/** Opção liga/desliga do produto: cartão inteiro clicável, título + explicação curta e o interruptor à direita. */
+function OptionCard({ label, description, checked, onChange }: { label: string; description: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div
+      role="button" tabIndex={0} aria-pressed={checked}
+      onClick={() => onChange(!checked)}
+      onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); onChange(!checked); } }}
+      className={cn(
+        "flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30",
+        checked ? "border-blue-200 bg-blue-50/60" : "border-slate-200 bg-white hover:border-slate-300",
+      )}
+    >
+      <div className="min-w-0">
+        <p className="text-[13px] font-semibold leading-snug text-slate-800">{label}</p>
+        <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{description}</p>
+      </div>
+      <Switch checked={checked} onChange={onChange} size="md" aria-label={label} onClick={(e) => e.stopPropagation()} />
+    </div>
+  );
+}
+
 export default function ProductForm({
   product: editingProduct, onProductChange: setEditingProduct, images: editingImages, onImagesChange: setEditingImages,
   categories, onCategoryCreated, taxRegime, saving, onSave, onCancel,
@@ -633,33 +654,29 @@ export default function ProductForm({
                       placeholder="Ex.: Camiseta em algodão premium, modelagem confortável e acabamento reforçado."
                       value={editingProduct?.description || ""}
                       onChange={e => setEditingProduct(prev => ({ ...prev!, description: e.target.value }))} />
-                    <div className="flex flex-wrap gap-6 border-t border-slate-100 pt-3">
-                      <Switch label="Ativo no site" checked={editingProduct?.is_active ?? true}
-                        onChange={v => setEditingProduct(prev => ({ ...prev!, is_active: v }))} accent="emerald" />
-                      <Switch label="Destaque na home" checked={editingProduct?.is_featured ?? false}
-                        onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} accent="amber" />
+                    <div className="space-y-2 border-t border-slate-100 pt-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Loja online</p>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <OptionCard label="Ativo no site" description="Mostra o produto na loja virtual."
+                          checked={editingProduct?.is_active ?? true}
+                          onChange={v => setEditingProduct(prev => ({ ...prev!, is_active: v }))} />
+                        <OptionCard label="Destaque na home" description="Aparece em destaque na página inicial da loja."
+                          checked={editingProduct?.is_featured ?? false}
+                          onChange={v => setEditingProduct(prev => ({ ...prev!, is_featured: v }))} />
+                        <OptionCard label="Ocultar preço no site" description='A loja mostra "Sob consulta" e o cliente pede orçamento. O preço segue no PDV e nos relatórios.'
+                          checked={editingProduct?.hide_price_on_site ?? false}
+                          onChange={v => setEditingProduct(prev => ({ ...prev!, hide_price_on_site: v }))} />
+                      </div>
                     </div>
-                    <div className="grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
-                      <div className="space-y-1">
-                        <Switch label="Controlar estoque" checked={editingProduct?.track_stock ?? true}
-                          onChange={v => setEditingProduct(prev => ({ ...prev!, track_stock: v }))} accent="blue" />
-                        <p className="text-[11px] leading-snug text-slate-500">
-                          Desligue para produto sob encomenda ou feito na hora: ele vende mesmo sem saldo, não baixa estoque e não aparece como esgotado.
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <Switch label="Permite vender fração (ex.: meia barra)" checked={editingProduct?.allow_fraction ?? false}
-                          onChange={v => setEditingProduct(prev => ({ ...prev!, allow_fraction: v }))} accent="blue" />
-                        <p className="text-[11px] leading-snug text-slate-500">
-                          No PDV aparece o botão "Fracionar" nesse produto: o cliente leva 1/2, 1/3, 1/4… e o sistema calcula o preço, avisa a diferença de arredondamento e guarda a sobra no estoque (ex.: "meia barra").
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <Switch label="Ocultar preço no site" checked={editingProduct?.hide_price_on_site ?? false}
-                          onChange={v => setEditingProduct(prev => ({ ...prev!, hide_price_on_site: v }))} accent="amber" />
-                        <p className="text-[11px] leading-snug text-slate-500">
-                          O preço continua no catálogo, no PDV e nos relatórios, mas a loja virtual mostra "Sob consulta" e o cliente pede orçamento.
-                        </p>
+                    <div className="space-y-2 border-t border-slate-100 pt-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Venda e estoque</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <OptionCard label="Controlar estoque" description="Desligue para produto sob encomenda ou feito na hora: vende sem saldo, não baixa estoque e não aparece como esgotado."
+                          checked={editingProduct?.track_stock ?? true}
+                          onChange={v => setEditingProduct(prev => ({ ...prev!, track_stock: v }))} />
+                        <OptionCard label="Permite vender fração (ex.: meia barra)" description='No PDV aparece o botão "Fracionar" (1/2, 1/3, 1/4…). O sistema calcula o preço, avisa a diferença de centavos e guarda a sobra no estoque.'
+                          checked={editingProduct?.allow_fraction ?? false}
+                          onChange={v => setEditingProduct(prev => ({ ...prev!, allow_fraction: v }))} />
                       </div>
                     </div>
                   </PanelCard>
