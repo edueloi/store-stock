@@ -1,6 +1,9 @@
 node_modules/
 build/
 dist/
+dist-build/
+dist-old/
+.asset-archive/
 coverage/
 tmp/pdfs/
 tmp/audio/

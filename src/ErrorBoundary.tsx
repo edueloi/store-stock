@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from "react";
+import { isStaleChunkError, reloadForNewVersion } from "./lib/staleChunk";
 
 interface Props {
   children: ReactNode;
@@ -21,18 +22,21 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: { componentStack: string }) {
     console.error("[ErrorBoundary] erro não tratado:", error, info.componentStack);
+    // arquivo de uma versão anterior que não existe mais (deploy): recarrega sozinho em vez de mostrar o erro
+    if (isStaleChunkError(error)) reloadForNewVersion();
   }
 
   render() {
     if (this.state.error) {
+      const stale = isStaleChunkError(this.state.error);
       return (
         <div style={{
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
           height: "100vh", padding: 24, fontFamily: "system-ui, sans-serif", textAlign: "center", gap: 12,
         }}>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: "#1e293b" }}>Algo deu errado</h1>
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: "#1e293b" }}>{stale ? "O sistema foi atualizado" : "Algo deu errado"}</h1>
           <p style={{ fontSize: 13, color: "#64748b", maxWidth: 480 }}>
-            {this.state.error.message || "Erro desconhecido."}
+            {stale ? "Há uma versão nova. Clique em Recarregar para continuar de onde parou." : (this.state.error.message || "Erro desconhecido.")}
           </p>
           <button
             onClick={() => window.location.reload()}

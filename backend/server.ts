@@ -67,8 +67,12 @@ async function attachFrontend(app: express.Express) {
       }
     },
   }));
+  // Arquivos de versões anteriores (guardados por scripts/build.mjs em .asset-archive): quem está com o sistema aberto
+  // desde antes do deploy ainda pede assets/Tela-abc123.js — sem isso daria 404 e a tela de erro.
+  app.use("/assets", express.static(path.join(process.cwd(), ".asset-archive"), { maxAge: "1y", immutable: true, fallthrough: true }));
   // Never serve index.html for asset requests — return 404 instead
   app.get("/assets/*", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store"); // um 404 transitório não pode ficar em cache do navegador/CDN
     res.status(404).end();
   });
 
