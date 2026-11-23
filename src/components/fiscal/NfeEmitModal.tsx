@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, AlertTriangle, CheckCircle2, ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 import { Alert, Button, Input, Select } from "../ui";
 import Combobox from "../ui/Combobox";
@@ -92,6 +92,8 @@ export default function NfeEmitModal({ orderId, onClose, onDone }: { orderId: nu
   const [error, setError] = useState("");
   const [cityState, setCityState] = useState<"idle" | "loading" | "ok" | "fail">("idle");
   const [showMore, setShowMore] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const jumpAfterPick = useRef(false);
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [pickedCustomer, setPickedCustomer] = useState("");
   const [loadingCustomer, setLoadingCustomer] = useState(false);
@@ -131,7 +133,7 @@ export default function NfeEmitModal({ orderId, onClose, onDone }: { orderId: nu
   useEffect(() => {
     if (orderId == null) return;
     let alive = true;
-    setLoading(true); setLoadError(""); setError(""); setPreview(null); setPickedCustomer(""); setShowMore(false); setCityState("idle"); cnpj.clear();
+    setLoading(true); setLoadError(""); setError(""); setPreview(null); setPickedCustomer(""); setShowMore(false); setStep(1); jumpAfterPick.current = false; setCityState("idle"); cnpj.clear();
     fetch(`/api/nfe/${orderId}/preview`, { headers: authHeader() })
       .then(async (r) => {
         const d = await r.json().catch(() => ({}));
@@ -173,6 +175,7 @@ export default function NfeEmitModal({ orderId, onClose, onDone }: { orderId: nu
       if (!r.ok || !d?.recipient) { setError(d?.error || "Não foi possível carregar o cliente."); return; }
       fillFromRecipient(d.recipient as RecipientDto);
       cnpj.clear();
+      jumpAfterPick.current = true; // cliente completo: vai direto para a confirmação
     } finally { setLoadingCustomer(false); }
   };
 
@@ -207,11 +210,15 @@ export default function NfeEmitModal({ orderId, onClose, onDone }: { orderId: nu
     return () => clearTimeout(t);
   }, [form.zip, form.city, form.state, form.city_code, form.street, form.district]);
 
-  const problems = useMemo(() => {
+  const step1Problems = useMemo(() => {
     const p: string[] = [];
     if (![11, 14].includes(digits(form.document).length)) p.push("CPF/CNPJ");
     if (form.name.trim().length < 2) p.push("nome / razão social");
     if (form.ie_indicator === "1" && digits(form.ie).length < 2) p.push("inscrição estadual");
+    return p;
+  }, [form.document, form.name, form.ie_indicator, form.ie]);
+  const step2Problems = useMemo(() => {
+    const p: string[] = [];
     if (digits(form.zip).length !== 8) p.push("CEP");
     if (!form.street.trim()) p.push("rua");
     if (!form.district.trim()) p.push("bairro");
@@ -219,7 +226,15 @@ export default function NfeEmitModal({ orderId, onClose, onDone }: { orderId: nu
     if (form.state.trim().length !== 2) p.push("UF");
     if (digits(form.city_code).length !== 7) p.push("código do município");
     return p;
-  }, [form]);
+  }, [form.zip, form.street, form.district, form.city, form.state, form.city_code]);
+  const problems = useMemo(() => [...step1Problems, ...step2Problems], [step1Problems, step2Problems]);
+
+  // cliente cadastrado com tudo preenchido: pula para a confirmação (se faltar algo, fica na etapa certa)
+  useEffect(() => {
+    if (!jumpAfterPick.current) return;
+    if (step1Problems.length === 0 && step2Problems.length === 0) { jumpAfterPick.current = false; setStep(3); }
+    else if (step1Problems.length === 0 && cityState !== "loading") { jumpAfterPick.current = false; setStep(2); }
+  }, [step1Problems, step2Problems, cityState]);
 
   const submit = async () => {
     if (!preview || orderId == null) return;
@@ -266,6 +281,12 @@ export default function NfeEmitModal({ orderId, onClose, onDone }: { orderId: nu
     [customers],
   );
 
+  const STEPS: { n: 1 | 2 | 3; label: string }[] = [{ n: 1, label: "Destinatário" }, { n: 2, label: "Endereço" }, { n: 3, label: "Confirmar" }];
+  const currentProblems = step === 1 ? step1Problems : step === 2 ? step2Problems : [];
+  const canGo = (n: number) => n <= step || (n === 2 && step1Problems.length === 0) || (n === 3 && problems.length === 0);
+  const next = () => { if (currentProblems.length === 0) setStep((step + 1) as 1 | 2 | 3); };
+  const addressLine = [form.street, form.number || "S/N", form.complement, form.district, form.city && form.state ? `${form.city}/${form.state.toUpperCase()}` : "", form.zip ? `CEP ${form.zip}` : ""].filter(Boolean).join(" · ");
+
   return (
     <Modal
       open={orderId != null}
@@ -275,10 +296,14 @@ export default function NfeEmitModal({ orderId, onClose, onDone }: { orderId: nu
       subtitle={preview ? `${preview.order.items_count} item(ns) · ${fmtMoney(preview.order.total_amount)} · série ${preview.series}, próximo nº ${preview.invoice?.number ?? preview.next_number}` : undefined}
       footer={
         <>
-          <Button variant="outline" size="md" onClick={onClose} disabled={submitting} className="flex-1">Cancelar</Button>
-          <Button variant="success" size="md" onClick={submit} loading={submitting} disabled={!preview || problems.length > 0 || submitting} className="flex-1 justify-center">
-            {preview?.invoice ? "Reemitir NF-e" : "Emitir NF-e"}
-          </Button>
+          {step === 1
+            ? <Button variant="outline" size="md" onClick={onClose} disabled={submitting} className="flex-1">Cancelar</Button>
+            : <Button variant="outline" size="md" onClick={() => setStep((step - 1) as 1 | 2 | 3)} disabled={submitting} className="flex-1 justify-center" iconLeft={<ArrowLeft size={14} />}>Voltar</Button>}
+          {step < 3
+            ? <Button variant="primary" size="md" onClick={next} disabled={!preview || currentProblems.length > 0} className="flex-1 justify-center" iconRight={<ArrowRight size={14} />}>Continuar</Button>
+            : <Button variant="success" size="md" onClick={submit} loading={submitting} disabled={!preview || problems.length > 0 || submitting} className="flex-1 justify-center">
+                {preview?.invoice ? "Reemitir NF-e" : "Emitir NF-e"}
+              </Button>}
         </>
       }
     >
@@ -286,72 +311,112 @@ export default function NfeEmitModal({ orderId, onClose, onDone }: { orderId: nu
       {loadError && <Alert variant="error">{loadError}</Alert>}
       {preview && (
         <div className="space-y-4">
+          {/* etapas */}
+          <ol className="flex items-center gap-2">
+            {STEPS.map((st, i) => {
+              const done = st.n < step || (st.n !== step && canGo(st.n) && step === 3);
+              const active = st.n === step;
+              return (
+                <li key={st.n} className="flex flex-1 items-center gap-2">
+                  <button type="button" disabled={!canGo(st.n)} onClick={() => setStep(st.n)}
+                    className={`flex items-center gap-2 rounded-full px-1 py-0.5 text-xs font-semibold transition ${active ? "text-slate-900" : done ? "text-emerald-600" : "text-slate-400"} disabled:cursor-default`}>
+                    <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] ${active ? "bg-slate-900 text-white" : done ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                      {done && !active ? <Check size={12} /> : st.n}
+                    </span>
+                    {st.label}
+                  </button>
+                  {i < STEPS.length - 1 && <span className={`h-px flex-1 ${st.n < step ? "bg-emerald-300" : "bg-slate-200"}`} />}
+                </li>
+              );
+            })}
+          </ol>
+
           {isProd
             ? <Alert variant="warning" title="Ambiente de PRODUÇÃO">A nota terá valor fiscal e será enviada de verdade à SEFAZ.</Alert>
             : <Alert variant="info">Ambiente de <b>homologação</b> (teste): a nota não tem valor fiscal.</Alert>}
           {preview.invoice?.rejection_reason && <Alert variant="error" title={`Nota nº ${preview.invoice.number} recusada`}>{preview.invoice.rejection_reason}</Alert>}
           {preview.warnings.map((w) => <Alert key={w} variant="warning">{w}</Alert>)}
 
-          <section className="space-y-3 rounded-xl border border-slate-200 p-4">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Para quem é a nota?</p>
-              <p className="mt-0.5 text-[11px] text-slate-500">A NF-e sempre precisa de destinatário. Escolha um cliente cadastrado ou digite o CNPJ/CPF.</p>
-            </div>
-            <div className="relative">
-              <Combobox label="Cliente cadastrado" options={customerOptions} value={pickedCustomer} onChange={(v) => void pickCustomer(v)} placeholder="Buscar cliente por nome ou CNPJ…" searchPlaceholder="Digite o nome ou o documento" clearable />
-              {loadingCustomer && <Loader2 size={14} className="absolute right-9 top-9 animate-spin text-slate-400" />}
-            </div>
-            <div className="grid gap-3 sm:grid-cols-6">
-              <div className="sm:col-span-2">
-                <Input label="CPF / CNPJ *" value={form.document} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00 ou 00.000.000/0000-00"
-                  onChange={(e) => { const v = maskDoc(e.target.value); set("document", v); void cnpj.run(v); }} />
+          {step === 1 && (
+            <section className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Para quem é a nota?</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">A NF-e sempre precisa de destinatário. Escolha um cliente cadastrado (pula direto para a confirmação) ou digite o CNPJ/CPF.</p>
               </div>
-              <div className="sm:col-span-4"><Input label={docKind === "cpf" ? "Nome completo *" : "Nome / razão social *"} value={form.name} autoComplete="off" onChange={(e) => set("name", e.target.value)} /></div>
-              <div className="sm:col-span-6"><CnpjStatusNotice loading={cnpj.loading} info={cnpj.info} error={cnpj.error} /></div>
-              {docKind === "none" && <p className="sm:col-span-6 text-[11px] text-slate-400">Digite o CNPJ ou o CPF (ou escolha um cliente acima) e o restante aparece. Com CNPJ, o nome e o endereço vêm sozinhos da Receita.</p>}
-              {docKind === "cpf" && <p className="sm:col-span-6 text-[11px] text-slate-500">Pessoa física: não precisa de inscrição estadual. A Receita não permite consultar CPF, então digite o nome ou escolha o cliente cadastrado.</p>}
-              {docKind === "cnpj" && <div className={form.ie_indicator === "1" ? "sm:col-span-3" : "sm:col-span-6"}>
-                <Select label="O comprador é contribuinte do ICMS?" value={form.ie_indicator} onChange={(e) => { const v = e.target.value as "1" | "2" | "9"; set("ie_indicator", v); set("finalConsumer", v === "9"); }}>
-                  <option value="9">Não (pessoa física ou empresa sem inscrição estadual)</option>
-                  <option value="1">Sim, tem inscrição estadual (informar a IE)</option>
-                  <option value="2">Contribuinte isento de IE</option>
-                </Select>
-              </div>}
-              {docKind === "cnpj" && form.ie_indicator === "1" && <div className="sm:col-span-3"><Input label="Inscrição estadual (IE) *" value={form.ie} inputMode="numeric" autoComplete="off" onChange={(e) => set("ie", digits(e.target.value))} /></div>}
-            </div>
-            <div className="grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-6">
-              <div className="sm:col-span-2"><Input label="CEP *" value={form.zip} inputMode="numeric" autoComplete="off" placeholder="00000-000" hint="Rua, bairro e cidade vêm do CEP" onChange={(e) => { set("zip", maskZip(e.target.value)); set("city_code", ""); }} /></div>
-              <div className="sm:col-span-4"><Input label="Rua *" value={form.street} autoComplete="off" onChange={(e) => set("street", e.target.value)} /></div>
-              <div className="sm:col-span-2"><Input label="Número" value={form.number} autoComplete="off" onChange={(e) => set("number", e.target.value)} placeholder="S/N" /></div>
-              <div className="sm:col-span-4"><Input label="Bairro *" value={form.district} autoComplete="off" onChange={(e) => set("district", e.target.value)} /></div>
-              <div className="sm:col-span-4"><Input label="Cidade *" value={form.city} autoComplete="off" onChange={(e) => { set("city", e.target.value); set("city_code", ""); }} /></div>
-              <div className="sm:col-span-2"><Input label="UF *" value={form.state} maxLength={2} autoComplete="off" onChange={(e) => { set("state", e.target.value.toUpperCase()); set("city_code", ""); }} /></div>
-              <div className="sm:col-span-6 text-[11px]">
-                {cityState === "loading" && <span className="flex items-center gap-1.5 text-slate-500"><Loader2 size={12} className="animate-spin" /> Buscando o código do município…</span>}
-                {cityState === "ok" && digits(form.city_code).length === 7 && <span className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 size={12} /> Município confirmado (código {form.city_code}).</span>}
-                {(cityState === "fail" || (digits(form.city_code).length !== 7 && cityState === "idle" && form.city.trim() && form.state.trim())) && (
-                  <span className="flex flex-wrap items-center gap-2 text-amber-700">
-                    Não achei o código do município sozinho. Digite os 7 dígitos (IBGE):
-                    <input value={form.city_code} inputMode="numeric" maxLength={7} onChange={(e) => set("city_code", digits(e.target.value))} placeholder="3554003" className="h-8 w-28 rounded-lg border border-slate-300 px-2 font-mono text-xs" />
-                  </span>
-                )}
+              <div className="relative">
+                <Combobox label="Cliente cadastrado" options={customerOptions} value={pickedCustomer} onChange={(v) => void pickCustomer(v)} placeholder="Buscar cliente por nome ou CNPJ…" searchPlaceholder="Digite o nome ou o documento" clearable />
+                {loadingCustomer && <Loader2 size={14} className="absolute right-9 top-9 animate-spin text-slate-400" />}
               </div>
-            </div>
-          </section>
+              <div className="grid gap-3 sm:grid-cols-6">
+                <div className="sm:col-span-2">
+                  <Input label="CPF / CNPJ *" value={form.document} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                    onChange={(e) => { const v = maskDoc(e.target.value); set("document", v); void cnpj.run(v); }} />
+                </div>
+                <div className="sm:col-span-4"><Input label={docKind === "cpf" ? "Nome completo *" : "Nome / razão social *"} value={form.name} autoComplete="off" onChange={(e) => set("name", e.target.value)} /></div>
+                <div className="sm:col-span-6"><CnpjStatusNotice loading={cnpj.loading} info={cnpj.info} error={cnpj.error} /></div>
+                {docKind === "none" && <p className="sm:col-span-6 text-[11px] text-slate-400">Com CNPJ, o nome e o endereço vêm sozinhos da Receita.</p>}
+                {docKind === "cpf" && <p className="sm:col-span-6 text-[11px] text-slate-500">Pessoa física: não precisa de inscrição estadual. A Receita não permite consultar CPF, então digite o nome ou escolha o cliente cadastrado.</p>}
+                {docKind === "cnpj" && <div className={form.ie_indicator === "1" ? "sm:col-span-3" : "sm:col-span-6"}>
+                  <Select label="O comprador é contribuinte do ICMS?" value={form.ie_indicator} onChange={(e) => { const v = e.target.value as "1" | "2" | "9"; set("ie_indicator", v); set("finalConsumer", v === "9"); }}>
+                    <option value="9">Não (pessoa física ou empresa sem inscrição estadual)</option>
+                    <option value="1">Sim, tem inscrição estadual (informar a IE)</option>
+                    <option value="2">Contribuinte isento de IE</option>
+                  </Select>
+                </div>}
+                {docKind === "cnpj" && form.ie_indicator === "1" && <div className="sm:col-span-3"><Input label="Inscrição estadual (IE) *" value={form.ie} inputMode="numeric" autoComplete="off" onChange={(e) => set("ie", digits(e.target.value))} /></div>}
+              </div>
+            </section>
+          )}
 
-          <section className="rounded-xl border border-slate-200">
-            <button type="button" onClick={() => setShowMore((v) => !v)} className="flex w-full items-center justify-between px-4 py-3 text-left">
-              <span>
-                <span className="block text-sm font-semibold text-slate-900">Mais opções <span className="font-normal text-slate-400">(frete, e-mail, informações adicionais)</span></span>
-                <span className="block text-[11px] text-slate-500">Tudo aqui é opcional. Sem mexer, a nota sai como venda de mercadoria, sem frete.</span>
-              </span>
-              {showMore ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
-            </button>
-            {showMore && (
-              <div className="grid gap-3 border-t border-slate-100 p-4 sm:grid-cols-6">
-                <div className="sm:col-span-3"><Input label="E-mail do destinatário" value={form.email} onChange={(e) => set("email", e.target.value)} /></div>
-                <div className="sm:col-span-3"><Input label="Telefone" value={form.phone} inputMode="tel" autoComplete="off" placeholder="(00) 00000-0000" onChange={(e) => set("phone", maskPhone(e.target.value))} /></div>
-                <div className="sm:col-span-6"><Input label="Complemento do endereço" value={form.complement} onChange={(e) => set("complement", e.target.value)} /></div>
+          {step === 2 && (
+            <section className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Endereço do destinatário</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Digite o CEP: rua, bairro, cidade e o código do município vêm sozinhos.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-6">
+                <div className="sm:col-span-2"><Input label="CEP *" value={form.zip} inputMode="numeric" autoComplete="off" placeholder="00000-000" autoFocus onChange={(e) => { set("zip", maskZip(e.target.value)); set("city_code", ""); }} /></div>
+                <div className="sm:col-span-4"><Input label="Rua *" value={form.street} autoComplete="off" onChange={(e) => set("street", e.target.value)} /></div>
+                <div className="sm:col-span-2"><Input label="Número" value={form.number} autoComplete="off" onChange={(e) => set("number", e.target.value)} placeholder="S/N" /></div>
+                <div className="sm:col-span-4"><Input label="Bairro *" value={form.district} autoComplete="off" onChange={(e) => set("district", e.target.value)} /></div>
+                <div className="sm:col-span-4"><Input label="Cidade *" value={form.city} autoComplete="off" onChange={(e) => { set("city", e.target.value); set("city_code", ""); }} /></div>
+                <div className="sm:col-span-2"><Input label="UF *" value={form.state} maxLength={2} autoComplete="off" onChange={(e) => { set("state", e.target.value.toUpperCase()); set("city_code", ""); }} /></div>
+                <div className="sm:col-span-6"><Input label="Complemento" value={form.complement} autoComplete="off" onChange={(e) => set("complement", e.target.value)} /></div>
+                <div className="sm:col-span-6 text-[11px]">
+                  {cityState === "loading" && <span className="flex items-center gap-1.5 text-slate-500"><Loader2 size={12} className="animate-spin" /> Buscando o código do município…</span>}
+                  {cityState === "ok" && digits(form.city_code).length === 7 && <span className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 size={12} /> Município confirmado (código {form.city_code}).</span>}
+                  {(cityState === "fail" || (digits(form.city_code).length !== 7 && cityState === "idle" && form.city.trim() && form.state.trim())) && (
+                    <span className="flex flex-wrap items-center gap-2 text-amber-700">
+                      Não achei o código do município sozinho. Digite os 7 dígitos (IBGE):
+                      <input value={form.city_code} inputMode="numeric" maxLength={7} onChange={(e) => set("city_code", digits(e.target.value))} placeholder="3554003" className="h-8 w-28 rounded-lg border border-slate-300 px-2 font-mono text-xs" />
+                    </span>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {step === 3 && (
+            <section className="space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Destinatário</p>
+                    <p className="truncate text-sm font-semibold text-slate-900">{form.name}</p>
+                    <p className="font-mono text-slate-500">{form.document}{form.ie_indicator === "1" && form.ie ? ` · IE ${form.ie}` : ""}</p>
+                    <p className="mt-1 text-slate-600">{addressLine}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Total</p>
+                    <p className="text-base font-bold text-slate-900">{fmtMoney(preview.order.total_amount)}</p>
+                    <button type="button" onClick={() => setStep(1)} className="mt-1 text-[11px] font-medium text-blue-600 hover:underline">Editar dados</button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-6">
+                <div className="sm:col-span-3"><Input label="E-mail (opcional)" value={form.email} autoComplete="off" onChange={(e) => set("email", e.target.value)} /></div>
+                <div className="sm:col-span-3"><Input label="Telefone (opcional)" value={form.phone} inputMode="tel" autoComplete="off" placeholder="(00) 00000-0000" onChange={(e) => set("phone", maskPhone(e.target.value))} /></div>
                 <div className="sm:col-span-3"><Select label="Frete" value={form.freightMode} onChange={(e) => set("freightMode", e.target.value)} options={FREIGHT_OPTIONS} /></div>
                 <div className="sm:col-span-3"><Input label="Valor do frete (R$)" value={form.freightValue} inputMode="decimal" disabled={form.freightMode === "9"} onChange={(e) => set("freightValue", e.target.value)} placeholder="0,00" /></div>
                 {form.freightMode !== "9" && (
@@ -360,30 +425,45 @@ export default function NfeEmitModal({ orderId, onClose, onDone }: { orderId: nu
                     <div className="sm:col-span-3"><Input label="CNPJ da transportadora" value={form.carrierDocument} inputMode="numeric" autoComplete="off" onChange={(e) => set("carrierDocument", maskDoc(e.target.value))} /></div>
                   </>
                 )}
-                <div className="sm:col-span-3"><Input label="Natureza da operação" value={form.nature} maxLength={60} onChange={(e) => set("nature", e.target.value)} /></div>
-                <div className="sm:col-span-3">
-                  <Select label="Presença do comprador" value={form.indPres} onChange={(e) => set("indPres", e.target.value)}>
-                    <option value="1">Presencial</option>
-                    <option value="9">Não presencial (internet, telefone, entrega)</option>
-                  </Select>
-                </div>
-                <div className="sm:col-span-6">
-                  <label className="flex items-start gap-2 text-xs text-slate-700">
-                    <input type="checkbox" className="mt-0.5" checked={form.finalConsumer} onChange={(e) => set("finalConsumer", e.target.checked)} />
-                    <span>Consumidor final (compra para uso próprio, não para revenda). Obrigatório quando o comprador não é contribuinte do ICMS.</span>
-                  </label>
-                </div>
                 <div className="sm:col-span-6">
                   <label className="mb-1.5 block text-xs font-medium text-slate-600">Informações adicionais (saem no DANFE)</label>
                   <textarea value={form.additionalInfo} onChange={(e) => set("additionalInfo", e.target.value)} rows={2}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
                 </div>
               </div>
-            )}
-          </section>
 
-          {problems.length > 0 && (
-            <p className="flex items-start gap-1.5 text-xs text-amber-700"><AlertTriangle size={14} className="mt-px shrink-0" /> Falta preencher: {problems.join(", ")}.</p>
+              <div className="rounded-xl border border-slate-200">
+                <button type="button" onClick={() => setShowMore((v) => !v)} className="flex w-full items-center justify-between px-4 py-2.5 text-left">
+                  <span className="text-xs font-semibold text-slate-700">Avançado <span className="font-normal text-slate-400">(natureza da operação, presença, consumidor final)</span></span>
+                  {showMore ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
+                </button>
+                {showMore && (
+                  <div className="grid gap-3 border-t border-slate-100 p-4 sm:grid-cols-6">
+                    <div className="sm:col-span-3"><Input label="Natureza da operação" value={form.nature} maxLength={60} onChange={(e) => set("nature", e.target.value)} /></div>
+                    <div className="sm:col-span-3">
+                      <Select label="Presença do comprador" value={form.indPres} onChange={(e) => set("indPres", e.target.value)}>
+                        <option value="1">Presencial</option>
+                        <option value="9">Não presencial (internet, telefone, entrega)</option>
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-6">
+                      <label className="flex items-start gap-2 text-xs text-slate-700">
+                        <input type="checkbox" className="mt-0.5" checked={form.finalConsumer} onChange={(e) => set("finalConsumer", e.target.checked)} />
+                        <span>Consumidor final (compra para uso próprio, não para revenda). Obrigatório quando o comprador não é contribuinte do ICMS.</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500">Sem mexer nas opções, a nota sai como <b>{form.nature || "Venda de mercadoria"}</b>, sem frete.</p>
+            </section>
+          )}
+
+          {currentProblems.length > 0 && (
+            <p className="flex items-start gap-1.5 text-xs text-amber-700"><AlertTriangle size={14} className="mt-px shrink-0" /> Falta preencher: {currentProblems.join(", ")}.</p>
+          )}
+          {step === 3 && problems.length > 0 && (
+            <p className="flex items-start gap-1.5 text-xs text-amber-700"><AlertTriangle size={14} className="mt-px shrink-0" /> Falta preencher: {problems.join(", ")}. Volte e complete.</p>
           )}
           {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
         </div>
