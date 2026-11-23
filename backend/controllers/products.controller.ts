@@ -4,6 +4,7 @@ import { prisma } from "../config/prisma";
 import { Prisma } from "@prisma/client";
 import { PIECE_KINDS } from "../utils/glassPieces";
 import { deleteProductImage } from "./upload.controller";
+import { suggestFiscal } from "../utils/fiscal-defaults";
 import { getLowStockThreshold } from "../utils/low-stock-threshold";
 import type { AuthenticatedRequest } from "../types/auth";
 import { emitToTenant } from "../services/realtime.service";
@@ -148,6 +149,12 @@ async function normalizeProductInput(rest: Record<string, any>, tenantId: number
   for (const field of NOT_NULL_DEFAULTED) if (field in rest && (rest[field] === null || rest[field] === "")) delete rest[field];
   for (const field of ["is_active", "is_featured", "track_stock", "hide_price_on_site", "allow_fraction"]) if (field in rest) rest[field] = Boolean(rest[field]);
   delete rest.fraction_leftover; // sobra de frações é controlada só pelo estoque (vendas/devoluções), nunca pelo formulário
+
+  // 6b) produto novo sem NCM: aplica o padrão sugerido pelo nome (produtos parecidos da loja ou dicionário padrão)
+  if (mode === "create" && !rest.ncm && typeof rest.name === "string") {
+    const s = await suggestFiscal(tenantId, rest.name).catch(() => null);
+    if (s) { rest.ncm = s.ncm; if (!rest.cest && s.cest) rest.cest = s.cest; }
+  }
 
   // 7) categoria precisa existir nesta loja (senão a chave estrangeira falha)
   if ("category_id" in rest) {
@@ -326,6 +333,17 @@ export async function getProductByBarcode(req: Request, res: Response) {
     res.json({ ...product, category_name: product.category?.name ?? null });
   } catch {
     res.status(500).json({ error: "Failed to fetch product" });
+  }
+}
+
+/** Sugestão de NCM/CEST a partir do nome do produto (GET /api/products/fiscal-suggestion?name=...). */
+export async function getFiscalSuggestion(req: Request, res: Response) {
+  try {
+    const name = String(req.query.name ?? "").trim();
+    if (name.length < 3) { res.json({ suggestion: null }); return; }
+    res.json({ suggestion: await suggestFiscal(getTenantId(req), name) });
+  } catch {
+    res.json({ suggestion: null });
   }
 }
 

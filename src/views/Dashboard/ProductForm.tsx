@@ -323,6 +323,28 @@ export default function ProductForm({
     fetch("/api/tenant", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
       .then((r) => r.json()).then((t) => setGlassOptions(t?.policies?.glass_options)).catch(() => {});
   }, []);
+  // Dados fiscais padrão pelo nome: ao digitar o nome de um produto NOVO sem NCM, sugere NCM/CEST (produtos parecidos da
+  // loja ou padrão). Só preenche campos vazios; o contador deve confirmar.
+  const [fiscalHint, setFiscalHint] = useState<string | null>(null);
+  const fiscalName = editingProduct?.name ?? "";
+  const hasNcm = !!editingProduct?.ncm;
+  const isNewProduct = !editingProduct?.id;
+  useEffect(() => {
+    if (!isNewProduct || hasNcm || fiscalName.trim().length < 4) return;
+    const timer = setTimeout(() => {
+      fetch(`/api/products/fiscal-suggestion?name=${encodeURIComponent(fiscalName.trim())}`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } })
+        .then((r) => r.json())
+        .then((d) => {
+          const s = d?.suggestion;
+          if (!s?.ncm) return;
+          setEditingProduct((prev) => (prev && !prev.ncm ? { ...prev, ncm: s.ncm, cest: prev.cest || s.cest || prev.cest } : prev));
+          setFiscalHint(`NCM ${s.ncm}${s.cest ? ` e CEST ${s.cest}` : ""} sugeridos pelo nome (${s.label}). Confira com seu contador.`);
+        })
+        .catch(() => {});
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [fiscalName, hasNcm, isNewProduct, setEditingProduct]);
+
   // Campo auxiliar de UI (não é salvo no produto) — % de lucro desejada sobre o custo.
   // String pra permitir digitar livremente sem o input travar em 0.
   const [profitMarginInput, setProfitMarginInput] = useState("");
@@ -688,7 +710,8 @@ export default function ProductForm({
                     <Input label="NCM" type="text" maxLength={8} placeholder="00000000" className="font-mono" showCount={false}
                       value={editingProduct?.ncm || ""}
                       onChange={e => setEditingProduct(prev => ({ ...prev!, ncm: e.target.value.replace(/\D/g, "") }))} />
-                    <FiscalCodeLookup kind="ncm" token={localStorage.getItem("token")} onSelect={(item) => setEditingProduct(prev => ({ ...prev!, ncm: item.code }))} />
+                    <FiscalCodeLookup kind="ncm" token={localStorage.getItem("token")} onSelect={(item) => { setFiscalHint(null); setEditingProduct(prev => ({ ...prev!, ncm: item.code })); }} />
+                    {fiscalHint && <p className="text-[11px] leading-snug text-amber-700">{fiscalHint}</p>}
                   </div>
                   <Input label="CEST" type="text" maxLength={7} placeholder="Se aplicável" className="font-mono" showCount={false}
                     value={editingProduct?.cest || ""}

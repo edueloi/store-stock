@@ -6,6 +6,7 @@ import {
   createProduct,
   deleteProduct,
   exportProducts,
+  getFiscalSuggestion,
   getLowStockCount,
   getProduct,
   getProductByBarcode,
@@ -39,6 +40,7 @@ router.post("/", createProduct);
 router.post("/stock-adjustment", adjustProductStock);
 router.get("/movements", listProductMovements);
 router.get("/low-stock-count", getLowStockCount);
+router.get("/fiscal-suggestion", getFiscalSuggestion);
 router.get("/by-barcode/:code", getProductByBarcode);
 router.get("/:id/history", getProductHistory);
 router.get("/:id", getProduct);
