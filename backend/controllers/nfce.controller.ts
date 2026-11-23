@@ -11,6 +11,8 @@ import { cancelarNfce } from "../services/nfce/cancelar";
 import { generateDanfeA4Pdf, generateDanfePdf, formatCpfCnpjDanfe, buildCupomText, type DanfeInput } from "../services/nfce/danfe";
 import { emitToTenant } from "../services/realtime.service";
 import { sendWhatsappDocument } from "../services/whatsapp.service";
+import { loadEmailSignature, sendTenantEmail } from "../services/store-email.service";
+import { buildNfceEmail } from "../utils/document-email-text";
 import { getReceiptFooter, isReceiptLogoEnabled } from "../../shared/receiptFooter";
 
 const PAYMENT_LABELS: Record<string, string> = { money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário" };
@@ -583,6 +585,55 @@ export async function downloadDanfe(req: Request, res: Response) {
   }
 }
 
+/** PDF do DANFE da NFC-e: do disco, ou reconstruído se o arquivo não estiver neste servidor. */
+async function loadNfceDanfePdf(orderId: number, tenantId: number, invoice: Parameters<typeof rebuildDanfePdf>[2]): Promise<Buffer | null> {
+  const withPath = invoice as { danfe_a4_path?: string | null };
+  if (withPath.danfe_a4_path && fs.existsSync(withPath.danfe_a4_path) && !(await hasReceiptFooterSettings(tenantId))) {
+    return fs.readFileSync(withPath.danfe_a4_path);
+  }
+  return (await rebuildDanfePdf(orderId, tenantId, invoice)) ?? null;
+}
+
+// Envia o DANFE da NFC-e por e-mail (texto simples + PDF anexado), igual ao da NFS-e.
+export async function sendNfceEmail(req: Request, res: Response) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const tenantId = getTenantId(req);
+    const requestedEmail = String(req.body?.email || "").trim().toLowerCase();
+
+    const invoice = await prisma.nfceInvoice.findFirst({ where: { order_id: orderId, tenant_id: tenantId } });
+    if (!invoice) { res.status(404).json({ error: "Nota fiscal não encontrada para este pedido" }); return; }
+    if (invoice.status !== "authorized") { res.status(409).json({ error: `NFC-e ainda não autorizada (status atual: ${invoice.status}).` }); return; }
+
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, tenant_id: tenantId },
+      select: { customer_id: true, customer_name: true, total_amount: true },
+    });
+    const customer = order?.customer_id
+      ? await prisma.customer.findFirst({ where: { id: order.customer_id, tenant_id: tenantId }, select: { email: true, nfe_email: true } })
+      : null;
+    const recipient = requestedEmail || customer?.nfe_email?.trim() || customer?.email?.trim() || "";
+    if (!/^\S+@\S+\.\S+$/.test(recipient)) {
+      res.status(422).json({ code: "recipient_required", error: "Informe um e-mail válido — este pedido não tem e-mail de cliente cadastrado." });
+      return;
+    }
+
+    const pdfBuffer = await loadNfceDanfePdf(orderId, tenantId, invoice);
+    if (!pdfBuffer) { res.status(404).json({ error: "O arquivo do DANFE não está disponível e não há dados suficientes para reconstruí-lo." }); return; }
+
+    const { signature, replyTo } = await loadEmailSignature(tenantId, (req as AuthenticatedRequest).user.userId);
+    const email = buildNfceEmail({ customerName: order?.customer_name, numero: invoice.number, serie: invoice.series, value: order?.total_amount, signature });
+    await sendTenantEmail(tenantId, {
+      to: recipient, subject: email.subject, text: email.text, replyTo,
+      attachments: [{ filename: `danfe-${invoice.access_key ?? orderId}.pdf`, content: pdfBuffer, contentType: "application/pdf" }],
+    });
+    res.json({ success: true, recipient });
+  } catch (err) {
+    console.error("sendNfceEmail error:", err);
+    res.status(422).json({ error: err instanceof Error ? err.message : "Falha ao enviar a NFC-e por e-mail" });
+  }
+}
+
 // Manda o DANFE já autorizado pro cliente pelo bot WhatsApp — mesmo PDF do botão
 // "DANFE" (do disco, ou reconstruído se o arquivo não estiver neste servidor),
 // só que enviado como documento em vez de baixado. O frontend só mostra esse
@@ -615,16 +666,10 @@ export async function sendNfceWhatsapp(req: Request, res: Response) {
       return;
     }
 
-    let pdfBuffer: Buffer;
-    if (invoice.danfe_a4_path && fs.existsSync(invoice.danfe_a4_path) && !(await hasReceiptFooterSettings(tenantId))) {
-      pdfBuffer = fs.readFileSync(invoice.danfe_a4_path);
-    } else {
-      const rebuilt = await rebuildDanfePdf(orderId, tenantId, invoice);
-      if (!rebuilt) {
-        res.status(404).json({ error: "O arquivo do DANFE não está disponível e não há dados suficientes para reconstruí-lo." });
-        return;
-      }
-      pdfBuffer = rebuilt;
+    const pdfBuffer = await loadNfceDanfePdf(orderId, tenantId, invoice);
+    if (!pdfBuffer) {
+      res.status(404).json({ error: "O arquivo do DANFE não está disponível e não há dados suficientes para reconstruí-lo." });
+      return;
     }
 
     await sendWhatsappDocument(

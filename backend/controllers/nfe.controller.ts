@@ -9,6 +9,9 @@ import { ibgeCityCode } from "../services/nfe/ibge";
 import type { NfeFreight, NfeFreightMode, NfeRecipient } from "../services/nfe/xmlBuilder";
 import { isValidCpfCnpj } from "../services/nfce/emitir";
 import { emitToTenant } from "../services/realtime.service";
+import { sendWhatsappDocument } from "../services/whatsapp.service";
+import { loadEmailSignature, sendTenantEmail } from "../services/store-email.service";
+import { buildNfeEmail } from "../utils/document-email-text";
 
 const getTenantId = (req: Request) => (req as AuthenticatedRequest).user.tenantId as number;
 const digits = (v: unknown) => String(v ?? "").replace(/\D/g, "");
@@ -276,6 +279,71 @@ export async function downloadNfeXml(req: Request, res: Response) {
     fs.createReadStream(invoice.xml_path).pipe(res);
   } catch {
     res.status(500).json({ error: "Falha ao baixar o XML" });
+  }
+}
+
+/** Envia o DANFE da NF-e autorizada pelo bot WhatsApp (documento PDF). */
+export async function sendNfeWhatsapp(req: Request, res: Response) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const tenantId = getTenantId(req);
+    const invoice = await prisma.nfeInvoice.findFirst({ where: { order_id: orderId, tenant_id: tenantId } });
+    if (!invoice) { res.status(404).json({ error: "NF-e não encontrada para este pedido" }); return; }
+    if (invoice.status !== "authorized") { res.status(409).json({ error: `NF-e ainda não autorizada (status atual: ${invoice.status}).` }); return; }
+    if (!invoice.danfe_path || !fs.existsSync(invoice.danfe_path)) { res.status(404).json({ error: "O arquivo do DANFE não foi encontrado neste servidor." }); return; }
+
+    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId }, select: { customer_phone: true } });
+    const recipient = invoice.recipient as unknown as { phone?: string | null } | null;
+    const typed = String((req.body as { number?: string })?.number ?? "").replace(/\D/g, "");
+    const target = typed || String(recipient?.phone ?? "").replace(/\D/g, "") || String(order?.customer_phone ?? "").replace(/\D/g, "");
+    if (target.length < 10) { res.status(422).json({ error: "Informe um número de WhatsApp — esta NF-e não tem telefone do destinatário." }); return; }
+
+    await sendWhatsappDocument(
+      tenantId, target, fs.readFileSync(invoice.danfe_path).toString("base64"),
+      `danfe-${invoice.access_key ?? orderId}.pdf`,
+      `Segue o DANFE da sua compra — NF-e nº ${invoice.number}/${invoice.series}.`,
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("sendNfeWhatsapp error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Falha ao enviar a NF-e pelo WhatsApp" });
+  }
+}
+
+/** Envia a NF-e autorizada por e-mail: DANFE (PDF) + XML anexados. Destino: o digitado, o e-mail do destinatário da nota ou o do cliente. */
+export async function sendNfeEmail(req: Request, res: Response) {
+  try {
+    const orderId = Number(req.params.orderId);
+    const tenantId = getTenantId(req);
+    const requested = String((req.body as { email?: string })?.email ?? "").trim().toLowerCase();
+    const invoice = await prisma.nfeInvoice.findFirst({ where: { order_id: orderId, tenant_id: tenantId } });
+    if (!invoice) { res.status(404).json({ error: "NF-e não encontrada para este pedido" }); return; }
+    if (invoice.status !== "authorized") { res.status(409).json({ error: `NF-e ainda não autorizada (status atual: ${invoice.status}).` }); return; }
+    if (!invoice.danfe_path || !fs.existsSync(invoice.danfe_path)) { res.status(404).json({ error: "O arquivo do DANFE não foi encontrado neste servidor." }); return; }
+
+    const order = await prisma.order.findFirst({ where: { id: orderId, tenant_id: tenantId }, select: { customer_id: true, total_amount: true } });
+    const rec = invoice.recipient as unknown as { name?: string; email?: string | null } | null;
+    const customer = order?.customer_id
+      ? await prisma.customer.findFirst({ where: { id: order.customer_id, tenant_id: tenantId }, select: { email: true, nfe_email: true } })
+      : null;
+    const to = requested || rec?.email?.trim() || customer?.nfe_email?.trim() || customer?.email?.trim() || "";
+    if (!/^\S+@\S+\.\S+$/.test(to)) {
+      res.status(422).json({ code: "recipient_required", error: "Informe um e-mail válido — esta NF-e não tem e-mail do destinatário." });
+      return;
+    }
+
+    const { signature, replyTo } = await loadEmailSignature(tenantId, (req as AuthenticatedRequest).user.userId);
+    const mail = buildNfeEmail({ customerName: rec?.name, numero: invoice.number, serie: invoice.series, value: order?.total_amount, signature });
+    const key = invoice.access_key ?? String(orderId);
+    const attachments: { filename: string; content: Buffer; contentType: string }[] = [
+      { filename: `danfe-${key}.pdf`, content: fs.readFileSync(invoice.danfe_path), contentType: "application/pdf" },
+    ];
+    if (invoice.xml_path && fs.existsSync(invoice.xml_path)) attachments.push({ filename: `nfe-${key}.xml`, content: fs.readFileSync(invoice.xml_path), contentType: "application/xml" });
+    await sendTenantEmail(tenantId, { to, subject: mail.subject, text: mail.text, replyTo, attachments });
+    res.json({ success: true, recipient: to });
+  } catch (err) {
+    console.error("sendNfeEmail error:", err);
+    res.status(422).json({ error: err instanceof Error ? err.message : "Falha ao enviar a NF-e por e-mail" });
   }
 }
 

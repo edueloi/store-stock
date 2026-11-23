@@ -15,6 +15,7 @@ import {
   downloadDanfeBatch,
   listNfce,
   sendNfceWhatsapp,
+  sendNfceEmail,
   emitNfceAsProduction,
   getCupomText,
 } from "../controllers/nfce.controller";
@@ -39,6 +40,7 @@ router.get("/:orderId/cupom", downloadCupom);
 router.get("/:orderId/cupom-text", getCupomText);
 router.get("/:orderId/xml", downloadNfceXml);
 router.post("/:orderId/send-whatsapp", sendNfceWhatsapp);
+router.post("/:orderId/send-email", sendNfceEmail);
 router.post("/:orderId/emit-production", emitNfceAsProduction);
 
 export default router;

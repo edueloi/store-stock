@@ -207,6 +207,52 @@ export function buildNfseEmail(data: {
   };
 }
 
+export function buildNfceEmail(data: {
+  customerName?: string | null;
+  numero: number | string;
+  serie?: number | string | null;
+  value?: unknown;
+  signature: StoreSignatureInput;
+}): DocumentEmail {
+  const storeName = clean(data.signature.storeName) || "Loja";
+  const serie = data.serie !== undefined && data.serie !== null && String(data.serie) !== "" ? `, série ${data.serie}` : "";
+  const value = data.value !== undefined && data.value !== null && Number(data.value) > 0 ? `, no valor de ${formatBRL(data.value)}` : "";
+  return {
+    subject: `NFC-e nº ${data.numero} — ${storeName}`,
+    text: compose({
+      customerName: data.customerName,
+      signature: data.signature,
+      paragraphs: [
+        `Agradecemos a sua compra. Encaminhamos o DANFE da Nota Fiscal de Consumidor Eletrônica (NFC-e) nº ${data.numero}${serie}${value}. O arquivo em PDF segue em anexo a esta mensagem.`,
+        `Recomendamos guardar o documento para seus registros. ${CONTACT_INVITE(storeName)}`,
+      ],
+    }),
+  };
+}
+
+export function buildNfeEmail(data: {
+  customerName?: string | null;
+  numero: number | string;
+  serie?: number | string | null;
+  value?: unknown;
+  signature: StoreSignatureInput;
+}): DocumentEmail {
+  const storeName = clean(data.signature.storeName) || "Loja";
+  const serie = data.serie !== undefined && data.serie !== null && String(data.serie) !== "" ? `, série ${data.serie}` : "";
+  const value = data.value !== undefined && data.value !== null && Number(data.value) > 0 ? `, no valor de ${formatBRL(data.value)}` : "";
+  return {
+    subject: `NF-e nº ${data.numero} — ${storeName}`,
+    text: compose({
+      customerName: data.customerName,
+      signature: data.signature,
+      paragraphs: [
+        `Encaminhamos a Nota Fiscal Eletrônica (NF-e) nº ${data.numero}${serie}${value}. Seguem em anexo o DANFE (PDF) e o arquivo XML da nota, que é o documento fiscal válido e deve ser guardado.`,
+        `${CONTACT_INVITE(storeName)}`,
+      ],
+    }),
+  };
+}
+
 // ── Crediário ────────────────────────────────────────────────────────────────
 export type CrediarioEmailInstallment = {
   number: number;

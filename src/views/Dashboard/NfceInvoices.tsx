@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import PageHeader from "../../components/layout/PageHeader";
 import { NfceInvoice, NfceStatus, NfseInvoice, NfseStatus } from "../../types";
+import FiscalSendActions from "../../components/fiscal/FiscalSendActions";
 import { cn } from "../../lib/utils";
 import { Modal, ModalFooter, Button, IconButton, Input, Textarea, Select, Tabs, FilterLineSearch, FilterLineSegmented } from "../../components/ui";
 import { useToast } from "../../components/ui/Toast";
@@ -642,6 +643,7 @@ function NfceTabContent() {
                             <Button variant="outline" size="sm" onClick={() => handleDownloadXml(inv)}>
                               <FileCheck size={12} /> XML
                             </Button>
+                            <FiscalSendActions base={`/api/nfce/${inv.order_id}`} label="NFC-e" showWhatsapp={false} size="sm" />
                             {whatsappConnected && (
                               <Button variant="outline" size="sm" onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50">
                                 {sendingWhatsapp === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
@@ -758,6 +760,7 @@ function NfceTabContent() {
                         <Button variant="outline" size="sm" onClick={() => handleDownloadXml(inv)}>
                           <FileCheck size={12} /> XML
                         </Button>
+                        <FiscalSendActions base={`/api/nfce/${inv.order_id}`} label="NFC-e" showWhatsapp={false} size="sm" />
                         {whatsappConnected && (
                           <Button variant="outline" size="sm" onClick={() => handleSendWhatsapp(inv)} disabled={sendingWhatsapp === inv.order_id} className="text-emerald-700 border-emerald-200 hover:bg-emerald-50">
                             {sendingWhatsapp === inv.order_id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp

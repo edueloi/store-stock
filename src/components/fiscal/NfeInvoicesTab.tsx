@@ -6,6 +6,7 @@ import { useToast } from "../ui/Toast";
 import { downloadAuthenticatedFile } from "../../lib/downloadFile";
 import { onRealtime } from "../../lib/realtime";
 import NfeEmitModal from "./NfeEmitModal";
+import FiscalSendActions from "./FiscalSendActions";
 
 interface NfeRow {
   id: number; order_id: number; status: string; environment: string; series: number; number: number;
@@ -119,6 +120,7 @@ export default function NfeInvoicesTab() {
                       <>
                         <Button variant="primary" size="xs" iconLeft={<Download size={11} />} onClick={() => download(`/api/nfe/${row.order_id}/danfe`, `danfe-${row.access_key ?? row.order_id}.pdf`)}>DANFE</Button>
                         <Button variant="outline" size="xs" iconLeft={<FileCode size={11} />} onClick={() => download(`/api/nfe/${row.order_id}/xml`, `nfe-${row.access_key ?? row.order_id}.xml`)}>XML</Button>
+                        {row.status === "authorized" && <FiscalSendActions base={`/api/nfe/${row.order_id}`} label="NF-e" />}
                       </>
                     )}
                     {(row.status === "rejected" || row.status === "error") && (

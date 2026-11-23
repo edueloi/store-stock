@@ -30,6 +30,7 @@ export interface NfeDanfeInput {
   carrierLabel: string | null;
   paymentSummary: string;
   additionalInfo: string | null;
+  logoBuffer?: Buffer | null;
 }
 
 const money = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -75,9 +76,20 @@ export async function generateNfeDanfePdf(input: NfeDanfeInput): Promise<Buffer>
     let y = 28;
     const h1 = 84;
     box(left, y, width * 0.38, h1);
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(ink).text(input.emit.name, left + 6, y + 8, { width: width * 0.38 - 12 });
-    doc.font("Helvetica").fontSize(7.5).fillColor(muted).text(input.emit.address, left + 6, doc.y + 3, { width: width * 0.38 - 12 });
-    if (input.emit.phone) doc.text(`Fone: ${input.emit.phone}`, left + 6, doc.y + 2, { width: width * 0.38 - 12 });
+    // logo da loja à esquerda (PNG/JPG); se a imagem não puder ser lida, o texto ocupa o quadro todo
+    let textX = left + 6;
+    let textW = width * 0.38 - 12;
+    if (input.logoBuffer) {
+      try {
+        const size = h1 - 16;
+        doc.image(input.logoBuffer, left + 6, y + 8, { fit: [size, size], align: "center", valign: "center" });
+        textX = left + 6 + size + 6;
+        textW = width * 0.38 - 12 - size - 6;
+      } catch { /* formato não suportado pelo pdfkit (ex.: webp): segue sem logo */ }
+    }
+    doc.font("Helvetica-Bold").fontSize(textW < 120 ? 8.5 : 10).fillColor(ink).text(input.emit.name, textX, y + 8, { width: textW, height: 24, ellipsis: true });
+    doc.font("Helvetica").fontSize(textW < 120 ? 6.5 : 7.5).fillColor(muted).text(input.emit.address, textX, doc.y + 3, { width: textW, height: 36, ellipsis: true });
+    if (input.emit.phone) doc.text(`Fone: ${input.emit.phone}`, textX, doc.y + 2, { width: textW });
 
     const midX = left + width * 0.38;
     const midW = width * 0.2;

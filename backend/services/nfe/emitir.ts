@@ -132,6 +132,11 @@ async function emitirNfeCore(orderId: number): Promise<void> {
     const a = recipient.address;
     const t = tenant!;
     const emittedAt = new Date();
+    // logo_url é um path relativo tipo "/uploads/logos/<tenant>/<arquivo>" dentro de public/
+    let logoBuffer: Buffer | null = null;
+    if (t.logo_url?.startsWith("/uploads/")) {
+      try { logoBuffer = fs.readFileSync(path.join(process.cwd(), "public", t.logo_url)); } catch { /* sem logo */ }
+    }
     const danfeInput: NfeDanfeInput = {
       environment: environment === "producao" ? "producao" : "homologacao",
       chaveAcesso, numero: invoice!.number, serie: invoice!.series,
@@ -161,6 +166,7 @@ async function emitirNfeCore(orderId: number): Promise<void> {
       carrierLabel: freight.carrier?.name ?? null,
       paymentSummary: payments.map((p) => `${({ money: "Dinheiro", pix: "PIX", debit: "Débito", credit: "Crédito", crediario: "Crediário", boleto: "Boleto" } as Record<string, string>)[p.method] ?? p.method}: R$ ${p.amount.toFixed(2)}`).join(" + "),
       additionalInfo: invoice!.additional_info,
+      logoBuffer,
     };
     const danfePath = path.join(dir, `${chaveAcesso}-danfe.pdf`);
     fs.writeFileSync(danfePath, await generateNfeDanfePdf(danfeInput));
