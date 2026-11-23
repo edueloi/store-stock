@@ -6,7 +6,11 @@ import IssuerChooserHost from './components/IssuerChooserHost.tsx';
 import { installIssuerFetch } from './lib/issuerView';
 import { startReceiptLogoSync } from './lib/receiptLogo';
 import { isStaleChunkError, reloadForNewVersion } from './lib/staleChunk';
+import { startPwaInstallCapture } from './lib/pwaInstall';
 import './index.css';
+
+// Guarda o convite de "instalar como aplicativo" do Chrome/Edge para o botão em Configurações > App Desktop.
+startPwaInstallCapture();
 
 // Visão por CNPJ no cabeçalho de toda chamada à API + pergunta de qual CNPJ emitir nas notas.
 installIssuerFetch();

@@ -1,6 +1,7 @@
 import { PDV_METHODS, setPdvDisabled } from "../../lib/pdvPayments";
 import { useCnpjLookup } from "../../lib/cnpjLookup";
 import { fiscalDocsFromPolicies, refreshFiscalDocs, type FiscalDocs } from "../../lib/fiscalDocuments";
+import PwaInstallCard from "../../components/PwaInstallCard";
 import CnpjStatusNotice from "../../components/CnpjStatusNotice";
 import GlassDefaultsSettings from "../../components/GlassDefaultsSettings";
 import IssuersCard from "./IssuersCard";
@@ -6632,6 +6633,9 @@ export default function Settings({
                     </button>
                   ))}
                 </div>
+
+                {/* Atalho/PWA para quem usa Chrome ou Edge no computador */}
+                <PwaInstallCard />
 
                 {/* Caixa Clássico — mesmo instalador, escolhido na configuração inicial */}
                 <div className="bg-white border border-slate-200 rounded-lg p-5">
