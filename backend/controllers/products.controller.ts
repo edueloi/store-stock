@@ -60,6 +60,8 @@ function cleanFiscalDigits(rest: Record<string, any>) {
       rest[field] = digits === "" ? null : digits;
     }
   }
+  // CEST válido tem exatamente 7 dígitos; "00", "21079" etc. quebram a NFC-e — melhor vazio do que errado
+  if (typeof rest.cest === "string" && rest.cest.length !== 7) rest.cest = null;
 }
 
 

@@ -63,6 +63,10 @@ export async function issuerForNote(req: { headers: Record<string, unknown>; bod
   const asked = Number(req.headers["x-issuer-id"] ?? req.body?.issuer_id);
   const picked = rows.find((r) => r.id === asked);
   if (picked) return { id: picked.id };
+  // CNPJ escolhido no seletor do topo do painel: emite por ele, sem perguntar de novo
+  const viewId = await issuerView(req, tenantId);
+  const viewRow = viewId ? rows.find((r) => r.id === viewId) : undefined;
+  if (viewRow) return { id: viewRow.id };
   const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { document: true } });
   return { id: null, needChoice: rows.map((r) => ({ id: r.id, label: r.label, document: String((r.is_active ? tenant?.document : (r.snapshot as any)?.document) ?? r.document ?? "") })) };
 }

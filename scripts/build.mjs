@@ -16,6 +16,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { build as esbuildBuild } from "esbuild";
 
 const root = process.cwd();
 const dist = path.join(root, "dist");
@@ -35,9 +36,16 @@ function run(label, script, args) {
 fs.rmSync(staging, { recursive: true, force: true });
 
 run("vite build", path.join(root, "node_modules", "vite", "bin", "vite.js"), ["build", "--outDir", "dist-build", "--emptyOutDir"]);
-run("esbuild do servidor", path.join(root, "node_modules", "esbuild", "bin", "esbuild"), [
-  "server.ts", "--bundle", "--platform=node", "--format=cjs", "--packages=external", "--sourcemap", "--outfile=dist-build/server.cjs",
-]);
+// esbuild pela API (no Linux o bin/esbuild é um binário nativo e não roda com "node"; a API funciona em qualquer sistema)
+try {
+  await esbuildBuild({
+    entryPoints: ["server.ts"], bundle: true, platform: "node", format: "cjs", packages: "external", sourcemap: true,
+    outfile: "dist-build/server.cjs", absWorkingDir: root, logLevel: "info",
+  });
+} catch {
+  console.error("\n✖ esbuild do servidor falhou — o site publicado (dist) NÃO foi alterado.");
+  process.exit(1);
+}
 
 // 2) arquivo de apoio: assets da versão que está no ar agora
 const liveAssets = path.join(dist, "assets");
@@ -53,8 +61,16 @@ if (fs.existsSync(liveAssets)) {
 
 // 3) troca instantânea
 fs.rmSync(old, { recursive: true, force: true });
-if (fs.existsSync(dist)) fs.renameSync(dist, old);
-fs.renameSync(staging, dist);
+const hadDist = fs.existsSync(dist);
+try {
+  if (hadDist) fs.renameSync(dist, old);
+  fs.renameSync(staging, dist);
+} catch (err) {
+  // desfaz: devolve a versão anterior para o lugar, para o site nunca ficar sem pasta publicada
+  if (!fs.existsSync(dist) && fs.existsSync(old)) fs.renameSync(old, dist);
+  console.error("\n✖ Não foi possível trocar a pasta publicada (" + (err && err.code ? err.code : err) + "). A versão anterior foi mantida.");
+  process.exit(1);
+}
 fs.rmSync(old, { recursive: true, force: true });
 console.log("▶ Nova versão publicada em dist/ (troca instantânea).");
 

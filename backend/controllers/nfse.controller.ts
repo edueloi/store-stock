@@ -1,5 +1,5 @@
 import fs from "fs";
-import { activeIssuerId, issuerFilter, issuerForNote, fiscalTenant, bumpNextNumber } from "../utils/issuers";
+import { activeIssuerId, issuerClause, issuerForNote, fiscalTenant, bumpNextNumber } from "../utils/issuers";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -567,13 +567,13 @@ export async function listNfse(req: Request, res: Response) {
 
     const [invoices, total] = await Promise.all([
       prisma.nfseInvoice.findMany({
-        where: { tenant_id: tenantId, ...(await issuerFilter(tenantId)) },
+        where: { tenant_id: tenantId, AND: await issuerClause(req, tenantId) },
         include: { service_order: { select: { customer_name: true, service_value: true, number: true } } },
         orderBy: { created_at: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      prisma.nfseInvoice.count({ where: { tenant_id: tenantId, ...(await issuerFilter(tenantId)) } }),
+      prisma.nfseInvoice.count({ where: { tenant_id: tenantId, AND: await issuerClause(req, tenantId) } }),
     ]);
 
     res.json({ invoices, total, page, pageSize });

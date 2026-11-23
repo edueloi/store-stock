@@ -25,7 +25,7 @@ export default function IssuerChooserHost() {
   const close = (id: number | null) => { pending.resolve(id); setPending(null); };
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) close(null); }}>
+    <div className="fixed inset-0 z-[11000] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) close(null); }}>
       <div role="dialog" aria-modal="true" aria-label="Escolher o CNPJ da nota" className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-2xl sm:rounded-2xl">
         <div className="mb-1 flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Building2 size={18} /></span>

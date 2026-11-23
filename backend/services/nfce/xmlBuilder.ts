@@ -217,7 +217,8 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
         : trimText(item.product.name),
     );
     prod.ele("NCM").txt(normalizeNcm(item.product.ncm));
-    if (item.product.cest) prod.ele("CEST").txt(item.product.cest);
+    // CEST precisa ter exatamente 7 dígitos; valor inválido (ex.: "00") derrubava a nota com "Falha no Schema XML" (225)
+    if (/^\d{7}$/.test(String(item.product.cest ?? "").trim())) prod.ele("CEST").txt(String(item.product.cest).trim());
     prod.ele("CFOP").txt(item.product.cfop || "5102");
     prod.ele("uCom").txt(item.product.unidade_comercial);
     prod.ele("qCom").txt(String(item.quantity));

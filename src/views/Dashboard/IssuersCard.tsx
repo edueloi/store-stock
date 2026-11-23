@@ -83,7 +83,7 @@ export default function IssuersCard() {
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Building2 size={16} className="text-blue-600" />CNPJs da loja</p>
           <p className="mt-0.5 max-w-2xl text-xs text-slate-500">
-            Uma loja, uma mensalidade, vários CNPJs. O ativo emite as notas (NFC-e e NFS-e). Ao trocar, mudam só os dados fiscais: certificado, CSC, séries e numeração.
+            Uma loja, uma mensalidade, vários CNPJs. Para <b>ver as notas, vendas e emitir</b> por um CNPJ, escolha-o no seletor no topo do painel. O selo “Ativo” aqui só indica de qual CNPJ você está <b>editando os dados fiscais</b> abaixo (certificado, CSC, séries e numeração).
             Clientes, produtos, orçamentos e vendas continuam os mesmos.
           </p>
         </div>
