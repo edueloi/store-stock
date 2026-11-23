@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
 import type { AuthenticatedRequest } from "../types/auth";
-import { BLANK_FISCAL, FISCAL_KEYS } from "../utils/issuers";
+import { BLANK_FISCAL, FISCAL_KEYS, fiscalTenant, issuerView, withIssuerAddress } from "../utils/issuers";
 
 const tenantOf = (req: Request) => (req as AuthenticatedRequest).user.tenantId as number;
 const isAdmin = (req: Request) => (req as AuthenticatedRequest).user.role === "admin";
@@ -56,6 +56,34 @@ export async function issuersSummary(req: Request, res: Response) {
     const rows = await prisma.tenantIssuer.findMany({ where: { tenant_id: tenantOf(req) }, orderBy: { id: "asc" }, select: { id: true, label: true, is_active: true, document: true, snapshot: true } });
     res.json({ issuers: rows.map((r) => ({ id: r.id, label: r.label, isActive: r.is_active, document: String((r.is_active ? tenant?.document : (r.snapshot as any)?.document) ?? r.document ?? "") })) });
   } catch (e) { console.error("issuersSummary:", e); res.json({ issuers: [] }); }
+}
+
+/**
+ * Identidade do CNPJ para o CABEÇALHO de documentos (orçamento, O.S., PDF): CNPJ, razão social, IE/IM, CNAE e endereço do emitente.
+ * ?issuerId= (o CNPJ do próprio registro) ou, sem isso, o CNPJ escolhido no topo do painel. Sem nenhum dos dois → identity null
+ * e o documento usa os dados da loja como sempre. Não devolve certificado, CSC nem senhas.
+ */
+export async function issuerIdentity(req: Request, res: Response) {
+  try {
+    const tenantId = tenantOf(req);
+    let issuerId = Number(req.query.issuerId) || null;
+    if (!issuerId) issuerId = await issuerView(req, tenantId);
+    if (!issuerId) { res.json({ identity: null }); return; }
+    const issuer = await prisma.tenantIssuer.findFirst({ where: { id: issuerId, tenant_id: tenantId }, select: { label: true } });
+    if (!issuer) { res.json({ identity: null }); return; }
+    const base = await fiscalTenant(tenantId, issuerId);
+    if (!base) { res.json({ identity: null }); return; }
+    const t = (await withIssuerAddress(base as any, issuerId)) as Record<string, any>;
+    res.json({
+      identity: {
+        issuer_id: issuerId, label: issuer.label,
+        document: t.document ?? null, razao_social: t.razao_social ?? null,
+        inscricao_estadual: t.inscricao_estadual ?? null, inscricao_municipal: t.inscricao_municipal ?? null, cnae_fiscal: t.cnae_fiscal ?? null,
+        address_street: t.address_street ?? null, address_number: t.address_number ?? null, address_complement: t.address_complement ?? null,
+        address_district: t.address_district ?? null, address_city: t.address_city ?? null, address_state: t.address_state ?? null, address_zip: t.address_zip ?? null,
+      },
+    });
+  } catch (e) { console.error("issuerIdentity:", e); res.json({ identity: null }); }
 }
 
 export async function createIssuer(req: Request, res: Response) {

@@ -149,19 +149,23 @@ export async function fiscalCheckForOrder(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const order = await prisma.order.findFirst({
       where: { id: orderId, tenant_id: tenantId },
-      select: { items: { select: { product: { select: { id: true, name: true, sku: true, ncm: true, cest: true, cfop: true, csosn: true, origem: true, unidade_comercial: true } } } } },
+      select: { items: { select: { name: true, ncm: true, quantity: true, unit_price: true, product: { select: { id: true, name: true, sku: true, ncm: true, cest: true, cfop: true, csosn: true, origem: true, unidade_comercial: true } } } } },
     });
     if (!order) { res.status(404).json({ error: "Venda não encontrada" }); return; }
+    // ?all=1: devolve TODOS os produtos do pedido (modal de confirmação fiscal da O.S.); sem isso, só os incompletos.
+    const all = String(req.query.all ?? "") === "1";
     const seen = new Set<number>();
     const missing = [];
+    const avulsos: { name: string | null; ncm: string | null; quantity: number; unit_price: unknown }[] = [];
     for (const it of order.items) {
       const p = it.product;
-      if (!p || seen.has(p.id)) continue;
+      if (!p) { avulsos.push({ name: it.name, ncm: it.ncm, quantity: it.quantity, unit_price: it.unit_price }); continue; }
+      if (seen.has(p.id)) continue;
       seen.add(p.id);
-      const ncmOk = String(p.ncm ?? "").replace(/D/g, "").length === 8;
-      if (!ncmOk || !p.cfop || !p.csosn) missing.push(p);
+      const ncmOk = String(p.ncm ?? "").replace(/\D/g, "").length === 8;
+      if (all || !ncmOk || !p.cfop || !p.csosn) missing.push(p);
     }
-    res.json({ products: missing });
+    res.json({ products: missing, ...(all ? { avulsos } : {}) });
   } catch {
     res.status(500).json({ error: "Não foi possível conferir os dados fiscais dos produtos" });
   }

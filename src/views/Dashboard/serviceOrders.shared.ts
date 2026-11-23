@@ -91,6 +91,7 @@ export interface NfseInvoice {
 export interface ServiceOrder {
   id: number;
   number: number;
+  issuer_id?: number | null;
   customer_id: number | null;
   customer_name: string;
   customer_phone: string | null;

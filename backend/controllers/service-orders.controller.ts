@@ -1,4 +1,4 @@
-import { issuerForNew } from "../utils/issuers";
+import { issuerClause, issuerForNew } from "../utils/issuers";
 import type { Request, Response } from "express";
 
 import { prisma } from "../config/prisma";
@@ -189,7 +189,7 @@ export async function listServiceOrders(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const status = req.query.status as string | undefined;
     const orders = await prisma.serviceOrder.findMany({
-      where: { tenant_id: tenantId, ...(status ? { status } : {}) },
+      where: { tenant_id: tenantId, ...(status ? { status } : {}), AND: await issuerClause(req, tenantId) },
       include: SERVICE_ORDER_INCLUDE,
       orderBy: { created_at: "desc" },
     });
@@ -610,13 +610,13 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     const id = Number(req.params.id);
     const {
       product_id, service_id, quantity, height, width, no_charge, selected_options: selectedOptionsRaw, piece_spec: pieceSpecRaw,
-      name: freeName, unit: freeUnit, unit_price: freeUnitPrice,
+      name: freeName, unit: freeUnit, unit_price: freeUnitPrice, ncm: freeNcm,
       discount_type: discountType, discount_value: discountValueRaw,
     } = req.body as {
       selected_options?: Record<string, string>;
       piece_spec?: unknown;
       product_id?: number; service_id?: number; quantity?: number; height?: number; width?: number; no_charge?: boolean;
-      name?: string; unit?: string; unit_price?: number;
+      name?: string; unit?: string; unit_price?: number; ncm?: string;
       discount_type?: string; discount_value?: number;
     };
 
@@ -737,6 +737,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
           service_order_id: id,
           product_id: null,
           name: freeName.trim(),
+          ncm: String(freeNcm ?? "").replace(/\D/g, "").slice(0, 8) || null,
           quantity: qty,
           unit: (freeUnit || "UN").trim().slice(0, 10).toUpperCase(),
           unit_price: unitPrice,
@@ -1302,13 +1303,25 @@ export async function invoiceServiceOrder(req: Request, res: Response) {
         order_type: "service",
         payment_method: pmString,
         items: {
-          create: order.parts.filter((p) => p.product_id).map((p) => ({
-            product_id: p.product_id!,
-            quantity: p.quantity,
-            unit_price: p.unit_price,
-            dimensions_label: p.dimensions_label,
-            selected_options: (p.selected_options as Record<string, string> | null) ?? undefined,
-          })),
+          create: [
+            ...order.parts.filter((p) => p.product_id).map((p) => ({
+              product_id: p.product_id!,
+              quantity: p.quantity,
+              unit_price: p.unit_price,
+              dimensions_label: p.dimensions_label,
+              selected_options: (p.selected_options as Record<string, string> | null) ?? undefined,
+            })),
+            // Item avulso COM NCM é produto digitado na hora: vira item avulso do pedido (entra na NFC-e com esse NCM).
+            // Sem NCM continua como antes (mão de obra/serviço avulso não vira item de produto).
+            ...order.parts.filter((p) => !p.product_id && !p.service_id && p.ncm).map((p) => ({
+              product_id: null,
+              name: p.name,
+              ncm: p.ncm,
+              quantity: p.quantity,
+              unit_price: p.unit_price,
+              dimensions_label: p.dimensions_label,
+            })),
+          ],
         },
         ...(servicesToCreate.length > 0 ? { services: { create: servicesToCreate } } : {}),
       },

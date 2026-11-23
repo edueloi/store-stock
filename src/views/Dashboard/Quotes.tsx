@@ -22,6 +22,7 @@ import { onRealtimeAny } from "../../lib/realtime";
 import { PERIOD_OPTIONS, inPeriod, presetRange, type ListPeriod } from "../../lib/listPeriod";
 import { generateQuotePDF } from "../../lib/quotePdf";
 import type { DocumentTenant } from "../../lib/documentPdf";
+import { useTenantForDocuments } from "../../lib/issuerIdentity";
 import QuotesPageTour, { type QuotesPageTourHandle } from "../../components/onboarding/QuotesPageTour";
 
 type BadgeColor = "default" | "primary" | "success" | "warning" | "danger" | "info" | "purple" | "orange" | "teal";
@@ -108,7 +109,9 @@ const STATUS_FILTERS = [
 export default function Quotes() {
   const navigate = useNavigate();
   const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [tenantRaw, setTenant] = useState<Tenant | null>(null);
+  // dados da loja já com o CNPJ certo no cabeçalho dos documentos (o escolhido no topo)
+  const tenant = useTenantForDocuments(tenantRaw, undefined);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");

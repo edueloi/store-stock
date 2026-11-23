@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useTenantForDocuments } from "../../lib/issuerIdentity";
 import GlassDrawing from "../../components/GlassDrawing";
 import GlassPieceFields, { draftForService, draftToSpec, emptyPieceDraft, rememberTechnicalDefaults, specToDraft, type GlassExtra, type PieceDraft } from "../../components/GlassPieceFields";
 import type { GlassPriceRow } from "../../lib/glassPieces";
@@ -108,6 +109,7 @@ interface QuoteFileRow {
 interface Quote {
   id: number;
   number: number;
+  issuer_id?: number | null;
   customer_id?: number | null;
   customer_name: string;
   customer_phone?: string;
@@ -319,7 +321,9 @@ export default function QuoteDetail() {
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<ServiceCatalog[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [tenantRaw, setTenant] = useState<Tenant | null>(null);
+  // dados da loja já com o CNPJ certo no cabeçalho dos documentos (o CNPJ do próprio registro)
+  const tenant = useTenantForDocuments(tenantRaw, quote?.issuer_id);
 
   const [savingField, setSavingField] = useState<string | null>(null);
   const [savedPulse, setSavedPulse] = useState(false);

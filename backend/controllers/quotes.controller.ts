@@ -1,4 +1,5 @@
 import { decrementProductStock } from "../utils/stock-adjust";
+import { issuerClause, issuerForNew } from "../utils/issuers";
 import crypto from "crypto";
 import type { Request, Response } from "express";
 import { prisma } from "../config/prisma";
@@ -106,7 +107,7 @@ export async function listQuotes(req: Request, res: Response) {
   try {
     const tenantId = getTenantId(req);
     const quotes = await prisma.quote.findMany({
-      where: { tenant_id: tenantId },
+      where: { tenant_id: tenantId, AND: await issuerClause(req, tenantId) },
       include: { items: true, services: true },
       orderBy: { created_at: "desc" },
     });
@@ -243,6 +244,7 @@ export async function createQuote(req: Request, res: Response) {
     const quote = await prisma.quote.create({
       data: {
         tenant_id: tenantId,
+        issuer_id: await issuerForNew(req, tenantId),
         number: nextNumber,
         customer_name: customer_name || "",
         customer_phone: customer_phone || null,

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useTenantForDocuments } from "../../lib/issuerIdentity";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Plus, Trash2, Download, X, HelpCircle, Wrench } from "lucide-react";
 import {
@@ -45,7 +46,9 @@ export default function ServiceOrders() {
   const [searchParams] = useSearchParams();
   const [orders, setOrders] = useState<ServiceOrder[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
-  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [tenantRaw, setTenant] = useState<Tenant | null>(null);
+  // dados da loja já com o CNPJ certo no cabeçalho dos documentos (o escolhido no topo)
+  const tenant = useTenantForDocuments(tenantRaw, undefined);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("search") ?? "");
   const [statusFilter, setStatusFilter] = useState<"all" | SOStatus>("all");

@@ -13,6 +13,7 @@ const jsonHeader = () => ({ ...authHeader(), "Content-Type": "application/json" 
 
 interface FiscalProduct { id: number; name: string; sku: string | null; ncm: string | null; cest: string | null; cfop: string | null; csosn: string | null; origem: number | null; unidade_comercial: string | null }
 interface FiscalDraft { ncm: string; cest: string; cfop: string; csosn: string; origem: string }
+interface FiscalAvulso { name: string | null; ncm: string | null; quantity: number; unit_price: number | string }
 
 const ORIGENS = [
   ["0", "0 · Nacional"],
@@ -30,12 +31,13 @@ const digits = (v: string) => v.replace(/\D/g, "");
  * Antes de emitir confere os dados fiscais dos produtos: se faltar algum, abre uma janela para completar e grava no produto.
  * `autoEmit` dispara a emissão sozinha (uma vez) — usado quando o operador marcou "emitir NFC-e" ao confirmar a venda.
  */
-export default function NfceOrderPanel({ orderId, autoEmit = false, className = "" }: { orderId: number; autoEmit?: boolean; className?: string }) {
+export default function NfceOrderPanel({ orderId, autoEmit = false, className = "", confirmFiscal = false }: { orderId: number; autoEmit?: boolean; className?: string; confirmFiscal?: boolean }) {
   const toast = useToast();
   const [invoice, setInvoice] = useState<NfceInvoice | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [missing, setMissing] = useState<FiscalProduct[] | null>(null);
+  const [avulsos, setAvulsos] = useState<FiscalAvulso[]>([]);
   const [drafts, setDrafts] = useState<Record<number, FiscalDraft>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -73,10 +75,12 @@ export default function NfceOrderPanel({ orderId, autoEmit = false, className = 
   const start = useCallback(async () => {
     setBusy(true);
     try {
-      const res = await fetch(`/api/nfce/${orderId}/fiscal-check`, { headers: authHeader() });
+      const res = await fetch(`/api/nfce/${orderId}/fiscal-check${confirmFiscal ? "?all=1" : ""}`, { headers: authHeader() });
       const data = res.ok ? await res.json() : { products: [] };
       const list: FiscalProduct[] = data.products ?? [];
-      if (list.length) {
+      const avulsoList: FiscalAvulso[] = data.avulsos ?? [];
+      setAvulsos(avulsoList);
+      if (list.length || (confirmFiscal && avulsoList.length)) {
         const d: Record<number, FiscalDraft> = {};
         for (const p of list) d[p.id] = { ncm: digits(p.ncm ?? "").slice(0, 8), cest: digits(p.cest ?? "").slice(0, 7), cfop: p.cfop || "5102", csosn: p.csosn || "102", origem: String(p.origem ?? 0) };
         setDrafts(d); setSaveError(""); setMissing(list);
@@ -84,7 +88,7 @@ export default function NfceOrderPanel({ orderId, autoEmit = false, className = 
       }
       await send(!!invoice);
     } finally { setBusy(false); }
-  }, [orderId, send, invoice]);
+  }, [orderId, send, invoice, confirmFiscal]);
 
   useEffect(() => {
     if (!autoEmit || autoDone.current || !loaded) return;
@@ -101,6 +105,9 @@ export default function NfceOrderPanel({ orderId, autoEmit = false, className = 
     try {
       for (const p of missing) {
         const d = drafts[p.id];
+        // só grava o que mudou (no modo de confirmação todos os produtos aparecem)
+        const same = digits(d.ncm) === digits(p.ncm ?? "") && digits(d.cest) === digits(p.cest ?? "") && d.cfop === (p.cfop || "5102") && d.csosn.trim() === (p.csosn || "102") && Number(d.origem) === Number(p.origem ?? 0);
+        if (same && p.ncm && p.cfop && p.csosn) continue;
         const res = await fetch(`/api/products/${p.id}`, {
           method: "PUT", headers: jsonHeader(),
           body: JSON.stringify({ ncm: digits(d.ncm), cest: digits(d.cest) || null, cfop: d.cfop, csosn: d.csosn.trim(), origem: Number(d.origem) || 0 }),
@@ -153,12 +160,12 @@ export default function NfceOrderPanel({ orderId, autoEmit = false, className = 
         open={!!missing}
         onClose={() => { if (!saving) setMissing(null); }}
         size="lg"
-        title="Dados fiscais dos produtos"
-        subtitle="Estes produtos ainda não têm os dados fiscais para a NFC-e. Preencha e gravamos no cadastro de cada um."
+        title={confirmFiscal ? "Confirme os dados fiscais da NFC-e" : "Dados fiscais dos produtos"}
+        subtitle={confirmFiscal ? "Confira NCM, CFOP e CSOSN de cada item antes de emitir. O que você corrigir aqui é gravado no cadastro do produto." : "Estes produtos ainda não têm os dados fiscais para a NFC-e. Preencha e gravamos no cadastro de cada um."}
         footer={
           <>
             <Button variant="outline" size="md" onClick={() => setMissing(null)} disabled={saving} className="flex-1">Cancelar</Button>
-            <Button variant="success" size="md" onClick={saveAndEmit} loading={saving} disabled={!allValid} className="flex-1 justify-center">Salvar e emitir NFC-e</Button>
+            <Button variant="success" size="md" onClick={saveAndEmit} loading={saving} disabled={!allValid} className="flex-1 justify-center">{confirmFiscal ? "Confirmar e emitir NFC-e" : "Salvar e emitir NFC-e"}</Button>
           </>
         }
       >
@@ -187,6 +194,21 @@ export default function NfceOrderPanel({ orderId, autoEmit = false, className = 
               </div>
             );
           })}
+          {avulsos.length > 0 && (
+            <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm font-semibold text-amber-900">Itens avulsos desta nota</p>
+              {avulsos.map((a, i) => {
+                const ok = digits(a.ncm ?? "").length === 8;
+                return (
+                  <p key={i} className="flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900">
+                    <span>{a.quantity}× {a.name ?? "Item avulso"}</span>
+                    <span className="font-mono">{ok ? `NCM ${a.ncm}` : "NCM genérico (00000000)"}</span>
+                  </p>
+                );
+              })}
+              <p className="text-[11px] text-amber-800">Item avulso sai com CFOP 5102, CSOSN 102 e origem nacional. Se o NCM estiver genérico, a SEFAZ pode recusar: informe o NCM no item da O.S. (aba Item livre) e fature de novo.</p>
+            </div>
+          )}
           <p className="px-1 text-xs text-slate-500">CFOP 5102 e CSOSN 102 são o padrão para revenda no Simples Nacional. Na dúvida, confirme com o contador.</p>
           {saveError && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{saveError}</p>}
         </div>

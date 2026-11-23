@@ -1,5 +1,6 @@
 import { getHideValuesPref, setHideValuesPref } from "../../lib/documentPrefs";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useTenantForDocuments } from "../../lib/issuerIdentity";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -119,7 +120,9 @@ export default function ServiceOrderDetail() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [technicians, setTechnicians] = useState<Technician[]>([]);
-  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [tenantRaw, setTenant] = useState<Tenant | null>(null);
+  // dados da loja já com o CNPJ certo no cabeçalho dos documentos (o CNPJ do próprio registro)
+  const tenant = useTenantForDocuments(tenantRaw, selected?.issuer_id);
 
   const [savingField, setSavingField] = useState<string | null>(null);
   const [savedPulse, setSavedPulse] = useState(false);
@@ -199,6 +202,7 @@ export default function ServiceOrderDetail() {
   const [freePartName, setFreePartName] = useState("");
   const [freePartUnit, setFreePartUnit] = useState("UN");
   const [freePartPrice, setFreePartPrice] = useState("");
+  const [freePartNcm, setFreePartNcm] = useState(""); // NCM do item avulso (preenchido = produto: entra na NFC-e)
 
   // Edição de desconto de um item já existente
   const [editingDiscountPartId, setEditingDiscountPartId] = useState<number | null>(null);
@@ -501,6 +505,7 @@ export default function ServiceOrderDetail() {
     setFreePartName("");
     setFreePartUnit("UN");
     setFreePartPrice("");
+    setFreePartNcm("");
     setShowAddPartModal(true);
   };
 
@@ -561,6 +566,7 @@ export default function ServiceOrderDetail() {
         unit: freePartUnit.trim() || "UN",
         quantity: partQty,
         unit_price: Number(freePartPrice) || 0,
+        ncm: freePartNcm.replace(/\D/g, "").slice(0, 8) || undefined,
         no_charge: partNoCharge,
         ...commonDiscount,
       };
@@ -862,10 +868,15 @@ export default function ServiceOrderDetail() {
         <Button variant="ghost" size="sm" iconLeft={<ChevronLeft size={14} />} onClick={() => navigate("/admin/ordens-servico")}>
           Voltar para ordens de serviço
         </Button>
-        <div className="text-[11px] text-slate-500" role="status">
-          {savingField && <span>Salvando…</span>}
-          {!savingField && savedPulse && (
-            <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 size={12} /> Salvo</span>
+        <div className="flex items-center gap-3">
+          <div className="text-[11px] text-slate-500" role="status">
+            {savingField && <span>Salvando…</span>}
+            {!savingField && savedPulse && (
+              <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 size={12} /> Salvo</span>
+            )}
+          </div>
+          {!selected.invoiced_order_id && CAN_INVOICE_STATUSES.includes(selected.status) && (
+            <Button variant="success" size="md" onClick={openInvoiceModal} iconLeft={<Receipt size={15} />}>Faturar e registrar pagamento</Button>
           )}
         </div>
       </div>
@@ -1551,7 +1562,7 @@ export default function ServiceOrderDetail() {
             </div>
           </ContentCard>
 
-          {selected.invoiced_order_id && <NfceOrderPanel orderId={selected.invoiced_order_id} autoEmit={autoEmitNfce} />}
+          {selected.invoiced_order_id && <NfceOrderPanel orderId={selected.invoiced_order_id} autoEmit={autoEmitNfce} confirmFiscal />}
 
           {/* NFS-e — emitida sobre a mão de obra (peças já geram NFC-e na venda) */}
           {Number(selected.service_value) > 0 && (
@@ -2060,6 +2071,16 @@ export default function ServiceOrderDetail() {
                 <Input type="number" min="0" step="0.01" value={freePartPrice} onChange={(e) => setFreePartPrice(e.target.value)}
                   placeholder="0,00" disabled={partNoCharge} className="font-mono" />
               </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-semibold text-slate-400 mb-1.5 block">NCM (se for produto — entra na NFC-e)</label>
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <Input value={freePartNcm} onChange={(e) => setFreePartNcm(e.target.value.replace(/\D/g, "").slice(0, 8))} inputMode="numeric" placeholder="Deixe vazio para mão de obra/serviço" className="font-mono" />
+                </div>
+                <FiscalCodeLookup kind="ncm" token={localStorage.getItem("token")} onSelect={(item) => setFreePartNcm(String(item.code).replace(/\D/g, "").slice(0, 8))} />
+              </div>
+              <p className="mt-1 text-[10px] leading-snug text-slate-400">Com NCM, o item vira produto no pedido faturado e sai na NFC-e (CFOP 5102, CSOSN 102). Sem NCM, segue como serviço/mão de obra.</p>
             </div>
           </div>
         )}

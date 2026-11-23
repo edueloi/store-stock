@@ -2,7 +2,7 @@ import { Router } from "express";
 
 import { graficaSso, getTenant, updateTenant, uploadNfceCert, uploadNfceCertificate, getNfceCertificateInfo, deleteNfceCertificate, listA3Certificates, selectA3Certificate, getMyBilling, sendReportNowHandler, listAutomatedMessageLogs, testEmailConnection, getStorePaymentGateways, saveStorePaymentGateway } from "../controllers/tenant.controller";
 import { onboardAsaas, saveChargeRules, createChargeLink, listCharges, getAsaasAccountOverview, withdrawAsaasBalance } from "../controllers/store-charges.controller";
-import { listIssuers, issuersSummary, createIssuer, updateIssuer, activateIssuer, deleteIssuer } from "../controllers/issuers.controller";
+import { listIssuers, issuersSummary, issuerIdentity, createIssuer, updateIssuer, activateIssuer, deleteIssuer } from "../controllers/issuers.controller";
 import { authenticateToken } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -22,6 +22,7 @@ router.post("/charges", createChargeLink);
 router.get("/charges", listCharges);
 router.get("/issuers", listIssuers);
 router.get("/issuers/summary", issuersSummary);
+router.get("/issuers/identity", issuerIdentity);
 router.post("/issuers", createIssuer);
 router.put("/issuers/:id", updateIssuer);
 router.post("/issuers/:id/activate", activateIssuer);
