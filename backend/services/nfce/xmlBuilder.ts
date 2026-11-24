@@ -16,6 +16,7 @@ export interface BuildNfceInput {
   numero: number;
   serie: number;
   customerDocument?: string; // CPF/CNPJ do consumidor, para Nota Fiscal Paulista
+  customerInfo?: string; // texto do consumidor para infAdic/infCpl quando não há <dest>
   customerName?: string; // nome/razão social do destinatário — só usado em produção (ver dest.xNome)
 }
 
@@ -86,7 +87,7 @@ export const TPAG_LABEL: Record<string, string> = {
 };
 
 export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
-  const { tenant, order, items, payments, numero, serie, customerDocument, customerName } = input;
+  const { tenant, order, items, payments, numero, serie, customerDocument, customerName, customerInfo } = input;
   const isHomologacao = tenant.nfce_environment !== "producao";
 
   const now = new Date();
@@ -205,7 +206,8 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
 
     const det = doc.ele("det", { nItem: String(nItem) });
     const prod = det.ele("prod");
-    prod.ele("cProd").txt(item.product.sku || String(item.product.id));
+    // Item avulso não tem Product real (sem sku/id) — sem esse fallback saía cProd="undefined".
+    prod.ele("cProd").txt(item.product.sku || (item.product.id != null ? String(item.product.id) : `AVULSO${nItem}`));
     const validGtin = validGtinOrFallback(item.product.barcode);
     prod.ele("cEAN").txt(validGtin);
     // A SEFAZ exige que o primeiro item da nota, em ambiente de homologação, tenha
@@ -380,6 +382,12 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   const troco = Math.round((totalPago - Number(order.total_amount)) * 100) / 100;
   if (troco > 0) {
     pag.ele("vTroco").txt(troco.toFixed(2));
+  }
+
+  // infAdic vem depois de pag. Leva o cliente quando ele não pôde ir no grupo <dest>
+  // (SEFAZ recusou o CNPJ, documento inválido ou cliente sem documento).
+  if (customerInfo) {
+    doc.ele("infAdic").ele("infCpl").txt(trimText(customerInfo).slice(0, 2000));
   }
 
   const xml = doc.end({ prettyPrint: false });

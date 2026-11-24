@@ -163,10 +163,17 @@ async function emitirNfceCore(orderId: number): Promise<void> {
 
     // Documento inválido, ou reemissão depois de a SEFAZ recusar o destinatário: segue sem
     // identificar o consumidor (NFC-e permite), em vez de travar a nota.
+    // Guarda o documento/nome originais: mesmo sem o grupo <dest>, o cliente continua
+    // aparecendo no XML (informações complementares) e no cupom.
+    const originalDocument = customerDocument;
     if (customerDocument && (forceNoDest || !isValidCpfCnpj(customerDocument))) {
       console.warn(`[emitirNfce] emitindo sem destinatário — order=${orderId} motivo=${forceNoDest ? "rejeição da SEFAZ" : "documento inválido"}`);
       customerDocument = undefined;
     }
+    // Sem <dest> não há onde levar o nome do cliente no XML — vai em infAdic/infCpl.
+    const customerInfo = !customerDocument && (customerName || originalDocument)
+      ? `CONSUMIDOR: ${customerName ?? ""} ${originalDocument ? formatCpfCnpjDanfe(originalDocument) : ""}`.replace(/\s+/g, " ").trim()
+      : undefined;
 
     // Item avulso (vendido sem produto no catálogo, ver sales.controller.ts) não tem
     // Product real — monta um "product-like" sintético com os mesmos fallbacks fiscais
@@ -203,6 +210,7 @@ async function emitirNfceCore(orderId: number): Promise<void> {
       serie,
       customerDocument,
       customerName,
+      customerInfo,
     });
 
     const cert = loadPfx(tenant.nfce_cert_path, tenant.nfce_cert_password);
@@ -311,7 +319,7 @@ async function emitirNfceCore(orderId: number): Promise<void> {
     // também no XML) — se ausente, o cupom identifica como consumidor não identificado.
     const customerLabel = customerDocument
       ? `CONSUMIDOR: ${customerName ?? ""} ${formatCpfCnpjDanfe(customerDocument)}`.trim()
-      : "CONSUMIDOR NÃO IDENTIFICADO";
+      : customerInfo ?? "CONSUMIDOR NÃO IDENTIFICADO";
 
     // logo_url é sempre um path relativo tipo "/uploads/logos/<tenant>/<arquivo>",
     // resolvido dentro de public/ — mesmo padrão de nfse/emitir.ts.
