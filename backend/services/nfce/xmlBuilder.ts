@@ -188,6 +188,10 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   const vDescTotal = order.discount_amount ? Number(order.discount_amount) : 0;
   const vOutroTotal = Math.max(0, Math.round((Number(order.total_amount) - (vProdBruto - vDescTotal)) * 100) / 100);
   let vOutroAcumulado = 0;
+  // Mesma regra do vOutro: a SEFAZ exige ICMSTot/vDesc = soma do vDesc de cada item
+  // (rejeição "Total do Desconto difere do somatório dos itens"). Rateia o desconto da
+  // venda proporcionalmente; o último item absorve a sobra de arredondamento.
+  let vDescAcumulado = 0;
   // Acumulado do grupo IBS/CBS de todos os itens, usado no totalizador da nota
   // (total.IBSCBSTot) — a SEFAZ exige esse total além do grupo em cada item.
   const ibsCbsAcumulado = { vBC: 0, vIBSUF: 0, vCBS: 0 };
@@ -203,6 +207,11 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
       : isLastItem ? Math.round((vOutroTotal - vOutroAcumulado) * 100) / 100
       : Math.round((vOutroTotal * (vProd / vProdBruto)) * 100) / 100;
     vOutroAcumulado += vOutroItem;
+    const vDescItem = vDescTotal <= 0 || vProdBruto <= 0 ? 0
+      : Math.min(vProd, isLastItem
+        ? Math.round((vDescTotal - vDescAcumulado) * 100) / 100
+        : Math.round((vDescTotal * (vProd / vProdBruto)) * 100) / 100);
+    vDescAcumulado += vDescItem;
 
     const det = doc.ele("det", { nItem: String(nItem) });
     const prod = det.ele("prod");
@@ -230,6 +239,7 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
     prod.ele("uTrib").txt(item.product.unidade_tributavel);
     prod.ele("qTrib").txt(String(item.quantity));
     prod.ele("vUnTrib").txt(vUnCom.toFixed(10));
+    if (vDescItem > 0) prod.ele("vDesc").txt(vDescItem.toFixed(2));
     if (vOutroItem > 0) prod.ele("vOutro").txt(vOutroItem.toFixed(2));
     prod.ele("indTot").txt("1");
 
@@ -312,7 +322,7 @@ export function buildNfceXml(input: BuildNfceInput): BuildNfceResult {
   icmsTot.ele("vProd").txt(vProdTotal.toFixed(2));
   icmsTot.ele("vFrete").txt("0.00");
   icmsTot.ele("vSeg").txt("0.00");
-  icmsTot.ele("vDesc").txt(vDescTotal.toFixed(2));
+  icmsTot.ele("vDesc").txt(vDescAcumulado.toFixed(2)); // = soma dos vDesc dos itens
   icmsTot.ele("vII").txt("0.00");
   icmsTot.ele("vIPI").txt("0.00");
   icmsTot.ele("vIPIDevol").txt("0.00");
