@@ -8,6 +8,17 @@ html, body, #root {
   max-width: 100%;
 }
 
+/* Escala da interface em notebooks/telas menores. Tailwind usa rem em tudo
+   (texto, espaços, modais), então reduzir o tamanho base encolhe o sistema
+   inteiro proporcionalmente — como diminuir o zoom de 100% para ~85-90%.
+   Celular/tablet (<1024px) não é afetado. */
+@media (min-width: 1024px) and (max-width: 1599px), (min-width: 1024px) and (max-height: 860px) {
+  html { font-size: 90%; }
+}
+@media (min-width: 1024px) and (max-width: 1399px), (min-width: 1024px) and (max-height: 760px) {
+  html { font-size: 85%; }
+}
+
 body {
   font-family: "Manrope", sans-serif;
   background: #fffaf5;
