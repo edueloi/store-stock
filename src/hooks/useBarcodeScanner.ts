@@ -79,6 +79,7 @@ export function useBarcodeScanner({
     if (!enabled) return;
 
     let lastKeyTime = 0;
+    let fastRun = 0;
     let buffer = "";
     let timer: ReturnType<typeof setTimeout> | null = null;
     // Guarda em qual campo de busca visível a sequência de SCANNER atual
@@ -118,6 +119,10 @@ export function useBarcodeScanner({
       const now = Date.now();
       const gap = now - lastKeyTime;
       lastKeyTime = now;
+      // Leitor físico dispara teclas coladas (poucos ms). Digitação humana, mesmo rápida, só
+      // junta 2 teclas por vez a menos de 80ms — antes isso bastava para o campo ser
+      // "sequestrado" e apagado sozinho 300ms depois. Agora exige 3 teclas seguidas a ≤50ms.
+      fastRun = gap <= 50 ? fastRun + 1 : 0;
 
       if (e.key === "Enter") {
         if (buffer.length >= 3) {
@@ -153,7 +158,7 @@ export function useBarcodeScanner({
       // != "pending"), essa checagem não pode mais barrar as teclas
       // seguintes, senão o foco mudando no meio (ex.: o .focus() do campo de
       // scan oculto, logo abaixo) faz a leitura ser cortada pela metade.
-      if (activeSearchField === PENDING && isEditable && gap > 80) return;
+      if (activeSearchField === PENDING && isEditable && fastRun < 2) return;
 
       // A PRIMEIRA tecla da sequência decide o destino (campo de busca visível
       // vs. buffer solto) e essa decisão fica fixa até o flush — reavaliar
@@ -171,7 +176,8 @@ export function useBarcodeScanner({
       e.preventDefault();
       const field = resolvedField(activeSearchField);
       if (buffer === "") {
-        buffer = field ? field.getValue() : "";
+        // valor real do campo no DOM (já inclui as teclas digitadas nativamente antes)
+        buffer = field ? (active instanceof HTMLInputElement ? active.value : field.getValue()) : "";
       }
       buffer += e.key;
       if (field) field.setValue(buffer);

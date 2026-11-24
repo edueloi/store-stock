@@ -1114,6 +1114,7 @@ export default function PDVStandalone() {
 
   useEffect(() => {
     let lastKeyTime = 0;
+    let fastRun = 0;
     let buffer = "";
     let timer: ReturnType<typeof setTimeout> | null = null;
     // Guarda em qual campo de busca de produto a sequência atual começou —
@@ -1157,6 +1158,10 @@ export default function PDVStandalone() {
       const now = Date.now();
       const gap = now - lastKeyTime;
       lastKeyTime = now;
+      // Leitor físico dispara teclas coladas (poucos ms). Digitação humana rápida junta
+      // 2 teclas a <80ms e antes isso fazia o campo ser sequestrado e apagado sozinho.
+      // Agora exige 3 teclas seguidas a ≤50ms para tratar como leitor.
+      fastRun = gap <= 50 ? fastRun + 1 : 0;
 
       if (e.key === "Enter") {
         if (buffer.length >= 3) { e.preventDefault(); flush(buffer); }
@@ -1185,7 +1190,7 @@ export default function PDVStandalone() {
       // Uma vez decidido o destino, essa checagem não pode mais barrar as
       // teclas seguintes, senão o foco mudando no meio (ex.: o .focus() do
       // campo de scan oculto, abaixo) corta a leitura pela metade.
-      if (activeSearchField === "pending" && isEditable && gap > 80) return;
+      if (activeSearchField === "pending" && isEditable && fastRun < 2) return;
 
       // A PRIMEIRA tecla da sequência decide o destino e essa decisão fica
       // fixa até o flush — reavaliar "onde focar" tecla a tecla é frágil: o
@@ -1201,8 +1206,10 @@ export default function PDVStandalone() {
       // reconhecida como scanner.
       e.preventDefault();
       if (buffer === "") {
-        buffer = activeSearchField === "main" ? searchTermRef.current
-          : activeSearchField === "addModal" ? addProductSearchRef.current
+        // valor real do campo no DOM (já inclui as teclas digitadas nativamente antes)
+        buffer = activeSearchField === "main" || activeSearchField === "addModal"
+          ? (active instanceof HTMLInputElement ? active.value
+            : activeSearchField === "main" ? searchTermRef.current : addProductSearchRef.current)
           : "";
       }
       buffer += e.key;
