@@ -61,9 +61,13 @@ export default function NfceOrderPanel({ orderId, autoEmit = false, className = 
     return () => clearInterval(t);
   }, [invoice?.status, load]);
 
-  const send = useCallback(async (retry: boolean) => {
+  const send = useCallback(async (retry: boolean, semDestinatario = false) => {
     try {
-      const res = await fetch(`/api/nfce/${orderId}/${retry ? "retry" : "emit"}`, { method: "POST", headers: authHeader() });
+      const res = await fetch(`/api/nfce/${orderId}/${retry ? "retry" : "emit"}`, {
+        method: "POST",
+        headers: semDestinatario ? { ...authHeader(), "Content-Type": "application/json" } : authHeader(),
+        body: semDestinatario ? JSON.stringify({ semDestinatario: true }) : undefined,
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { toast.error(data?.error || "Não foi possível emitir a NFC-e."); return; }
       toast.success("Emissão da NFC-e iniciada.");
@@ -153,6 +157,16 @@ export default function NfceOrderPanel({ orderId, autoEmit = false, className = 
           <Button variant={failed ? "outline" : "primary"} size="sm" fullWidth loading={busy} onClick={() => void start()} iconLeft={failed ? <RefreshCw size={13} /> : <FileText size={13} />}>
             {failed ? "Tentar de novo" : "Emitir NFC-e"}
           </Button>
+          {(invoice?.rejection_code === "destinatario" || invoice?.rejection_code === "destinatario-invalido") && (
+            <Button
+              variant="outline" size="sm" fullWidth
+              onClick={() => {
+                if (window.confirm("Emitir a NFC-e SEM o CPF/CNPJ do cliente como destinatário? A nota sairá como consumidor não identificado (o nome do cliente vai só nas informações complementares).")) void send(true, true);
+              }}
+            >
+              Emitir sem identificar o cliente
+            </Button>
+          )}
         </>
       )}
 

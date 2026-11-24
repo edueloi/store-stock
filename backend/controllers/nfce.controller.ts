@@ -212,7 +212,7 @@ export async function emitNfceForOrder(req: Request, res: Response) {
       invoice = await prisma.nfceInvoice.update({ where: { id: invoice.id }, data: { status: "pending" } });
     }
     emitToTenant(tenantId, "nfce:changed", { orderId });
-    emitirNfce(orderId).catch((error) => console.error("[emitNfceForOrder] erro:", error));
+    emitirNfce(orderId, { semDestinatario: req.body?.semDestinatario === true }).catch((error) => console.error("[emitNfceForOrder] erro:", error));
     res.json(invoice);
   } catch {
     res.status(500).json({ error: "Não foi possível iniciar a emissão da NFC-e" });
@@ -263,7 +263,7 @@ export async function retryNfce(req: Request, res: Response) {
       data: { status: "pending" },
     });
     emitToTenant(tenantId, "nfce:changed", { orderId });
-    emitirNfce(orderId).catch((e) => console.error("[retryNfce] erro:", e));
+    emitirNfce(orderId, { semDestinatario: req.body?.semDestinatario === true }).catch((e) => console.error("[retryNfce] erro:", e));
 
     res.json({ success: true });
   } catch {

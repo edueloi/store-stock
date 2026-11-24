@@ -77,9 +77,16 @@ function isDestinatarioRejection(xMotivo: string | null | undefined): boolean {
  * Emite a NFC-e do pedido e, ao TERMINAR (autorizada, rejeitada ou com erro), avisa as telas abertas (evento "nfce:changed").
  * Antes o servidor só avisava quando a emissão COMEÇAVA: a tela ficava em "Processando" até recarregar a página.
  */
-export async function emitirNfce(orderId: number): Promise<void> {
+export type EmitirNfceOpts = {
+  /** O operador aceitou, de forma explícita, emitir SEM o CPF/CNPJ do cliente como destinatário. */
+  semDestinatario?: boolean;
+};
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+export async function emitirNfce(orderId: number, opts: EmitirNfceOpts = {}): Promise<void> {
   try {
-    await emitirNfceCore(orderId);
+    await emitirNfceCore(orderId, opts);
   } finally {
     try {
       const o = await prisma.order.findUnique({ where: { id: orderId }, select: { tenant_id: true } });
@@ -88,7 +95,7 @@ export async function emitirNfce(orderId: number): Promise<void> {
   }
 }
 
-async function emitirNfceCore(orderId: number): Promise<void> {
+async function emitirNfceCore(orderId: number, opts: EmitirNfceOpts = {}): Promise<void> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: { include: { product: true } } },
@@ -166,8 +173,23 @@ async function emitirNfceCore(orderId: number): Promise<void> {
     // Guarda o documento/nome originais: mesmo sem o grupo <dest>, o cliente continua
     // aparecendo no XML (informações complementares) e no cupom.
     const originalDocument = customerDocument;
-    if (customerDocument && (forceNoDest || !isValidCpfCnpj(customerDocument))) {
-      console.warn(`[emitirNfce] emitindo sem destinatário — order=${orderId} motivo=${forceNoDest ? "rejeição da SEFAZ" : "documento inválido"}`);
+    // Documento inválido: NÃO emite escondido. Só segue sem ele se o operador pediu isso de forma explícita.
+    if (customerDocument && !forceNoDest && !isValidCpfCnpj(customerDocument)) {
+      await prisma.nfceInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: "rejected",
+          rejection_code: "destinatario-invalido",
+          rejection_reason:
+            `O CPF/CNPJ informado para o cliente (${formatCpfCnpjDanfe(customerDocument)}) é inválido, então a nota NÃO foi emitida. ` +
+            "Corrija o documento no cadastro do cliente ou da venda, ou escolha \"Emitir sem identificar o cliente\".",
+          last_attempt_at: new Date(),
+        },
+      });
+      return "__bloqueada__";
+    }
+    if (customerDocument && forceNoDest) {
+      console.warn(`[emitirNfce] emitindo sem destinatário (pedido do operador) — order=${orderId}`);
       customerDocument = undefined;
     }
     // Sem <dest> não há onde levar o nome do cliente no XML — vai em infAdic/infCpl.
@@ -346,8 +368,9 @@ async function emitirNfceCore(orderId: number): Promise<void> {
       emittedAt: new Date(),
       environment: environment === "producao" ? "producao" : "homologacao",
       protocol: protNFe,
-      items: itemsForXml.map((item) => ({
-        code: item.product.barcode || item.product.sku || null,
+      items: itemsForXml.map((item, idx) => ({
+        // mesmo código que vai no XML (cProd); item avulso usa AVULSO<n> em vez de "—"
+        code: item.product.barcode || item.product.sku || (item.product.id != null ? String(item.product.id) : `AVULSO${idx + 1}`),
         name: item.product.name,
         quantity: item.quantity,
         unit: item.product.unidade_comercial,
@@ -404,16 +427,36 @@ async function emitirNfceCore(orderId: number): Promise<void> {
   }
 
   try {
-    let xMotivo = await attemptEmission(false);
+    const noDest = !!opts.semDestinatario;
+    let xMotivo = await attemptEmission(false, noDest);
     let noGtin = false;
     if (xMotivo && isGtinPrefixRejection(xMotivo)) {
       console.warn(`[emitirNfce] retry sem GTIN — tenant=${tenant.id} order=${orderId} motivo="${xMotivo}"`);
       noGtin = true;
-      xMotivo = await attemptEmission(true);
+      xMotivo = await attemptEmission(true, noDest);
     }
-    if (xMotivo && isDestinatarioRejection(xMotivo)) {
-      console.warn(`[emitirNfce] retry sem destinatário — tenant=${tenant.id} order=${orderId} motivo="${xMotivo}"`);
-      await attemptEmission(noGtin, true);
+    if (xMotivo && xMotivo !== "__bloqueada__" && !noDest && isDestinatarioRejection(xMotivo)) {
+      // A base de cadastro da SEFAZ às vezes recusa um CNPJ válido de forma passageira (visto na
+      // nota 39 da MVS). Tenta de novo COM o destinatário antes de desistir — nunca emite sem ele
+      // por conta própria: se continuar recusando, avisa o operador e ele decide.
+      for (const waitMs of [4000, 10000]) {
+        console.warn(`[emitirNfce] SEFAZ recusou o destinatário — nova tentativa em ${waitMs / 1000}s — tenant=${tenant.id} order=${orderId} motivo="${xMotivo}"`);
+        await sleep(waitMs);
+        xMotivo = await attemptEmission(noGtin, false);
+        if (!xMotivo || !isDestinatarioRejection(xMotivo)) break;
+      }
+      if (xMotivo && isDestinatarioRejection(xMotivo)) {
+        await prisma.nfceInvoice.update({
+          where: { id: invoice.id },
+          data: {
+            status: "rejected",
+            rejection_code: "destinatario",
+            rejection_reason:
+              `A SEFAZ recusou o CPF/CNPJ do cliente (${xMotivo}). A nota NÃO foi emitida. ` +
+              "Tente de novo em alguns minutos, ou escolha \"Emitir sem identificar o cliente\".",
+          },
+        });
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
