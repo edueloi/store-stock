@@ -286,11 +286,14 @@ export async function createServiceOrder(req: Request, res: Response) {
 
     // Resolve and validate parts (stock check) before creating anything
     const partRows: { product_id: number; name: string; quantity: number; unit_price: number; total_before_discount: number; total: number }[] = [];
+    const createStockCfg = parts && parts.length > 0
+      ? await prisma.tenant.findUnique({ where: { id: tenantId }, select: { sell_without_stock_control: true } })
+      : null;
     if (parts && parts.length > 0) {
       for (const p of parts) {
         const product = await prisma.product.findFirst({ where: { id: p.product_id, tenant_id: tenantId } });
         if (!product) return res.status(400).json({ error: `Produto ${p.product_id} não encontrado` });
-        if (product.stock_quantity < p.quantity) {
+        if (!createStockCfg?.sell_without_stock_control && product.stock_quantity < p.quantity) {
           return res.status(400).json({ error: `Estoque insuficiente para "${product.name}"` });
         }
         const unitPrice = Number(product.price);
@@ -781,6 +784,10 @@ export async function addServiceOrderPart(req: Request, res: Response) {
     const product = await prisma.product.findFirst({ where: { id: product_id, tenant_id: tenantId } });
     if (!product) return res.status(404).json({ error: "Produto não encontrado" });
 
+    // Opção "Vender sem controle de estoque" (Configurações): não barra a O.S. por saldo insuficiente.
+    const stockCfg = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { sell_without_stock_control: true } });
+    const ignoreStockLimit = !!stockCfg?.sell_without_stock_control;
+
     const isMeasured = !!product.sale_unit && product.sale_unit !== "unidade";
 
     let qty = Number(quantity) || 1;
@@ -806,7 +813,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
       dimensionsLabel = result.label;
       measuredQuantity = result.rawQuantity;
       const available = Number(product.measure_stock_quantity ?? 0);
-      if (product.track_stock !== false && measuredQuantity > available + 0.0005) {
+      if (!ignoreStockLimit && product.track_stock !== false && measuredQuantity > available + 0.0005) {
         return res.status(400).json({ error: `Estoque insuficiente para "${product.name}". Disponível: ${available.toFixed(3)} ${product.sale_unit === "m2" ? "m²" : "m"}.` });
       }
     } else {
@@ -818,7 +825,7 @@ export async function addServiceOrderPart(req: Request, res: Response) {
         throw err;
       }
       const available = variation.available;
-      if (product.track_stock !== false && available < qty) {
+      if (!ignoreStockLimit && product.track_stock !== false && available < qty) {
         return res.status(400).json({ error: available > 0
           ? `Estoque insuficiente para "${product.name}"${variation.label ? ` (${variation.label})` : ""}. Disponível: ${available}.`
           : `"${product.name}"${variation.label ? ` (${variation.label})` : ""} está sem estoque.` });
