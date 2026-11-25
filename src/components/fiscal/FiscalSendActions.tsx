@@ -3,6 +3,7 @@ import { Loader2, Mail, MessageCircle } from "lucide-react";
 
 import { Button, Input, Modal, ModalFooter } from "../ui";
 import { useToast } from "../ui/Toast";
+import { isValidBrWhatsapp, maskBrWhatsapp, whatsappDigits, WHATSAPP_PLACEHOLDER } from "../../lib/phoneBr";
 
 const authHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token")}`, "Content-Type": "application/json" });
 
@@ -21,13 +22,6 @@ function whatsappConnected(): Promise<boolean> {
   return waInflight;
 }
 
-const maskPhone = (v: string) => {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 2) return d;
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-};
 
 interface Props {
   /** Ex.: "/api/nfe/123" — recebe POST em /send-email e /send-whatsapp. */
@@ -57,7 +51,7 @@ export default function FiscalSendActions({ base, label, showWhatsapp = true, si
   const send = async (kind: "email" | "whatsapp", typed?: string) => {
     setSending(kind);
     try {
-      const body = typed ? (kind === "email" ? { email: typed } : { number: typed.replace(/\D/g, "") }) : {};
+      const body = typed ? (kind === "email" ? { email: typed } : { number: whatsappDigits(typed) }) : {};
       const r = await fetch(`${base}/${kind === "email" ? "send-email" : "send-whatsapp"}`, { method: "POST", headers: authHeader(), body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) {
@@ -74,7 +68,7 @@ export default function FiscalSendActions({ base, label, showWhatsapp = true, si
     }
   };
 
-  const valid = ask === "email" ? /^\S+@\S+\.\S+$/.test(value.trim()) : value.replace(/\D/g, "").length >= 10;
+  const valid = ask === "email" ? /^\S+@\S+\.\S+$/.test(value.trim()) : isValidBrWhatsapp(value);
 
   return (
     <>
@@ -99,7 +93,7 @@ export default function FiscalSendActions({ base, label, showWhatsapp = true, si
           <p className="text-xs text-slate-500">{ask === "email" ? `O cliente recebe o DANFE${label === "NF-e" ? " e o XML" : ""} anexado, em nome da loja.` : "O cliente recebe o DANFE em PDF pelo WhatsApp da loja."}</p>
           {ask === "email"
             ? <Input type="email" autoFocus autoComplete="off" placeholder="cliente@exemplo.com" value={value} onChange={(e) => setValue(e.target.value)} wrapperClassName="w-full" />
-            : <Input type="tel" autoFocus autoComplete="off" placeholder="(11) 91234-5678" value={value} onChange={(e) => setValue(maskPhone(e.target.value))} wrapperClassName="w-full" />}
+            : <Input type="tel" autoFocus autoComplete="off" placeholder={WHATSAPP_PLACEHOLDER} value={value} onChange={(e) => setValue(maskBrWhatsapp(e.target.value))} wrapperClassName="w-full" />}
         </div>
       </Modal>
     </>

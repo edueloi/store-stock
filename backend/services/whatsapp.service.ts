@@ -1061,6 +1061,11 @@ function baileysHeaders() {
 }
 
 async function sendBaileysRequest(tenantId: number, endpoint: string, body: Record<string, unknown>) {
+  // Todo envio (nota, comprovante, orçamento, extrato…) passa por aqui: número brasileiro sem DDI (DDD + 8/9 dígitos = 10 ou 11
+  // dígitos) ganha o 55. Sem ele o WhatsApp lê o "1" do DDD como código dos EUA e a mensagem some sem erro.
+  if (endpoint.endsWith("/send") && typeof body.number === "string" && /^\d{10,11}$/.test(body.number)) {
+    body = { ...body, number: `55${body.number}` };
+  }
   const response = await axios.post(`${env.baileysServiceUrl}${endpoint}`, body, {
     headers: baileysHeaders(),
     // o serviço espera até ~12 s pela reconexão (e mais 12 s numa segunda tentativa) antes de responder

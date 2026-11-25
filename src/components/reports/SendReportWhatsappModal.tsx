@@ -3,6 +3,7 @@ import { Loader2, MessageCircle, Send } from "lucide-react";
 import { Button, Input, Modal } from "../ui";
 import Combobox from "../ui/Combobox";
 import { useToast } from "../ui/Toast";
+import { maskBrWhatsapp, WHATSAPP_PLACEHOLDER } from "../../lib/phoneBr";
 
 interface CustomerOption { id: number; name: string; phone: string | null }
 
@@ -104,10 +105,10 @@ export default function SendReportWhatsappModal({ open, onClose, title = "Enviar
         />
         <Input
           label="Número do WhatsApp"
-          placeholder="(11) 99999-9999"
+          placeholder={WHATSAPP_PLACEHOLDER}
           inputMode="tel"
           value={phone}
-          onChange={(e) => { setPhone(maskPhone(e.target.value)); setCustomerId(""); }}
+          onChange={(e) => { setPhone(maskBrWhatsapp(e.target.value)); setCustomerId(""); }}
           error={phone && !validPhone ? "Informe DDD + número" : undefined}
         />
         <label className="block">

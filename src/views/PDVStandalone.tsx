@@ -47,6 +47,7 @@ import { Tabs } from "../components/ui/Tabs";
 import { Alert } from "../components/ui/Alert";
 import FiscalCodeLookup from "../components/fiscal/FiscalCodeLookup";
 import { CategoryGlyph } from "../components/categories/CategoryGlyph";
+import { maskBrWhatsapp, WHATSAPP_PLACEHOLDER } from "../lib/phoneBr";
 
 type PaymentMethod = "money" | "debit" | "credit" | "pix" | "crediario" | "boleto";
 type CardBrand = "visa" | "master" | "elo" | "amex" | "hiper" | "other";
@@ -4548,9 +4549,9 @@ ${buildReceiptFooterHtml(warrantyPolicies)}
                       <div className="flex gap-2 pt-1">
                         <div className="relative flex-1">
                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                          <input type="tel" placeholder="(11) 99999-9999"
+                          <input type="tel" placeholder={WHATSAPP_PLACEHOLDER}
                             className="w-full pl-9 pr-4 h-11 bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-[13px] font-medium text-slate-700 placeholder:text-slate-400 transition-all"
-                            value={whatsappPhone} onChange={(e) => { setWhatsappPhone(maskPhone(e.target.value)); setWaSent(false); setWaSendError(null); }} />
+                            value={whatsappPhone} onChange={(e) => { setWhatsappPhone(maskBrWhatsapp(e.target.value)); setWaSent(false); setWaSendError(null); }} />
                         </div>
                         {waBotConnected && !completedSale.offline ? (
                           <button onClick={handleSendWhatsappDocument}

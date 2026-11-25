@@ -21,6 +21,7 @@ import { fetchNfceCupomText, printThermalText } from "../../lib/thermalReceipt";
 import FiscalCodeLookup from "../../components/fiscal/FiscalCodeLookup";
 import NfeInvoicesTab from "../../components/fiscal/NfeInvoicesTab";
 import { useFiscalDocs } from "../../lib/fiscalDocuments";
+import { isValidBrWhatsapp, maskBrWhatsapp, whatsappDigits, WHATSAPP_PLACEHOLDER } from "../../lib/phoneBr";
 
 const PRAZO_CANCELAMENTO_MINUTOS = 30;
 
@@ -878,8 +879,8 @@ function NfceTabContent() {
           <ModalFooter>
             <Button variant="secondary" onClick={() => setWhatsappNumberTarget(null)} disabled={sendingWhatsapp !== null}>Voltar</Button>
             <Button
-              onClick={() => whatsappNumberTarget && handleSendWhatsapp(whatsappNumberTarget, whatsappNumberInput.replace(/\D/g, ""))}
-              disabled={sendingWhatsapp !== null || whatsappNumberInput.replace(/\D/g, "").length < 10}
+              onClick={() => whatsappNumberTarget && handleSendWhatsapp(whatsappNumberTarget, whatsappDigits(whatsappNumberInput))}
+              disabled={sendingWhatsapp !== null || !isValidBrWhatsapp(whatsappNumberInput)}
               loading={sendingWhatsapp !== null}
             >
               Enviar
@@ -889,7 +890,7 @@ function NfceTabContent() {
       >
         <div className="space-y-3">
           <p className="text-xs text-slate-500">Informe o número de WhatsApp que vai receber o DANFE.</p>
-          <Input type="tel" autoFocus placeholder="(11) 91234-5678" value={whatsappNumberInput} onChange={(e) => setWhatsappNumberInput(e.target.value)} wrapperClassName="w-full" />
+          <Input type="tel" autoFocus placeholder={WHATSAPP_PLACEHOLDER} value={whatsappNumberInput} onChange={(e) => setWhatsappNumberInput(maskBrWhatsapp(e.target.value))} wrapperClassName="w-full" />
         </div>
       </Modal>
 
@@ -1698,8 +1699,8 @@ function NfseTabContent() {
           <ModalFooter>
             <Button variant="secondary" onClick={() => setWhatsappNumberTarget(null)} disabled={sendingWhatsapp !== null}>Voltar</Button>
             <Button
-              onClick={() => whatsappNumberTarget && handleSendWhatsapp(whatsappNumberTarget, whatsappNumberInput.replace(/\D/g, ""))}
-              disabled={sendingWhatsapp !== null || whatsappNumberInput.replace(/\D/g, "").length < 10}
+              onClick={() => whatsappNumberTarget && handleSendWhatsapp(whatsappNumberTarget, whatsappDigits(whatsappNumberInput))}
+              disabled={sendingWhatsapp !== null || !isValidBrWhatsapp(whatsappNumberInput)}
               loading={sendingWhatsapp !== null}
             >
               Enviar
@@ -1709,7 +1710,7 @@ function NfseTabContent() {
       >
         <div className="space-y-3">
           <p className="text-xs text-slate-500">Informe o número de WhatsApp que vai receber o PDF da NFS-e.</p>
-          <Input type="tel" autoFocus placeholder="(11) 91234-5678" value={whatsappNumberInput} onChange={(e) => setWhatsappNumberInput(e.target.value)} wrapperClassName="w-full" />
+          <Input type="tel" autoFocus placeholder={WHATSAPP_PLACEHOLDER} value={whatsappNumberInput} onChange={(e) => setWhatsappNumberInput(maskBrWhatsapp(e.target.value))} wrapperClassName="w-full" />
         </div>
       </Modal>
 
