@@ -103,7 +103,7 @@ export async function createIssuer(req: Request, res: Response) {
     let snapshot: Record<string, unknown> = { ...BLANK_FISCAL, document };
     if (req.body?.copyFromActive) {
       const cur = await prisma.tenant.findUnique({ where: { id: tenantId } });
-      snapshot = { ...pick(cur), document, nfce_next_number: 1, nfse_next_number: 1 };
+      snapshot = { ...pick(cur), document, nfce_next_number: 1, nfse_next_number: 1, nfe_next_number: 1 };
     }
     const created = await prisma.tenantIssuer.create({
       data: { tenant_id: tenantId, label, document, is_active: false, snapshot: snapshot as any },

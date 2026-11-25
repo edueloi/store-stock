@@ -270,6 +270,22 @@ async function createOrUpdateAndEmit(req: Request, res: Response, isRetry: boole
         return created;
       });
       if (issuerPick.id) await prisma.order.update({ where: { id: orderId }, data: { issuer_id: issuerPick.id } });
+    } else if (invoice.rejection_code === "539" && invoice.status !== "authorized") {
+      // 539 = "Duplicidade de NF-e": a SEFAZ já tem esse número/série (ex.: nota de outro sistema). Ao reemitir, pega a numeração
+      // atual da loja (que o operador acertou em Configurações → Dados Fiscais) em vez de repetir o número recusado.
+      const issuerPick = await issuerForNote(req, tenantId, order.issuer_id);
+      const tenant = await fiscalTenant(tenantId, issuerPick.id);
+      const t = tenant as unknown as { nfe_series?: number | null; nfe_next_number?: number | null } | null;
+      const cur = invoice;
+      invoice = await prisma.$transaction(async (tx) => {
+        const renumber = t && (t.nfe_series !== cur.series || t.nfe_next_number !== cur.number);
+        const updated = await tx.nfeInvoice.update({
+          where: { id: cur.id },
+          data: { status: "pending", ...data, ...(renumber ? { series: t!.nfe_series ?? 1, number: t!.nfe_next_number ?? 1 } : {}) },
+        });
+        if (renumber) await bumpNextNumber(tx as never, tenantId, issuerPick.id, "nfe_next_number");
+        return updated;
+      });
     } else {
       invoice = await prisma.nfeInvoice.update({ where: { id: invoice.id }, data: { status: "pending", ...data } });
     }

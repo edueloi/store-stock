@@ -330,6 +330,9 @@ export async function updateTenant(req: Request, res: Response) {
     if (b.nfce_environment !== undefined)  data.nfce_environment  = b.nfce_environment;
     if (b.nfce_series !== undefined)       data.nfce_series       = Number(b.nfce_series);
     if (b.nfce_next_number !== undefined)  data.nfce_next_number  = Number(b.nfce_next_number);
+    // NF-e (modelo 55): série e numeração próprias (a SEFAZ recusa número repetido com a mesma série)
+    if (b.nfe_series !== undefined)        data.nfe_series        = Math.max(1, Math.floor(Number(b.nfe_series)) || 1);
+    if (b.nfe_next_number !== undefined)   data.nfe_next_number   = Math.max(1, Math.floor(Number(b.nfe_next_number)) || 1);
     if (b.nfce_csc_id !== undefined)       data.nfce_csc_id       = b.nfce_csc_id;
     if (b.nfce_csc_token !== undefined)    data.nfce_csc_token    = b.nfce_csc_token ? encryptSecret(b.nfce_csc_token) : b.nfce_csc_token;
     // CSC/idCSC são registros SEPARADOS por ambiente na SEFAZ (o de homologação não vale

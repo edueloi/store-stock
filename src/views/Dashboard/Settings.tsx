@@ -3107,6 +3107,24 @@ export default function Settings({
                       />
                     </Field>
 )}
+                    {numberingEdit && (
+<Field label="NF-e · Série" hint="Série da NF-e (modelo 55), separada da NFC-e">
+                      <TextInput
+                        value={String(tenant?.nfe_series ?? 1)}
+                        onChange={(v) => setT({ nfe_series: Number(v.replace(/\D/g, "")) || 1 })}
+                        mono
+                      />
+                    </Field>
+)}
+                    {numberingEdit && (
+<Field label="NF-e · Próximo Número" hint="Se a SEFAZ recusar com 'Duplicidade de NF-e' (539), coloque aqui o número seguinte ao da última NF-e emitida por outro sistema">
+                      <TextInput
+                        value={String(tenant?.nfe_next_number ?? 1)}
+                        onChange={(v) => setT({ nfe_next_number: Number(v.replace(/\D/g, "")) || 1 })}
+                        mono
+                      />
+                    </Field>
+)}
                     <Field label="CSC ID">
                       <TextInput
                         value={tenant?.nfce_csc_id ?? ""}

@@ -213,6 +213,8 @@ export interface Tenant {
   nfce_environment?: 'homologacao' | 'producao';
   nfce_series?: number;
   nfce_next_number?: number;
+  nfe_series?: number;
+  nfe_next_number?: number;
   nfce_csc_id?: string;
   nfce_csc_token?: string;
   nfce_cert_configured?: boolean;
