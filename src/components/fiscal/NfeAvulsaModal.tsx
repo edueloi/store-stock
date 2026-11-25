@@ -106,7 +106,7 @@ export default function NfeAvulsaModal({ open, onClose, onCreated }: { open: boo
           </div>
         ))}
         <Button variant="outline" size="sm" iconLeft={<Plus size={13} />} onClick={() => setRows((rs) => [...rs, newRow()])}>Adicionar item</Button>
-        <Alert variant="info">Esta nota não baixa estoque nem mexe no caixa. Se quiser que a venda controle o estoque, emita pela tela de Pedidos.</Alert>
+        <Alert variant="info">Esta nota não registra venda, não baixa estoque e não mexe no caixa. Se quiser que a venda controle o estoque, emita pela tela de Pedidos.</Alert>
         {error && <Alert variant="error">{error}</Alert>}
       </div>
     </Modal>

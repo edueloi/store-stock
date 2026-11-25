@@ -116,7 +116,7 @@ export async function listOrders(req: Request, res: Response) {
     const tenantId = getTenantId(req);
     const limit = req.query.limit ? Number(req.query.limit) : undefined;
     const orders = await prisma.order.findMany({
-      where: { tenant_id: tenantId },
+      where: { tenant_id: tenantId, status: { not: "nfe_avulsa" } }, // pedido interno da NF-e avulsa não é venda
       orderBy: { created_at: "desc" },
       take: limit,
       include: {

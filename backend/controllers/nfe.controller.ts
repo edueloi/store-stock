@@ -155,7 +155,7 @@ export async function previewNfe(req: Request, res: Response) {
 
 /**
  * NF-e "avulsa": emitida direto da tela de Notas Fiscais, sem passar por Pedidos/PDV. Mesmo padrão da NFS-e avulsa: cria por baixo dos
- * panos um pedido mínimo (canal "manual", sem baixa de estoque nem caixa) só para servir de vínculo, e a emissão reaproveita 100% o
+ * panos um pedido mínimo (status "nfe_avulsa": não é venda, sem baixa de estoque nem caixa) só para servir de vínculo, e a emissão reaproveita 100% o
  * fluxo normal da NF-e (destinatário, frete, natureza → /:orderId/emit). Cada item vem do catálogo (product_id) ou é avulso (nome + NCM).
  */
 export async function createNfeAvulsaOrder(req: Request, res: Response) {
@@ -199,7 +199,8 @@ export async function createNfeAvulsaOrder(req: Request, res: Response) {
     const order = await prisma.order.create({
       data: {
         tenant_id: tenantId, customer_id: customer?.id ?? null, customer_name: customer?.name ?? null,
-        order_label: "NF-e avulsa", status: "completed", order_type: "products", sales_channel: "manual",
+        // status próprio ("nfe_avulsa", não "completed"): não é venda — fica fora de Pedidos, caixa, metas e relatórios de vendas
+        order_label: "NF-e avulsa", status: "nfe_avulsa", order_type: "products", sales_channel: "nfe_avulsa",
         total_amount: total, gross_amount: total, payment_method: `money:${total.toFixed(2)}`,
         items: { create: items },
       },
