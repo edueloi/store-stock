@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import {
   cancelNfe,
+  createNfeAvulsaOrder,
   deleteNfe,
   downloadNfeDanfe,
   downloadNfeXml,
@@ -24,6 +25,7 @@ router.use(authenticateToken);
 router.get("/", listNfe);
 router.get("/ibge", lookupIbge);
 router.get("/recipient/:customerId", recipientFromCustomer);
+router.post("/avulsa", createNfeAvulsaOrder);
 router.get("/:orderId/preview", previewNfe);
 router.get("/:orderId", getNfeByOrder);
 router.post("/:orderId/emit", emitNfe);

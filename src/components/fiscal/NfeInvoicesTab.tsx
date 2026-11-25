@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Download, FileCode, Loader2, RefreshCw, Trash2, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, FileCode, Loader2, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 
 import { Alert, Button, Modal, ModalFooter, Textarea } from "../ui";
 import { useToast } from "../ui/Toast";
 import { downloadAuthenticatedFile } from "../../lib/downloadFile";
 import { onRealtime } from "../../lib/realtime";
 import NfeEmitModal from "./NfeEmitModal";
+import NfeAvulsaModal from "./NfeAvulsaModal";
 import FiscalSendActions from "./FiscalSendActions";
 
 interface NfeRow {
@@ -39,6 +40,7 @@ export default function NfeInvoicesTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [emitOrderId, setEmitOrderId] = useState<number | null>(null);
+  const [avulsaOpen, setAvulsaOpen] = useState(false);
   const [cancelRow, setCancelRow] = useState<NfeRow | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
@@ -82,11 +84,12 @@ export default function NfeInvoicesTab() {
   return (
     <div className="space-y-3">
       <Alert variant="info">
-        NF-e (modelo 55) é a nota de <b>mercadoria com destinatário identificado</b>. Para emitir, abra <b>Pedidos</b> e use o botão <b>NF-e</b> do pedido. A NFC-e continua sendo a nota de balcão (consumidor final).
+        NF-e (modelo 55) é a nota de <b>mercadoria com destinatário identificado</b>. Use <b>Nova NF-e</b> para emitir direto daqui, ou o botão <b>Gerar NF-e</b> de um pedido em <b>Pedidos</b>. A NFC-e continua sendo a nota de balcão (consumidor final).
       </Alert>
       {error && <Alert variant="error">{error}</Alert>}
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="primary" size="sm" onClick={() => setAvulsaOpen(true)} iconLeft={<Plus size={13} />}>Nova NF-e</Button>
         <Button variant="outline" size="sm" onClick={() => { setLoading(true); void load(); }} iconLeft={<RefreshCw size={13} />}>Atualizar</Button>
       </div>
 
@@ -138,6 +141,7 @@ export default function NfeInvoicesTab() {
         </table>
       </div>
 
+      <NfeAvulsaModal open={avulsaOpen} onClose={() => setAvulsaOpen(false)} onCreated={(id) => { setAvulsaOpen(false); setEmitOrderId(id); }} />
       <NfeEmitModal orderId={emitOrderId} onClose={() => setEmitOrderId(null)} onDone={() => void load()} />
 
       <Modal

@@ -153,6 +153,65 @@ export async function previewNfe(req: Request, res: Response) {
   }
 }
 
+/**
+ * NF-e "avulsa": emitida direto da tela de Notas Fiscais, sem passar por Pedidos/PDV. Mesmo padrão da NFS-e avulsa: cria por baixo dos
+ * panos um pedido mínimo (canal "manual", sem baixa de estoque nem caixa) só para servir de vínculo, e a emissão reaproveita 100% o
+ * fluxo normal da NF-e (destinatário, frete, natureza → /:orderId/emit). Cada item vem do catálogo (product_id) ou é avulso (nome + NCM).
+ */
+export async function createNfeAvulsaOrder(req: Request, res: Response) {
+  try {
+    const tenantId = getTenantId(req);
+    const body = (req.body ?? {}) as { customer_id?: number; items?: { product_id?: number; name?: string; ncm?: string; quantity?: number; unit_price?: number }[] };
+    const raw = Array.isArray(body.items) ? body.items : [];
+    if (raw.length === 0) { res.status(422).json({ error: "Adicione pelo menos um item à NF-e." }); return; }
+    if (raw.length > 100) { res.status(422).json({ error: "Máximo de 100 itens por NF-e." }); return; }
+
+    const productIds = [...new Set(raw.map((i) => Number(i.product_id)).filter((n) => n > 0))];
+    const products = productIds.length ? await prisma.product.findMany({ where: { id: { in: productIds }, tenant_id: tenantId }, select: { id: true, name: true } }) : [];
+    const known = new Set(products.map((p) => p.id));
+
+    const items: { product_id: number | null; name: string | null; ncm: string | null; quantity: number; unit_price: number }[] = [];
+    for (const [idx, i] of raw.entries()) {
+      const n = idx + 1;
+      const quantity = Math.floor(Number(i.quantity));
+      const unitPrice = Math.round(Number(i.unit_price) * 100) / 100;
+      if (!(quantity >= 1)) { res.status(422).json({ error: `Item ${n}: informe a quantidade.` }); return; }
+      if (!(unitPrice > 0)) { res.status(422).json({ error: `Item ${n}: informe o valor unitário.` }); return; }
+      if (i.product_id) {
+        if (!known.has(Number(i.product_id))) { res.status(404).json({ error: `Item ${n}: produto não encontrado.` }); return; }
+        items.push({ product_id: Number(i.product_id), name: null, ncm: null, quantity, unit_price: unitPrice });
+      } else {
+        const name = text(i.name, 120);
+        const ncm = digits(i.ncm);
+        if (!name) { res.status(422).json({ error: `Item ${n}: informe a descrição do item.` }); return; }
+        if (ncm && ncm.length !== 8) { res.status(422).json({ error: `Item ${n}: o NCM tem 8 dígitos.` }); return; }
+        items.push({ product_id: null, name, ncm: ncm || null, quantity, unit_price: unitPrice });
+      }
+    }
+
+    let customer: { id: number; name: string } | null = null;
+    if (body.customer_id) {
+      customer = await prisma.customer.findFirst({ where: { id: Number(body.customer_id), tenant_id: tenantId }, select: { id: true, name: true } });
+      if (!customer) { res.status(404).json({ error: "Cliente não encontrado" }); return; }
+    }
+
+    const total = Math.round(items.reduce((s, i) => s + i.quantity * i.unit_price, 0) * 100) / 100;
+    const order = await prisma.order.create({
+      data: {
+        tenant_id: tenantId, customer_id: customer?.id ?? null, customer_name: customer?.name ?? null,
+        order_label: "NF-e avulsa", status: "completed", order_type: "products", sales_channel: "manual",
+        total_amount: total, gross_amount: total, payment_method: `money:${total.toFixed(2)}`,
+        items: { create: items },
+      },
+      select: { id: true },
+    });
+    res.status(201).json({ order_id: order.id });
+  } catch (e) {
+    console.error("[createNfeAvulsaOrder]", e);
+    res.status(500).json({ error: "Não foi possível criar a NF-e avulsa." });
+  }
+}
+
 interface EmitBody {
   recipient?: NfeRecipient;
   freight?: Partial<NfeFreight>;
