@@ -83,9 +83,6 @@ export default function NfeInvoicesTab() {
 
   return (
     <div className="space-y-3">
-      <Alert variant="info">
-        NF-e (modelo 55) é a nota de <b>mercadoria com destinatário identificado</b>. Use <b>Nova NF-e</b> para emitir direto daqui, ou o botão <b>Gerar NF-e</b> de um pedido em <b>Pedidos</b>. A NFC-e continua sendo a nota de balcão (consumidor final).
-      </Alert>
       {error && <Alert variant="error">{error}</Alert>}
 
       <div className="flex flex-wrap justify-end gap-2">
