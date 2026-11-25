@@ -2687,10 +2687,13 @@ export async function sendWhatsappDocument(
   fileName: string,
   caption?: string,
 ) {
-  const normalizedPhone = normalizePhone(number);
+  let normalizedPhone = normalizePhone(number);
   if (!normalizedPhone) {
     throw new Error("Informe um número de WhatsApp válido.");
   }
+  // Número digitado sem o DDI (DDD + 8/9 dígitos = 10 ou 11 dígitos): sem o 55 o WhatsApp lê o "1" do DDD como código dos EUA
+  // e a mensagem some sem erro. Quem já veio com 55 (12-13 dígitos) fica como está.
+  if (normalizedPhone.length === 10 || normalizedPhone.length === 11) normalizedPhone = `55${normalizedPhone}`;
   if (!base64) {
     throw new Error("Conteúdo do PDF é obrigatório.");
   }
