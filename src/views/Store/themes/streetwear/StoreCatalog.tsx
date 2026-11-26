@@ -1,67 +1,214 @@
-import { Search } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useCatalog } from "../street/kit";
-import { Empty, ProductCard, SortSelect } from "../street/shared";
+import { useKit, priceInfo, productImage } from "../street/kit";
+import type { Product } from "../../../../types";
 import "./styles.css";
 
 export default function StoreCatalog() {
-  const c = useCatalog(12);
-  const { tenant, sf, categories, active, hidden } = c;
-  const title = sf.catalog_title || "A coleção";
-  const desc = sf.catalog_description || "Streetwear, skate e peças para viver o seu ritmo.";
-  const current = categories.find((x) => x.id === c.cat);
-  const used = categories.filter((x) => active.some((p) => p.category_id === x.id));
+  const { tenant, active, categories, path, hidden, catName } = useKit();
+  const [params, setParams] = useSearchParams();
+
+  const queryParam = params.get("q") || "";
+  const catParam = params.get("categoria") ? Number(params.get("categoria")) : null;
+
+  const [search, setSearch] = useState(queryParam);
+  const [selectedCat, setSelectedCat] = useState<number | null>(catParam);
+  const [priceRange, setPriceRange] = useState<string>("todos");
+  const [sort, setSort] = useState<string>("featured");
+
+  const filtered = useMemo(() => {
+    let list = [...active];
+
+    // Categoria
+    if (selectedCat) {
+      list = list.filter((p) => p.category_id === selectedCat);
+    }
+
+    // Busca textual
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((p) => {
+        const name = p.name.toLowerCase();
+        const brand = (p.attributes?.find((a) => a.name.toLowerCase() === "marca")?.values?.[0] || "").toLowerCase();
+        const cat = catName(p).toLowerCase();
+        return name.includes(q) || brand.includes(q) || cat.includes(q);
+      });
+    }
+
+    // Faixa de preço
+    if (priceRange === "under150") {
+      list = list.filter((p) => Number(p.discount_price || p.price) <= 150);
+    } else if (priceRange === "150to350") {
+      list = list.filter((p) => {
+        const val = Number(p.discount_price || p.price);
+        return val > 150 && val <= 350;
+      });
+    } else if (priceRange === "above350") {
+      list = list.filter((p) => Number(p.discount_price || p.price) > 350);
+    }
+
+    // Ordenação
+    if (sort === "low") {
+      list.sort((a, b) => Number(a.discount_price || a.price) - Number(b.discount_price || b.price));
+    } else if (sort === "high") {
+      list.sort((a, b) => Number(b.discount_price || b.price) - Number(a.discount_price || a.price));
+    } else if (sort === "az") {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return list;
+  }, [active, selectedCat, search, priceRange, sort, catName]);
+
+  const handleCategorySelect = (id: number | null) => {
+    setSelectedCat(id);
+    if (id) {
+      setParams({ categoria: String(id) });
+    } else {
+      setParams({});
+    }
+  };
+
+  const renderProductCard = (p: Product) => {
+    const prices = priceInfo(p, hidden);
+    const img = productImage(p) || "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?w=600&q=85";
+    const brand = p.attributes?.find((a) => a.name.toLowerCase() === "marca")?.values?.[0] || catName(p) || "STREET";
+    const tag = p.is_featured ? "BEST SELLER" : prices.off ? "SALE" : null;
+
+    return (
+      <Link key={p.id} to={path(`/produto/${p.id}`)} className="rua-product">
+        <div className="rua-product-image">
+          <img loading="lazy" src={img} alt={p.name} />
+          {tag && <span className="rua-product-tag">{tag}</span>}
+          <div className="rua-product-quick">Ver detalhes ↗</div>
+        </div>
+        <div className="rua-product-brand">{brand}</div>
+        <div className="rua-product-name">{p.name}</div>
+        <div className="rua-price">
+          {prices.now}
+          {prices.old && <span className="rua-old-price">{prices.old}</span>}
+        </div>
+      </Link>
+    );
+  };
+
   return (
-    <div className="sw-page sw-catalog">
+    <div className="rua-root">
       <StoreSEO
-        title={`${current ? `${current.name} | ` : ""}${title} | ${tenant.name}`}
-        description={desc}
-        image={tenant.banner_url || tenant.logo_url}
+        title={`Shop / Catálogo | ${tenant.name || "RUA013"}`}
+        description="Todas as peças. Todas as vibes. Encontre seu próximo drop no corre streetwear e skate."
         url={typeof window !== "undefined" ? window.location.href : ""}
         siteName={tenant.name}
       />
-      <header className="sw-cat-head">
-        <div>
-          <span className="sw-mono">{String(c.list.length).padStart(2, "0")} itens</span>
-          <h1>{current ? current.name : title}</h1>
-          <p>{desc}</p>
-        </div>
-        <div className="sw-tools">
-          <label className="sw-find">
-            <Search size={18} aria-hidden="true" />
-            <input type="search" value={c.q} onChange={(e) => c.setParam("q", e.target.value)} placeholder="Buscar no catálogo" aria-label="Buscar no catálogo" />
-          </label>
-          <SortSelect t="sw" sort={c.sort} hidden={hidden} onChange={(v) => c.setParam("sort", v)} />
-        </div>
-      </header>
 
-      <div className="sw-catalog-filters">
-        <label className="sw-category-filter"><span>Categoria</span><select aria-label="Filtrar por categoria" value={c.cat || ""} onChange={e => c.setParam("categoria", e.target.value || null)}><option value="">Todas as peças</option>{used.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</select></label>
-        <span>{c.list.length} {c.list.length === 1 ? "peça" : "peças"}</span>
-        {(c.q || c.cat || c.sort !== "destaques") && <button type="button" onClick={c.clear}>Limpar filtros</button>}
+      {/* PAGE BANNER */}
+      <div className="rua-page-banner">
+        <div className="rua-container">
+          <span className="rua-eyebrow light">Escolha o seu próximo drop</span>
+          <h1 className="rua-headline">SHOP / {(tenant.name || "RUA013").toUpperCase()}.</h1>
+          <p>Todas as peças. Todas as vibes. Do seu jeito.</p>
+        </div>
       </div>
 
-      {c.list.length ? (
-        <>
-          <div className="sw-grid" role="status" aria-live="polite">
-            {c.shown.map((p) => (
-              <ProductCard key={p.id} product={p} t="sw" />
+      {/* CATALOG MAIN LAYOUT */}
+      <div className="rua-container rua-catalog-layout">
+        {/* SIDEBAR */}
+        <aside className="rua-sidebar">
+          <div className="rua-filter-group">
+            <h3>Buscar</h3>
+            <input
+              type="search"
+              placeholder="Produto ou marca..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="rua-search-input"
+            />
+          </div>
+
+          <div className="rua-filter-group">
+            <h3>Categorias</h3>
+            <button
+              type="button"
+              className={selectedCat === null ? "selected" : ""}
+              onClick={() => handleCategorySelect(null)}
+            >
+              Todos os produtos
+            </button>
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                className={selectedCat === c.id ? "selected" : ""}
+                onClick={() => handleCategorySelect(c.id)}
+              >
+                {c.name}
+              </button>
             ))}
           </div>
-          {c.hasMore && (
-            <div className="sw-more">
-              <button type="button" className="sw-btn sw-btn-solid sw-btn-lg" onClick={c.more}>
-                Carregar mais
-              </button>
-              <span>
-                {c.shown.length} de {c.list.length}
-              </span>
+
+          <div className="rua-filter-group">
+            <h3>Preço</h3>
+            <button
+              type="button"
+              className={priceRange === "todos" ? "selected" : ""}
+              onClick={() => setPriceRange("todos")}
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              className={priceRange === "under150" ? "selected" : ""}
+              onClick={() => setPriceRange("under150")}
+            >
+              Até R$ 150
+            </button>
+            <button
+              type="button"
+              className={priceRange === "150to350" ? "selected" : ""}
+              onClick={() => setPriceRange("150to350")}
+            >
+              R$ 150 a R$ 350
+            </button>
+            <button
+              type="button"
+              className={priceRange === "above350" ? "selected" : ""}
+              onClick={() => setPriceRange("above350")}
+            >
+              Acima de R$ 350
+            </button>
+          </div>
+        </aside>
+
+        {/* PRODUCTS AREA */}
+        <div>
+          <div className="rua-catalog-toolbar">
+            <span>
+              {filtered.length} {filtered.length === 1 ? "produto encontrado" : "produtos encontrados"}
+            </span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              aria-label="Ordenar produtos"
+            >
+              <option value="featured">Destaques</option>
+              <option value="low">Menor preço</option>
+              <option value="high">Maior preço</option>
+              <option value="az">Nome A–Z</option>
+            </select>
+          </div>
+
+          {filtered.length > 0 ? (
+            <div className="rua-product-grid rua-catalog-products">
+              {filtered.map(renderProductCard)}
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "80px 20px", color: "var(--rua-muted)" }}>
+              <p style={{ fontSize: 16, fontWeight: 700, color: "var(--rua-ink)" }}>Nenhum produto encontrado.</p>
+              <p style={{ fontSize: 13, marginTop: 6 }}>Tente remover filtros ou pesquisar com outros termos.</p>
             </div>
           )}
-        </>
-      ) : (
-        <Empty t="sw" title={active.length ? "Nada encontrado" : "Em breve"} text={active.length ? "Tente outro termo ou outra categoria." : "Estamos montando o catálogo."} onClear={active.length ? c.clear : undefined} />
-      )}
+        </div>
+      </div>
     </div>
   );
 }

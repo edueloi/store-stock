@@ -1,39 +1,239 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, Search, ShoppingBag, X } from "lucide-react";
-import SiteFooter from "../street/SiteFooter";
-import { useHeaderState } from "../street/shared";
+import { useKit } from "../street/kit";
 import "./styles.css";
 
 export function Header() {
-  const h = useHeaderState();
-  const { search } = useLocation();
-  const [searching, setSearching] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => setSearching(false), [h.pathname, search]);
+  const { tenant, path, cartCount, openCart } = useKit();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
   useEffect(() => {
-    if (searching) input.current?.focus();
-    const close = (e: KeyboardEvent) => { if (e.key === "Escape") { setSearching(false); h.setMenu(false); } };
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
-  }, [searching, h.setMenu]);
-  const nav = [
-    { name: "Início", to: h.path(), on: !/catalogo|sobre|produto/.test(h.pathname) },
-    { name: "A coleção", to: h.path("/catalogo"), on: /catalogo|produto/.test(h.pathname) },
-    { name: "Nossa essência", to: h.path("/sobre"), on: /sobre/.test(h.pathname) },
+    setMenuOpen(false);
+    setSearchOpen(false);
+  }, [pathname]);
+
+  const navLinks = [
+    { label: "Início", to: path() },
+    { label: "Shop", to: path("/catalogo") },
+    { label: "Nossa rua", to: path("/sobre") },
   ];
-  return <header className="sw-header">
-    <div className="sw-top">
-      <button type="button" className="sw-iconbtn sw-burger" aria-label={h.menu ? "Fechar menu" : "Abrir menu"} aria-expanded={h.menu} onClick={() => h.setMenu(!h.menu)}>{h.menu ? <X size={21} /> : <Menu size={21} />}</button>
-      <Link className="sw-brand" to={h.path()} aria-label={`${h.tenant.name} - página inicial`}>{h.tenant.logo_url && <img src={h.tenant.logo_url} alt="" />}<span>{h.tenant.name}</span></Link>
-      <nav className="sw-nav" aria-label="Navegação principal">{nav.map(l => <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>)}</nav>
-      <div className="sw-header-actions"><button type="button" className="sw-iconbtn" aria-label="Buscar produtos" aria-expanded={searching} onClick={() => setSearching(!searching)}>{searching ? <X size={20} /> : <Search size={20} />}</button><button type="button" className="sw-cart" aria-label={`Abrir sacola, ${h.cartCount} ${h.cartCount === 1 ? "item" : "itens"}`} onClick={h.openCart}><ShoppingBag size={20} /><span className="sw-cart-label">Sacola</span><span className="sw-cart-count">{h.cartCount}</span></button></div>
-    </div>
-    {searching && <form className="sw-search" role="search" onSubmit={h.submit}><Search size={19} aria-hidden="true" /><input ref={input} type="search" value={h.term} onChange={e => h.setTerm(e.target.value)} placeholder="O que você procura?" aria-label="Buscar produtos" /><button type="submit">Buscar</button></form>}
-    {h.menu && <div className="sw-drawer" role="dialog" aria-label="Menu da loja" aria-modal="true"><button type="button" className="sw-drawer-bg" aria-label="Fechar menu" onClick={() => h.setMenu(false)} /><div className="sw-drawer-panel"><div className="sw-drawer-top"><strong>{h.tenant.name}</strong><button type="button" className="sw-iconbtn" aria-label="Fechar menu" onClick={() => h.setMenu(false)}><X size={21} /></button></div><nav className="sw-drawer-nav" aria-label="Menu móvel">{nav.map(l => <Link key={l.to} to={l.to} aria-current={l.on ? "page" : undefined}>{l.name}</Link>)}</nav></div></div>}
-  </header>;
+
+  const isActive = (to: string) => {
+    if (to === path()) return pathname === path() || pathname === `${path()}/`;
+    return pathname.startsWith(to);
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      navigate(path(`/catalogo?q=${encodeURIComponent(searchTerm.trim())}`));
+      setSearchOpen(false);
+      setSearchTerm("");
+    }
+  };
+
+  const announcementText =
+    tenant.policies?.storefront?.hero_tagline ||
+    "Frete grátis nas compras acima de R$ 299 · Streetwear de verdade";
+
+  return (
+    <>
+      <div className="rua-announcement">{announcementText}</div>
+      <header className="rua-header">
+        <div className="rua-header-inner">
+          <button
+            type="button"
+            className="rua-icon-btn rua-mobile-menu-btn"
+            aria-label={menuOpen ? "Fechar menu" : "Abrir menu"}
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            {menuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+
+          <Link to={path()} className="rua-logo" aria-label={`${tenant.name} - Início`}>
+            {tenant.logo_url ? (
+              <img src={tenant.logo_url} alt={tenant.name} />
+            ) : (
+              <>
+                {tenant.name ? (
+                  <>
+                    {tenant.name.toUpperCase()}
+                    <span>.</span>
+                  </>
+                ) : (
+                  <>
+                    RUA<span>013</span>.
+                  </>
+                )}
+              </>
+            )}
+          </Link>
+
+          <nav className="rua-nav" aria-label="Navegação principal">
+            {navLinks.map((link) => (
+              <Link
+                key={link.label}
+                to={link.to}
+                className={isActive(link.to) ? "active" : ""}
+                aria-current={isActive(link.to) ? "page" : undefined}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+
+          <div className="rua-tools">
+            <button
+              type="button"
+              className="rua-icon-btn"
+              aria-label="Buscar produtos"
+              onClick={() => setSearchOpen(!searchOpen)}
+            >
+              <Search size={22} />
+            </button>
+            <button
+              type="button"
+              className="rua-icon-btn"
+              aria-label={`Abrir carrinho com ${cartCount} itens`}
+              onClick={openCart}
+            >
+              <ShoppingBag size={22} />
+              <span className="rua-count">{cartCount}</span>
+            </button>
+          </div>
+        </div>
+
+        {searchOpen && (
+          <div className="rua-container" style={{ paddingBottom: 16 }}>
+            <form onSubmit={handleSearchSubmit} style={{ display: "flex", gap: 8 }}>
+              <input
+                type="search"
+                autoFocus
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por produto, marca ou estilo..."
+                className="rua-search-input"
+                style={{ marginBottom: 0 }}
+              />
+              <button type="submit" className="rua-btn" style={{ padding: "12px 20px" }}>
+                Buscar
+              </button>
+            </form>
+          </div>
+        )}
+
+        {menuOpen && (
+          <nav className="rua-mobile-nav" aria-label="Menu mobile">
+            {navLinks.map((link) => (
+              <Link
+                key={link.label}
+                to={link.to}
+                onClick={() => setMenuOpen(false)}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        )}
+      </header>
+    </>
+  );
 }
 
 export function Footer() {
-  return <SiteFooter t="sw" showCategories={false} tagline="Streetwear e skate fazem parte de um jeito livre de viver. Reunimos camisetas, calçados e peças versáteis para o seu dia a dia, com espaço para a sua personalidade e para os caminhos que você escolher." />;
+  const { tenant, path } = useKit();
+  const [subscribed, setSubscribed] = useState(false);
+
+  const handleSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubscribed(true);
+    setTimeout(() => setSubscribed(false), 4000);
+  };
+
+  return (
+    <>
+      <section className="rua-newsletter">
+        <div className="rua-container inner">
+          <div>
+            <div className="rua-eyebrow" style={{ color: "#141414" }}>Não perde o próximo drop</div>
+            <h2>ENTRA PRA CREW.</h2>
+          </div>
+          <form className="rua-newsletter-form" onSubmit={handleSubscribe}>
+            <input
+              type="email"
+              required
+              placeholder="Seu melhor e-mail"
+              aria-label="Seu e-mail"
+            />
+            <button type="submit">
+              {subscribed ? "INSCRITO! ↗" : "ME INSCREVER ↗"}
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <footer className="rua-footer">
+        <div className="rua-container">
+          <div className="rua-footer-grid">
+            <div>
+              <Link to={path()} className="rua-logo" style={{ color: "white" }}>
+                {tenant.logo_url ? (
+                  <img src={tenant.logo_url} alt={tenant.name} style={{ filter: "brightness(0) invert(1)" }} />
+                ) : (
+                  <>
+                    {(tenant.name || "RUA013").toUpperCase()}
+                    <span style={{ color: "var(--rua-acid)" }}>.</span>
+                  </>
+                )}
+              </Link>
+              <p style={{ marginTop: 20, maxWidth: 280 }}>
+                {tenant.about_text || "Na pista, na calçada, no corre. Streetwear e skate são parte da nossa história."}
+              </p>
+            </div>
+
+            <div>
+              <h4>Navegação</h4>
+              <Link to={path()}>Início</Link>
+              <Link to={path("/catalogo")}>Shop / Catálogo</Link>
+              <Link to={path("/sobre")}>Nossa rua / Sobre</Link>
+            </div>
+
+            <div>
+              <h4>Atendimento</h4>
+              {tenant.whatsapp && (
+                <a
+                  href={`https://wa.me/${tenant.whatsapp.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  WhatsApp: {tenant.whatsapp}
+                </a>
+              )}
+              {tenant.email && <a href={`mailto:${tenant.email}`}>{tenant.email}</a>}
+              <Link to={path("/sobre")}>Trocas e devoluções</Link>
+            </div>
+
+            <div>
+              <h4>Seu corre começa aqui</h4>
+              <p>
+                {tenant.address_city && tenant.address_state
+                  ? `${tenant.address_city} - ${tenant.address_state}`
+                  : "Entregamos para todo o Brasil com estilo e atitude."}
+              </p>
+            </div>
+          </div>
+
+          <div className="rua-footer-bottom">
+            <span>© {new Date().getFullYear()} {tenant.name || "RUA013"}. Streetwear & Skate Shop.</span>
+            <span>Todos os direitos reservados.</span>
+          </div>
+        </div>
+      </footer>
+    </>
+  );
 }

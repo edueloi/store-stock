@@ -1,20 +1,77 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, MapPin, MessageCircle } from "lucide-react";
 import StoreSEO from "../../../../components/store/StoreSEO";
-import { useKit, whatsappLink } from "../street/kit";
+import { useKit } from "../street/kit";
 import "./styles.css";
 
 export default function StoreAbout() {
-  const { tenant, path, sf } = useKit();
-  const about = tenant.about_text || "Streetwear e skate fazem parte de um jeito livre de viver. Reunimos camisetas, calçados e peças versáteis para o seu dia a dia, com espaço para a sua personalidade e para os caminhos que você escolher.";
-  const wa = whatsappLink(tenant.whatsapp, `Olá! Vim pela loja ${tenant.name}.`);
-  const image = tenant.banner_url || "/store-assets/streetwear-editorial-hero-v1.jpg";
-  return <div className="sw-page sw-about">
-    <StoreSEO title={`${sf.about_title || "Nossa essência"} | ${tenant.name}`} description={about} image={image} url={typeof window !== "undefined" ? window.location.href : ""} siteName={tenant.name} />
-    <div className="sw-about-grid">
-      <div className="sw-about-image"><img className={tenant.banner_url ? "" : "sw-hero-default"} src={image} alt={`A essência da ${tenant.name}`} /></div>
-      <article className="sw-about-copy"><span className="sw-kicker">NOSSA ESSÊNCIA</span><h1>{sf.about_title || "Feito para acompanhar você."}</h1><p>{about}</p><div className="sw-about-actions"><Link className="sw-btn sw-btn-solid sw-btn-lg" to={path("/catalogo")}>Conhecer a coleção <ArrowRight size={17} /></Link>{wa && <a className="sw-btn sw-btn-line sw-btn-lg" href={wa} target="_blank" rel="noreferrer"><MessageCircle size={17} /> Fale com a loja</a>}</div>{tenant.show_address && tenant.address && <p className="sw-about-addr"><MapPin size={17} />{tenant.address}</p>}</article>
+  const { tenant, path } = useKit();
+
+  return (
+    <div className="rua-root">
+      <StoreSEO
+        title={`Nossa rua / Sobre nós | ${tenant.name || "RUA013"}`}
+        description={tenant.about_text || "A RUA013 nasceu na cultura urbana e skate. Conheça nossa essência e nosso corre."}
+        url={typeof window !== "undefined" ? window.location.href : ""}
+        siteName={tenant.name}
+      />
+
+      {/* PAGE BANNER */}
+      <div className="rua-page-banner">
+        <div className="rua-container">
+          <div className="rua-eyebrow light">Do asfalto pra vida</div>
+          <h1 className="rua-headline">
+            NOSSA RUA.<br />
+            NOSSA HISTÓRIA.
+          </h1>
+          <p>Criado na cultura, movido pela atitude.</p>
+        </div>
+      </div>
+
+      {/* ABOUT GRID */}
+      <div className="rua-container rua-about-grid">
+        <img
+          src="https://images.unsplash.com/photo-1572618047447-4e753d6e3e9c?w=1000&q=85"
+          alt="Cultura skateboard"
+        />
+        <div>
+          <div className="rua-eyebrow">Quem somos</div>
+          <h2 className="rua-headline">
+            NÃO É SÓ<br />
+            ROUPA.
+          </h2>
+          <p>
+            {tenant.about_text ||
+              `A ${tenant.name || "RUA013"} foi criada para quem vive e respira a cultura urbana e skate. Nossa inspiração está nas pistas, nos muros, na música e nas pessoas que fazem a cultura de rua acontecer.`}
+          </p>
+          <p>
+            Acreditamos na liberdade de expressão, na autenticidade e na conexão entre quem compartilha o mesmo corre. Uma loja com curadoria de tênis, roupas, skate e acessórios para todas as jornadas.
+          </p>
+          <Link to={path("/catalogo")} className="rua-btn dark" style={{ marginTop: 16 }}>
+            Conheça a loja ↗
+          </Link>
+        </div>
+      </div>
+
+      {/* VALUES */}
+      <div className="rua-container" style={{ paddingBottom: 90 }}>
+        <div className="rua-values">
+          <div className="rua-value">
+            <div className="rua-eyebrow">01 / Essência</div>
+            <h3>A RUA ENSINA.</h3>
+            <p>Inspirados no skate, na música, na arte e no movimento urbano.</p>
+          </div>
+          <div className="rua-value">
+            <div className="rua-eyebrow">02 / Expressão</div>
+            <h3>SEM PADRÃO.</h3>
+            <p>O estilo é seu. A regra é expressar sua identidade.</p>
+          </div>
+          <div className="rua-value">
+            <div className="rua-eyebrow">03 / Comunidade</div>
+            <h3>TODO MUNDO NO CORRE.</h3>
+            <p>Uma plataforma para reunir produtos e a comunidade que faz a cultura acontecer.</p>
+          </div>
+        </div>
+      </div>
     </div>
-    <section className="sw-policies">{[["Entrega", tenant.policies?.shipping], ["Trocas e devoluções", tenant.policies?.returns], ["Trocas", tenant.policies?.exchange]].filter(([, text]) => text).map(([title, text]) => <article key={title}><h2>{title}</h2><p>{text}</p></article>)}</section>
-  </div>;
+  );
 }

@@ -157,9 +157,111 @@
 }
 .store-theme-vidracaria .fragrance-cart-drawer input:focus,
 .store-theme-vidracaria .fragrance-cart-drawer select:focus,
-.store-theme-vidracaria .fragrance-cart-drawer textarea:focus {
-  border-color: #ad7d51 !important;
+
+/* ── STREETWEAR (RUA 013) CART ── */
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-drawer {
+  background: #fffefa !important;
+  color: #141414 !important;
+  border-left: 1px solid #d8d8d3 !important;
+  font-family: 'DM Sans', sans-serif !important;
+  max-width: min(100%, 460px) !important;
 }
-
-
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-head {
+  background: #fffefa !important;
+  border-bottom: 1px solid #d8d8d3 !important;
+  padding: 22px 24px !important;
+  height: auto !important;
+  min-height: 75px !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-head :is(h3, p, span) {
+  color: #141414 !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-head h3 {
+  font-family: 'Archivo Black', Impact, sans-serif !important;
+  font-size: 1.25rem !important;
+  letter-spacing: -1px !important;
+  text-transform: uppercase !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-head button {
+  background: #141414 !important;
+  color: #fff !important;
+  border-radius: 50% !important;
+  border: none !important;
+  transition: all 0.2s !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-head button:hover {
+  background: #d8ff36 !important;
+  color: #141414 !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-content {
+  background: #fffefa !important;
+  padding: 20px 24px !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-item {
+  background: #ffffff !important;
+  border: 1px solid #d8d8d3 !important;
+  border-radius: 0 !important;
+  padding: 14px !important;
+  box-shadow: none !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-item img {
+  border-radius: 0 !important;
+  background: #eee !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-item h4 {
+  font-weight: 800 !important;
+  color: #141414 !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-item p {
+  color: #6c6c67 !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-total {
+  background: #fffefa !important;
+  border-top: 1px solid #d8d8d3 !important;
+  padding: 22px 24px !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-total p,
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-total span {
+  color: #6c6c67 !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-total .font-mono,
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-total strong {
+  font-family: 'Archivo Black', Impact, sans-serif !important;
+  color: #141414 !important;
+  font-size: 1.35rem !important;
+  letter-spacing: -0.5px !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-total > button,
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-drawer button.w-full {
+  background: #d8ff36 !important;
+  color: #111111 !important;
+  font-weight: 800 !important;
+  font-size: 0.82rem !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  border-radius: 0 !important;
+  border: 2px solid #d8ff36 !important;
+  box-shadow: none !important;
+  transition: all 0.2s !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-total > button:hover,
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-drawer button.w-full:hover {
+  background: #cbf528 !important;
+  border-color: #cbf528 !important;
+  transform: translateY(-2px) !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-drawer input,
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-drawer select,
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-drawer textarea {
+  background: #ffffff !important;
+  border: 1px solid #d8d8d3 !important;
+  color: #141414 !important;
+  border-radius: 0 !important;
+}
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-drawer input:focus,
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-drawer select:focus,
+:is(.store-theme-streetwear, .store-theme-street) .fragrance-cart-drawer textarea:focus {
+  border-color: #141414 !important;
+  outline: 2px solid #d8ff36 !important;
+}
 
