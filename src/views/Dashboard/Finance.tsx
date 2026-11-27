@@ -750,6 +750,8 @@ export default function Finance() {
   const [preset, setPreset] = useState<Preset>("month");
   // current month navigation
   const nowRef = new Date();
+  // data de hoje (fuso local) no formato AAAA-MM-DD, igual ao dos campos de data
+  const todayIso = `${nowRef.getFullYear()}-${String(nowRef.getMonth() + 1).padStart(2, "0")}-${String(nowRef.getDate()).padStart(2, "0")}`;
   const [navYear, setNavYear]   = useState(nowRef.getFullYear());
   const [navMonth, setNavMonth] = useState(nowRef.getMonth()); // 0-based
   const [dateFrom, setDateFrom] = useState(() => monthRange(nowRef.getFullYear(), nowRef.getMonth()).from);
@@ -1244,11 +1246,21 @@ export default function Finance() {
                 />
               </div>
 
+              {/* Hoje: só os lançamentos do dia de hoje */}
+              <Button
+                size="sm"
+                variant={preset === "custom" && dateFrom === todayIso && dateTo === todayIso ? "primary" : "outline"}
+                onClick={() => { setPreset("custom"); setDateFrom(todayIso); setDateTo(todayIso); }}
+                className="flex-1 sm:flex-none"
+              >
+                Hoje
+              </Button>
+
               {/* Custom range toggle */}
               <Button
                 size="sm"
-                variant={preset === "custom" ? "primary" : "outline"}
-                onClick={() => setPreset(preset === "custom" ? "month" : "custom")}
+                variant={preset === "custom" && !(dateFrom === todayIso && dateTo === todayIso) ? "primary" : "outline"}
+                onClick={() => setPreset(preset === "custom" && !(dateFrom === todayIso && dateTo === todayIso) ? "month" : "custom")}
                 iconLeft={<Calendar size={14} />}
                 className="flex-1 sm:flex-none"
               >
